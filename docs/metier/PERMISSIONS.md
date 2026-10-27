@@ -21,9 +21,18 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Gérer comptes et habilitations | Non | Non | Si A | Non | Oui |
 | Autoriser support temporaire | Non | Non | Si A | Non | Oui |
 
-## Compléments proposés
-Seuls les acteurs autorisés voient contacts publics et justificatifs ; proposition : R/D et technicien affecté pour le contact, R/D pour justificatifs financiers. Lecture des indicateurs financiers par pasteurs à arbitrer.
-Gestion des grilles, inventaires et plans : proposer R/D en écriture, techniciens en évaluation ; administration des paramètres sensibles limitée à A et compétences explicitement attribuées.
+## Décisions DEC-04 — V, 27 octobre 2026 (porteur du projet)
+| Donnée ou action | Lecture | Écriture |
+| --- | --- | --- |
+| Nom et contact du déclarant public | Tous les comptes internes habilités sur le site du dossier (T, R/D, P/C) | Saisie par le déclarant ; correction par R/D |
+| Montants : estimations, dépenses, enveloppes, soldes | R/D, P/C des sites autorisés | R/D selon délégation |
+| Estimation d’un dossier affecté | Technicien affecté, pour ce dossier uniquement ; jamais enveloppes, soldes ni dépenses | Technicien affecté (correction de proposition) ; validation par R/D |
+| Justificatifs financiers (factures, devis, décisions finance) | R/D, P/C des sites autorisés | R/D |
+| Inventaire (bâtiments, niveaux, zones, composants, lots) | Comptes internes du site | R/D ; techniciens du site (ajout et correction tracés) |
+| Grilles d’évaluation | Comptes internes du site | R/D ; chaque modification crée une version |
+| Plans 2D | Comptes internes du site | R/D ; droit attribuable nominativement par A ; chaque modification crée une version |
+
+Conséquence : les contacts des déclarants sont visibles par un cercle plus large que la proposition initiale ; à reprendre dans l’inventaire des données (SECURITE) et DEC-07. Administration des paramètres sensibles limitée à A et aux compétences explicitement attribuées.
 
 ## Tests transversaux
 Tester chaque permission côté serveur, sur listes, fiches, pièces jointes, exports, notifications et téléchargements hors connexion. Une URL connue n’accorde aucun droit. Le support doit satisfaire l’autorisation temporaire en plus de son rôle plateforme.
