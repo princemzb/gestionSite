@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GestionSite.Modules.Plateforme</name>
+    </assembly>
+    <members>
+        <member name="T:GestionSite.Modules.Plateforme.PlateformeModule">
+            <summary>
+            Point d'entrée du module Plateforme : organisations clientes, abonnements et autorisations de support.
+            Les autres modules n'y accèdent que par ses opérations publiques (ARCHITECTURE.md).
+            </summary>
+        </member>
+    </members>
+</doc>

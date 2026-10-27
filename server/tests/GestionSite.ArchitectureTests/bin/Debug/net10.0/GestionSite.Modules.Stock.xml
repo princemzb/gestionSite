@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GestionSite.Modules.Stock</name>
+    </assembly>
+    <members>
+        <member name="T:GestionSite.Modules.Stock.StockModule">
+            <summary>
+            Point d'entrée du module Stock : articles, mouvements immuables et transferts entre sites.
+            Les autres modules n'y accèdent que par ses opérations publiques (ARCHITECTURE.md).
+            </summary>
+        </member>
+    </members>
+</doc>

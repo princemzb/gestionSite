@@ -2,6 +2,7 @@
 Version 0.2 — 27 octobre 2026. Responsable de consolidation : assistant en rôles BA, architecte et tech lead ; validation métier : responsable logistique ; validation technique finale : tech lead de réalisation.
 
 ## Lire le dossier
+- [État courant et journal de reprise](pilotage/ETAT.md) : à lire en premier.
 - [PRD](PRD.md) : besoin et décisions prises.
 - [Vision et gouvernance](produit/VISION.md) : objectifs, responsabilités et changements.
 - [Glossaire et données métier](metier/GLOSSAIRE-DONNEES.md).

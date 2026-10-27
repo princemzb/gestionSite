@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GestionSite.ArchitectureTests</name>
+    </assembly>
+    <members>
+        <member name="T:GestionSite.ArchitectureTests.ModuleBoundaryTests">
+            <summary>
+            Frontières du monolithe modulaire (ADR-01, ARCHITECTURE.md) : un module n'accède à un autre
+            que par ses contrats publics (GestionSite.Modules.Y.Contracts) ou le noyau partagé ; jamais à
+            son implémentation, ni à l'API ou à un autre hôte. Seule l'API assemble les modules.
+            </summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.ModuleBoundaryTests.CompiledModuleUsesNoOtherImplementationEvenIndirectly(System.String)">
+            <summary>
+            Complète les contrôles de fichiers projet sur les assemblages compilés : détecte une dépendance
+            réellement utilisée, quelle que soit la manière dont elle a été déclarée.
+            </summary>
+        </member>
+        <member name="T:GestionSite.ArchitectureTests.SolutionLayout">
+            <summary>
+            Découverte des projets à partir des sources, pour qu'un nouveau module ou sous-projet soit
+            contrôlé sans modifier les tests. Un module X regroupe GestionSite.Modules.X (point d'entrée
+            assemblé par l'API) et ses éventuels sous-projets GestionSite.Modules.X.* ; ses contrats
+            publics sont GestionSite.Modules.X.Contracts.
+            </summary>
+        </member>
+        <member name="P:GestionSite.ArchitectureTests.SolutionLayout.SourceProjects">
+            <summary>Tous les projets de src/, triés par nom.</summary>
+        </member>
+        <member name="P:GestionSite.ArchitectureTests.SolutionLayout.ModuleEntries">
+            <summary>Points d'entrée des modules : GestionSite.Modules.X, un par module.</summary>
+        </member>
+        <member name="P:GestionSite.ArchitectureTests.SolutionLayout.Hosts">
+            <summary>Projets ni module ni contrat ni noyau : hôtes (API, futur web, tâches différées…).</summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.SolutionLayout.ModuleOf(System.String)">
+            <summary>Nom du module (X) d'un projet GestionSite.Modules.X[.…], sinon null.</summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.SolutionLayout.ImplementationMayReference(System.String,System.String)">
+            <summary>
+            Une implémentation du module X peut dépendre des projets de X, des contrats des autres modules
+            et du noyau partagé ; jamais d'une autre implémentation, de l'API ou d'un autre hôte.
+            </summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.SolutionLayout.SharedMayReference(System.String,System.String)">
+            <summary>Les contrats ne dépendent que du noyau partagé ; le noyau ne dépend d'aucun projet.</summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.SolutionLayout.ProjectReferences(System.IO.FileInfo)">
+            <summary>Références de projet déclarées (attributs Include, listes séparées par « ; » comprises).</summary>
+        </member>
+        <member name="M:GestionSite.ArchitectureTests.SolutionLayout.TransitiveSolutionReferences(System.Reflection.Assembly)">
+            <summary>Assemblages GestionSite.* atteints transitivement depuis <paramref name="start"/>.</summary>
+        </member>
+    </members>
+</doc>
