@@ -39,7 +39,6 @@ internal static class InfrastructureServices
         }
 
         // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
-        services.AddSingleton<SchemaHealthCheck>(); // singleton : mémorise le schéma à jour
         services.AddHealthChecks()
             .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
             .AddCheck<SchemaHealthCheck>("schema-a-jour", tags: [ReadyTag], timeout: CheckTimeout)

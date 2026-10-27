@@ -5,7 +5,8 @@ using Microsoft.Extensions.Options;
 namespace GestionSite.Api.Tests;
 
 /// <summary>Disponibilité (/health/ready) contre de vrais PostgreSQL et stockage S3.</summary>
-public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+[Collection(SharedInfrastructure.Name)]
+public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
 {
     [Fact]
     public async Task ReadyWhenDatabaseAndStorageAreReachable()
@@ -22,7 +23,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     public async Task NotReadyWhileMigrationsArePending()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(connectionString: database.ConnectionString, migrate: false);
+        await using var factory = infrastructure.CreateApi(connectionString: database.ConnectionString, migrateOnStartup: "false");
 
         var (status, body) = await GetReadyAsync(factory);
 
@@ -33,7 +34,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task StartupFailsWithAnInvalidMigrationSetting()
     {
-        await using var factory = infrastructure.CreateApi().WithWebHostBuilder(b => b.UseSetting("Database:MigrateOnStartup", "1"));
+        await using var factory = infrastructure.CreateApi(migrateOnStartup: "1");
 
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         Assert.Contains("Database:MigrateOnStartup", exception.Message, StringComparison.Ordinal);
@@ -42,7 +43,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task NotReadyWhenDatabaseIsUnreachable()
     {
-        await using var factory = infrastructure.CreateApi(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrate: false);
+        await using var factory = infrastructure.CreateApi(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrateOnStartup: "false");
 
         var (status, body) = await GetReadyAsync(factory);
 

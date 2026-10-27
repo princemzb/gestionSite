@@ -9,22 +9,24 @@ internal sealed class TestDatabase : IAsyncDisposable
     private readonly string _name;
     private readonly NpgsqlDataSource _dataSource;
 
-    private TestDatabase(string serverConnectionString, string name)
+    private TestDatabase(string serverConnectionString, string name, string connectionString)
     {
         _serverConnectionString = serverConnectionString;
         _name = name;
-        ConnectionString = new NpgsqlConnectionStringBuilder(serverConnectionString) { Database = name }.ConnectionString;
-        _dataSource = NpgsqlDataSource.Create(ConnectionString); // n'ouvre aucune connexion à la création
+        ConnectionString = connectionString;
+        _dataSource = NpgsqlDataSource.Create(connectionString);
     }
 
     internal string ConnectionString { get; }
 
-
     internal static async Task<TestDatabase> CreateAsync(string serverConnectionString)
     {
-        var database = new TestDatabase(serverConnectionString, $"test_{Guid.NewGuid():N}");
-        await database.ExecuteOnServerAsync($"CREATE DATABASE {database.QuotedName}").ConfigureAwait(false);
-        return database;
+        var name = $"test_{Guid.NewGuid():N}";
+        await ExecuteOnServerAsync(serverConnectionString, $"CREATE DATABASE {Quote(name)}").ConfigureAwait(false);
+
+        // Source de données créée seulement une fois la base existante : rien à libérer si CREATE échoue.
+        var connectionString = new NpgsqlConnectionStringBuilder(serverConnectionString) { Database = name }.ConnectionString;
+        return new TestDatabase(serverConnectionString, name, connectionString);
     }
 
     internal async Task<long> CountAsync(string sql, params (string Name, object Value)[] parameters)
@@ -50,16 +52,22 @@ internal sealed class TestDatabase : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _dataSource.DisposeAsync().ConfigureAwait(false);
-        await ExecuteOnServerAsync($"DROP DATABASE IF EXISTS {QuotedName} WITH (FORCE)").ConfigureAwait(false);
+        try
+        {
+            await _dataSource.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            await ExecuteOnServerAsync(_serverConnectionString, $"DROP DATABASE IF EXISTS {Quote(_name)} WITH (FORCE)").ConfigureAwait(false);
+        }
     }
 
     // Nom généré localement (préfixe + GUID hexadécimal) puis cité : jamais de donnée externe.
-    private string QuotedName => $"\"{_name}\"";
+    private static string Quote(string name) => $"\"{name}\"";
 
-    private async Task ExecuteOnServerAsync(string sql)
+    private static async Task ExecuteOnServerAsync(string serverConnectionString, string sql)
     {
-        await using var connection = new NpgsqlConnection(_serverConnectionString);
+        await using var connection = new NpgsqlConnection(serverConnectionString);
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
