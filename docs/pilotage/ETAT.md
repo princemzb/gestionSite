@@ -19,7 +19,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | Élément | État | Prochaine action |
 | --- | --- | --- |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
-| Maquettes (carte UX-01) | Charte validée (docs/ux/CHARTE.md). Parcours du 1er incrément maquetté en Jour et Nuit (Réglages tablette avec bascule de thème, file de qualification web, dossier web, clôture d'intervention tablette) sur le canevas https://claude.ai/artifact/MMmTWs6J8aH8wKroDG6PQn — **en attente de validation** | **ARRÊT** : ne coder aucun écran avant la validation de ces 8 maquettes ; ensuite US-06 (comptes et droits) ou POC hors connexion selon le porteur. |
+| Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
@@ -69,3 +69,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 27/10/2026 | 2e série de maquettes (charte du site de référence + 3 versions), en attente de validation | canevas Design |
 | 27/10/2026 | Charte validée : V1 Jour (défaut) + V2 Nuit, bascule utilisateur | docs/ux/CHARTE.md |
 | 28/10/2026 | Parcours 1er incrément maquetté en Jour et Nuit (8 écrans), en attente de validation | canevas Design |
+| 28/10/2026 | Maquettes du parcours du 1er incrément validées par le porteur | docs/ux/CHARTE.md |

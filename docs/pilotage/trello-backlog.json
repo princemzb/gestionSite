@@ -1935,7 +1935,7 @@
     },
     {
       "id": "UX-01",
-      "name": "[UX-01] Charte graphique et maquettes des écrans de référence",
+      "name": "[UX-01] Charte graphique et maquettes du parcours du 1er incrément",
       "type": "preparation",
       "list": "En cours",
       "labels": [
@@ -1957,7 +1957,7 @@
       "dependencies": [],
       "acceptanceCriteria": [
         "Charte validée par le porteur (fait : V1 Jour + V2 Nuit, docs/ux/CHARTE.md).",
-        "Écrans UI-01 à UI-12 maquettés dans les deux thèmes et validés par le porteur avant tout code d'écran."
+        "Parcours du 1er incrément (réglages, qualification, dossier, clôture) maquetté en Jour et Nuit et validé (fait le 28/10). Les autres écrans sont maquettés avec leurs US."
       ],
       "trelloId": "6ae0f3b0a4704a0077a82f99",
       "trelloShortLink": "HkoucZeh"
