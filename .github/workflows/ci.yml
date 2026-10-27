@@ -86,7 +86,7 @@ jobs:
             /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
             /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml"
-          pip install --quiet coverage==7.6.10
+          pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
           dotnet build server/GestionSite.slnx --configuration Release
