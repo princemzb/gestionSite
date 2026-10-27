@@ -55,7 +55,8 @@ jobs:
     steps:
       - name: Jeton Sonar absent
         if: env.SONAR_TOKEN == ''
-        run: echo "::warning::SONAR_TOKEN non configuré : analyse Sonar non exécutée (voir docs/dev/GUIDE.md)."
+        run: |
+          echo "::warning::SONAR_TOKEN non configuré, analyse Sonar non exécutée (voir docs/dev/GUIDE.md)."
       - uses: actions/checkout@v4
         if: env.SONAR_TOKEN != ''
         with:
