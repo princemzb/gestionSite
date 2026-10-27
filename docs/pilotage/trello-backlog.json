@@ -1,0 +1,1679 @@
+{
+  "schemaVersion": "0.1",
+  "generatedAt": "2026-10-27",
+  "status": "prepared_not_published",
+  "formatNotice": "Format neutre ; nécessite un script ou connecteur adapté, pas un import Trello natif.",
+  "boardName": "Patrimoine Églises — Produit & Livraison",
+  "lists": [
+    "À affiner",
+    "Prêt",
+    "Sprint sélectionné",
+    "En cours",
+    "Bloqué",
+    "Revue",
+    "Recette",
+    "Prêt à livrer",
+    "Livré"
+  ],
+  "cards": [
+    {
+      "id": "US-01",
+      "name": "[US-01] Cadrer les règles et la recette",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "BA"
+      ],
+      "lot": "L01",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 4,
+        "high": 7,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [],
+      "rules": [
+        "RG-01",
+        "RG-11",
+        "RG-16"
+      ],
+      "testSuites": [
+        "T-01",
+        "T-05"
+      ],
+      "acceptanceCriteria": [
+        "Faire approuver DEC-01 à DEC-05 et les états ; publier les versions des règles et leurs cas de test."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-01. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-02",
+      "name": "[US-02] POC localisation Android et iPad",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "POC"
+      ],
+      "lot": "L01-L02",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 25,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [],
+      "rules": [
+        "RG-25",
+        "RG-26"
+      ],
+      "testSuites": [
+        "T-12"
+      ],
+      "acceptanceCriteria": [
+        "Exécuter POC-01 ; livrer mesures, limites, coûts et décision motivée."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-02. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-03",
+      "name": "[US-03] POC analyse IA et produits",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "POC"
+      ],
+      "lot": "L01-L02",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 15,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [],
+      "rules": [
+        "RG-13",
+        "RG-14"
+      ],
+      "testSuites": [
+        "T-10"
+      ],
+      "acceptanceCriteria": [
+        "Exécuter POC-02 sur 30 cas ; tracer sources, abstention, coût et corrections humaines."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-03. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-04",
+      "name": "[US-04] POC tablette et synchronisation",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "POC"
+      ],
+      "lot": "L01-L02",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 13,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [],
+      "rules": [
+        "RG-23",
+        "RG-24"
+      ],
+      "testSuites": [
+        "T-07"
+      ],
+      "acceptanceCriteria": [
+        "Exécuter POC-03 ; démontrer profils séparés, reprise et conflits sans perte."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-04. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-05",
+      "name": "[US-05] Socle dépôt, CI et environnements",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Socle"
+      ],
+      "lot": "L03",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 6,
+        "high": 10,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-01",
+        "US-04"
+      ],
+      "rules": [
+        "RG-01"
+      ],
+      "testSuites": [
+        "T-01"
+      ],
+      "acceptanceCriteria": [
+        "Démarrage reproductible, données synthétiques, build et tests CI ; secrets distincts par environnement."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-05. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-06",
+      "name": "[US-06] Organisations, comptes et habilitations",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Identité"
+      ],
+      "lot": "L03-L04",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 16,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-05"
+      ],
+      "rules": [
+        "RG-01",
+        "RG-28",
+        "RG-29"
+      ],
+      "testSuites": [
+        "T-01"
+      ],
+      "acceptanceCriteria": [
+        "Créer comptes et sites, limiter toutes les lectures/écritures ; tester refus interclient et administrateur sans rôle métier."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-06. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-07",
+      "name": "[US-07] Inventaire individuel et par lots",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Patrimoine"
+      ],
+      "lot": "L04-L05",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 16,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-06"
+      ],
+      "rules": [
+        "RG-10"
+      ],
+      "testSuites": [
+        "T-05"
+      ],
+      "acceptanceCriteria": [
+        "Créer zones et composants ; conserver historique ; vérifier somme des quantités par état."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-07. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-08",
+      "name": "[US-08] Dépôt public et QR de site",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Maintenance"
+      ],
+      "lot": "L04",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 6,
+        "high": 10,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-06"
+      ],
+      "rules": [
+        "RG-02",
+        "RG-03"
+      ],
+      "testSuites": [
+        "T-02"
+      ],
+      "acceptanceCriteria": [
+        "Dépôt obligatoire sans vérification ni suivi ; QR général et photo facultative ; reprises sans doublon."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-08. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-09",
+      "name": "[US-09] Qualification, affectation et interventions",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Maintenance"
+      ],
+      "lot": "L05-L06",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-07",
+        "US-08"
+      ],
+      "rules": [
+        "RG-04",
+        "RG-06"
+      ],
+      "testSuites": [
+        "T-03"
+      ],
+      "acceptanceCriteria": [
+        "R/D affecte ; technicien clôture avec preuves ; réouverture tracée ; permissions testées."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-09. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-10",
+      "name": "[US-10] Danger, attentes et relances",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Maintenance"
+      ],
+      "lot": "L06-L07",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 13,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-09"
+      ],
+      "rules": [
+        "RG-05",
+        "RG-07",
+        "RG-08"
+      ],
+      "testSuites": [
+        "T-04"
+      ],
+      "acceptanceCriteria": [
+        "Alerte immédiate ; attente datée suspend délai ; réexamen et escalade sans doublon ; push et centre."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-10. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-11",
+      "name": "[US-11] Grilles, évaluations et score",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Patrimoine"
+      ],
+      "lot": "L06-L07",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 17,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-07",
+        "US-01"
+      ],
+      "rules": [
+        "RG-11",
+        "RG-12"
+      ],
+      "testSuites": [
+        "T-05"
+      ],
+      "acceptanceCriteria": [
+        "Évaluer sur grille versionnée ; score hiérarchique /10 avec couverture et fraîcheur ; cas vide et lots validés."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-11. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-12",
+      "name": "[US-12] Préventif calendaire et inspections",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Maintenance"
+      ],
+      "lot": "L07-L08",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 9,
+        "high": 15,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-09",
+        "US-11"
+      ],
+      "rules": [
+        "RG-09"
+      ],
+      "testSuites": [
+        "T-06"
+      ],
+      "acceptanceCriteria": [
+        "Occurrences ponctuelles/récurrentes ; grille terrain ; anomalie reliée à un signalement ; absence de doublons."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-12. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-13",
+      "name": "[US-13] Tablette et profils partagés",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Terrain"
+      ],
+      "lot": "L08-L09",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-04",
+        "US-06",
+        "US-09"
+      ],
+      "rules": [
+        "RG-23"
+      ],
+      "testSuites": [
+        "T-07"
+      ],
+      "acceptanceCriteria": [
+        "Android et iPad installables ; profils préparés, déverrouillage personnel et expiration 24 h sans effacement."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-13. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-14",
+      "name": "[US-14] Synchronisation et arbitrage",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Terrain"
+      ],
+      "lot": "L09-L10",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 16,
+        "high": 28,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-13"
+      ],
+      "rules": [
+        "RG-24"
+      ],
+      "testSuites": [
+        "T-07"
+      ],
+      "acceptanceCriteria": [
+        "Reprises idempotentes, photos interrompues, conflits présentés à R/D et révocation testée."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-14. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-15",
+      "name": "[US-15] Stocks, consommations et transferts",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Stock"
+      ],
+      "lot": "L10-L11",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-07",
+        "US-14"
+      ],
+      "rules": [
+        "RG-20",
+        "RG-21",
+        "RG-22"
+      ],
+      "testSuites": [
+        "T-08"
+      ],
+      "acceptanceCriteria": [
+        "Départ/transit/réception ; consommations offline ; écart durable, régularisation et seuils."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-15. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-16",
+      "name": "[US-16] Besoins matériels et réception",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Stock"
+      ],
+      "lot": "L11",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 6,
+        "high": 10,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-09",
+        "US-15"
+      ],
+      "rules": [
+        "RG-19"
+      ],
+      "testSuites": [
+        "T-08"
+      ],
+      "acceptanceCriteria": [
+        "Suivre achat externe ou fourniture en stock jusqu’à remise/installation ; clôture prouvée."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-16. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-17",
+      "name": "[US-17] Enveloppes et réservations atomiques",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Budget"
+      ],
+      "lot": "L11-L12",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-09",
+        "US-01"
+      ],
+      "rules": [
+        "RG-16",
+        "RG-17"
+      ],
+      "testSuites": [
+        "T-09"
+      ],
+      "acceptanceCriteria": [
+        "Réservation concurrence sûre ; exception limitée au dossier ; dépassement refusé même urgent."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-17. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-18",
+      "name": "[US-18] Dépenses, décisions et PDF finance",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Budget"
+      ],
+      "lot": "L12-L13",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 16,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-17"
+      ],
+      "rules": [
+        "RG-15",
+        "RG-18"
+      ],
+      "testSuites": [
+        "T-09"
+      ],
+      "acceptanceCriteria": [
+        "Justificatifs requis, total réel ajusté, PDF versionné et envoi confirmé/tracé avec reprise."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-18. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-19",
+      "name": "[US-19] Analyse IA et estimation révisable",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "IA"
+      ],
+      "lot": "L13-L14",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 14,
+        "high": 24,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-03",
+        "US-09",
+        "US-18"
+      ],
+      "rules": [
+        "RG-13",
+        "RG-15",
+        "RG-32"
+      ],
+      "testSuites": [
+        "T-10"
+      ],
+      "acceptanceCriteria": [
+        "Lancement habilité ; compléments si insuffisant ; main-d’œuvre séparée ; validation humaine et révisions."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-19. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-20",
+      "name": "[US-20] Recherche de produits et alternatives",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "IA"
+      ],
+      "lot": "L14-L15",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-03",
+        "US-19"
+      ],
+      "rules": [
+        "RG-14"
+      ],
+      "testSuites": [
+        "T-10"
+      ],
+      "acceptanceCriteria": [
+        "Sources datées, compatibilité, France/euros, alternative principale et deux options max ; panne gérée."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-20. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-21",
+      "name": "[US-21] Plans, import et éditeur 2D",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Spatial"
+      ],
+      "lot": "L15-L17",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 20,
+        "high": 35,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-07",
+        "US-04"
+      ],
+      "rules": [
+        "RG-25"
+      ],
+      "testSuites": [
+        "T-11"
+      ],
+      "acceptanceCriteria": [
+        "Créer/importer un plan, calibrer dimensions, éditer niveaux/pièces/ouvertures ; déclaration par zone."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-21. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-22",
+      "name": "[US-22] Modèle 3D fonctionnel",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Spatial"
+      ],
+      "lot": "L17-L18",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 22,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-21"
+      ],
+      "rules": [
+        "RG-25"
+      ],
+      "testSuites": [
+        "T-11"
+      ],
+      "acceptanceCriteria": [
+        "Afficher géométrie cohérente aux cotes et niveaux ; repères ; naviguer et sélectionner une pièce."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-22. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-23",
+      "name": "[US-23] Localisation et recalage hors ligne",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Spatial"
+      ],
+      "lot": "L18-L21",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 22,
+        "high": 45,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-02",
+        "US-14",
+        "US-21"
+      ],
+      "rules": [
+        "RG-25"
+      ],
+      "testSuites": [
+        "T-12"
+      ],
+      "acceptanceCriteria": [
+        "Sur deux plateformes, position et étage hors Internet selon seuils validés ; recalage et repli manuel."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-23. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-24",
+      "name": "[US-24] Partage temporaire de position",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Spatial"
+      ],
+      "lot": "L21-L22",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 7,
+        "high": 12,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-23",
+        "US-06"
+      ],
+      "rules": [
+        "RG-26"
+      ],
+      "testSuites": [
+        "T-12"
+      ],
+      "acceptanceCriteria": [
+        "Activation/suspension/arrêt, équipe habilitée seulement, position périmée visible ; aucun trajet."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-24. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-25",
+      "name": "[US-25] Indicateurs et rapports PDF",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Pilotage"
+      ],
+      "lot": "L13-L14",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 14,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-10",
+        "US-11",
+        "US-12"
+      ],
+      "rules": [
+        "RG-27"
+      ],
+      "testSuites": [
+        "T-13"
+      ],
+      "acceptanceCriteria": [
+        "Indicateurs calculés sur dates et attentes ; filtres selon droits ; PDF cohérent, sans diffusion automatique."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-25. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-26",
+      "name": "[US-26] Administration SaaS et support",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "SaaS"
+      ],
+      "lot": "L14-L15",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 14,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-06"
+      ],
+      "rules": [
+        "RG-28",
+        "RG-30"
+      ],
+      "testSuites": [
+        "T-14"
+      ],
+      "acceptanceCriteria": [
+        "Demande/activation, abonnement manuel, autorisation support temporaire et révocable, actions tracées."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-26. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-27",
+      "name": "[US-27] MFA et connexion fédérée",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Identité"
+      ],
+      "lot": "Après pilote",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 18,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-06"
+      ],
+      "rules": [
+        "RG-29"
+      ],
+      "testSuites": [
+        "T-01"
+      ],
+      "acceptanceCriteria": [
+        "MFA selon rôles convenus et connexions Microsoft/Google après choix fournisseur ; récupération testée."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-27. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-28",
+      "name": "[US-28] Paiement récurrent",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "SaaS"
+      ],
+      "lot": "Après pilote",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 8,
+        "high": 15,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-26"
+      ],
+      "rules": [
+        "RG-30"
+      ],
+      "testSuites": [
+        "T-14"
+      ],
+      "acceptanceCriteria": [
+        "Souscription, événements rejouables et rapprochement d’état ; politique impayés approuvée avant code."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-28. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-29",
+      "name": "[US-29] Exploitation, restauration et sécurité",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Exploitation"
+      ],
+      "lot": "Transverse / L22-L23",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 12,
+        "high": 20,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-05"
+      ],
+      "rules": [
+        "RG-01",
+        "RG-28"
+      ],
+      "testSuites": [
+        "T-15"
+      ],
+      "acceptanceCriteria": [
+        "Instrumentation, restauration isolée, contrôle fichiers et secrets ; revue sécurité avant pilote."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-29. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "US-30",
+      "name": "[US-30] Validation terrain et extension sites",
+      "type": "macro_story",
+      "list": "À affiner",
+      "labels": [
+        "Livraison"
+      ],
+      "lot": "L23-L24",
+      "sprint": null,
+      "owner": null,
+      "estimatePersonDays": {
+        "low": 10,
+        "high": 18,
+        "includes": "Réalisation et tests développeur ; hors compléments globaux"
+      },
+      "dependencies": [
+        "US-12",
+        "US-14",
+        "US-18",
+        "US-20",
+        "US-22",
+        "US-24",
+        "US-25",
+        "US-26",
+        "US-29"
+      ],
+      "rules": [
+        "RG-01",
+        "RG-06",
+        "RG-11"
+      ],
+      "testSuites": [
+        "T-15"
+      ],
+      "acceptanceCriteria": [
+        "Recette documentée premier site, traitement anomalies, décision métier/technique puis extension."
+      ],
+      "description": "Référence : docs/pilotage/BACKLOG.md, US-30. Lire les règles et contrats liés. Découper en sous-cartes de 1–5 jours-personne avant sélection en sprint.",
+      "checklist": [
+        "Décisions bloquantes résolues",
+        "Contrat et données approuvés",
+        "Sous-cartes estimées et affectées",
+        "Tests exécutés avec preuves",
+        "Revue technique indépendante",
+        "Recette métier",
+        "Déploiement et vérification"
+      ],
+      "evidence": {
+        "pullRequest": null,
+        "ci": null,
+        "acceptance": null,
+        "release": null
+      },
+      "trelloId": null
+    },
+    {
+      "id": "PREP-01",
+      "name": "[PREP-01] Arbitrer le scoring et les lots",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-001",
+      "owner": null,
+      "parentStories": [
+        "US-01"
+      ],
+      "estimatePersonDays": {
+        "low": 3,
+        "high": 3,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Présenter exemples dont lots et zones communes ; enregistrer approbation ou points restants dans DEC-01 ; mettre à jour RG-11/12 et T-05."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-02",
+      "name": "[PREP-02] Arbitrer budgets, états et permissions",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-001",
+      "owner": null,
+      "parentStories": [
+        "US-01"
+      ],
+      "estimatePersonDays": {
+        "low": 4,
+        "high": 4,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Faire décider DEC-02/03/04/05 avec exemples ; ne pas marquer résolu sans accord métier ; mettre à jour règles et recette."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-03",
+      "name": "[PREP-03] Préparer le protocole terrain localisation",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-001",
+      "owner": null,
+      "parentStories": [
+        "US-02"
+      ],
+      "estimatePersonDays": {
+        "low": 4,
+        "high": 4,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Identifier site et appareils disponibles, parcours/étages, mesures, données non personnelles ; fournir protocole et besoins d’accès sans acheter de matériel."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-04",
+      "name": "[PREP-04] Préparer les cas IA et sources",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-001",
+      "owner": null,
+      "parentStories": [
+        "US-03"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 2,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Définir les 30 cas avec terrain, cas ambigus et résultats attendus ; inventorier accès marchands à vérifier ; aucune image réelle envoyée avant politique approuvée."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-05",
+      "name": "[PREP-05] Comparer les options de stack",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-001",
+      "owner": null,
+      "parentStories": [
+        "US-04",
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 2,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Comparer 2–3 options documentées officiellement selon offline, localisation, compétences et coûts ; proposer ADR et critères de POC, pas adopter arbitrairement."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-06",
+      "name": "[PREP-06] Démontrer les commandes offline rejouables",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-002",
+      "owner": null,
+      "parentStories": [
+        "US-04"
+      ],
+      "estimatePersonDays": {
+        "low": 5,
+        "high": 5,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [
+        "PREP-05"
+      ],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Après stack expérimentale approuvée, prouver coupure après commit, doublon, deux profils, conflit ; livrer rapport exécutable et limites."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-07",
+      "name": "[PREP-07] Exécuter les premiers essais de localisation",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-002",
+      "owner": null,
+      "parentStories": [
+        "US-02"
+      ],
+      "estimatePersonDays": {
+        "low": 5,
+        "high": 5,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [
+        "PREP-03"
+      ],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Sur appareils et site accessibles, exécuter protocole, relever erreurs et étapes échouées ; aucune précision annoncée sans mesure."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-08",
+      "name": "[PREP-08] Exécuter les premiers cas IA",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-002",
+      "owner": null,
+      "parentStories": [
+        "US-03"
+      ],
+      "estimatePersonDays": {
+        "low": 5,
+        "high": 5,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [
+        "PREP-04"
+      ],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Avec budget fournisseur approuvé, tester abstention et produits compatibles ; enregistrer coûts et erreurs par cas."
+      ],
+      "trelloId": null
+    },
+    {
+      "id": "PREP-09",
+      "name": "[PREP-09] Consolider les POC et réestimer",
+      "type": "preparation",
+      "list": "À affiner",
+      "labels": [
+        "Préparation"
+      ],
+      "sprint": "SP-003",
+      "owner": null,
+      "parentStories": [
+        "US-02",
+        "US-03",
+        "US-04"
+      ],
+      "estimatePersonDays": {
+        "low": 5,
+        "high": 5,
+        "accounting": "Allocation incluse dans les macro-stories, ne pas additionner"
+      },
+      "dependencies": [
+        "PREP-06",
+        "PREP-07",
+        "PREP-08"
+      ],
+      "prerequisites": "Responsable et accès à confirmer avant passage Prêt",
+      "acceptanceCriteria": [
+        "Produire bilan des essais réalisés/non réalisés, décisions d’architecture, charges révisées et sous-cartes prêtes du prochain incrément."
+      ],
+      "trelloId": null
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# Système
+.DS_Store
+
+# Secrets et environnements locaux
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Éditeurs
+.vscode/
+.idea/

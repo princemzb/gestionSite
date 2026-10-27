@@ -1,0 +1,36 @@
+# Pilotage Trello et exécution par agents
+Statut : organisation proposée. Aucun tableau ni aucune carte créés dans Trello à cette date.
+
+## Tableau
+Nom proposé : « Patrimoine Églises — Produit & Livraison ».
+Listes : À affiner → Prêt → Sprint sélectionné → En cours → Revue → Recette → Prêt à livrer → Livré. Ajouter « Bloqué » pour les attentes empêchant réellement la progression. Conserver la liste précédente dans la carte bloquée.
+Labels : BA, Architecture, Web, Tablette, Backend, IA, Spatial, QA, Exploitation ; Incident critique ; Décision requise.
+Champs (ou section structurée dans description si indisponibles) : identifiant, lot, sprint, estimation basse/haute, reste à faire, responsable, priorité, risque, dépendances, version cible.
+
+## Carte exécutable obligatoire
+Titre : [US-xx.yy] verbe + résultat observable.
+Description : objectif utilisateur, inclus/exclus, références RG/UI/ADR, contrat et données concernés, préconditions, dépendances, critères Given/When/Then, tests et commandes, risques, migrations et retour arrière.
+Checklist : préparation approuvée ; code ; tests ; revue humaine ; documentation ; recette ; preuve de déploiement.
+Ajouter liens de branche/PR, exécution CI, captures utiles et version livrée. Une capture seule ne prouve pas l’isolation ou la synchronisation.
+
+## Conditions de passage
+- À affiner → Prêt : aucun arbitrage bloquant, contrat accepté, critères testables, dépendances prêtes, charge 1–5 j-p, commandes de test connues.
+- En cours : responsable unique ; proposition de limite 2 cartes actives par développeur.
+- Revue : PR disponible, résultats CI, documentation mise à jour.
+- Recette : revue technique acceptée, environnement accessible, scénarios fournis.
+- Prêt à livrer : recette approuvée par responsable habilité, déploiement/retour arrière préparés.
+- Livré : version effectivement déployée, vérification post-déploiement, site et date enregistrés. Fusionner du code ne suffit pas.
+
+## Sprints
+SP-001, SP-002... sont des champs/labels, pas les listes du workflow. La planification suit ESTIMATIONS et la capacité réelle.
+Une macro-story reste dans À affiner avec liens vers ses sous-cartes ; ne pas la dupliquer comme carte exécutable. Un sprint se ferme avec réalisé, reporté, raisons, défauts et réestimation.
+
+## Agents IA
+Un agent prend uniquement une carte Prêt explicitement assignée. Il lit AGENTS.md, les règles et contrats liés. Il ne marque pas sa propre carte Livré ni ne s’accorde une validation métier.
+À chaque arrêt : indiquer résultat, fichiers modifiés, tests exécutés/non exécutés, blocage et prochaine action exacte. Ne jamais inventer une approbation ou changer le périmètre pour passer un test.
+Le registre Git contient la spécification ; Trello porte état, affectation, sprint et preuves. Si un choix change dans Trello, le reporter dans les documents lors de la même livraison.
+
+## Publication
+Le fichier trello-backlog.json est un échange neutre pour un futur script/connector, **pas un format d’import natif garanti par Trello**. Avant publication : vérifier les droits, le tableau et les membres, puis associer identifiant métier ↔ identifiant Trello. Une relance de publication doit mettre à jour la carte existante, pas créer un doublon.
+Ne publier aucune donnée personnelle des futurs déclarants dans les cartes de développement.
+
