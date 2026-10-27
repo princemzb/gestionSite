@@ -44,7 +44,8 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     {
         await using var factory = CreateFactory(bucket: string.Empty);
 
-        Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
     }
 
     [Fact]
@@ -52,7 +53,8 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     {
         await using var factory = CreateFactory(connectionString: string.Empty);
 
-        Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
     }
 
     private WebApplicationFactory<Program> CreateFactory(string? connectionString = null, string? bucket = null) =>

@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gestionsite -d gestionsite"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U gestionsite -d gestionsite"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -38,13 +38,18 @@ services:
     depends_on:
       storage:
         condition: service_healthy
-    # weed shell renvoie 0 même en cas d'erreur : on vérifie que le compartiment est bien listé.
+    # weed shell renvoie 0 même en cas d'erreur : on réessaie jusqu'à voir le compartiment listé
+    # (le service de fichiers interne démarre quelques secondes après le maître).
     entrypoint:
       - /bin/sh
       - -c
       - >-
-        echo 's3.bucket.create -name gestionsite-local' | weed shell -master=storage:9333 -filer=storage:8888 &&
-        echo 's3.bucket.list' | weed shell -master=storage:9333 -filer=storage:8888 | grep -q gestionsite-local
+        for attempt in $$(seq 1 30); do
+        echo 's3.bucket.create -name gestionsite-local' | weed shell -master=storage:9333 -filer=storage:8888 >/dev/null 2>&1;
+        if echo 's3.bucket.list' | weed shell -master=storage:9333 -filer=storage:8888 2>/dev/null | grep -q gestionsite-local;
+        then echo 'compartiment gestionsite-local prêt'; exit 0; fi;
+        sleep 1; done;
+        echo 'échec de création du compartiment' >&2; exit 1
     restart: "no"
 
 volumes:

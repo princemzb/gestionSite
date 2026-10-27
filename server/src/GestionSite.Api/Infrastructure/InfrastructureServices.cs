@@ -9,16 +9,18 @@ namespace GestionSite.Api.Infrastructure;
 internal static class InfrastructureServices
 {
     internal const string ReadyTag = "ready";
+    internal static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(5);
 
     internal static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Main");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("Chaîne de connexion « ConnectionStrings:Main » absente.");
-        }
-
-        services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+        services.AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton(provider => new NpgsqlDataSourceBuilder(
+                provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main)
+            .UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>())
+            .Build());
 
         services.AddOptions<ObjectStorageOptions>()
             .Bind(configuration.GetSection(ObjectStorageOptions.Section))
@@ -36,9 +38,10 @@ internal static class InfrastructureServices
             return new AmazonS3Client(new BasicAWSCredentials(storage.AccessKey, storage.SecretKey), config);
         });
 
+        // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
         services.AddHealthChecks()
-            .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag])
-            .AddCheck<ObjectStorageHealthCheck>("stockage-fichiers", tags: [ReadyTag]);
+            .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
+            .AddCheck<ObjectStorageHealthCheck>("stockage-fichiers", tags: [ReadyTag], timeout: CheckTimeout);
         return services;
     }
 }

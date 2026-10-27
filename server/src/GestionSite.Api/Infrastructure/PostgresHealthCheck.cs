@@ -14,7 +14,8 @@ internal sealed class PostgresHealthCheck(NpgsqlDataSource dataSource) : IHealth
             await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             return HealthCheckResult.Healthy();
         }
-        catch (Exception exception) when (exception is NpgsqlException or TimeoutException or InvalidOperationException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested
+            && exception is NpgsqlException or TimeoutException or InvalidOperationException)
         {
             // Pas de détail de connexion dans le résultat : il peut être exposé.
             return HealthCheckResult.Unhealthy("PostgreSQL injoignable.", exception);

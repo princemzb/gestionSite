@@ -1,3 +1,4 @@
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -16,7 +17,8 @@ internal sealed class ObjectStorageHealthCheck(IAmazonS3 client, IOptions<Object
             await client.ListObjectsV2Async(request, cancellationToken).ConfigureAwait(false);
             return HealthCheckResult.Healthy();
         }
-        catch (Exception exception) when (exception is AmazonS3Exception or HttpRequestException or TaskCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested
+            && exception is AmazonServiceException or HttpRequestException or TaskCanceledException)
         {
             return HealthCheckResult.Unhealthy("Stockage de fichiers injoignable.", exception);
         }

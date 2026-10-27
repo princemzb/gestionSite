@@ -63,7 +63,7 @@ public sealed class InfrastructureFixture : IAsyncLifetime
                 await client.PutBucketAsync(Bucket).ConfigureAwait(false);
                 return;
             }
-            catch (AmazonS3Exception) when (attempt < 30)
+            catch (Exception exception) when (attempt < 30 && exception is AmazonServiceException or HttpRequestException)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
             }
