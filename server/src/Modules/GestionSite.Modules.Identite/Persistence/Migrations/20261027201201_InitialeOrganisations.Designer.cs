@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Identite.Persistence.Migrations
 {
     [DbContext(typeof(IdentiteDbContext))]
-    [Migration("20261027200514_InitialeOrganisations")]
+    [Migration("20261027201201_InitialeOrganisations")]
     partial class InitialeOrganisations
     {
         /// <inheritdoc />
@@ -42,7 +42,8 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nom");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_organisations");
 
                     b.ToTable("organisations", "identite");
                 });

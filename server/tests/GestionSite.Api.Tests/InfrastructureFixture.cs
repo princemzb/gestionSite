@@ -38,19 +38,6 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         await CreateBucketAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Crée une base vide dédiée sur le serveur PostgreSQL de test et renvoie sa chaîne de connexion.</summary>
-    internal async Task<string> CreateDatabaseAsync()
-    {
-        var name = $"test_{Guid.NewGuid():N}";
-        await using (var dataSource = Npgsql.NpgsqlDataSource.Create(ConnectionString))
-        await using (var command = dataSource.CreateCommand($"CREATE DATABASE {name}"))
-        {
-            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-        }
-
-        return new Npgsql.NpgsqlConnectionStringBuilder(ConnectionString) { Database = name }.ConnectionString;
-    }
-
     public Task DisposeAsync() => Task.WhenAll(_postgres.DisposeAsync().AsTask(), _storage.DisposeAsync().AsTask());
 
     private async Task CreateBucketAsync()

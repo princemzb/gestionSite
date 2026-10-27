@@ -3,7 +3,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Identite.Persistence;
 
-/// <summary>Données du module Identité, dans le schéma PostgreSQL « identite ».</summary>
+/// <summary>
+/// Données du module Identité, dans le schéma PostgreSQL « identite ». Noms de tables, colonnes
+/// et contraintes en snake_case par convention (IdentitePersistence).
+/// </summary>
 internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> options) : DbContext(options)
 {
     internal const string Schema = "identite";
@@ -16,11 +19,10 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Organisation>(organisation =>
         {
-            organisation.ToTable("organisations");
             organisation.HasKey(o => o.Id);
-            organisation.Property(o => o.Id).HasColumnName("id").ValueGeneratedNever();
-            organisation.Property(o => o.Nom).HasColumnName("nom").HasMaxLength(200).IsRequired();
-            organisation.Property(o => o.CreeLe).HasColumnName("cree_le").IsRequired();
+            organisation.Property(o => o.Id).ValueGeneratedNever();
+            organisation.Property(o => o.Nom).HasMaxLength(Organisation.NomMaxLength).IsRequired();
+            organisation.Property(o => o.CreeLe).IsRequired();
         });
     }
 }

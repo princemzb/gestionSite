@@ -17,6 +17,7 @@ builder.Services
     .AddBudgetModule()
     .AddPlateformeModule();
 builder.Services.AddInfrastructure(builder.Configuration);
+DatabaseMigrations.AddDatabaseMigrations(builder.Services, builder.Configuration);
 // Disponibilité mise en cache brièvement : des sondes en boucle ne multiplient pas les appels
 // facturés (R2) ni les connexions (Neon). Seules les réponses 200 sont mises en cache.
 builder.Services.AddOutputCache(options =>
@@ -37,6 +38,5 @@ app.MapIdentiteEndpoints()
     .MapBudgetEndpoints()
     .MapPlateformeEndpoints();
 
-await app.MigrateDatabasesIfRequestedAsync().ConfigureAwait(false);
 await app.RunAsync().ConfigureAwait(false);
 

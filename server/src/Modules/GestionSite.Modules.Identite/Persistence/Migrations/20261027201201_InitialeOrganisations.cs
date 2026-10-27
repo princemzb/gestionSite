@@ -25,7 +25,7 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_organisations", x => x.id);
+                    table.PrimaryKey("pk_organisations", x => x.id);
                 });
         }
 

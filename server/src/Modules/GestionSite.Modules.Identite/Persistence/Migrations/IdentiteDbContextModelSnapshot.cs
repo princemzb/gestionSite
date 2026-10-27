@@ -39,7 +39,8 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nom");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_organisations");
 
                     b.ToTable("organisations", "identite");
                 });
