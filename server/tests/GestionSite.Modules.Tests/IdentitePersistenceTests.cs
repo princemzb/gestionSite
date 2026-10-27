@@ -1,6 +1,8 @@
+using GestionSite.Modules.Identite;
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GestionSite.Modules.Tests;
 
@@ -25,6 +27,26 @@ public sealed class IdentitePersistenceTests
         Assert.Equal("organisations", organisation.GetTableName());
         Assert.Equal(["cree_le", "id", "nom"], organisation.GetProperties().Select(p => p.GetColumnName()).Order());
         Assert.Equal("pk_organisations", organisation.FindPrimaryKey()!.GetName());
+    }
+
+    [Fact]
+    public void RuntimeContextUsesTheSameModelAsMigrations()
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(Npgsql.NpgsqlDataSource.Create("Host=localhost"))
+            .AddIdentiteModule();
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<IdentiteDbContext>();
+
+        Assert.False(context.Database.HasPendingModelChanges());
+        Assert.Equal("pk_organisations", context.Model.FindEntityType(typeof(Organisation))!.FindPrimaryKey()!.GetName());
+    }
+
+    [Fact]
+    public void OrganisationRequiresACreationDate()
+    {
+        Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), "Saint-Paul", default));
     }
 
     [Theory]

@@ -23,6 +23,11 @@ internal sealed class Organisation
             throw new ArgumentException($"Le nom ne peut pas dépasser {NomMaxLength} caractères.", nameof(nom));
         }
 
+        if (creeLe == default)
+        {
+            throw new ArgumentException("La date de création est obligatoire.", nameof(creeLe));
+        }
+
         Id = id;
         Nom = nomNettoye;
         CreeLe = creeLe.ToUniversalTime(); // PostgreSQL « timestamp with time zone » n'accepte que l'UTC.

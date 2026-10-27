@@ -13,8 +13,18 @@ internal sealed partial class DatabaseMigrations(IServiceScopeFactory scopes, IL
 {
     internal const string Setting = "Database:MigrateOnStartup";
 
-    internal static IServiceCollection AddDatabaseMigrations(IServiceCollection services, IConfiguration configuration) =>
-        configuration.GetValue<bool>(Setting) ? services.AddHostedService<DatabaseMigrations>() : services;
+    internal static bool IsRequested(IConfiguration configuration)
+    {
+        var value = configuration[Setting];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return bool.TryParse(value, out var requested)
+            ? requested
+            : throw new InvalidOperationException($"{Setting} doit valoir « true » ou « false » (valeur reçue : « {value} »).");
+    }
 
     public async Task StartingAsync(CancellationToken cancellationToken)
     {

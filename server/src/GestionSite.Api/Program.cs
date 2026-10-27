@@ -17,7 +17,6 @@ builder.Services
     .AddBudgetModule()
     .AddPlateformeModule();
 builder.Services.AddInfrastructure(builder.Configuration);
-DatabaseMigrations.AddDatabaseMigrations(builder.Services, builder.Configuration);
 // Disponibilité mise en cache brièvement : des sondes en boucle ne multiplient pas les appels
 // facturés (R2) ni les connexions (Neon). Seules les réponses 200 sont mises en cache.
 builder.Services.AddOutputCache(options =>
@@ -27,7 +26,7 @@ var app = builder.Build();
 
 app.UseOutputCache();
 
-// Vivacité : le processus répond, sans dépendance. Disponibilité : base et stockage joignables.
+// Vivacité : le processus répond, sans dépendance. Disponibilité : base à jour et stockage joignables.
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(InfrastructureServices.ReadyTag) })
     .CacheOutput("ready");

@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | Choix faits (ADR-10) : Identity intégré, lien d'activation, double barrière EF + RLS ; contrats dans CONTRATS.md ; sous-cartes S06-01 à S06-06 | S06-01 en cours (persistance EF Core, migrations, Testcontainers) |
+| US-06 Comptes et droits | ADR-10 ; S06-01 en revue (PR #24 : persistance EF Core par module, schéma identite, migrations au démarrage sur demande, /health/ready à 503 si migration en attente) ; critère RLS forcée ajouté à S06-02 | Fusionner #24 quand CI + Sonar sont verts, puis S06-02 (organisations, sites, adhésions, rôles, RLS forcée). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -72,3 +72,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 28/10/2026 | Parcours 1er incrément maquetté en Jour et Nuit (8 écrans), en attente de validation | canevas Design |
 | 28/10/2026 | Maquettes du parcours du 1er incrément validées par le porteur | docs/ux/CHARTE.md |
 | 28/10/2026 | US-06 cadrée : ADR-10, contrats, 6 sous-cartes | PR cadrage US-06 |
+| 28/10/2026 | S06-01 persistance EF Core en revue (2 passages /code-review traités) | PR #24 |

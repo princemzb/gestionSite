@@ -8,18 +8,18 @@ namespace GestionSite.Modules.Identite.Persistence;
 
 internal static class IdentitePersistence
 {
-    internal static DbContextOptionsBuilder<IdentiteDbContext> Configure(
-        DbContextOptionsBuilder<IdentiteDbContext> builder, string connectionString) =>
-        builder.UseNpgsql(connectionString, ConfigureNpgsql).UseSnakeCaseNamingConvention();
-
     internal static IServiceCollection AddIdentitePersistence(this IServiceCollection services)
     {
         // La source de données PostgreSQL est fournie par l'hôte (configuration validée au démarrage).
         services.AddDbContext<IdentiteDbContext>((provider, options) =>
-            options.UseNpgsql(provider.GetRequiredService<NpgsqlDataSource>(), ConfigureNpgsql).UseSnakeCaseNamingConvention());
+            Configure(options, provider.GetRequiredService<NpgsqlDataSource>()));
         services.AddScoped<IDatabaseMigrator, IdentiteMigrator>();
         return services;
     }
+
+    /// <summary>Configuration unique du contexte, à l'exécution comme pour l'outil de migrations.</summary>
+    internal static DbContextOptionsBuilder Configure(DbContextOptionsBuilder options, NpgsqlDataSource dataSource) =>
+        options.UseNpgsql(dataSource, ConfigureNpgsql).UseSnakeCaseNamingConvention();
 
     private static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
         npgsql.MigrationsHistoryTable(IdentiteDbContext.MigrationsTable, IdentiteDbContext.Schema);

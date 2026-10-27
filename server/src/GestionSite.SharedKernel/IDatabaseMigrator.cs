@@ -1,9 +1,9 @@
 namespace GestionSite.SharedKernel;
 
 /// <summary>
-/// Applique les migrations de base de données d'un module. L'hôte les exécute au démarrage
-/// quand la configuration le demande (développement, tests) ; en production, l'étape de
-/// déploiement s'en charge.
+/// Migrations de base de données d'un module. L'hôte les applique au démarrage quand la
+/// configuration le demande (développement, tests) et vérifie dans sa sonde de disponibilité
+/// qu'aucune ne reste en attente ; en production, l'étape de déploiement les applique.
 /// </summary>
 public interface IDatabaseMigrator
 {
@@ -11,4 +11,6 @@ public interface IDatabaseMigrator
     string ModuleName { get; }
 
     Task MigrateAsync(CancellationToken cancellationToken);
+
+    Task<bool> HasPendingMigrationsAsync(CancellationToken cancellationToken);
 }

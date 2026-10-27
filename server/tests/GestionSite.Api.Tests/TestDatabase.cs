@@ -13,17 +13,17 @@ internal sealed class TestDatabase : IAsyncDisposable
         _serverConnectionString = serverConnectionString;
         _name = name;
         ConnectionString = new NpgsqlConnectionStringBuilder(serverConnectionString) { Database = name }.ConnectionString;
-        DataSource = NpgsqlDataSource.Create(ConnectionString);
     }
 
     internal string ConnectionString { get; }
 
-    internal NpgsqlDataSource DataSource { get; }
+    private NpgsqlDataSource DataSource { get; set; } = null!;
 
     internal static async Task<TestDatabase> CreateAsync(string serverConnectionString)
     {
         var database = new TestDatabase(serverConnectionString, $"test_{Guid.NewGuid():N}");
         await database.ExecuteOnServerAsync($"CREATE DATABASE {database.QuotedName}").ConfigureAwait(false);
+        database.DataSource = NpgsqlDataSource.Create(database.ConnectionString); // créée une fois la base existante
         return database;
     }
 
@@ -53,8 +53,9 @@ internal sealed class TestDatabase : IAsyncDisposable
 
     private async Task ExecuteOnServerAsync(string sql)
     {
-        await using var server = NpgsqlDataSource.Create(_serverConnectionString);
-        await using var command = server.CreateCommand(sql);
+        await using var connection = new NpgsqlConnection(_serverConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 }

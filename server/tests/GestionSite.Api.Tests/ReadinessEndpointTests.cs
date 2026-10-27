@@ -19,9 +19,30 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     }
 
     [Fact]
+    public async Task NotReadyWhileMigrationsArePending()
+    {
+        await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await using var factory = CreateFactory(connectionString: database.ConnectionString, migrate: false);
+
+        var (status, body) = await GetReadyAsync(factory);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        Assert.Equal("Unhealthy", body);
+    }
+
+    [Fact]
+    public async Task StartupFailsWithAnInvalidMigrationSetting()
+    {
+        await using var factory = CreateFactory().WithWebHostBuilder(b => b.UseSetting("Database:MigrateOnStartup", "1"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("Database:MigrateOnStartup", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NotReadyWhenDatabaseIsUnreachable()
     {
-        await using var factory = CreateFactory(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2");
+        await using var factory = CreateFactory(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrate: false);
 
         var (status, body) = await GetReadyAsync(factory);
 
@@ -77,9 +98,11 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
     }
 
-    private WebApplicationFactory<Program> CreateFactory(string? connectionString = null, string? bucket = null, string? storageUrl = null) =>
+    private WebApplicationFactory<Program> CreateFactory(
+        string? connectionString = null, string? bucket = null, string? storageUrl = null, bool migrate = true) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Main", connectionString ?? infrastructure.ConnectionString)
+            .UseSetting("Database:MigrateOnStartup", migrate ? "true" : "false")
             .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? infrastructure.StorageUrl)
             .UseSetting("ObjectStorage:AccessKey", InfrastructureFixture.AccessKey)
             .UseSetting("ObjectStorage:SecretKey", InfrastructureFixture.SecretKey)

@@ -8,4 +8,7 @@ internal sealed class IdentiteMigrator(IdentiteDbContext context) : IDatabaseMig
     public string ModuleName => "Identite";
 
     public Task MigrateAsync(CancellationToken cancellationToken) => context.Database.MigrateAsync(cancellationToken);
+
+    public async Task<bool> HasPendingMigrationsAsync(CancellationToken cancellationToken) =>
+        (await context.Database.GetPendingMigrationsAsync(cancellationToken).ConfigureAwait(false)).Any();
 }
