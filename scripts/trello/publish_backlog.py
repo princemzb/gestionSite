@@ -12,6 +12,7 @@ Après publication, Trello fait foi pour la liste, les membres et l'état des ch
 une relance met à jour titre, description et labels, sans déplacer les cartes.
 """
 import argparse
+import http.client
 import json
 import subprocess
 import sys
@@ -77,19 +78,28 @@ class Trello:
         else:
             req = urllib.request.Request(f"{API}{path}?{auth}", method=method,
                                          data=urllib.parse.urlencode(params, doseq=True).encode())
+        # GET et PUT sont rejouables : nouvelles tentatives sur erreurs transitoires.
+        # POST/DELETE ne sont rejoués que sur 429 (requête refusée avant traitement).
+        idempotent = method in {"GET", "PUT"}
         for attempt in range(5):
+            last = attempt == 4
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     time.sleep(0.12)  # limite Trello : 100 requêtes / 10 s par jeton
                     return json.loads(resp.read() or b"null")
             except urllib.error.HTTPError as err:
-                if err.code == 429 and attempt < 4:
+                if not last and (err.code == 429 or (idempotent and err.code >= 500)):
                     time.sleep(2 ** attempt)
                     continue
                 body = err.read().decode(errors="replace")[:300]
                 raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
-            except urllib.error.URLError as err:
-                raise TrelloError(f"Trello injoignable sur {method} {path} : {err.reason}") from err
+            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as err:
+                if idempotent and not last:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise TrelloError(f"Trello injoignable sur {method} {path} : {err}") from err
+            except json.JSONDecodeError as err:
+                raise TrelloError(f"Réponse Trello illisible sur {method} {path}") from err
 
 
 def card_description(card, cards_by_id):
