@@ -91,7 +91,10 @@ class Trello:
                 if not last and (err.code == 429 or (idempotent and err.code >= 500)):
                     time.sleep(2 ** attempt)
                     continue
-                body = err.read().decode(errors="replace")[:300]
+                try:
+                    body = err.read().decode(errors="replace")[:300]
+                except (OSError, http.client.HTTPException):
+                    body = "(corps de réponse illisible)"
                 raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
             except (OSError, http.client.HTTPException) as err:  # URLError, socket.timeout (3.9), ConnectionError
                 if idempotent and not last:

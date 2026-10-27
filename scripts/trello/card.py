@@ -11,11 +11,14 @@ Prêt à livrer ou Livré exige une preuve d'au moins 20 caractères ; l'outil n
 que sa présence, les conditions de passage de docs/pilotage/TRELLO.md restent à la
 charge de l'opérateur. Un passage en Bloqué consigne la liste précédente.
 
-La preuve est publiée avant le déplacement et porte un marqueur « [US-05 → Livré] » :
-une carte n'entre jamais dans une liste à preuve sans sa preuve, et une relance après
-erreur termine l'opération sans dupliquer le commentaire.
+La preuve est publiée avant le déplacement et porte un marqueur « [US-05 → Livré #a1b2c3] »
+(empreinte de la preuve) : une carte n'entre jamais dans une liste à preuve sans sa preuve,
+une relance identique après erreur termine l'opération sans dupliquer le commentaire, et une
+nouvelle entrée dans la même liste exige une nouvelle preuve. Si le déplacement échoue
+définitivement, la preuve déjà publiée reste sur la carte : relancer jusqu'au succès.
 """
 import argparse
+import hashlib
 import json
 import sys
 import unicodedata
@@ -74,7 +77,7 @@ def post_comment(api, trello_id, text):
 
 
 def has_comment_starting_with(api, trello_id, prefix):
-    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard", limit=100)
+    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard", limit=1000)
     return any(a["data"]["text"].startswith(prefix) for a in actions)
 
 
@@ -105,9 +108,12 @@ def move(api, data, card_id, target, proof):
     if card["closed"]:
         sys.exit(f"{card_id} est archivée dans Trello : la désarchiver avant de la déplacer.")
 
-    marker = f"[{card_id} → {target}]"
+    # Empreinte calculée sur la preuve saisie, avant tout ajout automatique, pour rester stable à la relance.
+    digest = hashlib.sha256(proof.encode()).hexdigest()[:6]
+    marker = f"[{card_id} → {target} #{digest}]"
     if target == "Bloqué" and card["idList"] != target_id:
-        previous = open_lists(api, data["boardId"]).get(card["idList"], "inconnue")
+        names = {v: k for k, v in data["listIds"].items()}
+        previous = names.get(card["idList"]) or open_lists(api, data["boardId"]).get(card["idList"], "inconnue")
         proof = f"Liste précédente : {previous}. {proof}"
     text = checked_comment(f"{marker} {proof}") if proof else None
 
@@ -139,7 +145,9 @@ def main():
         elif not move(api, data, args.card, args.target, args.proof):
             return
     except TrelloError as err:
-        sys.exit(f"{err}\nRelancer la même commande : elle reprend sans dupliquer la preuve.")
+        advice = {"move": "Relancer la même commande : elle reprend sans dupliquer la preuve.",
+                  "comment": "Vérifier sur la carte si le commentaire est arrivé avant de relancer."}
+        sys.exit(f"{err}\n{advice.get(args.action, '')}".strip())
     print(f"{args.card} : {args.action} {'effectué' if api.apply else 'simulé (relancer avec --apply)'}")
 
 
