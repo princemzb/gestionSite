@@ -12,7 +12,9 @@ Après publication, Trello fait foi pour la liste, les membres et l'état des ch
 une relance met à jour titre, description et labels, sans déplacer les cartes.
 """
 import argparse
+import http.client
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -37,7 +39,23 @@ LABEL_COLORS = {
     "SP-001": "yellow_light", "SP-002": "yellow_light", "SP-003": "yellow_light",
 }
 
-TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation"}
+CHECKLIST_NAME = "Définition de terminé"
+TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation", "outillage": "Outillage"}
+
+
+class TrelloError(Exception):
+    """Échec d'un appel Trello (HTTP ou réseau)."""
+
+
+def is_transient(err):
+    """Erreur réseau passagère (délai, coupure) ; pas un défaut de certificat ou de DNS."""
+    reason = getattr(err, "reason", err)
+    return isinstance(reason, (TimeoutError, socket.timeout, ConnectionError,
+                               http.client.RemoteDisconnected, http.client.IncompleteRead))
+
+
+def load():
+    return json.loads(BACKLOG.read_text(encoding="utf-8"))
 
 
 def save(data, api):
@@ -66,19 +84,41 @@ class Trello:
             self.writes += 1
             if not self.apply:
                 return {"id": f"<simulé:{path}>"}
-        query = urllib.parse.urlencode({**self.auth, **params}, doseq=True)
-        req = urllib.request.Request(f"{API}{path}?{query}", method=method)
+        # Paramètres dans le corps pour les écritures : un long commentaire ne dépasse pas la taille d'URL.
+        auth = urllib.parse.urlencode(self.auth)
+        if method == "GET":
+            req = urllib.request.Request(f"{API}{path}?{auth}&{urllib.parse.urlencode(params, doseq=True)}")
+        else:
+            req = urllib.request.Request(f"{API}{path}?{auth}", method=method,
+                                         data=urllib.parse.urlencode(params, doseq=True).encode())
+        # GET et PUT sont rejouables : nouvelles tentatives sur erreurs transitoires.
+        # POST/DELETE ne sont rejoués que sur 429 (requête refusée avant traitement).
+        idempotent = method in {"GET", "PUT"}
         for attempt in range(5):
+            last = attempt == 4
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     time.sleep(0.12)  # limite Trello : 100 requêtes / 10 s par jeton
                     return json.loads(resp.read() or b"null")
             except urllib.error.HTTPError as err:
-                if err.code == 429 and attempt < 4:
+                if not last and (err.code == 429 or (idempotent and err.code >= 500)):
+                    err.close()
                     time.sleep(2 ** attempt)
                     continue
-                body = err.read().decode(errors="replace")[:300]
-                sys.exit(f"Erreur Trello {err.code} sur {method} {path} : {body}")
+                try:
+                    body = err.read().decode(errors="replace")[:300]
+                except (OSError, http.client.HTTPException):
+                    body = "(corps de réponse illisible)"
+                finally:
+                    err.close()
+                raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
+            except (OSError, http.client.HTTPException) as err:  # URLError, socket.timeout (3.9), ConnectionError
+                if idempotent and not last and is_transient(err):
+                    time.sleep(2 ** attempt)
+                    continue
+                raise TrelloError(f"Trello injoignable sur {method} {path} : {err}") from err
+            except json.JSONDecodeError as err:
+                raise TrelloError(f"Réponse Trello illisible sur {method} {path}") from err
 
 
 def card_description(card, cards_by_id):
@@ -123,10 +163,15 @@ def ensure_board(api, data):
     return board["id"]
 
 
+def open_lists(api, board_id):
+    """Listes ouvertes du tableau, dans l'ordre du tableau : {id: nom}."""
+    return {l["id"]: l["name"] for l in api.call("GET", f"/boards/{board_id}/lists", filter="open")}
+
+
 def ensure_lists(api, data, board_id):
     ids = data.setdefault("listIds", {})
     existing = {} if not api.apply and board_id.startswith("<") else {
-        l["name"]: l["id"] for l in api.call("GET", f"/boards/{board_id}/lists", filter="open")}
+        name: list_id for list_id, name in open_lists(api, board_id).items()}
     for pos, name in enumerate(data["lists"], start=1):
         if name in ids or name in existing:
             ids[name] = ids.get(name) or existing[name]
@@ -160,14 +205,45 @@ def card_labels(card, label_ids):
     return ",".join(label_ids[n] for n in names)
 
 
+def ensure_checklist(api, data, card):
+    """Crée la checklist et ses éléments manquants ; reprend une création interrompue."""
+    if not card.get("checklist") or card.get("checklistComplete"):
+        return
+    if not card.get("checklistId"):
+        found = [] if card["trelloId"].startswith("<") else [
+            c["id"] for c in api.call("GET", f"/cards/{card['trelloId']}/checklists", fields="name")
+            if c["name"] == CHECKLIST_NAME]
+        card["checklistId"] = found[0] if found else api.call(
+            "POST", "/checklists", idCard=card["trelloId"], name=CHECKLIST_NAME)["id"]
+        save(data, api)
+    existing = set() if card["checklistId"].startswith("<") else {
+        i["name"] for i in api.call("GET", f"/checklists/{card['checklistId']}/checkItems")}
+    for item in card["checklist"]:
+        if item not in existing:
+            api.call("POST", f"/checklists/{card['checklistId']}/checkItems", name=item)
+    card["checklistComplete"] = True
+    save(data, api)
+
+
 def publish_cards(api, data, list_ids, label_ids, member_id):
     cards_by_id = {c["id"]: c for c in data["cards"]}
+    on_board = {} if data["boardId"].startswith("<") else {
+        c["name"].split("]")[0] + "]": c for c in api.call("GET", f"/boards/{data['boardId']}/cards",
+                                                           filter="all", fields="name,idLabels,shortLink")}
     created = updated = 0
     for pos, card in enumerate(data["cards"], start=1):
         desc = card_description(card, cards_by_id)
+        existing = on_board.get(f"[{card['id']}]")
+        if not card.get("trelloId") and existing:
+            # Carte créée par une exécution interrompue avant l'enregistrement de son identifiant.
+            card["trelloId"], card["trelloShortLink"] = existing["id"], existing["shortLink"]
+            save(data, api)
         if card.get("trelloId"):
-            api.call("PUT", f"/cards/{card['trelloId']}", name=card["name"], desc=desc,
-                     idLabels=card_labels(card, label_ids))
+            # Labels ajoutés dans Trello (Décision requise, Incident critique…) conservés.
+            kept = set(existing["idLabels"]) if existing else set()
+            labels = ",".join(sorted(kept | set(card_labels(card, label_ids).split(","))))
+            api.call("PUT", f"/cards/{card['trelloId']}", name=card["name"], desc=desc, idLabels=labels)
+            ensure_checklist(api, data, card)
             updated += 1
             continue
         print(f"+ Carte {card['name']} → {card['list']}")
@@ -179,10 +255,7 @@ def publish_cards(api, data, list_ids, label_ids, member_id):
         card["trelloId"], card["trelloShortLink"] = new["id"], new.get("shortLink")
         save(data, api)
         created += 1
-        if card.get("checklist"):
-            cl = api.call("POST", "/checklists", idCard=new["id"], name="Définition de terminé")
-            for item in card["checklist"]:
-                api.call("POST", f"/checklists/{cl['id']}/checkItems", name=item)
+        ensure_checklist(api, data, card)
     # Second passage : liens de dépendances maintenant que tous les shortLinks existent.
     if created and api.apply:
         for card in data["cards"]:
@@ -196,10 +269,17 @@ def main():
     parser.add_argument("--apply", action="store_true", help="publier réellement (sinon simulation)")
     args = parser.parse_args()
 
-    data = json.loads(BACKLOG.read_text(encoding="utf-8"))
-    api = Trello(args.apply)
+    try:
+        publish(args.apply)
+    except TrelloError as err:
+        sys.exit(str(err))
+
+
+def publish(apply):
+    data = load()
+    api = Trello(apply)
     me = api.call("GET", "/members/me", fields="username")
-    print(f"{'PUBLICATION' if args.apply else 'SIMULATION'} — compte Trello : {me['username']}\n")
+    print(f"{'PUBLICATION' if apply else 'SIMULATION'} — compte Trello : {me['username']}\n")
 
     board_id = ensure_board(api, data)
     list_ids = ensure_lists(api, data, board_id)
@@ -207,7 +287,7 @@ def main():
     created, updated = publish_cards(api, data, list_ids, label_ids, me["id"])
 
     print(f"\nCartes créées : {created} · mises à jour : {updated} · écritures Trello : {api.writes}")
-    if args.apply:
+    if apply:
         data["status"] = "published"
         save(data, api)
         print(f"Identifiants enregistrés dans {BACKLOG.relative_to(ROOT)}")

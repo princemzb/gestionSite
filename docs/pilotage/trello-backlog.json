@@ -62,7 +62,9 @@
         "release": null
       },
       "trelloId": "6ae091b335f427cd5d01f1f7",
-      "trelloShortLink": "sA82ue9o"
+      "trelloShortLink": "sA82ue9o",
+      "checklistId": "6ae091b4fb1db24ac696f59a",
+      "checklistComplete": true
     },
     {
       "id": "US-02",
@@ -108,7 +110,9 @@
         "release": null
       },
       "trelloId": "6ae091b95b44a87a21bb0e5c",
-      "trelloShortLink": "NJXMzKfT"
+      "trelloShortLink": "NJXMzKfT",
+      "checklistId": "6ae091b9448c1d92e777b67b",
+      "checklistComplete": true
     },
     {
       "id": "US-03",
@@ -154,7 +158,9 @@
         "release": null
       },
       "trelloId": "6ae091bef8938f6de5fde70a",
-      "trelloShortLink": "3xm69AU4"
+      "trelloShortLink": "3xm69AU4",
+      "checklistId": "6ae091bf240606b294f8169a",
+      "checklistComplete": true
     },
     {
       "id": "US-04",
@@ -200,7 +206,9 @@
         "release": null
       },
       "trelloId": "6ae091c4ea449f157691178a",
-      "trelloShortLink": "wGfWdqxL"
+      "trelloShortLink": "wGfWdqxL",
+      "checklistId": "6ae091c40109320fd4c677c1",
+      "checklistComplete": true
     },
     {
       "id": "US-05",
@@ -248,7 +256,9 @@
         "release": null
       },
       "trelloId": "6ae091cac28a188f1758318e",
-      "trelloShortLink": "zvefXY1U"
+      "trelloShortLink": "zvefXY1U",
+      "checklistId": "6ae091cb850a5cfc5b05c32a",
+      "checklistComplete": true
     },
     {
       "id": "US-06",
@@ -297,7 +307,9 @@
         "release": null
       },
       "trelloId": "6ae091d04a9b223418bd0b35",
-      "trelloShortLink": "UeYgiMRS"
+      "trelloShortLink": "UeYgiMRS",
+      "checklistId": "6ae091d088da101e73f7e8b5",
+      "checklistComplete": true
     },
     {
       "id": "US-07",
@@ -344,7 +356,9 @@
         "release": null
       },
       "trelloId": "6ae091d59979dd2c9639a24b",
-      "trelloShortLink": "pRjZmYEX"
+      "trelloShortLink": "pRjZmYEX",
+      "checklistId": "6ae091d68575cbe0978e38bd",
+      "checklistComplete": true
     },
     {
       "id": "US-08",
@@ -392,7 +406,9 @@
         "release": null
       },
       "trelloId": "6ae091da4860f3f7b52deb7f",
-      "trelloShortLink": "9hDY5Nt5"
+      "trelloShortLink": "9hDY5Nt5",
+      "checklistId": "6ae091db43d2e59f9bad77f0",
+      "checklistComplete": true
     },
     {
       "id": "US-09",
@@ -441,7 +457,9 @@
         "release": null
       },
       "trelloId": "6ae091e0bc22ed23fa9dc9ae",
-      "trelloShortLink": "DPb2Ikhz"
+      "trelloShortLink": "DPb2Ikhz",
+      "checklistId": "6ae091e138fd9a96182e15b9",
+      "checklistComplete": true
     },
     {
       "id": "US-10",
@@ -490,7 +508,9 @@
         "release": null
       },
       "trelloId": "6ae091e6c005a449c0f7f014",
-      "trelloShortLink": "95W4UbL6"
+      "trelloShortLink": "95W4UbL6",
+      "checklistId": "6ae091e756e12037780c4772",
+      "checklistComplete": true
     },
     {
       "id": "US-11",
@@ -539,7 +559,9 @@
         "release": null
       },
       "trelloId": "6ae091ed265b3c26c506e673",
-      "trelloShortLink": "2WVt7I51"
+      "trelloShortLink": "2WVt7I51",
+      "checklistId": "6ae091ee880ad76e14c8cb13",
+      "checklistComplete": true
     },
     {
       "id": "US-12",
@@ -587,7 +609,9 @@
         "release": null
       },
       "trelloId": "6ae091f3ac2ca6674f06f525",
-      "trelloShortLink": "XIvKYOj9"
+      "trelloShortLink": "XIvKYOj9",
+      "checklistId": "6ae091f40cd78e2b99d63b14",
+      "checklistComplete": true
     },
     {
       "id": "US-13",
@@ -636,7 +660,9 @@
         "release": null
       },
       "trelloId": "6ae091f9a011d7eb1e838c73",
-      "trelloShortLink": "xhMgyaYg"
+      "trelloShortLink": "xhMgyaYg",
+      "checklistId": "6ae091fac152377c0b9da915",
+      "checklistComplete": true
     },
     {
       "id": "US-14",
@@ -683,7 +709,9 @@
         "release": null
       },
       "trelloId": "6ae09201ebc435fbf69885bf",
-      "trelloShortLink": "IJJU5FnO"
+      "trelloShortLink": "IJJU5FnO",
+      "checklistId": "6ae09203ff4a0a0f87128542",
+      "checklistComplete": true
     },
     {
       "id": "US-15",
@@ -733,7 +761,9 @@
         "release": null
       },
       "trelloId": "6ae0920afe42b0e6f80c4325",
-      "trelloShortLink": "kmUAaEBT"
+      "trelloShortLink": "kmUAaEBT",
+      "checklistId": "6ae0920b23b38bc1e27f4511",
+      "checklistComplete": true
     },
     {
       "id": "US-16",
@@ -781,7 +811,9 @@
         "release": null
       },
       "trelloId": "6ae092101e24de3564ee6b1b",
-      "trelloShortLink": "WUq6WMjk"
+      "trelloShortLink": "WUq6WMjk",
+      "checklistId": "6ae09211fc8b2ab0e97a2576",
+      "checklistComplete": true
     },
     {
       "id": "US-17",
@@ -830,7 +862,9 @@
         "release": null
       },
       "trelloId": "6ae092151a60c76fe4479c0d",
-      "trelloShortLink": "GDPdhq60"
+      "trelloShortLink": "GDPdhq60",
+      "checklistId": "6ae09216d4a0927dd2720be5",
+      "checklistComplete": true
     },
     {
       "id": "US-18",
@@ -878,7 +912,9 @@
         "release": null
       },
       "trelloId": "6ae0921bd9125643fae19260",
-      "trelloShortLink": "ilBhobgo"
+      "trelloShortLink": "ilBhobgo",
+      "checklistId": "6ae0921b7b2a87248407751f",
+      "checklistComplete": true
     },
     {
       "id": "US-19",
@@ -929,7 +965,9 @@
         "release": null
       },
       "trelloId": "6ae09220ca802ed7fff4fd58",
-      "trelloShortLink": "c7yRN5IC"
+      "trelloShortLink": "c7yRN5IC",
+      "checklistId": "6ae0922141d4b669f0467280",
+      "checklistComplete": true
     },
     {
       "id": "US-20",
@@ -977,7 +1015,9 @@
         "release": null
       },
       "trelloId": "6ae092265b783b34894eda6f",
-      "trelloShortLink": "A7HUM6wa"
+      "trelloShortLink": "A7HUM6wa",
+      "checklistId": "6ae09227fe90a7e24ddc2074",
+      "checklistComplete": true
     },
     {
       "id": "US-21",
@@ -1025,7 +1065,9 @@
         "release": null
       },
       "trelloId": "6ae0922cdbe4f0a9085df3b6",
-      "trelloShortLink": "zE5heVxG"
+      "trelloShortLink": "zE5heVxG",
+      "checklistId": "6ae0922d010f499226aee97a",
+      "checklistComplete": true
     },
     {
       "id": "US-22",
@@ -1072,7 +1114,9 @@
         "release": null
       },
       "trelloId": "6ae09232315c9e606f604609",
-      "trelloShortLink": "qBUWjNO9"
+      "trelloShortLink": "qBUWjNO9",
+      "checklistId": "6ae09232982cbf2f6986ccdf",
+      "checklistComplete": true
     },
     {
       "id": "US-23",
@@ -1121,7 +1165,9 @@
         "release": null
       },
       "trelloId": "6ae09237426e208c5e16b5a1",
-      "trelloShortLink": "B4WB3qpi"
+      "trelloShortLink": "B4WB3qpi",
+      "checklistId": "6ae09238c08ff567da18e1ac",
+      "checklistComplete": true
     },
     {
       "id": "US-24",
@@ -1169,7 +1215,9 @@
         "release": null
       },
       "trelloId": "6ae0923dc817ccda78d218a2",
-      "trelloShortLink": "wIP1WQ7N"
+      "trelloShortLink": "wIP1WQ7N",
+      "checklistId": "6ae0923e81c6d515070bf608",
+      "checklistComplete": true
     },
     {
       "id": "US-25",
@@ -1218,7 +1266,9 @@
         "release": null
       },
       "trelloId": "6ae092438d71fc9e057e856b",
-      "trelloShortLink": "FchJFltN"
+      "trelloShortLink": "FchJFltN",
+      "checklistId": "6ae0924519c3ffd16873246a",
+      "checklistComplete": true
     },
     {
       "id": "US-26",
@@ -1266,7 +1316,9 @@
         "release": null
       },
       "trelloId": "6ae0924b4cbc82ebb3e5cfe7",
-      "trelloShortLink": "FGLeCnCW"
+      "trelloShortLink": "FGLeCnCW",
+      "checklistId": "6ae0924c9ca7d48bfa194f93",
+      "checklistComplete": true
     },
     {
       "id": "US-27",
@@ -1313,7 +1365,9 @@
         "release": null
       },
       "trelloId": "6ae092529c0e40f483a59928",
-      "trelloShortLink": "0X8kpbsk"
+      "trelloShortLink": "0X8kpbsk",
+      "checklistId": "6ae092537f7b0165e523a841",
+      "checklistComplete": true
     },
     {
       "id": "US-28",
@@ -1360,7 +1414,9 @@
         "release": null
       },
       "trelloId": "6ae0925a9ce47130f8e9b63d",
-      "trelloShortLink": "w6cdiz3f"
+      "trelloShortLink": "w6cdiz3f",
+      "checklistId": "6ae0925bfc3699a67df13386",
+      "checklistComplete": true
     },
     {
       "id": "US-29",
@@ -1408,7 +1464,9 @@
         "release": null
       },
       "trelloId": "6ae09261e252a31d2eb20002",
-      "trelloShortLink": "g6aUbOsQ"
+      "trelloShortLink": "g6aUbOsQ",
+      "checklistId": "6ae092621cbd71c5999affe9",
+      "checklistComplete": true
     },
     {
       "id": "US-30",
@@ -1465,7 +1523,9 @@
         "release": null
       },
       "trelloId": "6ae092681047528684e3b8c8",
-      "trelloShortLink": "lM5sD6P4"
+      "trelloShortLink": "lM5sD6P4",
+      "checklistId": "6ae092696b1da21c1d78f013",
+      "checklistComplete": true
     },
     {
       "id": "PREP-01",
@@ -1716,6 +1776,29 @@
       ],
       "trelloId": "6ae0927742bd1e06c769f564",
       "trelloShortLink": "Sw8HoXiv"
+    },
+    {
+      "id": "OUT-01",
+      "name": "[OUT-01] Outillage de suivi Trello (status, comment, move)",
+      "type": "outillage",
+      "list": "En cours",
+      "labels": [
+        "Pilotage"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "estimatePersonDays": {
+        "low": 1,
+        "high": 1,
+        "accounting": "Hors macro-stories : outillage de pilotage"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Déplacer et commenter une carte par identifiant métier ; preuve obligatoire et idempotente pour Revue, Recette, Prêt à livrer, Livré ; simulation par défaut ; tests automatisés."
+      ],
+      "description": "PR https://github.com/princemzb/gestionSite/pull/3",
+      "trelloId": "6ae09db716edd1ee902db998",
+      "trelloShortLink": "IvvnT51K"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
