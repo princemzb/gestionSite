@@ -1,5 +1,5 @@
 # Registre des décisions d’architecture
-Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08 adoptée le 27 octobre 2026, sous réserve des preuves listées.
+Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08 et ADR-09 adoptées le 27 octobre 2026, sous réserve des preuves listées.
 
 | ADR | Décision proposée | Alternatives et compromis | Condition de validation |
 | --- | --- | --- | --- |
@@ -40,3 +40,28 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services (Postgr
 **Coût.** Préproduction attendue dans les quotas inclus : offre Workers Paid déjà souscrite (5 $/mois), offre gratuite Neon, 10 Go R2 gratuits. Non garanti : surveiller la consommation et activer une alerte de facturation Cloudflare.
 
 **Preuves attendues et révision.** ADR-03 reste conditionnée à POC-03 (Flutter hors connexion, profils séparés) et à POC-01 (capteurs) ; un échec rouvre le choix du client tablette. Restent ouverts dans DEC-06 : versions minimales Android/iPadOS, appareils de référence, hébergement de production (avec DEC-07 et DEC-12). Réviser si les quotas Cloudflare/Neon sont dépassés ou si une contrainte de localisation des données s’impose.
+
+## ADR-09 — Qualité du code, métriques et revue
+**Statut :** adoptée le 27 octobre 2026 par le porteur du projet (tech lead).
+
+**Contexte.** Développeur unique assisté d’agents IA ; exigence d’une architecture cohérente et d’un code de haute qualité, mesurés en continu jusqu’à la fin du projet. Les dépôts privés gratuits n’offrent ni protection de branche GitHub ni analyse Sonar des pull requests.
+
+**Choix.**
+- Dépôt GitHub rendu **public** le 27 octobre 2026 ; commits signés avec l’adresse noreply GitHub. Aucun secret ni donnée personnelle réelle dans le dépôt (AGENTS.md).
+- **SonarQube Cloud** (gratuit pour un dépôt public) : analyse de `main` et de chaque pull request, C# et Dart.
+- **Porte qualité stricte**, bloquante pour la fusion :
+  - Sonar sur le nouveau code : notes A (fiabilité, sécurité, maintenabilité), 0 bug et 0 vulnérabilité, 100 % des points sensibles de sécurité revus, couverture ≥ 80 %, duplication < 3 % ;
+  - compilation sans avertissement (C# `TreatWarningsAsErrors`, `dart analyze --fatal-infos`) ;
+  - tests d’architecture des frontières de modules (ADR-01) ;
+  - audit des dépendances vulnérables ;
+  - tous les tests réussis en CI.
+- **Revue par agents IA graduée**, avant chaque fusion :
+  - `/code-review` niveau high pour toute PR de code ;
+  - niveau max pour budget, stock, synchronisation, droits et isolation ;
+  - `/security-review` pour authentification, fichiers et formulaire public ;
+  - correction puis nouvelle revue jusqu’à zéro constat confirmé ; résultats en commentaire de PR et de carte Trello.
+- **Protection de `main`** : pas de poussée directe ni forcée, fusion par pull request ; vérifications CI et Sonar requises dès leur création (US-05).
+
+**Conséquences.** Tout le travail passe par branche et PR, documentation comprise. Une PR purement documentaire n’exige pas de revue de code ni de porte Sonar. Le cadrage est visible publiquement. La configuration Sonar (compte, organisation, jeton CI) est réalisée avec US-05, avant la première ligne de code applicatif.
+
+**Révision.** Si un seuil bloque sans gain de qualité démontré, le modifier par une nouvelle décision motivée, jamais en contournant la porte.
