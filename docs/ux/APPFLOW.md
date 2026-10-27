@@ -41,5 +41,5 @@ Tablette : profil et connexion toujours identifiables ; saisie enregistrée loca
 
 ## Composants UX à uniformiser
 Badge d’état avec texte (pas couleur seule), montant/devise, mesure/unité, indicateur de synchronisation, confirmation d’action sensible, erreur corrigible, état vide utile, navigation clavier pour le web.
-Les maquettes graphiques et tests d’utilisabilité seront produits après validation de ces écrans, sans figer aujourd’hui couleurs et typographies.
+Charte et thèmes Jour/Nuit validés le 27 octobre 2026 : voir [CHARTE.md](CHARTE.md). Les maquettes des autres écrans et les tests d’utilisabilité suivent cette charte.
 

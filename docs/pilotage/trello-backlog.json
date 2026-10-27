@@ -1932,6 +1932,35 @@
       ],
       "trelloId": "6ae0a088ab17435475ed6bbc",
       "trelloShortLink": "Qfhwc6GL"
+    },
+    {
+      "id": "UX-01",
+      "name": "[UX-01] Charte graphique et maquettes des écrans de référence",
+      "type": "preparation",
+      "list": "En cours",
+      "labels": [
+        "BA"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08",
+        "US-09",
+        "US-11",
+        "US-13"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 4,
+        "accounting": "Inclus dans les macro-stories d'écrans"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Charte validée par le porteur (fait : V1 Jour + V2 Nuit, docs/ux/CHARTE.md).",
+        "Écrans UI-01 à UI-12 maquettés dans les deux thèmes et validés par le porteur avant tout code d'écran."
+      ],
+      "trelloId": "6ae0f3b0a4704a0077a82f99",
+      "trelloShortLink": "HkoucZeh"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

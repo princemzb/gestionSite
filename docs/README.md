@@ -7,7 +7,7 @@ Version 0.2 — 27 octobre 2026. Responsable de consolidation : assistant en rô
 - [Vision et gouvernance](produit/VISION.md) : objectifs, responsabilités et changements.
 - [Glossaire et données métier](metier/GLOSSAIRE-DONNEES.md).
 - [Règles métier](metier/REGLES.md), [permissions](metier/PERMISSIONS.md), [processus](metier/PROCESSUS.md).
-- [APPFLOW et écrans annotés](ux/APPFLOW.md).
+- [APPFLOW et écrans annotés](ux/APPFLOW.md), [charte graphique et thèmes](ux/CHARTE.md).
 - [Architecture métier et logicielle](architecture/ARCHITECTURE.md).
 - [TRD](architecture/TRD.md), [données](architecture/DONNEES.md), [sécurité](architecture/SECURITE.md).
 - [Décisions d’architecture](architecture/ADR.md), [études de faisabilité](architecture/FAISABILITE.md).
