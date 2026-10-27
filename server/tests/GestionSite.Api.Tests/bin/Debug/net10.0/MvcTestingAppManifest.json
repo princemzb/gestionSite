@@ -1,9 +1,0 @@
-{
-  "GestionSite.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/GestionSite.Api",
-  "GestionSite.Modules.Budget, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Budget",
-  "GestionSite.Modules.Identite, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Identite",
-  "GestionSite.Modules.Maintenance, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Maintenance",
-  "GestionSite.Modules.Patrimoine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Patrimoine",
-  "GestionSite.Modules.Plateforme, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Plateforme",
-  "GestionSite.Modules.Stock, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "\/Users\/prince\/Developer\/gestionSite\/server\/src\/Modules\/GestionSite.Modules.Stock"
-}
