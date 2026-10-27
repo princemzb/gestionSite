@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 20:40 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 28 octobre 2026 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -19,7 +19,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | Élément | État | Prochaine action |
 | --- | --- | --- |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
-| Maquettes (carte UX-01) | Charte **validée** : V1 = thème Jour (par défaut), V2 = thème Nuit, bascule dans les réglages, mémorisée par compte ; consignée dans docs/ux/CHARTE.md | Décliner les autres écrans (UI-03 à UI-12) en Jour et Nuit sur le canevas https://claude.ai/artifact/MMmTWs6J8aH8wKroDG6PQn, puis faire valider avant tout code d'écran. |
+| Maquettes (carte UX-01) | Charte validée (docs/ux/CHARTE.md). Parcours du 1er incrément maquetté en Jour et Nuit (Réglages tablette avec bascule de thème, file de qualification web, dossier web, clôture d'intervention tablette) sur le canevas https://claude.ai/artifact/MMmTWs6J8aH8wKroDG6PQn — **en attente de validation** | **ARRÊT** : ne coder aucun écran avant la validation de ces 8 maquettes ; ensuite US-06 (comptes et droits) ou POC hors connexion selon le porteur. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
@@ -68,3 +68,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 27/10/2026 | Propositions de maquettes publiées (3 directions × 3 écrans), en attente de validation | canevas Design |
 | 27/10/2026 | 2e série de maquettes (charte du site de référence + 3 versions), en attente de validation | canevas Design |
 | 27/10/2026 | Charte validée : V1 Jour (défaut) + V2 Nuit, bascule utilisateur | docs/ux/CHARTE.md |
+| 28/10/2026 | Parcours 1er incrément maquetté en Jour et Nuit (8 écrans), en attente de validation | canevas Design |
