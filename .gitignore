@@ -15,3 +15,6 @@
 # Python
 __pycache__/
 *.pyc
+
+# Réglages Claude Code personnels
+.claude/settings.local.json
