@@ -1799,6 +1799,139 @@
       "description": "PR https://github.com/princemzb/gestionSite/pull/3",
       "trelloId": "6ae09db716edd1ee902db998",
       "trelloShortLink": "IvvnT51K"
+    },
+    {
+      "id": "S05-01",
+      "name": "[S05-01] Solution .NET 10 modulaire, tests et tests d'architecture",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [
+        "Socle"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 1.5,
+        "high": 2.5,
+        "accounting": "Inclus dans US-05"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Solution ASP.NET Core .NET 10 en monolithe modulaire (modules vides Identité, Patrimoine, Maintenance, Stock, Budget, Plateforme) ; avertissements = erreurs ; tests unitaires et tests d'architecture interdisant les dépendances entre modules ; endpoint de santé ; `dotnet test` vert."
+      ],
+      "trelloId": "6ae0a0821c05c8c4878fc0fe",
+      "trelloShortLink": "zFJuMlaI"
+    },
+    {
+      "id": "S05-02",
+      "name": "[S05-02] Environnement local Docker (PostgreSQL, stockage S3)",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Socle"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 0.5,
+        "high": 1,
+        "accounting": "Inclus dans US-05"
+      },
+      "dependencies": [
+        "S05-01"
+      ],
+      "acceptanceCriteria": [
+        "`docker compose up` démarre PostgreSQL et un stockage compatible S3 local ; l'API s'y connecte avec des secrets d'exemple non sensibles ; santé vérifiée."
+      ],
+      "trelloId": "6ae0a0844e15dde7dc24e7cf",
+      "trelloShortLink": "SqsOGcSV"
+    },
+    {
+      "id": "S05-03",
+      "name": "[S05-03] Projet Flutter et analyse stricte",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Socle"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 0.5,
+        "high": 1,
+        "accounting": "Inclus dans US-05"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Projet Flutter Android/iPad sans écran designé (attente des maquettes validées) ; analyse stricte sans avertissement ; un test exécuté."
+      ],
+      "trelloId": "6ae0a0854afbe98f539b4b4b",
+      "trelloShortLink": "qHzLGgEN"
+    },
+    {
+      "id": "S05-04",
+      "name": "[S05-04] CI GitHub Actions et porte SonarQube Cloud",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Socle"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 1,
+        "high": 2,
+        "accounting": "Inclus dans US-05"
+      },
+      "dependencies": [
+        "S05-01",
+        "S05-03"
+      ],
+      "acceptanceCriteria": [
+        "CI sur chaque PR : build, tests, couverture, audit des dépendances pour .NET et Flutter ; analyse SonarQube Cloud avec porte stricte ; vérifications obligatoires sur main. Nécessite la création du compte Sonar par le porteur."
+      ],
+      "trelloId": "6ae0a08730c7293e7b6f7dfd",
+      "trelloShortLink": "xMYGPGfp"
+    },
+    {
+      "id": "S05-05",
+      "name": "[S05-05] Guide d'installation et commandes réelles",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Socle"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05"
+      ],
+      "estimatePersonDays": {
+        "low": 0.5,
+        "high": 0.5,
+        "accounting": "Inclus dans US-05"
+      },
+      "dependencies": [
+        "S05-02",
+        "S05-04"
+      ],
+      "acceptanceCriteria": [
+        "docs/dev/GUIDE.md liste versions et commandes vérifiées (build, tests, démarrage local) ; aucune commande non exécutée."
+      ],
+      "trelloId": "6ae0a088ab17435475ed6bbc",
+      "trelloShortLink": "Qfhwc6GL"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
