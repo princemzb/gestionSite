@@ -5,7 +5,7 @@ Statut initial : tous les arbitrages ci-dessous sont ouverts ; aucune approbatio
 | --- | --- | --- | --- |
 | DEC-01 | Barèmes, lots, score de zones communes, arrondi et fraîcheur | Métier + BA | US-11 |
 | DEC-02 | Périodes, TTC/HT, allocation et régularisation des engagements | Métier/finance | US-17/18 |
-| DEC-03 | Statuts, doublons, refus, annulation, cardinalité interventions | Métier + BA | US-09/12/16 |
+| DEC-03 | Statuts, doublons, refus, annulation, cardinalité interventions : **tranchée** (PROCESSUS, 27/10/2026) | Métier + BA | — |
 | DEC-04 | Lecture des coûts/contacts et droits d’édition grilles/plans : **tranchée** (PERMISSIONS, 27/10/2026) | Métier | — |
 | DEC-05 | Priorités, horaires et délais de relance | Métier | US-10 |
 | DEC-06 | Frameworks et hébergement préprod : **tranchés** (ADR-08, 27/10/2026). Restent : versions et appareils supportés, hébergement de production | Tech lead | US-13 / production |
