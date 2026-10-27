@@ -54,13 +54,39 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: "3.47.1"
-          channel: stable
+          flutter-version-file: mobile/pubspec.yaml
           cache: true
       - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
+      - name: Couverture des lignes ≥ 80 %
+        run: |
+          python3 - coverage/lcov.info 80 <<'PY'
+          import sys
+          found = hit = 0
+          for line in open(sys.argv[1]):
+              if line.startswith("LF:"): found += int(line[3:])
+              elif line.startswith("LH:"): hit += int(line[3:])
+          coverage = 100 * hit / found if found else 100.0
+          print(f"Couverture des lignes Dart : {coverage:.1f} % (minimum {sys.argv[2]} %)")
+          sys.exit(0 if coverage >= float(sys.argv[2]) else 1)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: couverture-mobile
+          path: mobile/coverage/lcov.info
+
+  mobile-dependencies:
+    name: Application Flutter (dépendances vulnérables)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --lockfile=mobile/pubspec.lock
 
   sonar:
     name: SonarQube Cloud
@@ -93,12 +119,6 @@ jobs:
         if: env.SONAR_TOKEN != ''
         with:
           python-version: "3.12"
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        if: env.SONAR_TOKEN != ''
-        with:
-          flutter-version: "3.47.1"
-          channel: stable
-          cache: true
       - name: Analyse et porte qualité Sonar (dépôt entier, C# et scripts)
         if: env.SONAR_TOKEN != ''
         run: |
@@ -109,15 +129,56 @@ jobs:
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
-            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/build/**,mobile/.dart_tool/**" \
-            /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
-            /d:sonar.dart.lcov.reportPaths="mobile/coverage/lcov.info"
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**" \
+            /d:sonar.python.coverage.reportPaths="coverage-python.xml"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
-          (cd mobile && flutter pub get --enforce-lockfile && flutter test --coverage)
           dotnet build server/GestionSite.slnx --configuration Release
           dotnet test server/GestionSite.slnx --no-build --configuration Release \
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+  sonar-mobile:
+    name: SonarQube Cloud (application Flutter)
+    runs-on: ubuntu-latest
+    needs: mobile
+    timeout-minutes: 15
+    # Projet Sonar distinct : le scanner .NET n'analyse pas le Dart (ADR-09).
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - name: Jeton Sonar absent
+        if: env.SONAR_TOKEN == ''
+        run: |
+          echo "::warning::SONAR_TOKEN non configuré, analyse Sonar de l'application Flutter non exécutée."
+      - uses: actions/checkout@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        if: env.SONAR_TOKEN != ''
+        with:
+          flutter-version-file: mobile/pubspec.yaml
+          cache: true
+      - name: Dépendances Dart (requises par l'analyseur Sonar)
+        if: env.SONAR_TOKEN != ''
+        working-directory: mobile
+        run: flutter pub get --enforce-lockfile
+      - uses: actions/download-artifact@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          name: couverture-mobile
+          path: mobile/coverage
+      - uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        if: env.SONAR_TOKEN != ''
+        with:
+          projectBaseDir: mobile
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
+            -Dsonar.projectKey=${{ vars.SONAR_MOBILE_PROJECT_KEY || 'princemzb_gestionSite_mobile' }}
+            -Dsonar.sources=lib
+            -Dsonar.tests=test
+            -Dsonar.dart.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.qualitygate.wait=true

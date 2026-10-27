@@ -48,7 +48,7 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 
 **Choix.**
 - Dépôt GitHub rendu **public** le 27 octobre 2026 ; commits signés avec l’adresse noreply GitHub. Aucun secret ni donnée personnelle réelle dans le dépôt (AGENTS.md).
-- **SonarQube Cloud** (gratuit pour un dépôt public) : analyse de `main` et de chaque pull request, C# et Dart.
+- **SonarQube Cloud** (gratuit pour un dépôt public) : analyse de `main` et de chaque pull request. Deux projets : `princemzb_gestionSite` (C#, scripts, CI ; scanner .NET) et `princemzb_gestionSite_mobile` (Dart ; scanner générique), car le scanner .NET n'analyse pas le Dart (constat du 27/10/2026).
 - **Porte qualité stricte**, bloquante pour la fusion :
   - Sonar sur le nouveau code : notes A (fiabilité, sécurité, maintenabilité), 0 bug et 0 vulnérabilité, 100 % des points sensibles de sécurité revus, couverture ≥ 80 %, duplication < 3 % ;
   - compilation sans avertissement (C# `TreatWarningsAsErrors`, `dart analyze --fatal-infos`) ;

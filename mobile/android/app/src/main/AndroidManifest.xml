@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Synchronisation avec l'API (NFR-02) : nécessaire aussi en version finale. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="gestionsite_terrain"
+        android:label="gestionSite"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 17:00 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 18:00 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | Élément | État | Prochaine action |
 | --- | --- | --- |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
-| S05-03 Projet Flutter | Prêt | **Prochaine sous-carte** : projet sans écran designé (maquettes non validées). |
+| S05-03 Projet Flutter (PR #15) | En revue : `mobile/`, écran technique provisoire sans design, analyse stricte, 2 tests, couverture Dart 100 %, APK debug compilé ; second projet Sonar `princemzb_gestionSite_mobile` créé (autorisé par le porteur) | Fusionner quand les 6 vérifications sont vertes, puis ajouter les nouvelles vérifications obligatoires sur `main` ; installer l'APK sur la tablette Lenovo quand elle est branchée. |
 | S05-05 Guide d'installation | Prêt | Après S05-02 et S05-03. |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
 
@@ -59,3 +59,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 27/10/2026 | Sonar : jeton CI en secret, analyse automatique désactivée ; PR #5 (socle) et #6 (CI) fusionnées ; vérifications obligatoires sur `main` ; analyse du dépôt entier | PR #5, #6, #11 |
 | 27/10/2026 | S2083 qualifié faux positif par l'API Sonar ; `main` : 0 vulnérabilité, note A | Sonar |
 | 27/10/2026 | S05-02 : environnement local Docker et disponibilité base/stockage (3 passages de revue) | PR #14 |
+| 27/10/2026 | S05-03 : projet Flutter ; Sonar mobile séparé (le scanner .NET n'analyse pas le Dart) | PR #15 |
