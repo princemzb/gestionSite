@@ -15,23 +15,25 @@ namespace GestionSite.Modules.Tests;
 /// </summary>
 public sealed class ModuleRegistrationTests
 {
-    public static TheoryData<Func<IServiceCollection, IServiceCollection>> Registrations => new()
+    private static readonly Dictionary<string, Func<IServiceCollection, IServiceCollection>> Registrations = new()
     {
-        s => s.AddIdentiteModule(),
-        s => s.AddPatrimoineModule(),
-        s => s.AddMaintenanceModule(),
-        s => s.AddStockModule(),
-        s => s.AddBudgetModule(),
-        s => s.AddPlateformeModule(),
+        ["Identite"] = s => s.AddIdentiteModule(),
+        ["Patrimoine"] = s => s.AddPatrimoineModule(),
+        ["Maintenance"] = s => s.AddMaintenanceModule(),
+        ["Stock"] = s => s.AddStockModule(),
+        ["Budget"] = s => s.AddBudgetModule(),
+        ["Plateforme"] = s => s.AddPlateformeModule(),
     };
 
+    public static TheoryData<string> Modules => new(Registrations.Keys);
+
     [Theory]
-    [MemberData(nameof(Registrations))]
-    public void RegistrationReturnsTheSameCollectionForChaining(Func<IServiceCollection, IServiceCollection> register)
+    [MemberData(nameof(Modules))]
+    public void RegistrationReturnsTheSameCollectionForChaining(string module)
     {
         var services = new ServiceCollection();
 
-        Assert.Same(services, register(services));
+        Assert.Same(services, Registrations[module](services));
     }
 
     [Fact]
