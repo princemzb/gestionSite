@@ -3,12 +3,12 @@ Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET C
 
 ## Démarrage actuel
 Lire README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
-Serveur (`server/`, SDK défini par `server/global.json` : .NET 10.0.302 minimum, correctifs 10.0.3xx acceptés) — commandes vérifiées le 27 octobre 2026 :
+Serveur (`server/`, SDK défini par `global.json` à la racine : .NET 10.0.302 minimum, correctifs 10.0.3xx acceptés) — commandes vérifiées le 27 octobre 2026 :
 - `dotnet build server/GestionSite.slnx` : avertissements et style bloquants (`Directory.Build.props`, `.editorconfig`).
 - `dotnet test server/GestionSite.slnx` : tests d’intégration de l’API et tests d’architecture des modules.
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
-Base locale, Flutter, CI et Sonar arrivent avec S05-02 à S05-05 ; le guide complet d’installation sera finalisé par S05-05.
+Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud (dépôt entier, C# et scripts) obligatoires sur `main`. Base locale et Flutter arrivent avec S05-02 et S05-03 ; le guide complet d’installation sera finalisé par S05-05.
 
 Frontières des modules : un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l’API ou un hôte ; les tests d’architecture le vérifient sur chaque fichier projet (donc sur toute chaîne de dépendances), interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
 
