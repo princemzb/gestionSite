@@ -4,7 +4,7 @@ Statut : tableau publié le 27 octobre 2026 : [https://trello.com/b/NsEhG4sm](ht
 ## Tableau
 Nom proposé : « Patrimoine Églises — Produit & Livraison ».
 Listes : À affiner → Prêt → Sprint sélectionné → En cours → Revue → Recette → Prêt à livrer → Livré. Ajouter « Bloqué » pour les attentes empêchant réellement la progression. Conserver la liste précédente dans la carte bloquée.
-Labels : BA, Architecture, Web, Tablette, Backend, IA, Spatial, QA, Exploitation ; Incident critique ; Décision requise.
+Labels publiés : modules du backlog (BA, POC, Préparation, Socle, Identité, Patrimoine, Maintenance, Terrain, Stock, Budget, IA, Spatial, Pilotage, SaaS, Exploitation, Livraison), sprints SP-001 à SP-003, Incident critique, Décision requise.
 Champs (ou section structurée dans description si indisponibles) : identifiant, lot, sprint, estimation basse/haute, reste à faire, responsable, priorité, risque, dépendances, version cible.
 
 ## Carte exécutable obligatoire
@@ -35,5 +35,5 @@ Le fichier trello-backlog.json est un échange neutre, **pas un format d’impor
 Ne publier aucune donnée personnelle des futurs déclarants dans les cartes de développement.
 
 ## Accès API
-Application Trello « gestionSite sync » (sans fonctionnalités Power-Up), authentification par clé d’API et jeton. Les identifiants sont dans le Trousseau macOS du poste du porteur, services `gestionsite-trello-key` et `gestionsite-trello-token` ; jamais dans le dépôt. Lecture : `security find-generic-password -s <service> -w`. Accès en lecture vérifié le 27 octobre 2026 ; aucune écriture effectuée.
+Application Trello « gestionSite sync » (sans fonctionnalités Power-Up), authentification par clé d’API et jeton. Les identifiants sont dans le Trousseau macOS du poste du porteur, services `gestionsite-trello-key` et `gestionsite-trello-token` ; jamais dans le dépôt. Lecture : `security find-generic-password -s <service> -w`. Accès vérifié et première publication effectuée le 27 octobre 2026.
 
