@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GestionSite.Api/GestionSite.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/GestionSite.Modules.Budget/GestionSite.Modules.Budget.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Identite/GestionSite.Modules.Identite.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Maintenance/GestionSite.Modules.Maintenance.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Patrimoine/GestionSite.Modules.Patrimoine.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Plateforme/GestionSite.Modules.Plateforme.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Stock/GestionSite.Modules.Stock.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GestionSite.Api.Tests/GestionSite.Api.Tests.csproj" />
+    <Project Path="tests/GestionSite.ArchitectureTests/GestionSite.ArchitectureTests.csproj" />
+    <Project Path="tests/GestionSite.Modules.Tests/GestionSite.Modules.Tests.csproj" />
+  </Folder>
+</Solution>

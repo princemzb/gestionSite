@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Budget/GestionSite.Modules.Budget.csproj" />
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Identite/GestionSite.Modules.Identite.csproj" />
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Maintenance/GestionSite.Modules.Maintenance.csproj" />
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Patrimoine/GestionSite.Modules.Patrimoine.csproj" />
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Plateforme/GestionSite.Modules.Plateforme.csproj" />
+    <ProjectReference Include="../../src/Modules/GestionSite.Modules.Stock/GestionSite.Modules.Stock.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>
