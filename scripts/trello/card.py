@@ -154,7 +154,10 @@ def move(api, data, card_id, target, proof):
 
 def main():
     args = parse_args()
-    data = load()
+    try:
+        data = load()
+    except TrelloError as err:
+        sys.exit(str(err))
     api = Trello(apply=args.apply)
     try:
         if args.action == "status":

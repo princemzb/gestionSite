@@ -11,12 +11,18 @@ import card
 import publish_backlog
 from publish_backlog import TrelloError
 
+def tid(n):
+    """Identifiant Trello réaliste (24 hexadécimaux)."""
+    return f"{n:024x}"
+
+
 LISTS = ["À affiner", "En cours", "Bloqué", "Revue", "Livré"]
+BOARD, CARD = tid(0xB0), tid(0xC1)
 DATA = {
-    "boardId": "B",
+    "boardId": BOARD,
     "lists": LISTS,
-    "listIds": {name: f"L{i}" for i, name in enumerate(LISTS)},
-    "cards": [{"id": "US-05", "trelloId": "C1"}, {"id": "US-31"}],
+    "listIds": {name: tid(0x100 + i) for i, name in enumerate(LISTS)},
+    "cards": [{"id": "US-05", "trelloId": CARD}, {"id": "US-31"}],
 }
 PROOF = "PR #12, CI verte, revue sans constat"
 
@@ -37,16 +43,17 @@ class FakeTrello:
         return [a["data"]["text"] for a in self.actions if a["type"] == "commentCard"]
 
     def call(self, method, path, **params):
-        if method == "GET" and path == "/cards/C1":
+        publish_backlog.safe_path(path)  # mêmes chemins que la vraie API
+        if method == "GET" and path == f"/cards/{CARD}":
             return {"idList": self.list_id, "closed": self.closed}
-        if method == "GET" and path == "/cards/C1/actions":
+        if method == "GET" and path == f"/cards/{CARD}/actions":
             return list(self.actions)
-        if method == "GET" and path == "/boards/B/lists":
+        if method == "GET" and path == f"/boards/{BOARD}/lists":
             return [{"id": v, "name": k} for k, v in DATA["listIds"].items()]
         self.writes.append((method, path))
         if method == "POST":
             self.actions.insert(0, {"type": "commentCard", "data": {"text": params["text"]}})
-            return {"id": "A1"}
+            return {"id": tid(0xA1)}
         if method == "PUT":
             if self.fail_put:
                 raise TrelloError("Erreur Trello 503")
@@ -116,7 +123,7 @@ class MoveTest(unittest.TestCase):
     def test_unpublished_card_and_case_insensitive_id(self):
         with self.assertRaises(SystemExit):
             card.find_card(DATA, "US-31")
-        self.assertEqual(card.find_card(DATA, " us-05 "), ("US-05", "C1"))
+        self.assertEqual(card.find_card(DATA, " us-05 "), ("US-05", CARD))
 
     def test_too_long_proof_is_refused_before_any_write(self):
         api = FakeTrello()
@@ -178,15 +185,39 @@ class SafePathTest(unittest.TestCase):
 
     def test_traversal_and_injection_are_refused(self):
         for path in (f"/cards/../tokens/{self.ID}", "/cards/abc?key=x", f"/cards/{self.ID}/../../webhooks",
-                     "cards/x", f"/cards/{self.ID.upper()}", "/tokens"):
+                     "cards/x", f"/cards/{self.ID.upper()}", "/tokens", f"/organizations/{self.ID}/members",
+                     "/me/boards/me", f"/cards/{self.ID}/checkItems", f"/boards/{self.ID}/checklists"):
             with self.assertRaises(TrelloError):
                 publish_backlog.safe_path(path)
 
     def test_backlog_with_malformed_id_is_refused(self):
-        data = {"boardId": self.ID, "listIds": {"Prêt": "../webhooks"}, "cards": []}
+        bad = "../webhooks"
+        for data in ({"boardId": bad, "cards": []},
+                     {"listIds": {"Prêt": bad}, "cards": []},
+                     {"labelIds": {"IA": bad}, "cards": []},
+                     {"cards": [{"trelloId": bad}]},
+                     {"cards": [{"checklistId": bad}]},
+                     {"cards": [{"trelloId": 123}]}):
+            with self.assertRaises(TrelloError, msg=data):
+                publish_backlog.validate_ids(data)
+
+    def test_backlog_with_valid_or_missing_ids_is_accepted(self):
+        publish_backlog.validate_ids({"boardId": self.ID, "listIds": None, "labelIds": {"IA": self.ID},
+                                      "cards": [{"trelloId": None}, {"trelloId": self.ID}]})
+
+    def test_simulated_writes_follow_the_same_path_rules(self):
+        with mock.patch.object(publish_backlog, "keychain", return_value="x"):
+            api = publish_backlog.Trello(apply=False)
+        self.assertEqual(api.call("POST", "/cards")["id"], publish_backlog.SIMULATED_ID)
         with self.assertRaises(TrelloError):
-            publish_backlog.validate_ids(data)
-        publish_backlog.validate_ids({"boardId": self.ID, "listIds": {"Prêt": self.ID}, "cards": [{"trelloId": None}]})
+            api.call("POST", "/cards/../tokens")
+
+    def test_card_tool_reports_malformed_backlog_cleanly(self):
+        with mock.patch.object(card, "load", side_effect=TrelloError("Identifiants Trello invalides")), \
+                mock.patch("sys.argv", ["card.py", "status"]):
+            with self.assertRaises(SystemExit) as raised:
+                card.main()
+        self.assertIn("Identifiants Trello invalides", str(raised.exception))
 
 
 def http_error(code):
