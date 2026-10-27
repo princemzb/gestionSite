@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Généré par eng/verify.sh
+/test/all_lib_coverage_test.dart

@@ -8,7 +8,7 @@ Serveur (`server/`, SDK défini par `global.json` à la racine : .NET 10.0.302 m
 - `dotnet test server/GestionSite.slnx` : tests d’intégration de l’API et tests d’architecture des modules.
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
-Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud (dépôt entier, C# et scripts) obligatoires sur `main`. Environnement local (S05-02), commandes vérifiées le 27 octobre 2026 :
+Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud obligatoires sur `main` : projet `princemzb_gestionSite` (C#, scripts, CI) et projet `princemzb_gestionSite_mobile` (Dart et code natif de `mobile/`). Environnement local (S05-02), commandes vérifiées le 27 octobre 2026 :
 - `docker compose -f server/compose.yaml up -d --wait` : PostgreSQL 17.6 (port 55433) et stockage compatible S3 SeaweedFS (port 58333, compartiment `gestionsite-local` créé au démarrage). Ports modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; dans ce cas, fournir aussi à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports (variables d'environnement).
 - `dotnet run --project server/src/GestionSite.Api --launch-profile http` puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (PostgreSQL et stockage joignables ; 503 sinon).
 - `docker compose -f server/compose.yaml down` pour arrêter ; ajouter `-v` pour effacer les données locales.
