@@ -40,3 +40,17 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 Barème candidat : [0;2[ critique, [2;4[ mauvais, [4;6[ dégradé, [6;8[ satisfaisant, [8;10] bon. Ne pas implémenter ces seuils sans décision DEC-01.
 Un danger ne disparaît pas si la moyenne est bonne. Les grilles doivent distinguer constat, état, mesure et note ; l’IA ne remplace pas l’évaluation humaine validée.
 
+## Priorités, délais et relances — DEC-05, V, 27 octobre 2026 (porteur du projet)
+Priorité fixée par R/D à la qualification, indépendamment du danger déclaré (qui reste une alerte distincte).
+
+| Priorité | Usage | Prise en charge (dossier affecté) | Résolution (clôture, hors attente) |
+| --- | --- | --- | --- |
+| Urgente | Danger, activité bloquée | 4 h | 2 jours |
+| Haute | Gêne importante | 1 jour | 7 jours |
+| Normale | Cas courant | 3 jours | 30 jours |
+| Basse | Amélioration, peut attendre | 7 jours | 90 jours |
+
+- Délais comptés en temps calendaire (week-ends et jours fériés inclus), pour toutes les priorités. Ce sont des cibles de suivi, pas des engagements de service.
+- Les périodes « En attente » suspendent le délai de résolution ; l’ancienneté totale reste affichée.
+- Rappels : à 75 % du délai, rappel à la personne en charge (R/D si non affecté, sinon technicien affecté). À 100 %, escalade au responsable et aux délégués du site, puis rappel quotidien tant que le délai est dépassé. Une relance ne crée pas de doublon de notification pour le même seuil.
+- Récurrence : au moins 3 dossiers (hors « classée sans suite » et doublons rattachés) sur le même composant ou la même zone en 12 mois glissants.
