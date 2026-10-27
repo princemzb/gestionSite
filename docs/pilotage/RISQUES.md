@@ -3,7 +3,7 @@ Statut initial : tous les arbitrages ci-dessous sont ouverts ; aucune approbatio
 
 | ID | Décision / risque | Responsable proposé | Bloque |
 | --- | --- | --- | --- |
-| DEC-01 | Barèmes, lots, score de zones communes, arrondi et fraîcheur | Métier + BA | US-11 |
+| DEC-01 | Barèmes, lots, score de zones communes, fraîcheur : **tranchée** (REGLES, 27/10/2026) ; arrondi RG-12 à confirmer | Métier + BA | — |
 | DEC-02 | Périodes, TTC/HT, allocation et régularisation des engagements | Métier/finance | US-17/18 |
 | DEC-03 | Statuts, doublons, refus, annulation, cardinalité interventions : **tranchée** (PROCESSUS, 27/10/2026) | Métier + BA | — |
 | DEC-04 | Lecture des coûts/contacts et droits d’édition grilles/plans : **tranchée** (PERMISSIONS, 27/10/2026) | Métier | — |

@@ -36,8 +36,15 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 | RG-31 | P | Toute correction sensible conserve l’auteur, le motif et la valeur précédente dans un journal approprié, hors trajets de position. |
 | RG-32 | P | Une modification matérielle d’estimation invalide sa validation antérieure ; nouvelle autorisation si montant ou périmètre autorisé change. |
 
-## Scoring : proposition à arbitrer
-Barème candidat : [0;2[ critique, [2;4[ mauvais, [4;6[ dégradé, [6;8[ satisfaisant, [8;10] bon. Ne pas implémenter ces seuils sans décision DEC-01.
+## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
+- Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
+- Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.
+- Lot : compte comme un seul composant de sa zone ; note = moyenne des états pondérée par les quantités (ex. 30×9 + 8×5 + 2×1 sur 40 = 7,8).
+- Éléments communs à plusieurs pièces : chaque bâtiment a une zone « Parties communes » qui les reçoit et compte comme une zone dans la moyenne du site. Un composant appartient à une seule zone.
+- Fraîcheur : une évaluation de plus de 6 mois est signalée « ancienne » ; elle reste comptée. L’écran montre la part du score reposant sur des évaluations anciennes.
+- Historique : instantané mensuel (et à la demande) du score du site et de chaque zone ; les évaluations sont toujours historisées.
+- Inventaire : un composant retiré sort immédiatement du calcul, son historique reste consultable ; un composant ajouté est « non évalué » et réduit la couverture sans modifier la note.
+- Arrondi : RG-12 (une décimale à l’affichage) reste à confirmer.
 Un danger ne disparaît pas si la moyenne est bonne. Les grilles doivent distinguer constat, état, mesure et note ; l’IA ne remplace pas l’évaluation humaine validée.
 
 ## Priorités, délais et relances — DEC-05, V, 27 octobre 2026 (porteur du projet)
