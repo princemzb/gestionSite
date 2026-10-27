@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 16:00 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 16:20 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -12,21 +12,23 @@ Dernière mise à jour : 27 octobre 2026, 16:00 (heure de Paris), par l'agent IA
 - Socle serveur fusionné sur `main` (PR #5) : solution .NET 10, 6 modules isolés, 32 tests, couverture C# 100 %.
 
 ## État Sonar de `main` (27/10, 16:00)
-Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %) ; 0 bug ; 0 code smell ; **1 vulnérabilité S2083** sur `publish_backlog.py` ligne 106 (`save()`), jugée faux positif : chemin d'écriture constant, seul le contenu dépend des données. À qualifier « False Positive » dans Sonar par le porteur. Toute modification future des scripts doit avoir ≥ 80 % de couverture sur le nouveau code.
+Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %) ; 0 bug ; 0 code smell ; 0 vulnérabilité ; note de sécurité A. S2083 sur `publish_backlog.py` (`save()`) qualifié « False Positive » avec justification le 27/10 (chemin d'écriture constant). Toute modification future des scripts doit avoir ≥ 80 % de couverture sur le nouveau code.
 
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| S2083 faux positif | En attente du porteur | Le marquer « False Positive » avec justification, puis vérifier la note de sécurité A. |
 | S05-02 Docker local (PostgreSQL, stockage S3) | Prêt | Prochaine sous-carte à réaliser. |
 | S05-03 Projet Flutter | Prêt | Projet sans écran designé (maquettes non validées). |
 | S05-05 Guide d'installation | Prêt | Après S05-02 et S05-03. |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
 
 ## Blocages et actions du porteur
-1. Qualifier S2083 en faux positif dans Sonar (lien : https://sonarcloud.io/project/issues?id=princemzb_gestionSite&open=AaF9lMeaypDsaL-xsBA3).
-2. **Maquettes** : aucun visuel ni écran designé avant validation par le porteur de plusieurs propositions de maquettes ; s'arrêter et attendre sa décision.
-3. **iPad** non disponible pour les essais (POC-01, POC-03).
+1. **Maquettes** : aucun visuel ni écran designé avant validation par le porteur de plusieurs propositions de maquettes ; s'arrêter et attendre sa décision.
+2. **iPad** non disponible pour les essais (POC-01, POC-03).
+
+## Accès outillés
+- Trello : clé et jeton dans le Trousseau (`gestionsite-trello-key`, `gestionsite-trello-token`).
+- Sonar : jeton CI en secret GitHub `SONAR_TOKEN` ; jeton utilisateur pour l'API Sonar dans le Trousseau (`gestionsite-sonar-token`).
 
 ## Règles de travail en vigueur (rappel)
 - Tout passe par branche et PR ; `main` est protégée. Revue `/code-review` high (max pour budget, stock, synchronisation, droits, isolation ; `/security-review` pour auth, fichiers, formulaire public) jusqu'à zéro constat confirmé.
@@ -55,3 +57,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 27/10/2026 | Incident : PR #7 a inclus 1785 fichiers bin/obj (aucun source ni secret) ; retirés et `.gitignore` racine renforcé. Précaution : vérifier `git status` avant `git add -A` après un changement de branche | PR #8 |
 | 27/10/2026 | Sonar connecté (analyse automatique) : 3 vulnérabilités dans l'outillage Trello ; correctif en PR, à confirmer par une nouvelle analyse Sonar | PR #10 |
 | 27/10/2026 | Sonar : jeton CI en secret, analyse automatique désactivée ; PR #5 (socle) et #6 (CI) fusionnées ; vérifications obligatoires sur `main` ; analyse du dépôt entier | PR #5, #6, #11 |
+| 27/10/2026 | S2083 qualifié faux positif par l'API Sonar ; `main` : 0 vulnérabilité, note A | Sonar |
