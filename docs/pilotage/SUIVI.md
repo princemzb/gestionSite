@@ -8,7 +8,7 @@ Vérification documentaire exécutée : liens locaux existants, blocs de code fe
 ## Tableau de livraison à maintenir
 | Lot | Version/commit | Trello | Revue technique | Recette métier | Déploiement | Résultat |
 | --- | --- | --- | --- | --- | --- | --- |
-| Cadrage v0.2 | Fichiers locaux, pas de commit créé | Non publié | À revoir | À revoir | Sans objet | Documenté |
+| Cadrage v0.2 | 1430879 (dépôt privé princemzb/gestionSite) | Non publié | À revoir | À revoir | Sans objet | Documenté |
 
 ## Compte rendu de sprint
 Sprint/dates, capacité prévue/réelle, cartes sélectionnées, réalisées, reportées et raisons, défauts, décisions, reste à faire réestimé. Ne pas convertir automatiquement le temps écoulé en pourcentage réalisé.
