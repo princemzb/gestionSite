@@ -1716,6 +1716,29 @@
       ],
       "trelloId": "6ae0927742bd1e06c769f564",
       "trelloShortLink": "Sw8HoXiv"
+    },
+    {
+      "id": "OUT-01",
+      "name": "[OUT-01] Outillage de suivi Trello (status, comment, move)",
+      "type": "outillage",
+      "list": "En cours",
+      "labels": [
+        "Pilotage"
+      ],
+      "sprint": "SP-001",
+      "owner": "Agent IA (délégation du porteur)",
+      "estimatePersonDays": {
+        "low": 1,
+        "high": 1,
+        "accounting": "Hors macro-stories : outillage de pilotage"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Déplacer et commenter une carte par identifiant métier ; preuve obligatoire et idempotente pour Revue, Recette, Prêt à livrer, Livré ; simulation par défaut ; tests automatisés."
+      ],
+      "description": "PR https://github.com/princemzb/gestionSite/pull/3",
+      "trelloId": "6ae09db716edd1ee902db998",
+      "trelloShortLink": "IvvnT51K"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

@@ -38,11 +38,15 @@ LABEL_COLORS = {
     "SP-001": "yellow_light", "SP-002": "yellow_light", "SP-003": "yellow_light",
 }
 
-TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation"}
+TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation", "outillage": "Outillage"}
 
 
 class TrelloError(Exception):
     """Échec d'un appel Trello (HTTP ou réseau)."""
+
+
+def load():
+    return json.loads(BACKLOG.read_text(encoding="utf-8"))
 
 
 def save(data, api):
@@ -232,7 +236,7 @@ def main():
 
 
 def publish(apply):
-    data = json.loads(BACKLOG.read_text(encoding="utf-8"))
+    data = load()
     api = Trello(apply)
     me = api.call("GET", "/members/me", fields="username")
     print(f"{'PUBLICATION' if apply else 'SIMULATION'} — compte Trello : {me['username']}\n")

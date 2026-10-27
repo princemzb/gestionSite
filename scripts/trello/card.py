@@ -11,19 +11,17 @@ Prêt à livrer ou Livré exige une preuve d'au moins 20 caractères ; l'outil n
 que sa présence, les conditions de passage de docs/pilotage/TRELLO.md restent à la
 charge de l'opérateur. Un passage en Bloqué consigne la liste précédente.
 
-La preuve est publiée avant le déplacement et porte un marqueur « [US-05 → Livré #a1b2c3] »
-(empreinte de la preuve) : une carte n'entre jamais dans une liste à preuve sans sa preuve,
-une relance identique après erreur termine l'opération sans dupliquer le commentaire, et une
-nouvelle entrée dans la même liste exige une nouvelle preuve. Si le déplacement échoue
-définitivement, la preuve déjà publiée reste sur la carte : relancer jusqu'au succès.
+La preuve est publiée avant le déplacement, avec le marqueur « [US-05 → Livré] ». Elle
+ne compte que si elle a été publiée depuis le dernier déplacement de la carte : une relance
+après erreur reprend sans doublon, et chaque nouvelle entrée dans une liste exige sa propre
+preuve. Si le déplacement échoue définitivement, la preuve publiée reste sur la carte :
+relancer jusqu'au succès.
 """
 import argparse
-import hashlib
-import json
 import sys
 import unicodedata
 
-from publish_backlog import BACKLOG, Trello, TrelloError, open_lists
+from publish_backlog import Trello, TrelloError, load, open_lists
 
 # Listes dont l'entrée exige une preuve (docs/pilotage/TRELLO.md, « Conditions de passage »).
 PROOF_REQUIRED = {"Revue", "Recette", "Prêt à livrer", "Livré"}
@@ -37,17 +35,18 @@ def nfc(text):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    writes = argparse.ArgumentParser(add_help=False)
+    writes.add_argument("--apply", action="store_true", help="écrire réellement dans Trello")
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("status", help="afficher les cartes par liste")
-    comment = sub.add_parser("comment", help="commenter une carte")
+    comment = sub.add_parser("comment", parents=[writes], help="commenter une carte")
     comment.add_argument("card")
     comment.add_argument("text")
-    comment.add_argument("--apply", action="store_true", help="écrire réellement dans Trello")
-    move = sub.add_parser("move", help="déplacer une carte")
+    move = sub.add_parser("move", parents=[writes], help="déplacer une carte")
     move.add_argument("card")
     move.add_argument("target")
     move.add_argument("--proof", default="", help="commentaire de preuve du passage")
-    move.add_argument("--apply", action="store_true", help="écrire réellement dans Trello")
+    parser.set_defaults(apply=False)
     return parser.parse_args()
 
 
@@ -76,23 +75,36 @@ def post_comment(api, trello_id, text):
     api.call("POST", f"/cards/{trello_id}/actions/comments", text=text)
 
 
-def has_comment_starting_with(api, trello_id, prefix):
-    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard", limit=1000)
-    return any(a["data"]["text"].startswith(prefix) for a in actions)
+def has_fresh_proof(api, trello_id, marker, in_target):
+    """Vrai si une preuve marquée a été publiée pour l'entrée en cours dans la liste cible.
+
+    Les actions arrivent de la plus récente à la plus ancienne. Si la carte est déjà dans
+    la cible, la preuve valide précède le déplacement qui l'y a fait entrer.
+    """
+    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard,updateCard:idList", limit=1000)
+    moves_to_pass = 1 if in_target else 0
+    for action in actions:
+        if action["type"] == "updateCard":
+            if not moves_to_pass:
+                return False
+            moves_to_pass -= 1
+        elif action["data"]["text"].startswith(marker):
+            return True
+    return False
 
 
 def status(api, data):
     names = open_lists(api, data["boardId"])
     by_list = {}
-    for card in api.call("GET", f"/boards/{data['boardId']}/cards", fields="name,idList"):
-        by_list.setdefault(card["idList"], []).append(card["name"])
+    for card in api.call("GET", f"/boards/{data['boardId']}/cards", fields="name,idList,pos"):
+        by_list.setdefault(card["idList"], []).append(card)
     sections = [(names[i], by_list.get(i, [])) for i in names]  # ordre du tableau
-    orphans = [n for i, cards in by_list.items() if i not in names for n in cards]
+    orphans = [c for i, cards in by_list.items() if i not in names for c in cards]
     sections.append(("Liste archivée ou inconnue", orphans))
     for list_name, cards in sections:
         if cards:
             print(f"\n{list_name} ({len(cards)})")
-            print("\n".join(f"  {n}" for n in sorted(cards)))
+            print("\n".join(f"  {c['name']}" for c in sorted(cards, key=lambda c: c["pos"])))
 
 
 def move(api, data, card_id, target, proof):
@@ -107,21 +119,20 @@ def move(api, data, card_id, target, proof):
     card = api.call("GET", f"/cards/{trello_id}", fields="idList,closed")
     if card["closed"]:
         sys.exit(f"{card_id} est archivée dans Trello : la désarchiver avant de la déplacer.")
+    in_target = card["idList"] == target_id
 
-    # Empreinte calculée sur la preuve saisie, avant tout ajout automatique, pour rester stable à la relance.
-    digest = hashlib.sha256(proof.encode()).hexdigest()[:6]
-    marker = f"[{card_id} → {target} #{digest}]"
-    if target == "Bloqué" and card["idList"] != target_id:
+    if target == "Bloqué" and not in_target:
         names = {v: k for k, v in data["listIds"].items()}
         previous = names.get(card["idList"]) or open_lists(api, data["boardId"]).get(card["idList"], "inconnue")
         proof = f"Liste précédente : {previous}. {proof}"
+    marker = f"[{card_id} → {target}]"
     text = checked_comment(f"{marker} {proof}") if proof else None
 
     wrote = False
-    if text and not has_comment_starting_with(api, trello_id, marker):
+    if text and not has_fresh_proof(api, trello_id, marker, in_target):
         post_comment(api, trello_id, text)
         wrote = True
-    if card["idList"] != target_id:
+    if not in_target:
         if not api.apply:
             print(f"[simulation] déplacement de {card_id} ({trello_id}) vers « {target} » ({target_id})")
         api.call("PUT", f"/cards/{trello_id}", idList=target_id, pos="top")
@@ -133,8 +144,8 @@ def move(api, data, card_id, target, proof):
 
 def main():
     args = parse_args()
-    data = json.loads(BACKLOG.read_text(encoding="utf-8"))
-    api = Trello(apply=getattr(args, "apply", False))
+    data = load()
+    api = Trello(apply=args.apply)
     try:
         if args.action == "status":
             status(api, data)

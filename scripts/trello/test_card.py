@@ -1,10 +1,14 @@
-"""Tests de card.move contre une fausse API Trello (aucun appel réseau).
+"""Tests de card.py et de la politique de reprise de Trello.call (aucun appel réseau).
 
 Exécution : python3 -m unittest discover -s scripts/trello
 """
+import io
 import unittest
+import urllib.error
+from unittest import mock
 
 import card
+import publish_backlog
 from publish_backlog import TrelloError
 
 LISTS = ["À affiner", "En cours", "Bloqué", "Revue", "Livré"]
@@ -18,31 +22,36 @@ PROOF = "PR #12, CI verte, revue sans constat"
 
 
 class FakeTrello:
-    """Simule l'état d'une carte et enregistre les écritures."""
+    """Simule une carte et son historique d'actions (du plus récent au plus ancien)."""
 
     def __init__(self, list_name="En cours", closed=False, fail_put=False):
         self.apply = True
         self.list_id = DATA["listIds"][list_name]
         self.closed = closed
         self.fail_put = fail_put
-        self.comments = []
+        self.actions = []
         self.writes = []
+
+    @property
+    def comments(self):
+        return [a["data"]["text"] for a in self.actions if a["type"] == "commentCard"]
 
     def call(self, method, path, **params):
         if method == "GET" and path == "/cards/C1":
             return {"idList": self.list_id, "closed": self.closed}
         if method == "GET" and path == "/cards/C1/actions":
-            return [{"data": {"text": t}} for t in self.comments]
+            return list(self.actions)
         if method == "GET" and path == "/boards/B/lists":
             return [{"id": v, "name": k} for k, v in DATA["listIds"].items()]
         self.writes.append((method, path))
         if method == "POST":
-            self.comments.append(params["text"])
+            self.actions.insert(0, {"type": "commentCard", "data": {"text": params["text"]}})
             return {"id": "A1"}
         if method == "PUT":
             if self.fail_put:
                 raise TrelloError("Erreur Trello 503")
             self.list_id = params["idList"]
+            self.actions.insert(0, {"type": "updateCard", "data": {}})
             return {}
         raise AssertionError(f"appel inattendu {method} {path}")
 
@@ -53,7 +62,7 @@ class MoveTest(unittest.TestCase):
         self.assertTrue(card.move(api, DATA, "US-05", "Revue", PROOF))
         self.assertEqual([m for m, _ in api.writes], ["POST", "PUT"])
         self.assertEqual(api.list_id, DATA["listIds"]["Revue"])
-        self.assertTrue(api.comments[0].startswith("[US-05 → Revue #"))
+        self.assertTrue(api.comments[0].startswith("[US-05 → Revue] "))
 
     def test_rerun_after_failed_move_does_not_duplicate_proof(self):
         api = FakeTrello(fail_put=True)
@@ -71,17 +80,24 @@ class MoveTest(unittest.TestCase):
         self.assertFalse(card.move(api, DATA, "US-05", "Revue", PROOF))
         self.assertEqual(api.writes, [])
 
-    def test_second_entry_with_new_proof_posts_it(self):
+    def test_reentry_requires_a_new_proof_even_with_same_text(self):
         api = FakeTrello()
         card.move(api, DATA, "US-05", "Revue", PROOF)
         card.move(api, DATA, "US-05", "En cours", "")
-        card.move(api, DATA, "US-05", "Revue", "PR #15, CI verte, seconde revue")
+        card.move(api, DATA, "US-05", "Revue", PROOF)
         self.assertEqual(len(api.comments), 2)
 
-    def test_blocked_records_previous_list_and_rerun_is_stable(self):
+    def test_second_blocking_records_the_new_previous_list(self):
+        api = FakeTrello(list_name="Revue")
+        card.move(api, DATA, "US-05", "Bloqué", "")
+        card.move(api, DATA, "US-05", "En cours", "")
+        card.move(api, DATA, "US-05", "Bloqué", "")
+        self.assertIn("Liste précédente : Revue.", api.comments[1])
+        self.assertIn("Liste précédente : En cours.", api.comments[0])
+
+    def test_blocking_rerun_after_success_is_stable(self):
         api = FakeTrello(list_name="Revue")
         card.move(api, DATA, "US-05", "Bloqué", "attente du compte Sonar")
-        self.assertIn("Liste précédente : Revue.", api.comments[0])
         card.move(api, DATA, "US-05", "Bloqué", "attente du compte Sonar")
         self.assertEqual(len(api.comments), 1)
 
@@ -107,6 +123,50 @@ class MoveTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             card.move(api, DATA, "US-05", "Revue", "x" * 20000)
         self.assertEqual(api.writes, [])
+
+
+def http_error(code):
+    return urllib.error.HTTPError("https://api.trello.com", code, "err", {}, io.BytesIO(b"detail"))
+
+
+class RetryPolicyTest(unittest.TestCase):
+    """Les écritures non rejouables (POST) ne sont jamais renvoyées après une erreur ambiguë."""
+
+    def setUp(self):
+        patches = [mock.patch.object(publish_backlog, "keychain", return_value="x"),
+                   mock.patch.object(publish_backlog.time, "sleep")]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        self.api = publish_backlog.Trello(apply=True)
+
+    def run_call(self, method, errors):
+        ok = mock.MagicMock()
+        ok.__enter__.return_value.read.return_value = b'{"id": "1"}'
+        with mock.patch.object(publish_backlog.urllib.request, "urlopen",
+                               side_effect=list(errors) + [ok]) as urlopen:
+            try:
+                return self.api.call(method, "/x"), urlopen.call_count
+            except TrelloError:
+                return None, urlopen.call_count
+
+    def test_post_is_not_retried_on_server_error(self):
+        self.assertEqual(self.run_call("POST", [http_error(503)]), (None, 1))
+
+    def test_post_is_not_retried_on_timeout(self):
+        self.assertEqual(self.run_call("POST", [TimeoutError()]), (None, 1))
+
+    def test_post_is_retried_on_rate_limit(self):
+        self.assertEqual(self.run_call("POST", [http_error(429)]), ({"id": "1"}, 2))
+
+    def test_put_is_retried_on_server_error_and_timeout(self):
+        self.assertEqual(self.run_call("PUT", [http_error(502), TimeoutError()]), ({"id": "1"}, 3))
+
+    def test_client_error_is_not_retried(self):
+        self.assertEqual(self.run_call("PUT", [http_error(400)]), (None, 1))
+
+    def test_retries_are_bounded(self):
+        self.assertEqual(self.run_call("GET", [http_error(503)] * 5), (None, 5))
 
 
 if __name__ == "__main__":
