@@ -2,28 +2,30 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 16:00 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
 - Stack adoptée : ADR-08 (ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor ; préproduction Cloudflare Containers + Neon ; R2, Turnstile, Tunnel).
-- Qualité adoptée : ADR-09 (dépôt public, SonarQube Cloud, porte stricte, revue `/code-review` graduée, protection de `main`).
-- Trello publié : https://trello.com/b/NsEhG4sm. L'agent déplace les cartes (délégation du porteur) avec `scripts/trello/card.py`.
-- Socle US-05 en cours, découpé en S05-01 à S05-05.
+- Qualité adoptée : ADR-09 et **opérationnelle** : CI GitHub Actions + SonarQube Cloud obligatoires sur `main` (vérifications requises : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis »). L'analyse couvre tout le dépôt (C# et scripts Python).
+- Trello : https://trello.com/b/NsEhG4sm ; l'agent déplace les cartes avec `scripts/trello/card.py`.
+- Socle serveur fusionné sur `main` (PR #5) : solution .NET 10, 6 modules isolés, 32 tests, couverture C# 100 %.
+
+## État Sonar de `main` (27/10, 16:00)
+Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %) ; 0 bug ; 0 code smell ; **1 vulnérabilité S2083** sur `publish_backlog.py` ligne 106 (`save()`), jugée faux positif : chemin d'écriture constant, seul le contenu dépend des données. À qualifier « False Positive » dans Sonar par le porteur. Toute modification future des scripts doit avoir ≥ 80 % de couverture sur le nouveau code.
 
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| PR #5 — S05-01 solution .NET modulaire (branche `feat/s05-01-solution-dotnet`) | Revue terminée (3 passages, 30 constats traités), 32 tests verts, couverture 100 % | **Ne pas fusionner avant Sonar** (ADR-09 : CI + Sonar avant le premier code applicatif). Fusionner #5 puis #6 dès que la porte Sonar passe. |
-| PR #6 — S05-04 CI GitHub Actions (branche `ci/s05-04-github-actions`, empilée sur #5) | CI verte (run 40511755543) ; job Sonar présent mais non exécuté faute de jeton | Après création du jeton : relancer la CI, vérifier la porte Sonar, rendre les vérifications obligatoires sur `main`, puis fusionner #5 et #6. |
-| PR #10 — vulnérabilités Sonar dans l'outillage Trello (S2083, S7044) | Correctif proposé (non encore confirmé par Sonar) : appels sur liste blanche chemin + méthode, identifiants validés ; tests verts | Revue `/code-review`, puis fusion ; vérifier que Sonar ne signale plus rien. |
-| S05-02 Docker local (PostgreSQL, stockage S3) | Prêt | Peut démarrer sur une branche empilée sur #5. |
+| S2083 faux positif | En attente du porteur | Le marquer « False Positive » avec justification, puis vérifier la note de sécurité A. |
+| S05-02 Docker local (PostgreSQL, stockage S3) | Prêt | Prochaine sous-carte à réaliser. |
 | S05-03 Projet Flutter | Prêt | Projet sans écran designé (maquettes non validées). |
-| S05-05 Guide d'installation | Prêt | Après S05-02 et S05-04. |
+| S05-05 Guide d'installation | Prêt | Après S05-02 et S05-03. |
+| S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
 
 ## Blocages et actions du porteur
-1. **SonarQube Cloud** : organisation `princemzb` et projet `princemzb_gestionSite` créés par le porteur le 27/10 (vérifié par l'API publique) ; porte « Sonar way ». Restent à faire par le porteur : désactiver l'« analyse automatique » (Administration → Analysis Method) et ajouter le secret de dépôt GitHub `SONAR_TOKEN` (jeton créé dans Sonar : My Account → Security).
-2. **Maquettes** : aucun visuel ni écran designé avant que le porteur ait validé des maquettes. Présenter plusieurs propositions, puis s'arrêter et attendre sa décision.
+1. Qualifier S2083 en faux positif dans Sonar (lien : https://sonarcloud.io/project/issues?id=princemzb_gestionSite&open=AaF9lMeaypDsaL-xsBA3).
+2. **Maquettes** : aucun visuel ni écran designé avant validation par le porteur de plusieurs propositions de maquettes ; s'arrêter et attendre sa décision.
 3. **iPad** non disponible pour les essais (POC-01, POC-03).
 
 ## Règles de travail en vigueur (rappel)
@@ -35,7 +37,7 @@ Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA
 ## Comment reprendre
 1. Lire ce fichier, puis AGENTS.md, puis la carte concernée.
 2. `git fetch && gh pr list` ; `python3 scripts/trello/card.py status`.
-3. Vérifier le socle : `server/eng/verify.sh` (build, format, tests, couverture ≥ 80 %, dépendances).
+3. Vérifier le socle : `server/eng/verify.sh` (build, format, tests, couverture ≥ 80 %, dépendances) ; SDK fixé par `global.json` à la racine.
 4. Reprendre la « Prochaine action » du tableau ci-dessus.
 
 ## Journal
@@ -52,3 +54,4 @@ Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA
 | 27/10/2026 | Journal de reprise ETAT.md créé | PR #7 |
 | 27/10/2026 | Incident : PR #7 a inclus 1785 fichiers bin/obj (aucun source ni secret) ; retirés et `.gitignore` racine renforcé. Précaution : vérifier `git status` avant `git add -A` après un changement de branche | PR #8 |
 | 27/10/2026 | Sonar connecté (analyse automatique) : 3 vulnérabilités dans l'outillage Trello ; correctif en PR, à confirmer par une nouvelle analyse Sonar | PR #10 |
+| 27/10/2026 | Sonar : jeton CI en secret, analyse automatique désactivée ; PR #5 (socle) et #6 (CI) fusionnées ; vérifications obligatoires sur `main` ; analyse du dépôt entier | PR #5, #6, #11 |
