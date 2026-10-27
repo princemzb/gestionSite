@@ -8,7 +8,12 @@ Serveur (`server/`, SDK défini par `global.json` à la racine : .NET 10.0.302 m
 - `dotnet test server/GestionSite.slnx` : tests d’intégration de l’API et tests d’architecture des modules.
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
-Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud (dépôt entier, C# et scripts) obligatoires sur `main`. Base locale et Flutter arrivent avec S05-02 et S05-03 ; le guide complet d’installation sera finalisé par S05-05.
+Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud (dépôt entier, C# et scripts) obligatoires sur `main`. Environnement local (S05-02), commandes vérifiées le 27 octobre 2026 :
+- `docker compose -f server/compose.yaml up -d --wait` : PostgreSQL 17.6 (port 55433) et stockage compatible S3 SeaweedFS (port 58333, compartiment `gestionsite-local` créé au démarrage). Ports modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT`.
+- `dotnet run --project server/src/GestionSite.Api --launch-profile http` puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (PostgreSQL et stockage joignables ; 503 sinon).
+- `docker compose -f server/compose.yaml down` pour arrêter ; ajouter `-v` pour effacer les données locales.
+Les valeurs locales (mots de passe, clés) sont non sensibles et limitées à `appsettings.Development.json` et `compose.yaml` ; ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement. Les tests d'intégration démarrent leurs propres conteneurs (Testcontainers, Docker requis).
+Flutter arrive avec S05-03 ; le guide complet d’installation sera finalisé par S05-05.
 
 Frontières des modules : un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l’API ou un hôte ; les tests d’architecture le vérifient sur chaque fichier projet (donc sur toute chaîne de dépendances), interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
 

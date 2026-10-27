@@ -1,0 +1,52 @@
+# Environnement local du serveur (S05-02) : PostgreSQL et stockage de fichiers compatible S3.
+# Valeurs de développement non sensibles ; la préproduction utilise Neon et Cloudflare R2 (ADR-08).
+name: gestionsite
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: gestionsite
+      POSTGRES_USER: gestionsite
+      POSTGRES_PASSWORD: local-dev-password
+    ports:
+      - "127.0.0.1:${GESTIONSITE_POSTGRES_PORT:-55433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestionsite -d gestionsite"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  storage:
+    image: chrislusf/seaweedfs:3.97
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "127.0.0.1:${GESTIONSITE_STORAGE_PORT:-58333}:8333"
+    volumes:
+      - storage-data:/data
+      - ./docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/status"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  storage-init:
+    image: chrislusf/seaweedfs:3.97
+    depends_on:
+      storage:
+        condition: service_healthy
+    # weed shell renvoie 0 même en cas d'erreur : on vérifie que le compartiment est bien listé.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        echo 's3.bucket.create -name gestionsite-local' | weed shell -master=storage:9333 -filer=storage:8888 &&
+        echo 's3.bucket.list' | weed shell -master=storage:9333 -filer=storage:8888 | grep -q gestionsite-local
+    restart: "no"
+
+volumes:
+  postgres-data:
+  storage-data:

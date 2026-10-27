@@ -7,4 +7,8 @@
     <ProjectReference Include="..\Modules\GestionSite.Modules.Budget\GestionSite.Modules.Budget.csproj" />
     <ProjectReference Include="..\Modules\GestionSite.Modules.Plateforme\GestionSite.Modules.Plateforme.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
 </Project>
