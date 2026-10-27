@@ -15,6 +15,22 @@ Statut : esquisse P ; noms et formes non figés. Produire un contrat OpenAPI val
 | Sync | POST /sync/operations | Opérations et versions → résultats individuels |
 | Position | POST /interventions/{id}/position-session | Activation explicite → session limitée ; arrêt explicite |
 
+## Identité et habilitations (US-06, ADR-10)
+| Opération | Accès | Entrées → sortie |
+| --- | --- | --- |
+| POST /auth/login | Public | e-mail, mot de passe → jeton d'accès (15 min) et jeton de renouvellement ; 401 identique que le compte existe ou non ; 423 si verrouillé |
+| POST /auth/refresh | Jeton de renouvellement | jeton → nouveau couple (rotation, l'ancien devient invalide) ; 401 si révoqué ou expiré |
+| POST /auth/logout | Authentifié | → révoque le jeton de renouvellement de l'appareil |
+| POST /auth/activate | Public, lien à usage unique | jeton d'activation, mot de passe → compte actif ; 410 si expiré ou déjà utilisé |
+| GET /me | Authentifié | → identité, organisations, rôles et sites autorisés |
+| GET /organizations/{orgId}/sites | Membre de l'organisation | → sites autorisés pour l'appelant uniquement |
+| POST /organizations/{orgId}/sites | Administrateur d'organisation | nom → site créé |
+| POST /organizations/{orgId}/members | Administrateur d'organisation | nom, e-mail, rôles, sites → membre créé + lien d'activation (montré une seule fois) |
+| PUT /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | rôles, sites, version attendue → habilitations révisées et tracées (RG-31) ; 409 si version dépassée |
+| DELETE /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | → accès révoqué, jetons invalidés ; historique conservé |
+
+Rôles : administrateur d'organisation (A), responsable (R), délégué (D), technicien (T), pasteur (P), coordination (C) ; cumulables ; chacun accordé sur des sites précis (A : toute l'organisation). Toute ressource d'une autre organisation répond 404, jamais 403, pour empêcher l'énumération.
+
 ## Principes de contrat proposés
 Identifiants stables, horodatages avec fuseau, montants avec devise et précision définie, unités explicites.
 Commande sensible : clé d’idempotence et version attendue. Même clé/même contenu → même résultat ; même clé/contenu différent → erreur.
