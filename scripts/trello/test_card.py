@@ -11,12 +11,18 @@ import card
 import publish_backlog
 from publish_backlog import TrelloError
 
+def tid(n):
+    """Identifiant Trello réaliste (24 hexadécimaux)."""
+    return f"{n:024x}"
+
+
 LISTS = ["À affiner", "En cours", "Bloqué", "Revue", "Livré"]
+BOARD, CARD = tid(0xB0), tid(0xC1)
 DATA = {
-    "boardId": "B",
+    "boardId": BOARD,
     "lists": LISTS,
-    "listIds": {name: f"L{i}" for i, name in enumerate(LISTS)},
-    "cards": [{"id": "US-05", "trelloId": "C1"}, {"id": "US-31"}],
+    "listIds": {name: tid(0x100 + i) for i, name in enumerate(LISTS)},
+    "cards": [{"id": "US-05", "trelloId": CARD}, {"id": "US-31"}],
 }
 PROOF = "PR #12, CI verte, revue sans constat"
 
@@ -37,16 +43,17 @@ class FakeTrello:
         return [a["data"]["text"] for a in self.actions if a["type"] == "commentCard"]
 
     def call(self, method, path, **params):
-        if method == "GET" and path == "/cards/C1":
+        publish_backlog.safe_path(path, method)  # mêmes chemins et méthodes que la vraie API
+        if method == "GET" and path == f"/cards/{CARD}":
             return {"idList": self.list_id, "closed": self.closed}
-        if method == "GET" and path == "/cards/C1/actions":
+        if method == "GET" and path == f"/cards/{CARD}/actions":
             return list(self.actions)
-        if method == "GET" and path == "/boards/B/lists":
+        if method == "GET" and path == f"/boards/{BOARD}/lists":
             return [{"id": v, "name": k} for k, v in DATA["listIds"].items()]
         self.writes.append((method, path))
         if method == "POST":
             self.actions.insert(0, {"type": "commentCard", "data": {"text": params["text"]}})
-            return {"id": "A1"}
+            return {"id": tid(0xA1)}
         if method == "PUT":
             if self.fail_put:
                 raise TrelloError("Erreur Trello 503")
@@ -116,7 +123,7 @@ class MoveTest(unittest.TestCase):
     def test_unpublished_card_and_case_insensitive_id(self):
         with self.assertRaises(SystemExit):
             card.find_card(DATA, "US-31")
-        self.assertEqual(card.find_card(DATA, " us-05 "), ("US-05", "C1"))
+        self.assertEqual(card.find_card(DATA, " us-05 "), ("US-05", CARD))
 
     def test_too_long_proof_is_refused_before_any_write(self):
         api = FakeTrello()
@@ -169,6 +176,89 @@ class TransientErrorTest(unittest.TestCase):
         self.assertFalse(publish_backlog.is_transient(urllib.error.URLError("nodename nor servname provided")))
 
 
+class SafePathTest(unittest.TestCase):
+    ID = "6ae091cac28a188f1758318e"
+
+    def test_known_segments_and_ids_are_accepted(self):
+        for method, path in (("GET", "/members/me"), ("POST", f"/cards/{self.ID}/actions/comments"),
+                             ("GET", f"/checklists/{self.ID}/checkItems")):
+            self.assertEqual(publish_backlog.safe_path(path, method), path)
+
+    def test_traversal_and_injection_are_refused(self):
+        for path in (f"/cards/../tokens/{self.ID}", "/cards/abc?key=x", f"/cards/{self.ID}/../../webhooks",
+                     "cards/x", f"/cards/{self.ID.upper()}", "/tokens", f"/organizations/{self.ID}/members",
+                     "/me/boards/me", f"/cards/{self.ID}/checkItems", f"/boards/{self.ID}/checklists",
+                     f"/actions/{self.ID}"):
+            with self.assertRaises(TrelloError):
+                publish_backlog.safe_path(path)
+
+    def test_methods_are_restricted_per_path(self):
+        self.assertEqual(publish_backlog.safe_path(f"/cards/{self.ID}", "PUT"), f"/cards/{self.ID}")
+        for method, path in (("DELETE", f"/cards/{self.ID}"), ("POST", "/members/me"), ("PUT", "/boards")):
+            with self.assertRaises(TrelloError):
+                publish_backlog.safe_path(path, method)
+
+    def test_backlog_with_malformed_id_is_refused(self):
+        bad = "../webhooks"
+        for data in ({"listIds": ["x"], "cards": []},
+                     {"cards": ["US-05"]},
+                     {"boardId": bad, "cards": []},
+                     {"listIds": {"Prêt": bad}, "cards": []},
+                     {"labelIds": {"IA": bad}, "cards": []},
+                     {"cards": [{"trelloId": bad}]},
+                     {"cards": [{"checklistId": bad}]},
+                     {"cards": [{"trelloId": 123}]}):
+            with self.assertRaises(TrelloError, msg=data):
+                publish_backlog.validate_ids(data)
+
+    def test_backlog_with_valid_or_missing_ids_is_accepted(self):
+        publish_backlog.validate_ids({"boardId": self.ID, "listIds": None, "labelIds": {"IA": self.ID},
+                                      "cards": [{"trelloId": None}, {"trelloId": ""}, {"trelloId": self.ID}]})
+
+    def test_full_simulation_from_scratch_makes_no_network_call(self):
+        backlog = {"boardName": "Test", "lists": ["À affiner"], "cards": [
+            {"id": "US-01", "name": "[US-01] Test", "type": "macro_story", "list": "À affiner", "labels": ["BA"],
+             "estimatePersonDays": {"low": 1, "high": 2}, "dependencies": [], "acceptanceCriteria": ["c"],
+             "checklist": ["a", "b"]}]}
+        member = mock.MagicMock()
+        member.__enter__.return_value.read.return_value = b'{"id": "%s", "username": "u"}' % self.ID.encode()
+        with mock.patch.object(publish_backlog, "keychain", return_value="x"), \
+                mock.patch.object(publish_backlog, "load", return_value=backlog), \
+                mock.patch.object(publish_backlog.time, "sleep"), \
+                mock.patch.object(publish_backlog.urllib.request, "urlopen", return_value=member) as urlopen, \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            publish_backlog.publish(apply=False)
+        self.assertEqual(urlopen.call_count, 1)  # seul GET /members/me
+        self.assertIn("/members/me", urlopen.call_args.args[0].full_url)
+
+    def test_unexpected_id_returned_by_api_is_refused(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"id": "../tokens"}'
+        with mock.patch.object(publish_backlog, "keychain", return_value="x"), \
+                mock.patch.object(publish_backlog.urllib.request, "urlopen", return_value=response), \
+                mock.patch.object(publish_backlog.time, "sleep"):
+            with self.assertRaises(TrelloError):
+                publish_backlog.Trello(apply=True).call("POST", "/cards")
+
+    def test_simulated_writes_follow_the_same_path_rules(self):
+        with mock.patch.object(publish_backlog, "keychain", return_value="x"):
+            api = publish_backlog.Trello(apply=False)
+        self.assertEqual(api.call("POST", "/cards")["id"], publish_backlog.SIMULATED_ID)
+        with self.assertRaises(TrelloError):
+            api.call("POST", "/cards/../tokens")
+
+    def test_card_tool_reports_malformed_backlog_cleanly(self):
+        with mock.patch.object(card, "load", side_effect=TrelloError("Identifiants Trello invalides")), \
+                mock.patch("sys.argv", ["card.py", "status"]):
+            with self.assertRaises(SystemExit) as raised:
+                card.main()
+        self.assertIn("Identifiants Trello invalides", str(raised.exception))
+
+
+VALID = tid(0xAB)
+PATHS = {"GET": "/members/me", "POST": "/cards", "PUT": f"/cards/{tid(0xC1)}"}
+
+
 def http_error(code):
     return urllib.error.HTTPError("https://api.trello.com", code, "err", {}, io.BytesIO(b"detail"))
 
@@ -186,11 +276,11 @@ class RetryPolicyTest(unittest.TestCase):
 
     def run_call(self, method, errors):
         ok = mock.MagicMock()
-        ok.__enter__.return_value.read.return_value = b'{"id": "1"}'
+        ok.__enter__.return_value.read.return_value = b'{"id": "%s"}' % VALID.encode()
         with mock.patch.object(publish_backlog.urllib.request, "urlopen",
                                side_effect=list(errors) + [ok]) as urlopen:
             try:
-                return self.api.call(method, "/x"), urlopen.call_count
+                return self.api.call(method, PATHS[method]), urlopen.call_count
             except TrelloError:
                 return None, urlopen.call_count
 
@@ -201,10 +291,10 @@ class RetryPolicyTest(unittest.TestCase):
         self.assertEqual(self.run_call("POST", [TimeoutError()]), (None, 1))
 
     def test_post_is_retried_on_rate_limit(self):
-        self.assertEqual(self.run_call("POST", [http_error(429)]), ({"id": "1"}, 2))
+        self.assertEqual(self.run_call("POST", [http_error(429)]), ({"id": VALID}, 2))
 
     def test_put_is_retried_on_server_error_and_timeout(self):
-        self.assertEqual(self.run_call("PUT", [http_error(502), TimeoutError()]), ({"id": "1"}, 3))
+        self.assertEqual(self.run_call("PUT", [http_error(502), TimeoutError()]), ({"id": VALID}, 3))
 
     def test_client_error_is_not_retried(self):
         self.assertEqual(self.run_call("PUT", [http_error(400)]), (None, 1))
