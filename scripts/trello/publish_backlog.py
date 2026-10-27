@@ -40,6 +40,10 @@ LABEL_COLORS = {
 TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation"}
 
 
+class TrelloError(Exception):
+    """Échec d'un appel Trello (HTTP ou réseau)."""
+
+
 def save(data, api):
     """Enregistre les identifiants après chaque création, pour qu'une reprise ne duplique rien."""
     if api.apply:
@@ -66,8 +70,13 @@ class Trello:
             self.writes += 1
             if not self.apply:
                 return {"id": f"<simulé:{path}>"}
-        query = urllib.parse.urlencode({**self.auth, **params}, doseq=True)
-        req = urllib.request.Request(f"{API}{path}?{query}", method=method)
+        # Paramètres dans le corps pour les écritures : un long commentaire ne dépasse pas la taille d'URL.
+        auth = urllib.parse.urlencode(self.auth)
+        if method == "GET":
+            req = urllib.request.Request(f"{API}{path}?{auth}&{urllib.parse.urlencode(params, doseq=True)}")
+        else:
+            req = urllib.request.Request(f"{API}{path}?{auth}", method=method,
+                                         data=urllib.parse.urlencode(params, doseq=True).encode())
         for attempt in range(5):
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
@@ -78,7 +87,9 @@ class Trello:
                     time.sleep(2 ** attempt)
                     continue
                 body = err.read().decode(errors="replace")[:300]
-                sys.exit(f"Erreur Trello {err.code} sur {method} {path} : {body}")
+                raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
+            except urllib.error.URLError as err:
+                raise TrelloError(f"Trello injoignable sur {method} {path} : {err.reason}") from err
 
 
 def card_description(card, cards_by_id):
@@ -196,10 +207,17 @@ def main():
     parser.add_argument("--apply", action="store_true", help="publier réellement (sinon simulation)")
     args = parser.parse_args()
 
+    try:
+        publish(args.apply)
+    except TrelloError as err:
+        sys.exit(str(err))
+
+
+def publish(apply):
     data = json.loads(BACKLOG.read_text(encoding="utf-8"))
-    api = Trello(args.apply)
+    api = Trello(apply)
     me = api.call("GET", "/members/me", fields="username")
-    print(f"{'PUBLICATION' if args.apply else 'SIMULATION'} — compte Trello : {me['username']}\n")
+    print(f"{'PUBLICATION' if apply else 'SIMULATION'} — compte Trello : {me['username']}\n")
 
     board_id = ensure_board(api, data)
     list_ids = ensure_lists(api, data, board_id)
@@ -207,7 +225,7 @@ def main():
     created, updated = publish_cards(api, data, list_ids, label_ids, me["id"])
 
     print(f"\nCartes créées : {created} · mises à jour : {updated} · écritures Trello : {api.writes}")
-    if args.apply:
+    if apply:
         data["status"] = "published"
         save(data, api)
         print(f"Identifiants enregistrés dans {BACKLOG.relative_to(ROOT)}")
