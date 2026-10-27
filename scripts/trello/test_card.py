@@ -92,8 +92,8 @@ class MoveTest(unittest.TestCase):
         card.move(api, DATA, "US-05", "Bloqué", "")
         card.move(api, DATA, "US-05", "En cours", "")
         card.move(api, DATA, "US-05", "Bloqué", "")
-        self.assertIn("Liste précédente : Revue.", api.comments[1])
-        self.assertIn("Liste précédente : En cours.", api.comments[0])
+        self.assertEqual(api.comments[1], "[US-05 → Bloqué] (liste précédente : Revue)")
+        self.assertEqual(api.comments[0], "[US-05 → Bloqué] (liste précédente : En cours)")
 
     def test_blocking_rerun_after_success_is_stable(self):
         api = FakeTrello(list_name="Revue")
@@ -123,6 +123,43 @@ class MoveTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             card.move(api, DATA, "US-05", "Revue", "x" * 20000)
         self.assertEqual(api.writes, [])
+
+
+class ProofMatchingTest(unittest.TestCase):
+    def test_spoofed_marker_comment_does_not_count_as_proof(self):
+        api = FakeTrello()
+        api.actions.insert(0, {"type": "commentCard", "data": {"text": "[US-05 → Livré] ok"}})
+        card.move(api, DATA, "US-05", "Livré", PROOF)
+        self.assertEqual(api.comments[0], f"[US-05 → Livré] {PROOF}")
+
+    def test_corrected_proof_on_rerun_is_posted(self):
+        api = FakeTrello(fail_put=True)
+        with self.assertRaises(TrelloError):
+            card.move(api, DATA, "US-05", "Livré", "preuve erronée mais assez longue")
+        api.fail_put = False
+        card.move(api, DATA, "US-05", "Livré", PROOF)
+        self.assertEqual(len(api.comments), 2)
+        self.assertEqual(api.list_id, DATA["listIds"]["Livré"])
+
+    def test_new_reason_on_already_blocked_card_is_recorded(self):
+        api = FakeTrello()
+        card.move(api, DATA, "US-05", "Bloqué", "attente Sonar")
+        self.assertTrue(card.move(api, DATA, "US-05", "Bloqué", "attente du compte client"))
+        self.assertEqual(api.comments[0], "[US-05 → Bloqué] attente du compte client")
+
+    def test_length_is_counted_in_utf16_units(self):
+        with self.assertRaises(SystemExit):
+            card.checked_comment("😀" * 8193)  # 8193 caractères, 16386 unités UTF-16
+        self.assertEqual(card.checked_comment("😀" * 8192), "😀" * 8192)
+
+
+class TransientErrorTest(unittest.TestCase):
+    def test_classification(self):
+        import ssl
+        self.assertTrue(publish_backlog.is_transient(TimeoutError()))
+        self.assertTrue(publish_backlog.is_transient(urllib.error.URLError(ConnectionResetError())))
+        self.assertFalse(publish_backlog.is_transient(urllib.error.URLError(ssl.SSLCertVerificationError())))
+        self.assertFalse(publish_backlog.is_transient(urllib.error.URLError("nodename nor servname provided")))
 
 
 def http_error(code):
@@ -166,7 +203,7 @@ class RetryPolicyTest(unittest.TestCase):
         self.assertEqual(self.run_call("PUT", [http_error(400)]), (None, 1))
 
     def test_retries_are_bounded(self):
-        self.assertEqual(self.run_call("GET", [http_error(503)] * 5), (None, 5))
+        self.assertEqual(self.run_call("GET", [http_error(503) for _ in range(5)]), (None, 5))
 
 
 if __name__ == "__main__":

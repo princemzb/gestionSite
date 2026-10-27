@@ -14,6 +14,7 @@ une relance met à jour titre, description et labels, sans déplacer les cartes.
 import argparse
 import http.client
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -38,11 +39,18 @@ LABEL_COLORS = {
     "SP-001": "yellow_light", "SP-002": "yellow_light", "SP-003": "yellow_light",
 }
 
+CHECKLIST_NAME = "Définition de terminé"
 TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation", "outillage": "Outillage"}
 
 
 class TrelloError(Exception):
     """Échec d'un appel Trello (HTTP ou réseau)."""
+
+
+def is_transient(err):
+    """Erreur réseau passagère (délai, coupure) ; pas un défaut de certificat ou de DNS."""
+    reason = getattr(err, "reason", err)
+    return isinstance(reason, (TimeoutError, socket.timeout, ConnectionError, http.client.HTTPException))
 
 
 def load():
@@ -93,15 +101,18 @@ class Trello:
                     return json.loads(resp.read() or b"null")
             except urllib.error.HTTPError as err:
                 if not last and (err.code == 429 or (idempotent and err.code >= 500)):
+                    err.close()
                     time.sleep(2 ** attempt)
                     continue
                 try:
                     body = err.read().decode(errors="replace")[:300]
                 except (OSError, http.client.HTTPException):
                     body = "(corps de réponse illisible)"
+                finally:
+                    err.close()
                 raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
             except (OSError, http.client.HTTPException) as err:  # URLError, socket.timeout (3.9), ConnectionError
-                if idempotent and not last:
+                if idempotent and not last and is_transient(err):
                     time.sleep(2 ** attempt)
                     continue
                 raise TrelloError(f"Trello injoignable sur {method} {path} : {err}") from err
@@ -193,6 +204,26 @@ def card_labels(card, label_ids):
     return ",".join(label_ids[n] for n in names)
 
 
+def ensure_checklist(api, data, card):
+    """Crée la checklist et ses éléments manquants ; reprend une création interrompue."""
+    if not card.get("checklist") or card.get("checklistComplete"):
+        return
+    if not card.get("checklistId"):
+        found = [] if card["trelloId"].startswith("<") else [
+            c["id"] for c in api.call("GET", f"/cards/{card['trelloId']}/checklists", fields="name")
+            if c["name"] == CHECKLIST_NAME]
+        card["checklistId"] = found[0] if found else api.call(
+            "POST", "/checklists", idCard=card["trelloId"], name=CHECKLIST_NAME)["id"]
+        save(data, api)
+    existing = set() if card["checklistId"].startswith("<") else {
+        i["name"] for i in api.call("GET", f"/checklists/{card['checklistId']}/checkItems")}
+    for item in card["checklist"]:
+        if item not in existing:
+            api.call("POST", f"/checklists/{card['checklistId']}/checkItems", name=item)
+    card["checklistComplete"] = True
+    save(data, api)
+
+
 def publish_cards(api, data, list_ids, label_ids, member_id):
     cards_by_id = {c["id"]: c for c in data["cards"]}
     created = updated = 0
@@ -201,6 +232,7 @@ def publish_cards(api, data, list_ids, label_ids, member_id):
         if card.get("trelloId"):
             api.call("PUT", f"/cards/{card['trelloId']}", name=card["name"], desc=desc,
                      idLabels=card_labels(card, label_ids))
+            ensure_checklist(api, data, card)
             updated += 1
             continue
         print(f"+ Carte {card['name']} → {card['list']}")
@@ -212,10 +244,7 @@ def publish_cards(api, data, list_ids, label_ids, member_id):
         card["trelloId"], card["trelloShortLink"] = new["id"], new.get("shortLink")
         save(data, api)
         created += 1
-        if card.get("checklist"):
-            cl = api.call("POST", "/checklists", idCard=new["id"], name="Définition de terminé")
-            for item in card["checklist"]:
-                api.call("POST", f"/checklists/{cl['id']}/checkItems", name=item)
+        ensure_checklist(api, data, card)
     # Second passage : liens de dépendances maintenant que tous les shortLinks existent.
     if created and api.apply:
         for card in data["cards"]:

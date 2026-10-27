@@ -12,9 +12,9 @@ que sa présence, les conditions de passage de docs/pilotage/TRELLO.md restent �
 charge de l'opérateur. Un passage en Bloqué consigne la liste précédente.
 
 La preuve est publiée avant le déplacement, avec le marqueur « [US-05 → Livré] ». Elle
-ne compte que si elle a été publiée depuis le dernier déplacement de la carte : une relance
-après erreur reprend sans doublon, et chaque nouvelle entrée dans une liste exige sa propre
-preuve. Si le déplacement échoue définitivement, la preuve publiée reste sur la carte :
+ne compte que si son texte exact a été publié depuis le dernier déplacement de la carte :
+une relance identique après erreur reprend sans doublon, une preuve différente est ajoutée,
+et chaque nouvelle entrée dans une liste exige sa propre preuve. Si le déplacement échoue définitivement, la preuve publiée reste sur la carte :
 relancer jusqu'au succès.
 """
 import argparse
@@ -27,6 +27,7 @@ from publish_backlog import Trello, TrelloError, load, open_lists
 PROOF_REQUIRED = {"Revue", "Recette", "Prêt à livrer", "Livré"}
 MIN_PROOF_LENGTH = 20
 MAX_COMMENT_LENGTH = 16384  # limite Trello
+PREVIOUS_LIST = "(liste précédente : "
 
 
 def nfc(text):
@@ -64,8 +65,9 @@ def checked_comment(text):
     text = nfc(text)
     if not text:
         sys.exit("Commentaire vide.")
-    if len(text) > MAX_COMMENT_LENGTH:
-        sys.exit(f"Commentaire trop long ({len(text)} > {MAX_COMMENT_LENGTH} caractères).")
+    length = len(text.encode("utf-16-le")) // 2  # Trello compte en unités UTF-16
+    if length > MAX_COMMENT_LENGTH:
+        sys.exit(f"Commentaire trop long ({length} > {MAX_COMMENT_LENGTH} caractères).")
     return text
 
 
@@ -75,20 +77,23 @@ def post_comment(api, trello_id, text):
     api.call("POST", f"/cards/{trello_id}/actions/comments", text=text)
 
 
-def has_fresh_proof(api, trello_id, marker, in_target):
-    """Vrai si une preuve marquée a été publiée pour l'entrée en cours dans la liste cible.
+def has_fresh_proof(api, trello_id, base, in_target):
+    """Vrai si cette preuve exacte a été publiée pour l'entrée en cours dans la liste cible.
+
+    `base` est « marqueur + preuve saisie » ; une mention de liste précédente peut suivre.
 
     Les actions arrivent de la plus récente à la plus ancienne. Si la carte est déjà dans
     la cible, la preuve valide précède le déplacement qui l'y a fait entrer.
     """
-    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard,updateCard:idList", limit=1000)
+    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard,updateCard:idList",
+                       limit=1000, fields="type,data", memberCreator="false")
     moves_to_pass = 1 if in_target else 0
     for action in actions:
         if action["type"] == "updateCard":
             if not moves_to_pass:
                 return False
             moves_to_pass -= 1
-        elif action["data"]["text"].startswith(marker):
+        elif action["data"]["text"] == base or action["data"]["text"].startswith(f"{base} {PREVIOUS_LIST}"):
             return True
     return False
 
@@ -121,15 +126,17 @@ def move(api, data, card_id, target, proof):
         sys.exit(f"{card_id} est archivée dans Trello : la désarchiver avant de la déplacer.")
     in_target = card["idList"] == target_id
 
+    base = f"[{card_id} → {target}] {proof}".strip()
+    text = base if proof else None
     if target == "Bloqué" and not in_target:
         names = {v: k for k, v in data["listIds"].items()}
         previous = names.get(card["idList"]) or open_lists(api, data["boardId"]).get(card["idList"], "inconnue")
-        proof = f"Liste précédente : {previous}. {proof}"
-    marker = f"[{card_id} → {target}]"
-    text = checked_comment(f"{marker} {proof}") if proof else None
+        text = f"{base} {PREVIOUS_LIST}{previous})"
+    if text:
+        text = checked_comment(text)
 
     wrote = False
-    if text and not has_fresh_proof(api, trello_id, marker, in_target):
+    if text and not has_fresh_proof(api, trello_id, base, in_target):
         post_comment(api, trello_id, text)
         wrote = True
     if not in_target:
@@ -138,7 +145,7 @@ def move(api, data, card_id, target, proof):
         api.call("PUT", f"/cards/{trello_id}", idList=target_id, pos="top")
         wrote = True
     if not wrote:
-        print(f"{card_id} est déjà dans « {target} » avec sa preuve : aucune écriture.")
+        print(f"{card_id} est déjà dans « {target} »" + (" avec cette preuve" if text else "") + " : aucune écriture.")
     return wrote
 
 
