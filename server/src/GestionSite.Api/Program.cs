@@ -37,5 +37,6 @@ app.MapIdentiteEndpoints()
     .MapBudgetEndpoints()
     .MapPlateformeEndpoints();
 
+await app.MigrateDatabasesIfRequestedAsync().ConfigureAwait(false);
 await app.RunAsync().ConfigureAwait(false);
 

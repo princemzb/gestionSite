@@ -22,6 +22,7 @@
     <ProjectReference Include="../../src/Modules/GestionSite.Modules.Patrimoine/GestionSite.Modules.Patrimoine.csproj" />
     <ProjectReference Include="../../src/Modules/GestionSite.Modules.Plateforme/GestionSite.Modules.Plateforme.csproj" />
     <ProjectReference Include="../../src/Modules/GestionSite.Modules.Stock/GestionSite.Modules.Stock.csproj" />
+    <ProjectReference Include="..\..\src\GestionSite.SharedKernel\GestionSite.SharedKernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>

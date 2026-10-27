@@ -17,8 +17,9 @@ dotnet test GestionSite.slnx --no-build --configuration Release \
   --collect:"XPlat Code Coverage" --results-directory "$RESULTS" \
   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura,opencover
 
+# Migrations EF Core : code généré, exclu de la couverture (comme dans Sonar).
 dotnet reportgenerator -reports:"$RESULTS/**/coverage.cobertura.xml" -targetdir:"$COVERAGE" \
-  -reporttypes:"JsonSummary;Cobertura;TextSummary"
+  -reporttypes:"JsonSummary;Cobertura;TextSummary" -classfilters:"-*.Migrations.*"
 cat "$COVERAGE/Summary.txt"
 
 python3 - "$COVERAGE/Summary.json" "$MIN_LINE_COVERAGE" <<'PY'

@@ -30,6 +30,12 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - `python3 -m unittest discover -s scripts/trello` : outillage Trello.
 - Application Flutter : voir `mobile/README.md`.
 
+### Base de données et migrations (S06-01)
+- Chaque module a son schéma PostgreSQL et ses migrations EF Core (`src/Modules/<Module>/Persistence/Migrations`, code généré exclu du style et de la couverture).
+- Créer une migration après un changement de modèle : `dotnet ef migrations add <Nom> --project server/src/Modules/GestionSite.Modules.Identite --startup-project server/src/GestionSite.Api --context IdentiteDbContext --output-dir Persistence/Migrations`. Un test échoue si une migration manque.
+- Voir le SQL : `dotnet ef migrations script` avec les mêmes options.
+- Application automatique au démarrage si `Database:MigrateOnStartup` est vrai (profil `dotnet run` local et tests) ; en préproduction et production, l'étape de déploiement les appliquera (à mettre en place avec le premier déploiement).
+
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs`.
 - Ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
