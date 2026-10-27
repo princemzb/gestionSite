@@ -31,6 +31,14 @@ internal static class SolutionLayout
     internal static IEnumerable<string> ModuleEntries =>
         SourceProjects.Select(ProjectName).Where(n => ModuleOf(n) is { } m && n == ModulePrefix + m && !IsContracts(n));
 
+    internal const string ApiHost = "GestionSite.Api";
+
+    internal static DirectoryInfo SourceDirectory => new(Path.Combine(Root.Value.FullName, "src"));
+
+    /// <summary>Projets ni module ni contrat ni noyau : hôtes (API, futur web, tâches différées…).</summary>
+    internal static IEnumerable<string> Hosts =>
+        SourceProjects.Select(ProjectName).Where(n => ModuleOf(n) is null && n != SharedKernel);
+
     internal static string ProjectName(FileInfo project) => Path.GetFileNameWithoutExtension(project.Name);
 
     internal static FileInfo Project(string name) => SourceProjects.Single(p => ProjectName(p) == name);
@@ -74,7 +82,18 @@ internal static class SolutionLayout
                 continue;
             }
 
-            foreach (var next in Assembly.Load(name).GetReferencedAssemblies())
+            Assembly loaded;
+            try
+            {
+                loaded = Assembly.Load(name);
+            }
+            catch (FileNotFoundException exception)
+            {
+                throw new InvalidOperationException(
+                    $"{name.Name} (référencé par {start.GetName().Name}) est introuvable : l'assembler via GestionSite.Api.", exception);
+            }
+
+            foreach (var next in loaded.GetReferencedAssemblies())
             {
                 pending.Push(next);
             }

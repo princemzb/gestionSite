@@ -40,9 +40,13 @@ public sealed class ModuleBoundaryTests
         Assert.Empty(forbidden);
     }
 
+    /// <summary>
+    /// Complète les contrôles de fichiers projet sur les assemblages compilés : détecte une dépendance
+    /// réellement utilisée, quelle que soit la manière dont elle a été déclarée.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Entries))]
-    public void ModuleReachesNoOtherImplementationEvenIndirectly(string module)
+    public void CompiledModuleUsesNoOtherImplementationEvenIndirectly(string module)
     {
         Assembly assembly;
         try
@@ -51,13 +55,51 @@ public sealed class ModuleBoundaryTests
         }
         catch (FileNotFoundException)
         {
-            Assert.Fail($"{module} n'est pas chargé : l'ajouter aux références de GestionSite.Api.");
-            return;
+            throw new InvalidOperationException($"{module} n'est pas chargé : l'ajouter aux références de GestionSite.Api.");
         }
 
         var reached = SolutionLayout.TransitiveSolutionReferences(assembly);
 
         Assert.DoesNotContain(reached, name => !SolutionLayout.ImplementationMayReference(module, name));
+    }
+
+    [Fact]
+    public void OnlyTheApiHostReferencesModuleImplementations()
+    {
+        var forbidden =
+            from host in SolutionLayout.Hosts
+            where host != SolutionLayout.ApiHost
+            from reference in SolutionLayout.ProjectReferences(SolutionLayout.Project(host))
+            where SolutionLayout.IsModuleImplementation(reference)
+            select $"{host} -> {reference}";
+
+        Assert.Empty(forbidden);
+    }
+
+    [Fact]
+    public void NoReferenceIsInjectedThroughSharedBuildFiles()
+    {
+        var injecting =
+            from file in SolutionLayout.SourceDirectory.Parent!.GetFiles("Directory.Build.*", SearchOption.AllDirectories)
+                .Concat(SolutionLayout.SourceDirectory.GetFiles("*.targets", SearchOption.AllDirectories))
+                .Concat(SolutionLayout.SourceDirectory.GetFiles("*.props", SearchOption.AllDirectories))
+            where System.Xml.Linq.XDocument.Load(file.FullName).Descendants()
+                .Any(e => e.Name.LocalName is "ProjectReference" or "Reference")
+            select file.FullName;
+
+        Assert.Empty(injecting.Distinct());
+    }
+
+    [Theory]
+    [MemberData(nameof(Entries))]
+    public void ApiRegistersAndMapsEveryModule(string module)
+    {
+        var program = File.ReadAllText(Path.Combine(
+            SolutionLayout.SourceDirectory.FullName, SolutionLayout.ApiHost, "Program.cs"));
+        var name = SolutionLayout.ModuleOf(module);
+
+        Assert.Contains($".Add{name}Module()", program, StringComparison.Ordinal);
+        Assert.Contains($".Map{name}Endpoints()", program, StringComparison.Ordinal);
     }
 
     [Fact]

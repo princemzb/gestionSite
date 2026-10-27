@@ -15,24 +15,23 @@ namespace GestionSite.Modules.Tests;
 /// </summary>
 public sealed class ModuleRegistrationTests
 {
-    public static TheoryData<string, Func<IServiceCollection, IServiceCollection>> Registrations => new()
+    public static TheoryData<Func<IServiceCollection, IServiceCollection>> Registrations => new()
     {
-        { "Identite", s => s.AddIdentiteModule() },
-        { "Patrimoine", s => s.AddPatrimoineModule() },
-        { "Maintenance", s => s.AddMaintenanceModule() },
-        { "Stock", s => s.AddStockModule() },
-        { "Budget", s => s.AddBudgetModule() },
-        { "Plateforme", s => s.AddPlateformeModule() },
+        s => s.AddIdentiteModule(),
+        s => s.AddPatrimoineModule(),
+        s => s.AddMaintenanceModule(),
+        s => s.AddStockModule(),
+        s => s.AddBudgetModule(),
+        s => s.AddPlateformeModule(),
     };
 
     [Theory]
     [MemberData(nameof(Registrations))]
-    public void RegistrationReturnsTheSameCollectionForChaining(string module, Func<IServiceCollection, IServiceCollection> register)
+    public void RegistrationReturnsTheSameCollectionForChaining(Func<IServiceCollection, IServiceCollection> register)
     {
         var services = new ServiceCollection();
 
         Assert.Same(services, register(services));
-        Assert.False(string.IsNullOrEmpty(module));
     }
 
     [Fact]

@@ -1,7 +1,8 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
-  <!-- Les modules exposent des endpoints et des services ASP.NET Core. -->
-  <ItemGroup>
+  <!-- Les implémentations de modules exposent des endpoints ASP.NET Core ; les contrats restent
+       indépendants du framework web pour pouvoir être partagés (client Blazor WebAssembly compris). -->
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Contracts'))">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>
