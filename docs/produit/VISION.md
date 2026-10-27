@@ -23,6 +23,8 @@ Ces seuils sont P et doivent être approuvés avant le pilote.
 | Exploitation | Référent technique désigné | Propriétaire du service |
 | Protection des données | Référent à désigner | Organisation responsable, avec conseil approprié |
 
+**V — 27 octobre 2026 :** le porteur du projet cumule les rôles de porteur produit, tech lead et validation métier. L’équipe de réalisation est une seule personne assistée d’agents IA ; l’hypothèse « 1 développeur » d’ESTIMATIONS s’applique. Un agent IA ne peut ni approuver ni recetter à la place du porteur.
+
 ## Gestion des changements
 Créer une demande décrivant besoin, bénéfice, règle affectée, impact estimé et risques. Le responsable métier priorise ; le tech lead révise charge et dépendances. Ne pas supprimer IA, 3D ou localisation au motif d’un report : maintenir leurs tickets et critères de faisabilité.
 
