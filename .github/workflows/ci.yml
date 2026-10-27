@@ -43,39 +43,82 @@ jobs:
           python-version: "3.12"
       - run: python -W error -m unittest discover -s scripts/trello -v
 
+  mobile:
+    name: Application Flutter (analyse et tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: mobile/pubspec.yaml
+          cache: true
+      - name: Format, analyse stricte, tests, couverture ≥ 80 % (tout lib/)
+        run: mobile/eng/verify.sh
+      - name: Jeton Sonar
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN absent : la porte Sonar de l'application Flutter ne peut pas s'exécuter."
+            exit 1
+          fi
+      # Projet Sonar distinct : le scanner .NET n'analyse pas le Dart (ADR-09).
+      - uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        with:
+          projectBaseDir: mobile
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
+            -Dsonar.projectKey=${{ vars.SONAR_MOBILE_PROJECT_KEY || 'princemzb_gestionSite_mobile' }}
+            -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner
+            -Dsonar.tests=test
+            -Dsonar.dart.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=android/**,ios/**
+            -Dsonar.qualitygate.wait=true
+
+  mobile-dependencies:
+    name: Application Flutter (dépendances vulnérables)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --lockfile=mobile/pubspec.lock
+
   sonar:
     name: SonarQube Cloud
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Actif dès que le secret SONAR_TOKEN est configuré (ADR-09) ; les PR de forks n'y ont pas accès.
+    # Porte bloquante (ADR-09) : échoue si SONAR_TOKEN est absent.
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
       SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'princemzb_gestionSite' }}
     steps:
-      - name: Jeton Sonar absent
-        if: env.SONAR_TOKEN == ''
+      - name: Jeton Sonar
         run: |
-          echo "::warning::SONAR_TOKEN non configuré, analyse Sonar non exécutée (voir docs/dev/GUIDE.md)."
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN absent : la porte Sonar ne peut pas s'exécuter (voir docs/dev/GUIDE.md)."
+            exit 1
+          fi
       - uses: actions/checkout@v4
-        if: env.SONAR_TOKEN != ''
         with:
           fetch-depth: 0
       - uses: actions/setup-java@v5
-        if: env.SONAR_TOKEN != ''
         with:
           distribution: temurin
           java-version: "21"
       - uses: actions/setup-dotnet@v4
-        if: env.SONAR_TOKEN != ''
         with:
           global-json-file: global.json
       - uses: actions/setup-python@v5
-        if: env.SONAR_TOKEN != ''
         with:
           python-version: "3.12"
       - name: Analyse et porte qualité Sonar (dépôt entier, C# et scripts)
-        if: env.SONAR_TOKEN != ''
         run: |
           dotnet tool restore
           dotnet sonarscanner begin \
@@ -84,7 +127,7 @@ jobs:
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
-            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**" \
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
