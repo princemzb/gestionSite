@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Identite\GestionSite.Modules.Identite.csproj" />
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Patrimoine\GestionSite.Modules.Patrimoine.csproj" />
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Maintenance\GestionSite.Modules.Maintenance.csproj" />
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Stock\GestionSite.Modules.Stock.csproj" />
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Budget\GestionSite.Modules.Budget.csproj" />
+    <ProjectReference Include="..\Modules\GestionSite.Modules.Plateforme\GestionSite.Modules.Plateforme.csproj" />
+  </ItemGroup>
+</Project>
