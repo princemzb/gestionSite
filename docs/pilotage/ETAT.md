@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 14:30 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 14:40 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -48,3 +48,5 @@ Dernière mise à jour : 27 octobre 2026, 14:30 (heure de Paris), par l'agent IA
 | 27/10/2026 | Outil `card.py` (7 passages de revue, 22 tests) ; OUT-01 Livré | PR #3 |
 | 27/10/2026 | US-05 découpée (S05-01 à S05-05) | PR #4 |
 | 27/10/2026 | S05-01 solution .NET (PR #5) et S05-04 CI (PR #6) ouvertes, en attente de Sonar | PR #5, #6 |
+| 27/10/2026 | Journal de reprise ETAT.md créé | PR #7 |
+| 27/10/2026 | Incident : PR #7 a inclus 1785 fichiers bin/obj (aucun source ni secret) ; retirés et `.gitignore` racine renforcé. Précaution : vérifier `git status` avant `git add -A` après un changement de branche | PR #8 |
