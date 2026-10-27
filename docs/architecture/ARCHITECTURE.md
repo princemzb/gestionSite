@@ -7,7 +7,7 @@ Une capacité ne modifie pas directement les données privées d’une autre : u
 
 ## Architecture proposée
 Un backend modulaire, une base relationnelle transactionnelle, un stockage de fichiers privé et un processus de tâches différées. Applications : web administratif/public et client tablette Android/iPad avec stockage local protégé. Pas de microservices initiaux : petite équipe et transactions stock/budget à maîtriser.
-Choix de langages, framework tablette, base et hébergeur non faits. La faisabilité de localisation est un critère de sélection du client mobile.
+Stack retenue (ADR-08) : ASP.NET Core .NET 10, PostgreSQL, Flutter pour la tablette, Blazor pour le web ; préproduction sur Cloudflare Containers + Neon, fichiers sur R2. Le choix Flutter reste soumis aux preuves de POC-01 et POC-03. Hébergement de production non choisi.
 
 ```mermaid
 flowchart TB

@@ -1,9 +1,9 @@
 # Guide développeur et conventions
-Statut : règles de travail proposées ; dépôt documentaire, aucun runtime applicatif choisi.
+Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor) ; aucun code applicatif encore présent.
 
 ## Démarrage actuel
 Lire README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
-Aucune commande npm/dotnet/docker n’est disponible ou validée aujourd’hui. US-05 doit fournir README d’installation, versions, fichiers d’exemple sans secrets, fixtures et commandes réelles.
+Aucune commande dotnet/flutter/docker n’est encore disponible ou validée. US-05 doit fournir README d’installation, versions, fichiers d’exemple sans secrets, fixtures et commandes réelles.
 
 ## Conventions
 Identifiants métier stables ; séparation des modules ; validation et autorisation côté serveur ; erreurs structurées ; dates métier distinctes des dates de réception.

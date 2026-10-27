@@ -8,7 +8,7 @@ Statut initial : tous les arbitrages ci-dessous sont ouverts ; aucune approbatio
 | DEC-03 | Statuts, doublons, refus, annulation, cardinalité interventions | Métier + BA | US-09/12/16 |
 | DEC-04 | Lecture des coûts/contacts et droits d’édition grilles/plans | Métier | US-06/07 |
 | DEC-05 | Priorités, horaires et délais de relance | Métier | US-10 |
-| DEC-06 | Frameworks, hébergement, versions et appareils supportés | Tech lead | US-05/13 |
+| DEC-06 | Frameworks et hébergement préprod : **tranchés** (ADR-08, 27/10/2026). Restent : versions et appareils supportés, hébergement de production | Tech lead | US-13 / production |
 | DEC-07 | Conservation, traitement IA, données locales et responsabilités | Référents métier/technique/données | Production |
 | DEC-08 | Précision localisation et moyens installables | Métier + tech lead | US-23 |
 | DEC-09 | Sources marchandes accessibles et budget IA | Tech lead + produit | US-19/20 |
