@@ -61,3 +61,13 @@ Priorité fixée par R/D à la qualification, indépendamment du danger déclar�
 - Les périodes « En attente » suspendent le délai de résolution ; l’ancienneté totale reste affichée.
 - Rappels : à 75 % du délai, rappel à la personne en charge (R/D si non affecté, sinon technicien affecté). À 100 %, escalade au responsable et aux délégués du site, puis rappel quotidien tant que le délai est dépassé. Une relance ne crée pas de doublon de notification pour le même seuil.
 - Récurrence : au moins 3 dossiers (hors « classée sans suite » et doublons rattachés) sur le même composant ou la même zone en 12 mois glissants.
+
+## Budget — DEC-02, V, 27 octobre 2026 (porteur du projet)
+- Tous les montants sont TTC, en euros. La TVA peut être saisie à titre informatif sur une dépense.
+- Une enveloppe par site et par année civile (1er janvier – 31 décembre).
+- Le responsable logistique (ou un administrateur) saisit le montant décidé par l’autorité financière, avec justificatif. Abondement ou réduction en cours d’année possibles avec motif et justificatif, jamais en dessous du montant déjà engagé.
+- Clôture d’année : les engagements non soldés sont reportés sur l’enveloppe de l’année suivante, chaque report étant confirmé par R/D ; l’année close devient non modifiable.
+- Dépense supérieure à l’autorisé : la dépense est enregistrée ; l’écart exige une autorisation complémentaire de R/D dans le disponible, ou un accord finance s’il manque (RG-17, RG-32). Le dossier est signalé « dépassement à régulariser » jusque-là.
+- Saisie des dépenses : R/D, et le technicien affecté sur ses dossiers. La dépense d’un technicien est provisoire (« à valider ») mais s’impute immédiatement sur l’engagement ; si R/D la refuse, le montant est rétabli. Le technicien ne voit que ses propres saisies et leur statut, jamais enveloppes, soldes ni autres dépenses.
+- Correction : ancienne valeur, auteur et motif conservés (RG-31) ; une dépense n’est jamais supprimée, elle est annulée avec motif.
+- Reliquat d’un dossier terminé : libéré vers le disponible du site après confirmation par R/D qu’aucune facture n’est attendue ; reste réservé jusque-là.

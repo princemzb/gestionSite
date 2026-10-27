@@ -5,6 +5,9 @@ Création du dossier BA/architecture/dev/tests/exploitation, backlog et estimati
 
 Vérification documentaire exécutée : liens locaux existants, blocs de code fermés, JSON valide, 39 identifiants uniques, références de dépendances existantes et absence de cycle ; total de base recalculé à 312–548 jours-personne. Ces vérifications ne constituent pas des tests applicatifs ni une validation des hypothèses d’estimation.
 
+## Arbitrages du 27 octobre 2026
+Tranchés par le porteur du projet (porteur produit, tech lead et validation métier) : ADR-08 (stack et préproduction, part de DEC-06), DEC-01, DEC-02, DEC-03, DEC-04, DEC-05. Ouverts : reste de DEC-06 (versions, appareils, hébergement de production), DEC-07 à DEC-12. Aucune ligne de code ni test applicatif à cette date.
+
 ## Tableau de livraison à maintenir
 | Lot | Version/commit | Trello | Revue technique | Recette métier | Déploiement | Résultat |
 | --- | --- | --- | --- | --- | --- | --- |

@@ -26,7 +26,7 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | --- | --- | --- |
 | Nom et contact du déclarant public | Tous les comptes internes habilités sur le site du dossier (T, R/D, P/C) | Saisie par le déclarant ; correction par R/D |
 | Montants : estimations, dépenses, enveloppes, soldes | R/D, P/C des sites autorisés | R/D selon délégation |
-| Estimation d’un dossier affecté | Technicien affecté, pour ce dossier uniquement ; jamais enveloppes, soldes ni dépenses | Technicien affecté (correction de proposition) ; validation par R/D |
+| Estimation d’un dossier affecté | Technicien affecté, pour ce dossier uniquement ; jamais enveloppes ni soldes ; dépenses limitées à ses propres saisies (DEC-02) | Technicien affecté (correction de proposition) ; validation par R/D |
 | Justificatifs financiers (factures, devis, décisions finance) | R/D, P/C des sites autorisés | R/D |
 | Inventaire (bâtiments, niveaux, zones, composants, lots) | Comptes internes du site | R/D ; techniciens du site (ajout et correction tracés) |
 | Grilles d’évaluation | Comptes internes du site | R/D ; chaque modification crée une version |
