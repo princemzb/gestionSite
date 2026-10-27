@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0.1",
   "generatedAt": "2026-10-27",
-  "status": "prepared_not_published",
+  "status": "published",
   "formatNotice": "Format neutre ; nécessite un script ou connecteur adapté, pas un import Trello natif.",
   "boardName": "Patrimoine Églises — Produit & Livraison",
   "lists": [
@@ -61,7 +61,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091b335f427cd5d01f1f7",
+      "trelloShortLink": "sA82ue9o"
     },
     {
       "id": "US-02",
@@ -106,7 +107,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091b95b44a87a21bb0e5c",
+      "trelloShortLink": "NJXMzKfT"
     },
     {
       "id": "US-03",
@@ -151,7 +153,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091bef8938f6de5fde70a",
+      "trelloShortLink": "3xm69AU4"
     },
     {
       "id": "US-04",
@@ -196,7 +199,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091c4ea449f157691178a",
+      "trelloShortLink": "wGfWdqxL"
     },
     {
       "id": "US-05",
@@ -243,7 +247,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091cac28a188f1758318e",
+      "trelloShortLink": "zvefXY1U"
     },
     {
       "id": "US-06",
@@ -291,7 +296,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091d04a9b223418bd0b35",
+      "trelloShortLink": "UeYgiMRS"
     },
     {
       "id": "US-07",
@@ -337,7 +343,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091d59979dd2c9639a24b",
+      "trelloShortLink": "pRjZmYEX"
     },
     {
       "id": "US-08",
@@ -384,7 +391,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091da4860f3f7b52deb7f",
+      "trelloShortLink": "9hDY5Nt5"
     },
     {
       "id": "US-09",
@@ -432,7 +440,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091e0bc22ed23fa9dc9ae",
+      "trelloShortLink": "DPb2Ikhz"
     },
     {
       "id": "US-10",
@@ -480,7 +489,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091e6c005a449c0f7f014",
+      "trelloShortLink": "95W4UbL6"
     },
     {
       "id": "US-11",
@@ -528,7 +538,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091ed265b3c26c506e673",
+      "trelloShortLink": "2WVt7I51"
     },
     {
       "id": "US-12",
@@ -575,7 +586,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091f3ac2ca6674f06f525",
+      "trelloShortLink": "XIvKYOj9"
     },
     {
       "id": "US-13",
@@ -623,7 +635,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae091f9a011d7eb1e838c73",
+      "trelloShortLink": "xhMgyaYg"
     },
     {
       "id": "US-14",
@@ -669,7 +682,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae09201ebc435fbf69885bf",
+      "trelloShortLink": "IJJU5FnO"
     },
     {
       "id": "US-15",
@@ -718,7 +732,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0920afe42b0e6f80c4325",
+      "trelloShortLink": "kmUAaEBT"
     },
     {
       "id": "US-16",
@@ -765,7 +780,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092101e24de3564ee6b1b",
+      "trelloShortLink": "WUq6WMjk"
     },
     {
       "id": "US-17",
@@ -813,7 +829,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092151a60c76fe4479c0d",
+      "trelloShortLink": "GDPdhq60"
     },
     {
       "id": "US-18",
@@ -860,7 +877,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0921bd9125643fae19260",
+      "trelloShortLink": "ilBhobgo"
     },
     {
       "id": "US-19",
@@ -910,7 +928,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae09220ca802ed7fff4fd58",
+      "trelloShortLink": "c7yRN5IC"
     },
     {
       "id": "US-20",
@@ -957,7 +976,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092265b783b34894eda6f",
+      "trelloShortLink": "A7HUM6wa"
     },
     {
       "id": "US-21",
@@ -1004,7 +1024,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0922cdbe4f0a9085df3b6",
+      "trelloShortLink": "zE5heVxG"
     },
     {
       "id": "US-22",
@@ -1050,7 +1071,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae09232315c9e606f604609",
+      "trelloShortLink": "qBUWjNO9"
     },
     {
       "id": "US-23",
@@ -1098,7 +1120,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae09237426e208c5e16b5a1",
+      "trelloShortLink": "B4WB3qpi"
     },
     {
       "id": "US-24",
@@ -1145,7 +1168,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0923dc817ccda78d218a2",
+      "trelloShortLink": "wIP1WQ7N"
     },
     {
       "id": "US-25",
@@ -1193,7 +1217,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092438d71fc9e057e856b",
+      "trelloShortLink": "FchJFltN"
     },
     {
       "id": "US-26",
@@ -1240,7 +1265,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0924b4cbc82ebb3e5cfe7",
+      "trelloShortLink": "FGLeCnCW"
     },
     {
       "id": "US-27",
@@ -1286,7 +1312,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092529c0e40f483a59928",
+      "trelloShortLink": "0X8kpbsk"
     },
     {
       "id": "US-28",
@@ -1332,7 +1359,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae0925a9ce47130f8e9b63d",
+      "trelloShortLink": "w6cdiz3f"
     },
     {
       "id": "US-29",
@@ -1379,7 +1407,8 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae09261e252a31d2eb20002",
+      "trelloShortLink": "g6aUbOsQ"
     },
     {
       "id": "US-30",
@@ -1435,18 +1464,19 @@
         "acceptance": null,
         "release": null
       },
-      "trelloId": null
+      "trelloId": "6ae092681047528684e3b8c8",
+      "trelloShortLink": "lM5sD6P4"
     },
     {
       "id": "PREP-01",
       "name": "[PREP-01] Arbitrer le scoring et les lots",
       "type": "preparation",
-      "list": "À affiner",
+      "list": "En cours",
       "labels": [
         "Préparation"
       ],
       "sprint": "SP-001",
-      "owner": null,
+      "owner": "Porteur du projet",
       "parentStories": [
         "US-01"
       ],
@@ -1460,18 +1490,20 @@
       "acceptanceCriteria": [
         "Présenter exemples dont lots et zones communes ; enregistrer approbation ou points restants dans DEC-01 ; mettre à jour RG-11/12 et T-05."
       ],
-      "trelloId": null
+      "trelloId": "6ae0926febc435fbf699bb24",
+      "progress": "DEC-01 tranchée le 27/10/2026 (REGLES, commits 00d6862 et dc1f096). Reste : cas de test T-05 dans RECETTE.",
+      "trelloShortLink": "grcjM0cy"
     },
     {
       "id": "PREP-02",
       "name": "[PREP-02] Arbitrer budgets, états et permissions",
       "type": "preparation",
-      "list": "À affiner",
+      "list": "En cours",
       "labels": [
         "Préparation"
       ],
       "sprint": "SP-001",
-      "owner": null,
+      "owner": "Porteur du projet",
       "parentStories": [
         "US-01"
       ],
@@ -1485,7 +1517,9 @@
       "acceptanceCriteria": [
         "Faire décider DEC-02/03/04/05 avec exemples ; ne pas marquer résolu sans accord métier ; mettre à jour règles et recette."
       ],
-      "trelloId": null
+      "trelloId": "6ae09270b626453e912154a2",
+      "progress": "DEC-02 à DEC-05 tranchées le 27/10/2026 (PERMISSIONS, PROCESSUS, REGLES ; commits 8906d16, fe2615f, 0a7a500, 6a2bdf9). Reste : cas de recette associés.",
+      "trelloShortLink": "pQtLOgf0"
     },
     {
       "id": "PREP-03",
@@ -1510,7 +1544,8 @@
       "acceptanceCriteria": [
         "Identifier site et appareils disponibles, parcours/étages, mesures, données non personnelles ; fournir protocole et besoins d’accès sans acheter de matériel."
       ],
-      "trelloId": null
+      "trelloId": "6ae092715905b4cde6598015",
+      "trelloShortLink": "VnJsBv7e"
     },
     {
       "id": "PREP-04",
@@ -1535,18 +1570,19 @@
       "acceptanceCriteria": [
         "Définir les 30 cas avec terrain, cas ambigus et résultats attendus ; inventorier accès marchands à vérifier ; aucune image réelle envoyée avant politique approuvée."
       ],
-      "trelloId": null
+      "trelloId": "6ae092724860f3f7b52ee232",
+      "trelloShortLink": "7V9eDQp5"
     },
     {
       "id": "PREP-05",
       "name": "[PREP-05] Comparer les options de stack",
       "type": "preparation",
-      "list": "À affiner",
+      "list": "Revue",
       "labels": [
         "Préparation"
       ],
       "sprint": "SP-001",
-      "owner": null,
+      "owner": "Porteur du projet",
       "parentStories": [
         "US-04",
         "US-05"
@@ -1561,7 +1597,9 @@
       "acceptanceCriteria": [
         "Comparer 2–3 options documentées officiellement selon offline, localisation, compétences et coûts ; proposer ADR et critères de POC, pas adopter arbitrairement."
       ],
-      "trelloId": null
+      "trelloId": "6ae0927497b5393c94755d1a",
+      "progress": "ADR-08 adoptée le 27/10/2026 (commit 5e5b1c5) : ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor ; préprod Cloudflare + Neon. À vérifier par le porteur avant Livré.",
+      "trelloShortLink": "0obDIKZ4"
     },
     {
       "id": "PREP-06",
@@ -1588,7 +1626,8 @@
       "acceptanceCriteria": [
         "Après stack expérimentale approuvée, prouver coupure après commit, doublon, deux profils, conflit ; livrer rapport exécutable et limites."
       ],
-      "trelloId": null
+      "trelloId": "6ae09275cb760852a65bd82a",
+      "trelloShortLink": "PFWx3Azh"
     },
     {
       "id": "PREP-07",
@@ -1615,7 +1654,8 @@
       "acceptanceCriteria": [
         "Sur appareils et site accessibles, exécuter protocole, relever erreurs et étapes échouées ; aucune précision annoncée sans mesure."
       ],
-      "trelloId": null
+      "trelloId": "6ae09276c141dd06c6b4f17f",
+      "trelloShortLink": "Fezuz4CB"
     },
     {
       "id": "PREP-08",
@@ -1642,7 +1682,8 @@
       "acceptanceCriteria": [
         "Avec budget fournisseur approuvé, tester abstention et produits compatibles ; enregistrer coûts et erreurs par cas."
       ],
-      "trelloId": null
+      "trelloId": "6ae0927760028c0ae6dfc4af",
+      "trelloShortLink": "07LraESQ"
     },
     {
       "id": "PREP-09",
@@ -1673,7 +1714,43 @@
       "acceptanceCriteria": [
         "Produire bilan des essais réalisés/non réalisés, décisions d’architecture, charges révisées et sous-cartes prêtes du prochain incrément."
       ],
-      "trelloId": null
+      "trelloId": "6ae0927742bd1e06c769f564",
+      "trelloShortLink": "Sw8HoXiv"
     }
-  ]
+  ],
+  "boardId": "6ae091a13d74df545ef9c297",
+  "listIds": {
+    "À affiner": "6ae091a3345ef1b6b26609a2",
+    "Prêt": "6ae091a31601b3ce384796aa",
+    "Sprint sélectionné": "6ae091a430125e671c51e659",
+    "En cours": "6ae091a416e9a5ea6a9dae10",
+    "Bloqué": "6ae091a50ce977bfc030bbf2",
+    "Revue": "6ae091a517e4f4beac623fb5",
+    "Recette": "6ae091a6634af5b9090032ce",
+    "Prêt à livrer": "6ae091a65692f6b9946b2755",
+    "Livré": "6ae091a72f052db401eb6fad"
+  },
+  "labelIds": {
+    "BA": "6ae091a8777cf16a8bd3694c",
+    "Budget": "6ae091a8c75119d351134bbf",
+    "Décision requise": "6ae091a929bbc7ea1620a5ff",
+    "Exploitation": "6ae091a96ae0e10cfdd6e9e4",
+    "IA": "6ae091aacab07654a79c2ae8",
+    "Identité": "6ae091aa9c496793e6c06d60",
+    "Incident critique": "6ae091ab32c3db5667a296ac",
+    "Livraison": "6ae091ab388c1a2f7fc796fe",
+    "Maintenance": "6ae091acc5516bc997795bf7",
+    "POC": "6ae091acca7eea573fdbe2cd",
+    "Patrimoine": "6ae091ada43b83ee14f4a371",
+    "Pilotage": "6ae091ad58e4b4ef6dca463a",
+    "Préparation": "6ae091ae643573671262b4e8",
+    "SP-001": "6ae091ae2766a8440cadc121",
+    "SP-002": "6ae091af945206c86e13791b",
+    "SP-003": "6ae091af65ab2e70d4b2c3f9",
+    "SaaS": "6ae091b01fc674e4b94552b8",
+    "Socle": "6ae091b1e3d2567f4054c8ab",
+    "Spatial": "6ae091b1ef2e268f4800522f",
+    "Stock": "6ae091b2b30ec19de383f664",
+    "Terrain": "6ae091b29720ce6dbe03ec5e"
+  }
 }

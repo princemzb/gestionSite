@@ -26,7 +26,7 @@ Le PRD fait foi sur le besoin ; REGLES précise les comportements ; les contrats
 
 Les documents sont renseignés, mais aucune implémentation ni recette n’a été exécutée. Les schémas API sont préliminaires, les maquettes sont textuelles ; aucun prototype visuel ni contrat OpenAPI exécutable n’est livré à ce stade.
 
-Le [guide des agents](../AGENTS.md) encadre la reprise. La préparation Trello contient 30 macro-stories et 9 cartes initiales ; aucune carte n’a été publiée dans un tableau externe. Les cartes de préparation sont incluses dans la charge des macro-stories.
+Le [guide des agents](../AGENTS.md) encadre la reprise. La préparation Trello contient 30 macro-stories et 9 cartes initiales ; elles sont publiées depuis le 27 octobre 2026 dans le tableau Trello https://trello.com/b/NsEhG4sm. Les cartes de préparation sont incluses dans la charge des macro-stories.
 
 ## Maintenance
 Chaque modification de règle doit mettre à jour ses tickets et tests liés. Conserver les identifiants RG, US, T et DEC ; ajouter plutôt que renuméroter. En revue de lot, vérifier permissions, erreurs, hors connexion, sécurité et documentation. Les commandes du dépôt seront renseignées quand la stack sera choisie.

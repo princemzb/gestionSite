@@ -11,7 +11,7 @@ Tranchés par le porteur du projet (porteur produit, tech lead et validation mé
 ## Tableau de livraison à maintenir
 | Lot | Version/commit | Trello | Revue technique | Recette métier | Déploiement | Résultat |
 | --- | --- | --- | --- | --- | --- | --- |
-| Cadrage v0.2 | 1430879 (dépôt privé princemzb/gestionSite) | Non publié | À revoir | À revoir | Sans objet | Documenté |
+| Cadrage v0.2 | 1430879 (dépôt privé princemzb/gestionSite) | Publié le 27/10/2026 : https://trello.com/b/NsEhG4sm | À revoir | À revoir | Sans objet | Documenté |
 
 ## Compte rendu de sprint
 Sprint/dates, capacité prévue/réelle, cartes sélectionnées, réalisées, reportées et raisons, défauts, décisions, reste à faire réestimé. Ne pas convertir automatiquement le temps écoulé en pourcentage réalisé.

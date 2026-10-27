@@ -1,5 +1,5 @@
 # Pilotage Trello et exécution par agents
-Statut : organisation proposée. Aucun tableau ni aucune carte créés dans Trello à cette date.
+Statut : tableau publié le 27 octobre 2026 : [https://trello.com/b/NsEhG4sm](https://trello.com/b/NsEhG4sm) (espace de travail gestionSite, visible par ses membres). Les règles de passage ci-dessous restent proposées.
 
 ## Tableau
 Nom proposé : « Patrimoine Églises — Produit & Livraison ».
@@ -31,7 +31,7 @@ Un agent prend uniquement une carte Prêt explicitement assignée. Il lit AGENTS
 Le registre Git contient la spécification ; Trello porte état, affectation, sprint et preuves. Si un choix change dans Trello, le reporter dans les documents lors de la même livraison.
 
 ## Publication
-Le fichier trello-backlog.json est un échange neutre pour un futur script/connector, **pas un format d’import natif garanti par Trello**. Avant publication : vérifier les droits, le tableau et les membres, puis associer identifiant métier ↔ identifiant Trello. Une relance de publication doit mettre à jour la carte existante, pas créer un doublon.
+Le fichier trello-backlog.json est un échange neutre, **pas un format d’import natif Trello**. Il est publié par `python3 scripts/trello/publish_backlog.py` (simulation par défaut, `--apply` pour écrire), qui enregistre les identifiants Trello dans le JSON. Une relance met à jour titre, description et labels des cartes existantes ; elle ne déplace aucune carte, car Trello fait foi pour la liste, les membres et les checklists. Avant publication : vérifier les droits, le tableau et les membres, puis associer identifiant métier ↔ identifiant Trello. Une relance de publication doit mettre à jour la carte existante, pas créer un doublon.
 Ne publier aucune donnée personnelle des futurs déclarants dans les cartes de développement.
 
 ## Accès API
