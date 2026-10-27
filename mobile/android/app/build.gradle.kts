@@ -53,6 +53,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // Réduction et obfuscation du code natif de la version finale.
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
 }
