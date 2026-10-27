@@ -40,7 +40,7 @@ LABEL_COLORS = {
 }
 
 CHECKLIST_NAME = "Définition de terminé"
-TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation", "outillage": "Outillage"}
+TYPE_LABELS = {"macro_story": "Macro-story", "preparation": "Carte de préparation", "outillage": "Outillage", "sous_carte": "Sous-carte"}
 
 
 class TrelloError(Exception):
