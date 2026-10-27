@@ -3,6 +3,10 @@ Statut : **V** — choisie par le porteur le 27 octobre 2026 (2e série de maque
 
 Origine : couleurs, dégradés et formes relevés sur le site de référence indiqué par le porteur ; police propriétaire remplacée par Inter ; ni logo, ni texte, ni illustration repris.
 
+## Maquettes validées
+- 28 octobre 2026 : parcours du 1er incrément validé par le porteur, en Jour et Nuit — Réglages (bascule de thème), file de qualification (UI-03), dossier (UI-04), clôture d'intervention (tablette), sur le même canevas. Ils font référence pour l'implémentation.
+- Restent à maquetter, puis à faire valider avant code, avec leurs US : fiche composant (UI-05), proposition IA (UI-08), autorisation budgétaire (UI-09), plan (UI-10), stock (UI-11), administration (UI-12).
+
 ## Règles de thème
 - Deux thèmes : **Jour** (par défaut) et **Nuit**.
 - Chaque utilisateur bascule dans ses réglages ; le choix est mémorisé **par compte** (sur une tablette partagée, chaque profil garde le sien).
