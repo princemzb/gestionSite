@@ -56,6 +56,7 @@ android {
             // Réduction et obfuscation du code natif de la version finale.
             isMinifyEnabled = true
             isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
