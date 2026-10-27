@@ -1961,6 +1961,166 @@
       ],
       "trelloId": "6ae0f3b0a4704a0077a82f99",
       "trelloShortLink": "HkoucZeh"
+    },
+    {
+      "id": "S06-01",
+      "name": "[S06-01] Persistance EF Core, migrations et tests sur PostgreSQL réel",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 1.5,
+        "high": 2.5,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "DbContext par module (Identité d'abord), migrations versionnées appliquées au démarrage en local et en test, tests d'intégration sur PostgreSQL via Testcontainers, porte qualité verte."
+      ],
+      "trelloId": "6ae10298aceb051016e162a3",
+      "trelloShortLink": "9pcGylTB"
+    },
+    {
+      "id": "S06-02",
+      "name": "[S06-02] Organisations, sites, adhésions et rôles avec double barrière d'isolation",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "S06-01"
+      ],
+      "acceptanceCriteria": [
+        "Modèle organisation/site/adhésion/rôle par site ; filtre automatique par organisation ; politiques RLS PostgreSQL ; tests prouvant qu'une requête sans filtre applicatif ne lit rien d'une autre organisation."
+      ],
+      "trelloId": "6ae10299e35b2f591a4e8da1",
+      "trelloShortLink": "VvTkESUi"
+    },
+    {
+      "id": "S06-03",
+      "name": "[S06-03] Connexion, jetons d'accès et de renouvellement, verrouillage",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "S06-02"
+      ],
+      "acceptanceCriteria": [
+        "POST /auth/login, /auth/refresh (rotation), /auth/logout ; GET /me ; verrouillage après 5 échecs ; réponses indistinctes compte inconnu/mot de passe faux ; /security-review sans constat confirmé."
+      ],
+      "trelloId": "6ae1029a07e35b942971d216",
+      "trelloShortLink": "1tshj60U"
+    },
+    {
+      "id": "S06-04",
+      "name": "[S06-04] Gestion des membres par l'administrateur et lien d'activation",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "S06-03"
+      ],
+      "acceptanceCriteria": [
+        "Création de membre avec rôles et sites, lien d'activation à usage unique 72 h, POST /auth/activate, révision et révocation d'habilitations (jetons invalidés), commande d'exploitation d'ouverture d'organisation."
+      ],
+      "trelloId": "6ae1029adf50b094756b2d87",
+      "trelloShortLink": "gJdtKJkE"
+    },
+    {
+      "id": "S06-05",
+      "name": "[S06-05] Autorisation par rôle et par site, tests de refus interclient (T-01)",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "S06-04"
+      ],
+      "acceptanceCriteria": [
+        "Politiques d'autorisation conformes à PERMISSIONS.md ; 404 pour toute ressource d'une autre organisation ; administrateur sans rôle métier sans accès aux opérations ; cas T-01 automatisés."
+      ],
+      "trelloId": "6ae1029b915eebfdbffdf5ec",
+      "trelloShortLink": "yXJEqosy"
+    },
+    {
+      "id": "S06-06",
+      "name": "[S06-06] Journal d'audit des habilitations (RG-31)",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 1,
+        "high": 1.5,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "S06-04"
+      ],
+      "acceptanceCriteria": [
+        "Toute création, révision ou révocation d'habilitation conserve auteur, date, motif et valeur précédente ; journal consultable par l'administrateur ; aucune donnée sensible dans les journaux techniques."
+      ],
+      "trelloId": "6ae1029cc2debb01ed14645c",
+      "trelloShortLink": "G4PwV05e"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

@@ -1,5 +1,5 @@
 # Registre des décisions d’architecture
-Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08 et ADR-09 adoptées le 27 octobre 2026, sous réserve des preuves listées.
+Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées.
 
 | ADR | Décision proposée | Alternatives et compromis | Condition de validation |
 | --- | --- | --- | --- |
@@ -65,3 +65,16 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 **Conséquences.** Tout le travail passe par branche et PR, documentation comprise. Une PR purement documentaire n’exige pas de revue de code ni de porte Sonar. Le cadrage est visible publiquement. La configuration Sonar (compte, organisation, jeton CI) est réalisée avec US-05, avant la première ligne de code applicatif.
 
 **Révision.** Si un seuil bloque sans gain de qualité démontré, le modifier par une nouvelle décision motivée, jamais en contournant la porte.
+
+## ADR-10 — Identité, comptes et isolation des organisations
+**Statut :** adoptée le 28 octobre 2026 par le porteur du projet (tech lead). Cadre US-06.
+
+**Choix.**
+- **Authentification intégrée à l'API** : ASP.NET Core Identity (comptes locaux, e-mail + mot de passe, hachage standard du framework), verrouillage après échecs répétés. L'API délivre un jeton d'accès court et un jeton de renouvellement révocable, utilisables par le web et la tablette. MFA et connexion Microsoft/Google restent prévues en US-27.
+- **Création des comptes par lien d'activation** : l'administrateur d'organisation crée le compte ; l'API génère un lien d'activation à usage unique, à durée limitée, que l'administrateur transmet lui-même ; l'utilisateur y choisit son mot de passe. L'envoi par e-mail s'ajoutera quand un service d'e-mail sera branché.
+- **Isolation en double barrière** : filtre automatique par organisation dans l'accès aux données (EF Core) ET sécurité par ligne PostgreSQL (RLS) fondée sur l'organisation de la requête. Un oubli de filtre applicatif reste bloqué par la base.
+- **Persistance** : EF Core avec Npgsql, migrations versionnées, tests d'intégration sur PostgreSQL réel (Testcontainers).
+
+**Valeurs par défaut proposées (P), modifiables sans changer l'architecture** : jeton d'accès 15 min ; jeton de renouvellement 14 jours glissants, révoqué immédiatement côté serveur (révocation d'habilitation, déconnexion, perte d'appareil) ; verrouillage après 5 échecs pendant 15 min ; mot de passe d'au moins 12 caractères ; lien d'activation valable 72 h.
+
+**Conséquences.** L'ouverture d'une organisation et de son premier administrateur passe, pour le pilote, par une commande d'exploitation réservée à la plateforme (interface en US-26). Le hors connexion de 24 h (RG-23) repose sur un déverrouillage local du profil préparé sur la tablette, sans appel à l'API ; la révocation prend effet à la synchronisation suivante (fenêtre d'exposition acceptée, RISQUES).
