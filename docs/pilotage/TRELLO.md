@@ -34,3 +34,6 @@ Le registre Git contient la spécification ; Trello porte état, affectation, sp
 Le fichier trello-backlog.json est un échange neutre pour un futur script/connector, **pas un format d’import natif garanti par Trello**. Avant publication : vérifier les droits, le tableau et les membres, puis associer identifiant métier ↔ identifiant Trello. Une relance de publication doit mettre à jour la carte existante, pas créer un doublon.
 Ne publier aucune donnée personnelle des futurs déclarants dans les cartes de développement.
 
+## Accès API
+Application Trello « gestionSite sync » (sans fonctionnalités Power-Up), authentification par clé d’API et jeton. Les identifiants sont dans le Trousseau macOS du poste du porteur, services `gestionsite-trello-key` et `gestionsite-trello-token` ; jamais dans le dépôt. Lecture : `security find-generic-password -s <service> -w`. Accès en lecture vérifié le 27 octobre 2026 ; aucune écriture effectuée.
+
