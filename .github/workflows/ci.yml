@@ -52,12 +52,12 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.47.1"
           channel: stable
           cache: true
-      - run: flutter pub get
+      - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
@@ -93,7 +93,7 @@ jobs:
         if: env.SONAR_TOKEN != ''
         with:
           python-version: "3.12"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         if: env.SONAR_TOKEN != ''
         with:
           flutter-version: "3.47.1"
@@ -115,7 +115,7 @@ jobs:
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
-          (cd mobile && flutter pub get && flutter test --coverage)
+          (cd mobile && flutter pub get --enforce-lockfile && flutter test --coverage)
           dotnet build server/GestionSite.slnx --configuration Release
           dotnet test server/GestionSite.slnx --no-build --configuration Release \
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
