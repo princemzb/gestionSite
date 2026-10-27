@@ -1,7 +1,2 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
 </Project>

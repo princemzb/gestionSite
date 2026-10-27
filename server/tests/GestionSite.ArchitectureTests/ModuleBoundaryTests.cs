@@ -4,57 +4,72 @@ namespace GestionSite.ArchitectureTests;
 
 /// <summary>
 /// Frontières du monolithe modulaire (ADR-01, ARCHITECTURE.md) : un module n'accède à un autre
-/// que par ses contrats publics (GestionSite.Modules.X.Contracts) ou le noyau partagé ; jamais
-/// à son implémentation, ni à l'API ou à un autre hôte. Seule l'API assemble les modules.
+/// que par ses contrats publics (GestionSite.Modules.Y.Contracts) ou le noyau partagé ; jamais à
+/// son implémentation, ni à l'API ou à un autre hôte. Seule l'API assemble les modules.
 /// </summary>
 public sealed class ModuleBoundaryTests
 {
-    public static TheoryData<string> Modules => new(SolutionLayout.ModuleProjects.Select(SolutionLayout.ProjectName));
+    public static TheoryData<string> Implementations => new(
+        SolutionLayout.SourceProjects.Select(SolutionLayout.ProjectName).Where(SolutionLayout.IsModuleImplementation));
+
+    public static TheoryData<string> Entries => new(SolutionLayout.ModuleEntries);
 
     [Fact]
     public void ModulesAreDiscovered()
     {
-        Assert.NotEmpty(SolutionLayout.ModuleProjects);
+        Assert.NotEmpty(SolutionLayout.ModuleEntries);
     }
 
     [Fact]
-    public void ApiAssemblesExactlyTheDiscoveredModules()
+    public void ApiAssemblesExactlyTheModuleEntries()
     {
-        var assembled = typeof(Program).Assembly.GetReferencedAssemblies()
-            .Select(r => r.Name!)
+        var assembled = SolutionLayout.ProjectReferences(SolutionLayout.Project("GestionSite.Api"))
             .Where(SolutionLayout.IsModuleImplementation)
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal(SolutionLayout.ModuleProjects.Select(SolutionLayout.ProjectName).ToHashSet(StringComparer.Ordinal), assembled);
+        Assert.Equal(SolutionLayout.ModuleEntries.ToHashSet(StringComparer.Ordinal), assembled);
     }
 
     [Theory]
-    [MemberData(nameof(Modules))]
-    public void ModuleProjectReferencesOnlyShareableProjects(string module)
+    [MemberData(nameof(Implementations))]
+    public void ImplementationReferencesOnlyItsModuleContractsOrKernel(string project)
     {
-        var project = SolutionLayout.ModuleProjects.Single(f => SolutionLayout.ProjectName(f) == module);
-
-        var forbidden = SolutionLayout.ProjectReferences(project).Where(r => !SolutionLayout.IsShareable(r));
+        var forbidden = SolutionLayout.ProjectReferences(SolutionLayout.Project(project))
+            .Where(r => !SolutionLayout.ImplementationMayReference(project, r));
 
         Assert.Empty(forbidden);
     }
 
     [Theory]
-    [MemberData(nameof(Modules))]
+    [MemberData(nameof(Entries))]
     public void ModuleReachesNoOtherImplementationEvenIndirectly(string module)
     {
-        var reached = SolutionLayout.TransitiveSolutionReferences(Assembly.Load(module));
+        Assembly assembly;
+        try
+        {
+            assembly = Assembly.Load(module);
+        }
+        catch (FileNotFoundException)
+        {
+            Assert.Fail($"{module} n'est pas chargé : l'ajouter aux références de GestionSite.Api.");
+            return;
+        }
 
-        Assert.DoesNotContain(reached, name => !SolutionLayout.IsShareable(name));
+        var reached = SolutionLayout.TransitiveSolutionReferences(assembly);
+
+        Assert.DoesNotContain(reached, name => !SolutionLayout.ImplementationMayReference(module, name));
     }
 
     [Fact]
-    public void SharedProjectsReferenceOnlyShareableProjects()
+    public void ContractsDependOnlyOnTheKernelAndTheKernelOnNothing()
     {
-        // Aucun projet partagé n'existe encore : le test devient actif dès le premier contrat.
-        var forbidden = SolutionLayout.SharedProjects
-            .SelectMany(p => SolutionLayout.ProjectReferences(p).Select(r => $"{SolutionLayout.ProjectName(p)} -> {r}"))
-            .Where(link => !SolutionLayout.IsShareable(link.Split(" -> ")[1]));
+        var forbidden =
+            from project in SolutionLayout.SourceProjects
+            let name = SolutionLayout.ProjectName(project)
+            where SolutionLayout.IsContracts(name) || name == SolutionLayout.SharedKernel
+            from reference in SolutionLayout.ProjectReferences(project)
+            where !SolutionLayout.SharedMayReference(name, reference)
+            select $"{name} -> {reference}";
 
         Assert.Empty(forbidden);
     }

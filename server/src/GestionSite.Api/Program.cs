@@ -28,5 +28,3 @@ app.MapIdentiteEndpoints()
 
 await app.RunAsync().ConfigureAwait(false);
 
-/// <summary>Exposé aux tests d'intégration (WebApplicationFactory).</summary>
-public partial class Program;

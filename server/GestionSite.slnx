@@ -13,5 +13,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/GestionSite.Api.Tests/GestionSite.Api.Tests.csproj" />
     <Project Path="tests/GestionSite.ArchitectureTests/GestionSite.ArchitectureTests.csproj" />
+    <Project Path="tests/GestionSite.Modules.Tests/GestionSite.Modules.Tests.csproj" />
   </Folder>
 </Solution>
