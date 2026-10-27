@@ -1,3 +1,7 @@
+using System.Buffers;
+using System.Globalization;
+using System.Text;
+
 namespace GestionSite.Modules.Identite.Domain;
 
 /// <summary>Organisation cliente (église ou réseau d'églises), frontière d'isolation des données (RG-01).</summary>
@@ -24,14 +28,15 @@ internal sealed class Organisation
             throw new ArgumentException($"Le nom ne peut pas dépasser {NomMaxLength} caractères.", nameof(nom));
         }
 
-        if (!EstTexteStockable(nomNettoye))
+        if (!EstNomValide(nomNettoye))
         {
-            throw new ArgumentException("Le nom contient un caractère de contrôle ou invalide.", nameof(nom));
+            throw new ArgumentException("Le nom doit tenir sur une ligne, sans caractère de contrôle ni invisible seul.", nameof(nom));
         }
 
-        if (creeLe == default)
+        // Valeur par défaut ou bornes extrêmes : Npgsql écrirait « -infinity » / « infinity ».
+        if (creeLe.UtcDateTime == DateTime.MinValue || creeLe.UtcDateTime == DateTime.MaxValue)
         {
-            throw new ArgumentException("La date de création est obligatoire.", nameof(creeLe));
+            throw new ArgumentException("La date de création est obligatoire et doit être une date réelle.", nameof(creeLe));
         }
 
         Id = id;
@@ -45,27 +50,29 @@ internal sealed class Organisation
 
     public DateTimeOffset CreeLe { get; private set; }
 
-    // PostgreSQL refuse le caractère NUL et l'encodage UTF-8 échoue sur une moitié de paire de substitution.
-    private static bool EstTexteStockable(string texte)
+    // PostgreSQL refuse le caractère NUL, l'encodage UTF-8 échoue sur une demi-paire de substitution,
+    // et un nom fait seulement de caractères invisibles (U+200B…) paraîtrait vide.
+    private static bool EstNomValide(string nom)
     {
-        for (var i = 0; i < texte.Length; i++)
+        var visible = false;
+        var reste = nom.AsSpan();
+        while (!reste.IsEmpty)
         {
-            if (char.IsControl(texte[i]) || char.IsLowSurrogate(texte[i]))
+            if (Rune.DecodeFromUtf16(reste, out var rune, out var lus) != OperationStatus.Done)
             {
                 return false;
             }
 
-            if (char.IsHighSurrogate(texte[i]))
+            var categorie = Rune.GetUnicodeCategory(rune);
+            if (categorie is UnicodeCategory.Control or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
             {
-                if (i + 1 == texte.Length || !char.IsLowSurrogate(texte[i + 1]))
-                {
-                    return false;
-                }
-
-                i++;
+                return false;
             }
+
+            visible |= categorie != UnicodeCategory.Format && !Rune.IsWhiteSpace(rune);
+            reste = reste[lus..];
         }
 
-        return true;
+        return visible;
     }
 }

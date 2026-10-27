@@ -33,10 +33,10 @@ internal static class InfrastructureServices
             return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
 
-        if (DatabaseMigrations.IsRequested(configuration))
-        {
-            services.AddHostedService<DatabaseMigrations>();
-        }
+        services.AddOptions<MigrationOptions>()
+            .Bind(configuration.GetSection(MigrationOptions.Section))
+            .ValidateOnStart();
+        services.AddHostedService<DatabaseMigrations>();
 
         // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
         services.AddHealthChecks()

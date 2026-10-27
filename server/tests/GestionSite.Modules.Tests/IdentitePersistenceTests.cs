@@ -31,14 +31,20 @@ public sealed class IdentitePersistenceTests
 
 
     [Fact]
-    public void OrganisationRequiresACreationDate()
+    public void OrganisationRequiresARealCreationDate()
     {
-        Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), "Saint-Paul", default));
+        DateTimeOffset[] dates = [default, DateTimeOffset.MinValue, DateTimeOffset.MaxValue];
+
+        Assert.All(dates, date =>
+            Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), "Saint-Paul", date)));
     }
 
     [Theory]
     [InlineData("Saint\0Paul")]
     [InlineData("Saint\nPaul")]
+    [InlineData("Saint\u2028Paul")]
+    [InlineData("\u200B")]
+    [InlineData("\u200B \u2060")]
     public void OrganisationRejectsControlCharacters(string nom)
     {
         Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), nom, DateTimeOffset.UnixEpoch));

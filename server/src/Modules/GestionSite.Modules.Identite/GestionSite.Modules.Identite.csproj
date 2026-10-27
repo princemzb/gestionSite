@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="GestionSite.Modules.Tests" />
+    <InternalsVisibleTo Include="GestionSite.Api.Tests" />
   </ItemGroup>
 </Project>

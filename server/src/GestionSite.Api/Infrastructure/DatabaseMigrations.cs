@@ -1,4 +1,5 @@
 using GestionSite.SharedKernel;
+using Microsoft.Extensions.Options;
 
 namespace GestionSite.Api.Infrastructure;
 
@@ -8,26 +9,17 @@ namespace GestionSite.Api.Infrastructure;
 /// Exécuté au tout début du démarrage de l'hôte : après la validation de la configuration
 /// (ValidateOnStart), avant l'ouverture du serveur, et annulable par l'arrêt de l'hôte.
 /// </summary>
-internal sealed partial class DatabaseMigrations(IServiceScopeFactory scopes, ILogger<DatabaseMigrations> logger)
+internal sealed partial class DatabaseMigrations(
+    IOptions<MigrationOptions> options, IServiceScopeFactory scopes, ILogger<DatabaseMigrations> logger)
     : IHostedLifecycleService
 {
-    internal const string Setting = "Database:MigrateOnStartup";
-
-    internal static bool IsRequested(IConfiguration configuration)
-    {
-        var value = configuration[Setting];
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        return bool.TryParse(value, out var requested)
-            ? requested
-            : throw new InvalidOperationException($"{Setting} doit valoir « true » ou « false » (valeur reçue : « {value} »).");
-    }
-
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
+        if (!options.Value.MigrateOnStartup)
+        {
+            return;
+        }
+
         await using var scope = scopes.CreateAsyncScope();
         foreach (var migrator in scope.ServiceProvider.GetServices<IDatabaseMigrator>())
         {
