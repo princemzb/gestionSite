@@ -20,6 +20,7 @@ Ce dépôt contient actuellement le cadrage, pas une application. Lire docs/READ
 8. Aucun secret ni donnée personnelle réelle dans le dépôt ou Trello. Ne pas acheter, publier ou modifier un service externe sans autorisation applicable.
 
 ## Reprise
+Commencer par docs/pilotage/ETAT.md (état courant, PR en cours, blocages, prochaine action). Le mettre à jour à chaque étape significative : sous-carte ou US terminée, décision, PR ouverte ou fusionnée, blocage. Une reprise doit être possible sans aucun historique de conversation.
 Terminer avec carte, fichiers/commit, travail réalisé, tests exécutés, limites, blocages et prochaine action. Ne pas attribuer une recette humaine à l’agent lui-même.
 
 Les commandes applicatives seront documentées dans docs/dev/GUIDE.md lors du socle technique. Aucune n’est prescrite fictivement ici.

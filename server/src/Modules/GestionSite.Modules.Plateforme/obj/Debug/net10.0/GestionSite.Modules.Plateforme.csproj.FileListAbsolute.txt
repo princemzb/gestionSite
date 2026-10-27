@@ -1,0 +1,14 @@
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/bin/Debug/net10.0/GestionSite.Modules.Plateforme.deps.json
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/bin/Debug/net10.0/GestionSite.Modules.Plateforme.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/bin/Debug/net10.0/GestionSite.Modules.Plateforme.pdb
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.GeneratedMSBuildEditorConfig.editorconfig
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.AssemblyInfoInputs.cache
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.AssemblyInfo.cs
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.csproj.CoreCompileInputs.cache
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.sourcelink.json
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/refint/GestionSite.Modules.Plateforme.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.pdb
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/ref/GestionSite.Modules.Plateforme.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/bin/Debug/net10.0/GestionSite.Modules.Plateforme.xml
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Plateforme/obj/Debug/net10.0/GestionSite.Modules.Plateforme.xml

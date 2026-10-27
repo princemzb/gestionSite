@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GestionSite.Modules.Identite</name>
+    </assembly>
+    <members>
+        <member name="T:GestionSite.Modules.Identite.IdentiteModule">
+            <summary>
+            Point d'entrée du module Identite : comptes, adhésions aux organisations, rôles et sites autorisés.
+            Les autres modules n'y accèdent que par ses opérations publiques (ARCHITECTURE.md).
+            </summary>
+        </member>
+    </members>
+</doc>

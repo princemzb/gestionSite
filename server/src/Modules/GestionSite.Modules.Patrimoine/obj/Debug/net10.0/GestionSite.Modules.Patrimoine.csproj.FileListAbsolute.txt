@@ -1,0 +1,14 @@
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/bin/Debug/net10.0/GestionSite.Modules.Patrimoine.deps.json
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/bin/Debug/net10.0/GestionSite.Modules.Patrimoine.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/bin/Debug/net10.0/GestionSite.Modules.Patrimoine.pdb
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.GeneratedMSBuildEditorConfig.editorconfig
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.AssemblyInfoInputs.cache
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.AssemblyInfo.cs
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.csproj.CoreCompileInputs.cache
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.sourcelink.json
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/refint/GestionSite.Modules.Patrimoine.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.pdb
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/ref/GestionSite.Modules.Patrimoine.dll
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/bin/Debug/net10.0/GestionSite.Modules.Patrimoine.xml
+/Users/prince/Developer/gestionSite/server/src/Modules/GestionSite.Modules.Patrimoine/obj/Debug/net10.0/GestionSite.Modules.Patrimoine.xml

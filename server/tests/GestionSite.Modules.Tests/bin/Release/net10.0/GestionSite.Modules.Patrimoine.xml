@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GestionSite.Modules.Patrimoine</name>
+    </assembly>
+    <members>
+        <member name="T:GestionSite.Modules.Patrimoine.PatrimoineModule">
+            <summary>
+            Point d'entrée du module Patrimoine : bâtiments, niveaux, zones, composants, grilles et évaluations.
+            Les autres modules n'y accèdent que par ses opérations publiques (ARCHITECTURE.md).
+            </summary>
+        </member>
+    </members>
+</doc>
