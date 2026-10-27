@@ -18,3 +18,9 @@ __pycache__/
 
 # Réglages Claude Code personnels
 .claude/settings.local.json
+
+# Sorties de compilation .NET (quel que soit le répertoire)
+**/bin/
+**/obj/
+**/artifacts/
+**/TestResults/
