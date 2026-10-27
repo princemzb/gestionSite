@@ -169,6 +169,26 @@ class TransientErrorTest(unittest.TestCase):
         self.assertFalse(publish_backlog.is_transient(urllib.error.URLError("nodename nor servname provided")))
 
 
+class SafePathTest(unittest.TestCase):
+    ID = "6ae091cac28a188f1758318e"
+
+    def test_known_segments_and_ids_are_accepted(self):
+        for path in ("/members/me", f"/cards/{self.ID}/actions/comments", f"/checklists/{self.ID}/checkItems"):
+            self.assertEqual(publish_backlog.safe_path(path), path)
+
+    def test_traversal_and_injection_are_refused(self):
+        for path in (f"/cards/../tokens/{self.ID}", "/cards/abc?key=x", f"/cards/{self.ID}/../../webhooks",
+                     "cards/x", f"/cards/{self.ID.upper()}", "/tokens"):
+            with self.assertRaises(TrelloError):
+                publish_backlog.safe_path(path)
+
+    def test_backlog_with_malformed_id_is_refused(self):
+        data = {"boardId": self.ID, "listIds": {"Prêt": "../webhooks"}, "cards": []}
+        with self.assertRaises(TrelloError):
+            publish_backlog.validate_ids(data)
+        publish_backlog.validate_ids({"boardId": self.ID, "listIds": {"Prêt": self.ID}, "cards": [{"trelloId": None}]})
+
+
 def http_error(code):
     return urllib.error.HTTPError("https://api.trello.com", code, "err", {}, io.BytesIO(b"detail"))
 
@@ -190,7 +210,7 @@ class RetryPolicyTest(unittest.TestCase):
         with mock.patch.object(publish_backlog.urllib.request, "urlopen",
                                side_effect=list(errors) + [ok]) as urlopen:
             try:
-                return self.api.call(method, "/x"), urlopen.call_count
+                return self.api.call(method, "/members/me"), urlopen.call_count
             except TrelloError:
                 return None, urlopen.call_count
 

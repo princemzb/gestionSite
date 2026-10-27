@@ -14,6 +14,7 @@ une relance met à jour titre, description et labels, sans déplacer les cartes.
 import argparse
 import http.client
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -47,6 +48,21 @@ class TrelloError(Exception):
     """Échec d'un appel Trello (HTTP ou réseau)."""
 
 
+# Chemin d'API autorisé : segments littéraux connus et identifiants Trello (24 hexadécimaux).
+# Empêche qu'une valeur lue dans le JSON ou renvoyée par l'API détourne l'appel (« ../ », « ? »…).
+TRELLO_ID = re.compile(r"[0-9a-f]{24}")
+ALLOWED_SEGMENTS = {"members", "me", "boards", "lists", "labels", "cards", "checklists",
+                    "checkItems", "actions", "comments", "organizations"}
+
+
+def safe_path(path):
+    segments = path.split("/")
+    if segments[0] != "" or not all(
+            seg in ALLOWED_SEGMENTS or TRELLO_ID.fullmatch(seg) for seg in segments[1:]):
+        raise TrelloError(f"Chemin d'API Trello refusé : {path!r}")
+    return path
+
+
 def is_transient(err):
     """Erreur réseau passagère (délai, coupure) ; pas un défaut de certificat ou de DNS."""
     reason = getattr(err, "reason", err)
@@ -55,12 +71,24 @@ def is_transient(err):
 
 
 def load():
-    return json.loads(BACKLOG.read_text(encoding="utf-8"))
+    data = json.loads(BACKLOG.read_text(encoding="utf-8"))
+    validate_ids(data)
+    return data
+
+
+def validate_ids(data):
+    """Refuse tout identifiant Trello mal formé avant usage ou écriture du backlog."""
+    ids = [data.get("boardId"), *data.get("listIds", {}).values(), *data.get("labelIds", {}).values()]
+    ids += [c.get(k) for c in data["cards"] for k in ("trelloId", "checklistId")]
+    bad = [i for i in ids if i is not None and not TRELLO_ID.fullmatch(i)]
+    if bad:
+        raise TrelloError(f"Identifiants Trello invalides dans le backlog : {bad[:3]}")
 
 
 def save(data, api):
     """Enregistre les identifiants après chaque création, pour qu'une reprise ne duplique rien."""
     if api.apply:
+        validate_ids(data)
         BACKLOG.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -84,6 +112,7 @@ class Trello:
             self.writes += 1
             if not self.apply:
                 return {"id": f"<simulé:{path}>"}
+        path = safe_path(path)
         # Paramètres dans le corps pour les écritures : un long commentaire ne dépasse pas la taille d'URL.
         auth = urllib.parse.urlencode(self.auth)
         if method == "GET":
