@@ -45,6 +45,7 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 - Historique : instantané mensuel (et à la demande) du score du site et de chaque zone ; les évaluations sont toujours historisées.
 - Inventaire : un composant retiré sort immédiatement du calcul, son historique reste consultable ; un composant ajouté est « non évalué » et réduit la couverture sans modifier la note.
 - Arrondi : une décimale à l’affichage, précision complète au calcul (RG-12).
+- Libellé : appliqué à la valeur arrondie affichée (7,96 → « 8,0 — Bon »), pour qu’un chiffre et son libellé ne se contredisent jamais. Arrondi arithmétique au plus proche (0,05 vers le haut).
 Un danger ne disparaît pas si la moyenne est bonne. Les grilles doivent distinguer constat, état, mesure et note ; l’IA ne remplace pas l’évaluation humaine validée.
 
 ## Priorités, délais et relances — DEC-05, V, 27 octobre 2026 (porteur du projet)
