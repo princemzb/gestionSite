@@ -14,7 +14,7 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 | RG-09 | V | Préventif calendaire/ponctuel ; non-conformité génère un signalement. |
 | RG-10 | V | Inventaire individuel et lots, avec quantités réparties par état. |
 | RG-11 | V | Note sur 10, moyenne par niveaux, dernière évaluation conservée, fraîcheur et couverture visibles. |
-| RG-12 | P | Arrondir uniquement l’affichage à une décimale ; conserver précision de calcul ; sans évaluation, aucune note. |
+| RG-12 | V | Arrondir uniquement l’affichage à une décimale ; conserver précision de calcul ; sans évaluation, aucune note. |
 | RG-13 | V | IA lancée par utilisateur technique habilité ; informations insuffisantes : compléments, sans total global. |
 | RG-14 | V | Produits France, fournisseurs ouverts, proposition principale et jusqu’à deux alternatives. |
 | RG-15 | V | Responsable/délégué valide estimation et solution ; envoi PDF déclenché explicitement et tracé. |
@@ -44,7 +44,7 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 - Fraîcheur : une évaluation de plus de 6 mois est signalée « ancienne » ; elle reste comptée. L’écran montre la part du score reposant sur des évaluations anciennes.
 - Historique : instantané mensuel (et à la demande) du score du site et de chaque zone ; les évaluations sont toujours historisées.
 - Inventaire : un composant retiré sort immédiatement du calcul, son historique reste consultable ; un composant ajouté est « non évalué » et réduit la couverture sans modifier la note.
-- Arrondi : RG-12 (une décimale à l’affichage) reste à confirmer.
+- Arrondi : une décimale à l’affichage, précision complète au calcul (RG-12).
 Un danger ne disparaît pas si la moyenne est bonne. Les grilles doivent distinguer constat, état, mesure et note ; l’IA ne remplace pas l’évaluation humaine validée.
 
 ## Priorités, délais et relances — DEC-05, V, 27 octobre 2026 (porteur du projet)
