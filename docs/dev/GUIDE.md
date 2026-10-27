@@ -1,21 +1,48 @@
 # Guide développeur et conventions
-Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor) ; socle serveur en construction (US-05).
+Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor) ; socle technique US-05 en place. Lire d'abord docs/pilotage/ETAT.md, puis README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
 
-## Démarrage actuel
-Lire README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
-Serveur (`server/`, SDK défini par `global.json` à la racine : .NET 10.0.302 minimum, correctifs 10.0.3xx acceptés) — commandes vérifiées le 27 octobre 2026 :
+## Installation (S05-05)
+Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur macOS 14.5 (arm64). Lancer depuis la racine du dépôt.
+
+### Prérequis
+| Outil | Version | Rôle |
+| --- | --- | --- |
+| .NET SDK | 10.0.302 (fixée par `global.json`, correctifs 10.0.3xx acceptés) | Serveur |
+| Docker (Desktop ou moteur) | 29.x | PostgreSQL et stockage S3 locaux, tests d'intégration |
+| Flutter | 3.47.1 (fixée par `mobile/pubspec.yaml`) | Application terrain |
+| SDK Android + `adb` | outils récents | Compilation et installation sur tablette |
+| Python | 3.9 ou plus | Outillage Trello (`scripts/trello`) |
+| `gh` (GitHub CLI) | 2.x | PR et CI |
+
+### Première mise en route
+1. `git clone https://github.com/princemzb/gestionSite.git && cd gestionSite`
+2. Serveur : `server/eng/verify.sh` (restaure les outils, compile, vérifie le format, lance les tests, couverture ≥ 80 %, dépendances vulnérables).
+3. Environnement local : `docker compose -f server/compose.yaml up -d --wait` (PostgreSQL 17.6 sur le port 55433, stockage SeaweedFS compatible S3 sur le port 58333, compartiment `gestionsite-local` créé au démarrage).
+4. API : `dotnet run --project server/src/GestionSite.Api --launch-profile http`, puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (base et stockage joignables, 503 sinon ; résultat positif mis en cache 10 s).
+5. Application terrain : `mobile/eng/verify.sh`, puis `cd mobile && flutter build apk --debug` et, tablette branchée en débogage USB, `adb install -r build/app/outputs/flutter-apk/app-debug.apk`.
+6. Arrêt : `docker compose -f server/compose.yaml down` (ajouter `-v` pour effacer les données locales).
+
+### Commandes unitaires
 - `dotnet build server/GestionSite.slnx` : avertissements et style bloquants (`Directory.Build.props`, `.editorconfig`).
-- `dotnet test server/GestionSite.slnx` : tests d’intégration de l’API et tests d’architecture des modules.
+- `dotnet test server/GestionSite.slnx` : tests unitaires des modules, tests d'architecture et tests d'intégration (Testcontainers, Docker requis).
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
-Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). CI GitHub Actions et SonarQube Cloud obligatoires sur `main` : projet `princemzb_gestionSite` (C#, scripts, CI) et projet `princemzb_gestionSite_mobile` (Dart et code natif de `mobile/`). Environnement local (S05-02), commandes vérifiées le 27 octobre 2026 :
-- `docker compose -f server/compose.yaml up -d --wait` : PostgreSQL 17.6 (port 55433) et stockage compatible S3 SeaweedFS (port 58333, compartiment `gestionsite-local` créé au démarrage). Ports modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; dans ce cas, fournir aussi à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports (variables d'environnement).
-- `dotnet run --project server/src/GestionSite.Api --launch-profile http` puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (PostgreSQL et stockage joignables ; 503 sinon).
-- `docker compose -f server/compose.yaml down` pour arrêter ; ajouter `-v` pour effacer les données locales.
-Les valeurs locales (mots de passe, clés) sont non sensibles et limitées à `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json` et `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` (à modifier ensemble) ; ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement. Les tests d'intégration démarrent leurs propres conteneurs (Testcontainers, Docker requis).
-Application terrain Flutter (`mobile/`, S05-03) : commandes dans `mobile/README.md` ; analyse stricte, tests et couverture vérifiés par la CI (job « Application Flutter ») et Sonar. Aucun écran designé avant validation des maquettes ; le guide complet d’installation sera finalisé par S05-05.
+- `python3 -m unittest discover -s scripts/trello` : outillage Trello.
+- Application Flutter : voir `mobile/README.md`.
 
-Frontières des modules : un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l’API ou un hôte ; les tests d’architecture le vérifient sur chaque fichier projet (donc sur toute chaîne de dépendances), interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
+### Configuration et secrets
+- Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs`.
+- Ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
+- Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports.
+- Jamais de secret dans le dépôt : jetons Trello et Sonar dans le Trousseau macOS du porteur ; jeton CI dans le secret GitHub `SONAR_TOKEN` ; signature Android dans `mobile/android/key.properties` (non versionné).
+
+### Intégration continue
+Six vérifications obligatoires sur `main` : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis », « Application Flutter (analyse et tests) », « Application Flutter (dépendances vulnérables) ». Deux projets Sonar : `princemzb_gestionSite` (C#, scripts, CI) et `princemzb_gestionSite_mobile` (Dart et code natif).
+
+### Frontières des modules
+Un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l'API ou un hôte ; les tests d'architecture le vérifient sur chaque fichier projet, interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
+
+Aucun écran designé avant validation des maquettes par le porteur.
 
 ## Conventions
 Identifiants métier stables ; séparation des modules ; validation et autorisation côté serveur ; erreurs structurées ; dates métier distinctes des dates de réception.
