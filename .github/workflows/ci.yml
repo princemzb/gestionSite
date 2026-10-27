@@ -43,6 +43,25 @@ jobs:
           python-version: "3.12"
       - run: python -W error -m unittest discover -s scripts/trello -v
 
+  mobile:
+    name: Application Flutter (analyse et tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.1"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze --fatal-infos
+      - run: flutter test --coverage
+
   sonar:
     name: SonarQube Cloud
     runs-on: ubuntu-latest
@@ -74,6 +93,12 @@ jobs:
         if: env.SONAR_TOKEN != ''
         with:
           python-version: "3.12"
+      - uses: subosito/flutter-action@v2
+        if: env.SONAR_TOKEN != ''
+        with:
+          flutter-version: "3.47.1"
+          channel: stable
+          cache: true
       - name: Analyse et porte qualité Sonar (dépôt entier, C# et scripts)
         if: env.SONAR_TOKEN != ''
         run: |
@@ -84,11 +109,13 @@ jobs:
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
-            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**" \
-            /d:sonar.python.coverage.reportPaths="coverage-python.xml"
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/build/**,mobile/.dart_tool/**" \
+            /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
+            /d:sonar.dart.lcov.reportPaths="mobile/coverage/lcov.info"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
+          (cd mobile && flutter pub get && flutter test --coverage)
           dotnet build server/GestionSite.slnx --configuration Release
           dotnet test server/GestionSite.slnx --no-build --configuration Release \
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \

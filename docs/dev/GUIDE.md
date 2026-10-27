@@ -13,7 +13,7 @@ Porte complète en une commande : `server/eng/verify.sh` (identique à la CI). C
 - `dotnet run --project server/src/GestionSite.Api --launch-profile http` puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (PostgreSQL et stockage joignables ; 503 sinon).
 - `docker compose -f server/compose.yaml down` pour arrêter ; ajouter `-v` pour effacer les données locales.
 Les valeurs locales (mots de passe, clés) sont non sensibles et limitées à `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json` et `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` (à modifier ensemble) ; ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement. Les tests d'intégration démarrent leurs propres conteneurs (Testcontainers, Docker requis).
-Flutter arrive avec S05-03 ; le guide complet d’installation sera finalisé par S05-05.
+Application terrain Flutter (`mobile/`, S05-03) : commandes dans `mobile/README.md` ; analyse stricte, tests et couverture vérifiés par la CI (job « Application Flutter ») et Sonar. Aucun écran designé avant validation des maquettes ; le guide complet d’installation sera finalisé par S05-05.
 
 Frontières des modules : un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l’API ou un hôte ; les tests d’architecture le vérifient sur chaque fichier projet (donc sur toute chaîne de dépendances), interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
 
