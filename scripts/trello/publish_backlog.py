@@ -50,20 +50,25 @@ class TrelloError(Exception):
 
 # Chemins d'API autorisés, exactement : un identifiant Trello vaut 24 hexadécimaux minuscules.
 # Empêche qu'une valeur lue dans le JSON ou renvoyée par l'API détourne l'appel (« ../ », « ? »…).
-TRELLO_ID = re.compile(r"[0-9a-f]{24}")
 _ID = "[0-9a-f]{24}"
-ALLOWED_PATHS = [re.compile(p) for p in (
-    "/members/me", "/boards", "/lists", "/labels", "/cards", "/checklists",
-    f"/boards/{_ID}/(lists|labels|cards)", f"/cards/{_ID}", f"/cards/{_ID}/(actions|checklists)",
-    f"/cards/{_ID}/actions/comments", f"/actions/{_ID}", f"/checklists/{_ID}/checkItems",
+TRELLO_ID = re.compile(_ID)
+# Chaque chemin n'est permis qu'avec les méthodes réellement utilisées par l'outillage.
+ALLOWED_PATHS = [(re.compile(path), set(methods.split())) for path, methods in (
+    ("/members/me", "GET"),
+    ("/boards", "POST"), ("/lists", "POST"), ("/labels", "POST"), ("/cards", "POST"), ("/checklists", "POST"),
+    (f"/boards/{_ID}/(lists|labels|cards)", "GET"),
+    (f"/cards/{_ID}", "GET PUT"),
+    (f"/cards/{_ID}/(actions|checklists)", "GET"),
+    (f"/cards/{_ID}/actions/comments", "POST"),
+    (f"/checklists/{_ID}/checkItems", "GET POST"),
 )]
 # Identifiant renvoyé en simulation : valide, pour que la simulation suive les mêmes contrôles.
 SIMULATED_ID = "0" * 24
 
 
-def safe_path(path):
-    if not any(p.fullmatch(path) for p in ALLOWED_PATHS):
-        raise TrelloError(f"Chemin d'API Trello refusé : {path!r}")
+def safe_path(path, method="GET"):
+    if not any(pattern.fullmatch(path) and method in methods for pattern, methods in ALLOWED_PATHS):
+        raise TrelloError(f"Appel Trello refusé : {method} {path!r}")
     return path
 
 
@@ -75,16 +80,22 @@ def is_transient(err):
 
 
 def load():
-    data = json.loads(BACKLOG.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(BACKLOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as err:
+        raise TrelloError(f"Backlog illisible ({BACKLOG}) : {err}") from err
     validate_ids(data)
     return data
 
 
 def validate_ids(data):
-    """Refuse tout identifiant Trello mal formé avant usage ou écriture du backlog."""
-    ids = [data.get("boardId"), *(data.get("listIds") or {}).values(), *(data.get("labelIds") or {}).values()]
-    ids += [c.get(k) for c in data.get("cards") or [] for k in ("trelloId", "checklistId")]
-    bad = [i for i in ids if i is not None and not (isinstance(i, str) and TRELLO_ID.fullmatch(i))]
+    """Refuse tout identifiant Trello mal formé au chargement du backlog (vide = non publié)."""
+    try:
+        ids = [data.get("boardId"), *(data.get("listIds") or {}).values(), *(data.get("labelIds") or {}).values()]
+        ids += [c.get(k) for c in data.get("cards") or [] for k in ("trelloId", "checklistId")]
+    except (AttributeError, TypeError) as err:
+        raise TrelloError(f"Structure du backlog invalide : {err}") from err
+    bad = [i for i in ids if i not in (None, "") and not (isinstance(i, str) and TRELLO_ID.fullmatch(i))]
     if bad:
         raise TrelloError(f"Identifiants Trello invalides dans le backlog : {bad[:3]}")
 
@@ -111,7 +122,7 @@ class Trello:
         self.writes = 0
 
     def call(self, method, path, **params):
-        path = safe_path(path)
+        path = safe_path(path, method)
         if method != "GET":
             self.writes += 1
             if not self.apply:
@@ -131,7 +142,10 @@ class Trello:
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     time.sleep(0.12)  # limite Trello : 100 requêtes / 10 s par jeton
-                    return json.loads(resp.read() or b"null")
+                    result = json.loads(resp.read() or b"null")
+                    if method == "POST" and isinstance(result, dict) and not TRELLO_ID.fullmatch(str(result.get("id"))):
+                        raise TrelloError(f"Identifiant inattendu renvoyé par {method} {path}")
+                    return result
             except urllib.error.HTTPError as err:
                 if not last and (err.code == 429 or (idempotent and err.code >= 500)):
                     err.close()

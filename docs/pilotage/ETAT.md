@@ -16,7 +16,7 @@ Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA
 | --- | --- | --- |
 | PR #5 — S05-01 solution .NET modulaire (branche `feat/s05-01-solution-dotnet`) | Revue terminée (3 passages, 30 constats traités), 32 tests verts, couverture 100 % | **Ne pas fusionner avant Sonar** (ADR-09 : CI + Sonar avant le premier code applicatif). Fusionner #5 puis #6 dès que la porte Sonar passe. |
 | PR #6 — S05-04 CI GitHub Actions (branche `ci/s05-04-github-actions`, empilée sur #5) | CI verte (run 40511755543) ; job Sonar présent mais non exécuté faute de jeton | Après création du jeton : relancer la CI, vérifier la porte Sonar, rendre les vérifications obligatoires sur `main`, puis fusionner #5 et #6. |
-| PR #10 — vulnérabilités Sonar dans l'outillage Trello (S2083, S7044) | Corrigées : chemins d'API sur liste blanche exacte, backlog validé au chargement ; 28 tests | Revue `/code-review`, puis fusion ; vérifier que Sonar ne signale plus rien. |
+| PR #10 — vulnérabilités Sonar dans l'outillage Trello (S2083, S7044) | Correctif proposé (non encore confirmé par Sonar) : appels sur liste blanche chemin + méthode, identifiants validés ; tests verts | Revue `/code-review`, puis fusion ; vérifier que Sonar ne signale plus rien. |
 | S05-02 Docker local (PostgreSQL, stockage S3) | Prêt | Peut démarrer sur une branche empilée sur #5. |
 | S05-03 Projet Flutter | Prêt | Projet sans écran designé (maquettes non validées). |
 | S05-05 Guide d'installation | Prêt | Après S05-02 et S05-04. |
@@ -51,4 +51,4 @@ Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA
 | 27/10/2026 | S05-01 solution .NET (PR #5) et S05-04 CI (PR #6) ouvertes, en attente de Sonar | PR #5, #6 |
 | 27/10/2026 | Journal de reprise ETAT.md créé | PR #7 |
 | 27/10/2026 | Incident : PR #7 a inclus 1785 fichiers bin/obj (aucun source ni secret) ; retirés et `.gitignore` racine renforcé. Précaution : vérifier `git status` avant `git add -A` après un changement de branche | PR #8 |
-| 27/10/2026 | Sonar connecté (analyse automatique) : 3 vulnérabilités dans l'outillage Trello, corrigées | PR #10 |
+| 27/10/2026 | Sonar connecté (analyse automatique) : 3 vulnérabilités dans l'outillage Trello ; correctif en PR, à confirmer par une nouvelle analyse Sonar | PR #10 |
