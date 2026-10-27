@@ -18,3 +18,8 @@ Critères : aucun doublon métier ni perte de saisie ; aucun accès croisé entr
 
 Les charges des POC sont incluses dans l’estimation totale, pas à ajouter une deuxième fois.
 
+
+## Matériel d’essai disponible
+Relevé par ADB le 27 octobre 2026, sans essai fonctionnel.
+- Android : Lenovo Tab M11 (TB330FU), Android 15 (API 35), arm64, 4 Go de RAM, écran 1200×1920. Capteurs déclarés : accéléromètre, gyroscope, podomètre, Bluetooth LE. Non déclarés : baromètre, boussole, Wi-Fi RTT, UWB. L’absence de baromètre est à prendre en compte pour la détection d’étage (POC-01).
+- iPad : aucun appareil disponible à cette date ; à obtenir avant les essais iPad de POC-01 et POC-03.
