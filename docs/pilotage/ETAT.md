@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 19:30 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 20:15 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -19,7 +19,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | Élément | État | Prochaine action |
 | --- | --- | --- |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
-| Propositions de maquettes | **En attente de validation du porteur** : 3 directions (A Clarté institutionnelle, B Pierre et lumière, C Terrain contrasté) × 3 écrans (tablette « Mes interventions », web « Tableau du site », téléphone « Signaler ») sur le canevas privé https://claude.ai/artifact/B9wKnE9YpApm3YWBw5DtkR | **ARRÊT** : ne coder aucun écran avant la décision du porteur ; ensuite affiner la direction retenue (écrans UI-03 à UI-12). |
+| Propositions de maquettes | 1re série (3 directions) **écartée** par le porteur. 2e série **en attente de validation** : charte reprise du site de référence indiqué par le porteur (bleu nuit #000740, bleu #005DC4, dégradé #1E6CFF→#7569FF, police Inter) + V1 Fidèle, V2 Nuit, V3 Dégradé affirmé × 3 écrans, canevas privé https://claude.ai/artifact/MMmTWs6J8aH8wKroDG6PQn | **ARRÊT** : ne coder aucun écran avant la décision ; ensuite consigner la charte retenue (docs/ux) et affiner les écrans UI-03 à UI-12. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
@@ -66,3 +66,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 27/10/2026 | S05-03 fusionné (Sonar mobile séparé, 2 passages de revue) ; 6 vérifications obligatoires sur `main` ; S05-05 guide d'installation | PR #15, #16 |
 | 27/10/2026 | US-05 socle : S05-02/03/04/05 livrés ; S05-01 attend le premier déploiement préprod. Prochaine étape à choisir par le porteur : POC hors connexion (PREP-06), propositions de maquettes (arrêt pour validation) ou US-06 | Trello |
 | 27/10/2026 | Propositions de maquettes publiées (3 directions × 3 écrans), en attente de validation | canevas Design |
+| 27/10/2026 | 2e série de maquettes (charte du site de référence + 3 versions), en attente de validation | canevas Design |
