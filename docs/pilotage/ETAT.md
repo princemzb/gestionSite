@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 27 octobre 2026, 14:40 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 27 octobre 2026, 15:10 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -16,12 +16,13 @@ Dernière mise à jour : 27 octobre 2026, 14:40 (heure de Paris), par l'agent IA
 | --- | --- | --- |
 | PR #5 — S05-01 solution .NET modulaire (branche `feat/s05-01-solution-dotnet`) | Revue terminée (3 passages, 30 constats traités), 32 tests verts, couverture 100 % | **Ne pas fusionner avant Sonar** (ADR-09 : CI + Sonar avant le premier code applicatif). Fusionner #5 puis #6 dès que la porte Sonar passe. |
 | PR #6 — S05-04 CI GitHub Actions (branche `ci/s05-04-github-actions`, empilée sur #5) | CI verte (run 40511755543) ; job Sonar présent mais non exécuté faute de jeton | Après création du jeton : relancer la CI, vérifier la porte Sonar, rendre les vérifications obligatoires sur `main`, puis fusionner #5 et #6. |
+| PR #10 — vulnérabilités Sonar dans l'outillage Trello (S2083, S7044) | Correctif proposé (non encore confirmé par Sonar) : appels sur liste blanche chemin + méthode, identifiants validés ; tests verts | Revue `/code-review`, puis fusion ; vérifier que Sonar ne signale plus rien. |
 | S05-02 Docker local (PostgreSQL, stockage S3) | Prêt | Peut démarrer sur une branche empilée sur #5. |
 | S05-03 Projet Flutter | Prêt | Projet sans écran designé (maquettes non validées). |
 | S05-05 Guide d'installation | Prêt | Après S05-02 et S05-04. |
 
 ## Blocages et actions du porteur
-1. **SonarQube Cloud** : le porteur doit se connecter à https://sonarcloud.io avec GitHub, importer `princemzb/gestionSite` (organisation attendue `princemzb`, clé de projet `princemzb_gestionSite`, sinon renseigner les variables de dépôt `SONAR_ORGANIZATION` et `SONAR_PROJECT_KEY`), créer un jeton et l'ajouter comme secret de dépôt `SONAR_TOKEN`. Désactiver l'« analyse automatique » Sonar (l'analyse passe par la CI).
+1. **SonarQube Cloud** : organisation `princemzb` et projet `princemzb_gestionSite` créés par le porteur le 27/10 (vérifié par l'API publique) ; porte « Sonar way ». Restent à faire par le porteur : désactiver l'« analyse automatique » (Administration → Analysis Method) et ajouter le secret de dépôt GitHub `SONAR_TOKEN` (jeton créé dans Sonar : My Account → Security).
 2. **Maquettes** : aucun visuel ni écran designé avant que le porteur ait validé des maquettes. Présenter plusieurs propositions, puis s'arrêter et attendre sa décision.
 3. **iPad** non disponible pour les essais (POC-01, POC-03).
 
@@ -50,3 +51,4 @@ Dernière mise à jour : 27 octobre 2026, 14:40 (heure de Paris), par l'agent IA
 | 27/10/2026 | S05-01 solution .NET (PR #5) et S05-04 CI (PR #6) ouvertes, en attente de Sonar | PR #5, #6 |
 | 27/10/2026 | Journal de reprise ETAT.md créé | PR #7 |
 | 27/10/2026 | Incident : PR #7 a inclus 1785 fichiers bin/obj (aucun source ni secret) ; retirés et `.gitignore` racine renforcé. Précaution : vérifier `git status` avant `git add -A` après un changement de branche | PR #8 |
+| 27/10/2026 | Sonar connecté (analyse automatique) : 3 vulnérabilités dans l'outillage Trello ; correctif en PR, à confirmer par une nouvelle analyse Sonar | PR #10 |

@@ -14,6 +14,7 @@ une relance met à jour titre, description et labels, sans déplacer les cartes.
 import argparse
 import http.client
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -47,6 +48,30 @@ class TrelloError(Exception):
     """Échec d'un appel Trello (HTTP ou réseau)."""
 
 
+# Chemins d'API autorisés, exactement : un identifiant Trello vaut 24 hexadécimaux minuscules.
+# Empêche qu'une valeur lue dans le JSON ou renvoyée par l'API détourne l'appel (« ../ », « ? »…).
+_ID = "[0-9a-f]{24}"
+TRELLO_ID = re.compile(_ID)
+# Chaque chemin n'est permis qu'avec les méthodes réellement utilisées par l'outillage.
+ALLOWED_PATHS = [(re.compile(path), set(methods.split())) for path, methods in (
+    ("/members/me", "GET"),
+    ("/boards", "POST"), ("/lists", "POST"), ("/labels", "POST"), ("/cards", "POST"), ("/checklists", "POST"),
+    (f"/boards/{_ID}/(lists|labels|cards)", "GET"),
+    (f"/cards/{_ID}", "GET PUT"),
+    (f"/cards/{_ID}/(actions|checklists)", "GET"),
+    (f"/cards/{_ID}/actions/comments", "POST"),
+    (f"/checklists/{_ID}/checkItems", "GET POST"),
+)]
+# Identifiant renvoyé en simulation : valide, pour que la simulation suive les mêmes contrôles.
+SIMULATED_ID = "0" * 24
+
+
+def safe_path(path, method="GET"):
+    if not any(pattern.fullmatch(path) and method in methods for pattern, methods in ALLOWED_PATHS):
+        raise TrelloError(f"Appel Trello refusé : {method} {path!r}")
+    return path
+
+
 def is_transient(err):
     """Erreur réseau passagère (délai, coupure) ; pas un défaut de certificat ou de DNS."""
     reason = getattr(err, "reason", err)
@@ -55,7 +80,24 @@ def is_transient(err):
 
 
 def load():
-    return json.loads(BACKLOG.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(BACKLOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as err:
+        raise TrelloError(f"Backlog illisible ({BACKLOG}) : {err}") from err
+    validate_ids(data)
+    return data
+
+
+def validate_ids(data):
+    """Refuse tout identifiant Trello mal formé au chargement du backlog (vide = non publié)."""
+    try:
+        ids = [data.get("boardId"), *(data.get("listIds") or {}).values(), *(data.get("labelIds") or {}).values()]
+        ids += [c.get(k) for c in data.get("cards") or [] for k in ("trelloId", "checklistId")]
+    except (AttributeError, TypeError) as err:
+        raise TrelloError(f"Structure du backlog invalide : {err}") from err
+    bad = [i for i in ids if i not in (None, "") and not (isinstance(i, str) and TRELLO_ID.fullmatch(i))]
+    if bad:
+        raise TrelloError(f"Identifiants Trello invalides dans le backlog : {bad[:3]}")
 
 
 def save(data, api):
@@ -80,10 +122,11 @@ class Trello:
         self.writes = 0
 
     def call(self, method, path, **params):
+        path = safe_path(path, method)
         if method != "GET":
             self.writes += 1
             if not self.apply:
-                return {"id": f"<simulé:{path}>"}
+                return {"id": SIMULATED_ID, "shortLink": "simule"}
         # Paramètres dans le corps pour les écritures : un long commentaire ne dépasse pas la taille d'URL.
         auth = urllib.parse.urlencode(self.auth)
         if method == "GET":
@@ -99,7 +142,10 @@ class Trello:
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     time.sleep(0.12)  # limite Trello : 100 requêtes / 10 s par jeton
-                    return json.loads(resp.read() or b"null")
+                    result = json.loads(resp.read() or b"null")
+                    if method == "POST" and isinstance(result, dict) and not TRELLO_ID.fullmatch(str(result.get("id"))):
+                        raise TrelloError(f"Identifiant inattendu renvoyé par {method} {path}")
+                    return result
             except urllib.error.HTTPError as err:
                 if not last and (err.code == 429 or (idempotent and err.code >= 500)):
                     err.close()
@@ -170,7 +216,7 @@ def open_lists(api, board_id):
 
 def ensure_lists(api, data, board_id):
     ids = data.setdefault("listIds", {})
-    existing = {} if not api.apply and board_id.startswith("<") else {
+    existing = {} if not api.apply and board_id == SIMULATED_ID else {
         name: list_id for list_id, name in open_lists(api, board_id).items()}
     for pos, name in enumerate(data["lists"], start=1):
         if name in ids or name in existing:
@@ -187,7 +233,7 @@ def ensure_labels(api, data, board_id):
     wanted = sorted({l for c in data["cards"] for l in c["labels"]}
                     | {c["sprint"] for c in data["cards"] if c.get("sprint")}
                     | {"Décision requise", "Incident critique"})
-    existing = {} if not api.apply and board_id.startswith("<") else {
+    existing = {} if not api.apply and board_id == SIMULATED_ID else {
         l["name"]: l["id"] for l in api.call("GET", f"/boards/{board_id}/labels", fields="name")}
     for name in wanted:
         if name in ids or name in existing:
@@ -210,13 +256,13 @@ def ensure_checklist(api, data, card):
     if not card.get("checklist") or card.get("checklistComplete"):
         return
     if not card.get("checklistId"):
-        found = [] if card["trelloId"].startswith("<") else [
+        found = [] if card["trelloId"] == SIMULATED_ID else [
             c["id"] for c in api.call("GET", f"/cards/{card['trelloId']}/checklists", fields="name")
             if c["name"] == CHECKLIST_NAME]
         card["checklistId"] = found[0] if found else api.call(
             "POST", "/checklists", idCard=card["trelloId"], name=CHECKLIST_NAME)["id"]
         save(data, api)
-    existing = set() if card["checklistId"].startswith("<") else {
+    existing = set() if card["checklistId"] == SIMULATED_ID else {
         i["name"] for i in api.call("GET", f"/checklists/{card['checklistId']}/checkItems")}
     for item in card["checklist"]:
         if item not in existing:
@@ -227,7 +273,7 @@ def ensure_checklist(api, data, card):
 
 def publish_cards(api, data, list_ids, label_ids, member_id):
     cards_by_id = {c["id"]: c for c in data["cards"]}
-    on_board = {} if data["boardId"].startswith("<") else {
+    on_board = {} if data["boardId"] == SIMULATED_ID else {
         c["name"].split("]")[0] + "]": c for c in api.call("GET", f"/boards/{data['boardId']}/cards",
                                                            filter="all", fields="name,idLabels,shortLink")}
     created = updated = 0
