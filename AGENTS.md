@@ -1,6 +1,6 @@
 # Instructions de travail pour développeurs et agents IA
 
-Ce dépôt contient actuellement le cadrage, pas une application. Lire docs/README.md puis la carte affectée et ses références. La stack n’est pas encore adoptée.
+Ce dépôt contient le cadrage (docs/) et le socle applicatif en construction (server/, US-05). Lire docs/README.md puis la carte affectée et ses références. Stack adoptée : ADR-08 ; qualité : ADR-09.
 
 ## Sources de vérité
 - Besoin : docs/PRD.md.

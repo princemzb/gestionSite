@@ -1,63 +1,61 @@
 using System.Reflection;
-using GestionSite.Modules.Budget;
-using GestionSite.Modules.Identite;
-using GestionSite.Modules.Maintenance;
-using GestionSite.Modules.Patrimoine;
-using GestionSite.Modules.Plateforme;
-using GestionSite.Modules.Stock;
 
 namespace GestionSite.ArchitectureTests;
 
 /// <summary>
-/// Frontières du monolithe modulaire (ADR-01, ARCHITECTURE.md) : un module ne référence
-/// ni un autre module ni l'API ; seule l'API assemble les modules.
+/// Frontières du monolithe modulaire (ADR-01, ARCHITECTURE.md) : un module n'accède à un autre
+/// que par ses contrats publics (GestionSite.Modules.X.Contracts) ou le noyau partagé ; jamais
+/// à son implémentation, ni à l'API ou à un autre hôte. Seule l'API assemble les modules.
 /// </summary>
 public sealed class ModuleBoundaryTests
 {
-    private const string ModulePrefix = "GestionSite.Modules.";
+    public static TheoryData<string> Modules => new(SolutionLayout.ModuleProjects.Select(SolutionLayout.ProjectName));
 
-    public static TheoryData<string> ModuleNames => new(Modules.Select(m => m.GetName().Name!));
+    [Fact]
+    public void ModulesAreDiscovered()
+    {
+        Assert.NotEmpty(SolutionLayout.ModuleProjects);
+    }
 
-    private static readonly Assembly[] Modules =
-    [
-        typeof(IdentiteModule).Assembly,
-        typeof(PatrimoineModule).Assembly,
-        typeof(MaintenanceModule).Assembly,
-        typeof(StockModule).Assembly,
-        typeof(BudgetModule).Assembly,
-        typeof(PlateformeModule).Assembly,
-    ];
+    [Fact]
+    public void ApiAssemblesExactlyTheDiscoveredModules()
+    {
+        var assembled = typeof(Program).Assembly.GetReferencedAssemblies()
+            .Select(r => r.Name!)
+            .Where(SolutionLayout.IsModuleImplementation)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(SolutionLayout.ModuleProjects.Select(SolutionLayout.ProjectName).ToHashSet(StringComparer.Ordinal), assembled);
+    }
 
     [Theory]
-    [MemberData(nameof(ModuleNames))]
-    public void ModuleDoesNotReferenceAnotherModuleOrTheApi(string moduleName)
+    [MemberData(nameof(Modules))]
+    public void ModuleProjectReferencesOnlyShareableProjects(string module)
     {
-        var module = Modules.Single(m => m.GetName().Name == moduleName);
+        var project = SolutionLayout.ModuleProjects.Single(f => SolutionLayout.ProjectName(f) == module);
 
-        var forbidden = module.GetReferencedAssemblies()
-            .Select(r => r.Name!)
-            .Where(n => n.StartsWith(ModulePrefix, StringComparison.Ordinal) || n == "GestionSite.Api")
-            .ToList();
+        var forbidden = SolutionLayout.ProjectReferences(project).Where(r => !SolutionLayout.IsShareable(r));
 
         Assert.Empty(forbidden);
     }
 
-    [Fact]
-    public void ApiAssemblesEveryModule()
+    [Theory]
+    [MemberData(nameof(Modules))]
+    public void ModuleReachesNoOtherImplementationEvenIndirectly(string module)
     {
-        var referenced = typeof(Program).Assembly.GetReferencedAssemblies().Select(r => r.Name).ToHashSet();
+        var reached = SolutionLayout.TransitiveSolutionReferences(Assembly.Load(module));
 
-        Assert.All(Modules, m => Assert.Contains(m.GetName().Name, referenced));
+        Assert.DoesNotContain(reached, name => !SolutionLayout.IsShareable(name));
     }
 
     [Fact]
-    public void EveryModuleProjectIsCoveredByTheseTests()
+    public void SharedProjectsReferenceOnlyShareableProjects()
     {
-        var declared = Modules.Select(m => m.GetName().Name).ToHashSet();
-        var referencedByApi = typeof(Program).Assembly.GetReferencedAssemblies()
-            .Select(r => r.Name!)
-            .Where(n => n.StartsWith(ModulePrefix, StringComparison.Ordinal));
+        // Aucun projet partagé n'existe encore : le test devient actif dès le premier contrat.
+        var forbidden = SolutionLayout.SharedProjects
+            .SelectMany(p => SolutionLayout.ProjectReferences(p).Select(r => $"{SolutionLayout.ProjectName(p)} -> {r}"))
+            .Where(link => !SolutionLayout.IsShareable(link.Split(" -> ")[1]));
 
-        Assert.All(referencedByApi, n => Assert.Contains(n, declared));
+        Assert.Empty(forbidden);
     }
 }
