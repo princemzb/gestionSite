@@ -75,6 +75,7 @@ jobs:
             -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner
             -Dsonar.tests=test
             -Dsonar.dart.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=android/**,ios/**
             -Dsonar.qualitygate.wait=true
 
   mobile-dependencies:
