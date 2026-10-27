@@ -49,6 +49,15 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     }
 
     [Fact]
+    public async Task StartupFailsWithMalformedConnectionString()
+    {
+        await using var factory = CreateFactory(connectionString: "pas une chaîne de connexion");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
+    }
+
+    [Fact]
     public async Task StartupFailsWithoutConnectionString()
     {
         await using var factory = CreateFactory(connectionString: string.Empty);
@@ -63,7 +72,8 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
             .UseSetting("ObjectStorage:ServiceUrl", infrastructure.StorageUrl)
             .UseSetting("ObjectStorage:AccessKey", InfrastructureFixture.AccessKey)
             .UseSetting("ObjectStorage:SecretKey", InfrastructureFixture.SecretKey)
-            .UseSetting("ObjectStorage:Bucket", bucket ?? InfrastructureFixture.Bucket));
+            .UseSetting("ObjectStorage:Bucket", bucket ?? InfrastructureFixture.Bucket)
+            .UseSetting("ObjectStorage:Region", InfrastructureFixture.Region));
 
     private static async Task<(HttpStatusCode Status, string Body)> GetReadyAsync(WebApplicationFactory<Program> factory)
     {

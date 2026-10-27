@@ -1,4 +1,3 @@
-using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -16,6 +15,7 @@ internal static class InfrastructureServices
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.Section))
             .ValidateDataAnnotations()
+            .Validate(options => IsValidConnectionString(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
             .ValidateOnStart();
         services.AddSingleton(provider => new NpgsqlDataSourceBuilder(
                 provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main)
@@ -29,13 +29,7 @@ internal static class InfrastructureServices
         services.AddSingleton<IAmazonS3>(provider =>
         {
             var storage = provider.GetRequiredService<IOptions<ObjectStorageOptions>>().Value;
-            var config = new AmazonS3Config
-            {
-                ServiceURL = storage.ServiceUrl,
-                ForcePathStyle = true,
-                AuthenticationRegion = storage.Region,
-            };
-            return new AmazonS3Client(new BasicAWSCredentials(storage.AccessKey, storage.SecretKey), config);
+            return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
 
         // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
@@ -43,5 +37,18 @@ internal static class InfrastructureServices
             .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
             .AddCheck<ObjectStorageHealthCheck>("stockage-fichiers", tags: [ReadyTag], timeout: CheckTimeout);
         return services;
+    }
+
+    private static bool IsValidConnectionString(string value)
+    {
+        try
+        {
+            _ = new NpgsqlConnectionStringBuilder(value);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }

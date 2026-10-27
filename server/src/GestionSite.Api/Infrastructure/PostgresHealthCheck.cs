@@ -14,10 +14,10 @@ internal sealed class PostgresHealthCheck(NpgsqlDataSource dataSource) : IHealth
             await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             return HealthCheckResult.Healthy();
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested
-            && exception is NpgsqlException or TimeoutException or InvalidOperationException)
+#pragma warning disable CA1031 // Toute défaillance rend la base indisponible ; seul un message fixe est exposé.
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+#pragma warning restore CA1031
         {
-            // Pas de détail de connexion dans le résultat : il peut être exposé.
             return HealthCheckResult.Unhealthy("PostgreSQL injoignable.", exception);
         }
     }
