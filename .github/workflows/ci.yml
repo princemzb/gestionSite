@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: server/global.json
+          global-json-file: global.json
       - name: Build, format, tests, couverture ≥ 80 %, dépendances
         run: server/eng/verify.sh
       - name: Rapport de couverture
@@ -69,20 +69,28 @@ jobs:
       - uses: actions/setup-dotnet@v4
         if: env.SONAR_TOKEN != ''
         with:
-          global-json-file: server/global.json
-      - name: Analyse et porte qualité Sonar
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
         if: env.SONAR_TOKEN != ''
-        working-directory: server
+        with:
+          python-version: "3.12"
+      - name: Analyse et porte qualité Sonar (dépôt entier, C# et scripts)
+        if: env.SONAR_TOKEN != ''
         run: |
           dotnet tool restore
           dotnet sonarscanner begin \
             /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
-            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="tests/**"
-          dotnet build GestionSite.slnx --configuration Release
-          dotnet test GestionSite.slnx --no-build --configuration Release \
-            --collect:"XPlat Code Coverage" --results-directory artifacts/test-results \
+            /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**" \
+            /d:sonar.python.coverage.reportPaths="coverage-python.xml"
+          pip install --quiet coverage==7.6.10
+          coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
+          coverage xml -o coverage-python.xml
+          dotnet build server/GestionSite.slnx --configuration Release
+          dotnet test server/GestionSite.slnx --no-build --configuration Release \
+            --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
