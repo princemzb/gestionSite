@@ -26,7 +26,8 @@ SP-001, SP-002... sont des champs/labels, pas les listes du workflow. La planifi
 Une macro-story reste dans À affiner avec liens vers ses sous-cartes ; ne pas la dupliquer comme carte exécutable. Un sprint se ferme avec réalisé, reporté, raisons, défauts et réestimation.
 
 ## Agents IA
-Un agent prend uniquement une carte Prêt explicitement assignée. Il lit AGENTS.md, les règles et contrats liés. Il ne marque pas sa propre carte Livré ni ne s’accorde une validation métier.
+Un agent prend uniquement une carte Prêt explicitement assignée. Il lit AGENTS.md, les règles et contrats liés.
+**Délégation (V, 27 octobre 2026) :** le porteur du projet charge l’agent de déplacer les cartes dans toutes les listes, « Livré » compris, en respectant les conditions de passage ci-dessus et en joignant les preuves en commentaire (PR, CI, Sonar, revue, déploiement). L’agent ne déclare jamais une recette humaine qui n’a pas eu lieu et ne s’accorde aucune validation métier.
 À chaque arrêt : indiquer résultat, fichiers modifiés, tests exécutés/non exécutés, blocage et prochaine action exacte. Ne jamais inventer une approbation ou changer le périmètre pour passer un test.
 Le registre Git contient la spécification ; Trello porte état, affectation, sprint et preuves. Si un choix change dans Trello, le reporter dans les documents lors de la même livraison.
 

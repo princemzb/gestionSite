@@ -17,8 +17,9 @@ Les modifications de données sont migrées explicitement, avec compatibilité e
 3. Implémenter le périmètre minimal complet ; ne pas élargir la story.
 4. Exécuter tests ciblés puis intégration requise.
 5. Mettre à jour contrats, règles affectées et documentation.
-6. Soumettre PR avec problème, comportement final, preuves et limites.
-7. Faire valider par une autre personne ; recette puis livraison distinctes.
+6. Travailler sur une branche ; soumettre une PR avec problème, comportement final, preuves et limites.
+7. Faire revoir par agents IA selon ADR-09 (`/code-review` high, max pour les modules critiques, `/security-review` si applicable) ; corriger et relancer jusqu’à zéro constat confirmé.
+8. Fusionner uniquement si CI, porte Sonar et revue sont au vert ; recette puis livraison distinctes.
 
 ## Reprise d’un agent
 Fournir : carte et commit de référence, état du dépôt, modifications non livrées, résultats de tests exacts, décisions, blocages et prochaine commande/action.
