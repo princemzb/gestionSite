@@ -132,6 +132,13 @@ class ProofMatchingTest(unittest.TestCase):
         card.move(api, DATA, "US-05", "Livré", PROOF)
         self.assertEqual(api.comments[0], f"[US-05 → Livré] {PROOF}")
 
+    def test_previous_list_suffix_only_tolerated_for_blocked(self):
+        api = FakeTrello()
+        api.actions.insert(0, {"type": "commentCard",
+                               "data": {"text": f"[US-05 → Livré] {PROOF} (liste précédente : Revue) – à vérifier"}})
+        card.move(api, DATA, "US-05", "Livré", PROOF)
+        self.assertEqual(api.comments[0], f"[US-05 → Livré] {PROOF}")
+
     def test_corrected_proof_on_rerun_is_posted(self):
         api = FakeTrello(fail_put=True)
         with self.assertRaises(TrelloError):

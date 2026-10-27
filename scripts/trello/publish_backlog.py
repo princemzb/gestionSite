@@ -50,7 +50,8 @@ class TrelloError(Exception):
 def is_transient(err):
     """Erreur réseau passagère (délai, coupure) ; pas un défaut de certificat ou de DNS."""
     reason = getattr(err, "reason", err)
-    return isinstance(reason, (TimeoutError, socket.timeout, ConnectionError, http.client.HTTPException))
+    return isinstance(reason, (TimeoutError, socket.timeout, ConnectionError,
+                               http.client.RemoteDisconnected, http.client.IncompleteRead))
 
 
 def load():
@@ -226,12 +227,22 @@ def ensure_checklist(api, data, card):
 
 def publish_cards(api, data, list_ids, label_ids, member_id):
     cards_by_id = {c["id"]: c for c in data["cards"]}
+    on_board = {} if data["boardId"].startswith("<") else {
+        c["name"].split("]")[0] + "]": c for c in api.call("GET", f"/boards/{data['boardId']}/cards",
+                                                           filter="all", fields="name,idLabels,shortLink")}
     created = updated = 0
     for pos, card in enumerate(data["cards"], start=1):
         desc = card_description(card, cards_by_id)
+        existing = on_board.get(f"[{card['id']}]")
+        if not card.get("trelloId") and existing:
+            # Carte créée par une exécution interrompue avant l'enregistrement de son identifiant.
+            card["trelloId"], card["trelloShortLink"] = existing["id"], existing["shortLink"]
+            save(data, api)
         if card.get("trelloId"):
-            api.call("PUT", f"/cards/{card['trelloId']}", name=card["name"], desc=desc,
-                     idLabels=card_labels(card, label_ids))
+            # Labels ajoutés dans Trello (Décision requise, Incident critique…) conservés.
+            kept = set(existing["idLabels"]) if existing else set()
+            labels = ",".join(sorted(kept | set(card_labels(card, label_ids).split(","))))
+            api.call("PUT", f"/cards/{card['trelloId']}", name=card["name"], desc=desc, idLabels=labels)
             ensure_checklist(api, data, card)
             updated += 1
             continue

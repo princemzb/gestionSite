@@ -77,7 +77,7 @@ def post_comment(api, trello_id, text):
     api.call("POST", f"/cards/{trello_id}/actions/comments", text=text)
 
 
-def has_fresh_proof(api, trello_id, base, in_target):
+def has_fresh_proof(api, trello_id, base, in_target, blocked=False):
     """Vrai si cette preuve exacte a été publiée pour l'entrée en cours dans la liste cible.
 
     `base` est « marqueur + preuve saisie » ; une mention de liste précédente peut suivre.
@@ -86,14 +86,15 @@ def has_fresh_proof(api, trello_id, base, in_target):
     la cible, la preuve valide précède le déplacement qui l'y a fait entrer.
     """
     actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard,updateCard:idList",
-                       limit=1000, fields="type,data", memberCreator="false")
+                       limit=200, fields="type,data", memberCreator="false")
     moves_to_pass = 1 if in_target else 0
     for action in actions:
         if action["type"] == "updateCard":
             if not moves_to_pass:
                 return False
             moves_to_pass -= 1
-        elif action["data"]["text"] == base or action["data"]["text"].startswith(f"{base} {PREVIOUS_LIST}"):
+        elif action["data"]["text"] == base or (
+                blocked and action["data"]["text"].startswith(f"{base} {PREVIOUS_LIST}")):
             return True
     return False
 
@@ -121,6 +122,8 @@ def move(api, data, card_id, target, proof):
         sys.exit(f"Une preuve d'au moins {MIN_PROOF_LENGTH} caractères est obligatoire pour « {target} ».")
     card_id, trello_id = find_card(data, card_id)
     target_id = data["listIds"][target]
+    if target_id not in open_lists(api, data["boardId"]):
+        sys.exit(f"La liste « {target} » n'est plus ouverte dans Trello : mettre à jour listIds.")
     card = api.call("GET", f"/cards/{trello_id}", fields="idList,closed")
     if card["closed"]:
         sys.exit(f"{card_id} est archivée dans Trello : la désarchiver avant de la déplacer.")
@@ -135,15 +138,15 @@ def move(api, data, card_id, target, proof):
     if text:
         text = checked_comment(text)
 
-    wrote = False
-    if text and not has_fresh_proof(api, trello_id, base, in_target):
+    wrote = None
+    if text and not has_fresh_proof(api, trello_id, base, in_target, blocked=target == "Bloqué"):
         post_comment(api, trello_id, text)
-        wrote = True
+        wrote = "preuve ajoutée, carte déjà en place"
     if not in_target:
         if not api.apply:
             print(f"[simulation] déplacement de {card_id} ({trello_id}) vers « {target} » ({target_id})")
         api.call("PUT", f"/cards/{trello_id}", idList=target_id, pos="top")
-        wrote = True
+        wrote = "déplacement effectué"
     if not wrote:
         print(f"{card_id} est déjà dans « {target} »" + (" avec cette preuve" if text else "") + " : aucune écriture.")
     return wrote
@@ -160,10 +163,15 @@ def main():
         if args.action == "comment":
             _, trello_id = find_card(data, args.card)
             post_comment(api, trello_id, checked_comment(args.text))
-        elif not move(api, data, args.card, args.target, args.proof):
+        else:
+            outcome = move(api, data, args.card, args.target, args.proof)
+            if not outcome:
+                return
+            print(f"{args.card} : {outcome if api.apply else 'simulé (relancer avec --apply)'}")
             return
     except TrelloError as err:
-        advice = {"move": "Relancer la même commande : elle reprend sans dupliquer la preuve.",
+        advice = {"move": "Si l'erreur est passagère (délai, 5xx), relancer la même commande : "
+                          "elle reprend sans dupliquer la preuve. Sinon, corriger la cause d'abord.",
                   "comment": "Vérifier sur la carte si le commentaire est arrivé avant de relancer."}
         sys.exit(f"{err}\n{advice.get(args.action, '')}".strip())
     print(f"{args.card} : {args.action} {'effectué' if api.apply else 'simulé (relancer avec --apply)'}")
