@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Npgsql;
 
 namespace GestionSite.Modules.Identite.Persistence;
 
 /// <summary>
 /// Utilisée par `dotnet ef` (et par les tests du modèle). Connexion : variable d'environnement
-/// ConnectionStrings__Main, sinon la base locale Docker (valeurs non sensibles de server/compose.yaml).
+/// ConnectionStrings__Main, sinon la base locale Docker (valeurs non sensibles de server/compose.yaml,
+/// à garder alignées avec appsettings.Development.json ; port changé : définir ConnectionStrings__Main).
 /// Générer ou afficher une migration n'ouvre aucune connexion.
 /// </summary>
 internal sealed class IdentiteDesignTimeFactory : IDesignTimeDbContextFactory<IdentiteDbContext>
@@ -18,7 +18,7 @@ internal sealed class IdentiteDesignTimeFactory : IDesignTimeDbContextFactory<Id
     {
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Main") ?? LocalDevelopment;
         var options = new DbContextOptionsBuilder<IdentiteDbContext>();
-        IdentitePersistence.Configure(options, NpgsqlDataSource.Create(connectionString));
+        IdentitePersistence.Configure(options, connectionString);
         return new IdentiteDbContext(options.Options);
     }
 }

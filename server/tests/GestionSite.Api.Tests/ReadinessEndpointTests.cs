@@ -10,7 +10,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task ReadyWhenDatabaseAndStorageAreReachable()
     {
-        await using var factory = CreateFactory();
+        await using var factory = infrastructure.CreateApi();
 
         var (status, body) = await GetReadyAsync(factory);
 
@@ -22,7 +22,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     public async Task NotReadyWhileMigrationsArePending()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = CreateFactory(connectionString: database.ConnectionString, migrate: false);
+        await using var factory = infrastructure.CreateApi(connectionString: database.ConnectionString, migrate: false);
 
         var (status, body) = await GetReadyAsync(factory);
 
@@ -33,7 +33,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task StartupFailsWithAnInvalidMigrationSetting()
     {
-        await using var factory = CreateFactory().WithWebHostBuilder(b => b.UseSetting("Database:MigrateOnStartup", "1"));
+        await using var factory = infrastructure.CreateApi().WithWebHostBuilder(b => b.UseSetting("Database:MigrateOnStartup", "1"));
 
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         Assert.Contains("Database:MigrateOnStartup", exception.Message, StringComparison.Ordinal);
@@ -42,7 +42,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task NotReadyWhenDatabaseIsUnreachable()
     {
-        await using var factory = CreateFactory(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrate: false);
+        await using var factory = infrastructure.CreateApi(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrate: false);
 
         var (status, body) = await GetReadyAsync(factory);
 
@@ -53,7 +53,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task NotReadyWhenBucketDoesNotExist()
     {
-        await using var factory = CreateFactory(bucket: "compartiment-absent");
+        await using var factory = infrastructure.CreateApi(bucket: "compartiment-absent");
 
         var (status, _) = await GetReadyAsync(factory);
 
@@ -63,7 +63,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task StartupFailsWithoutStorageConfiguration()
     {
-        await using var factory = CreateFactory(bucket: string.Empty);
+        await using var factory = infrastructure.CreateApi(bucket: string.Empty);
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
@@ -74,7 +74,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [InlineData("pas une chaîne de connexion")]
     public async Task StartupFailsWithUnusableConnectionString(string connectionString)
     {
-        await using var factory = CreateFactory(connectionString: connectionString);
+        await using var factory = infrastructure.CreateApi(connectionString: connectionString);
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
@@ -83,7 +83,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task StartupFailsWithNonHttpStorageUrl()
     {
-        await using var factory = CreateFactory(storageUrl: "ftp://stockage.example");
+        await using var factory = infrastructure.CreateApi(storageUrl: "ftp://stockage.example");
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
@@ -92,22 +92,11 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task StartupFailsWithoutConnectionString()
     {
-        await using var factory = CreateFactory(connectionString: string.Empty);
+        await using var factory = infrastructure.CreateApi(connectionString: string.Empty);
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
     }
-
-    private WebApplicationFactory<Program> CreateFactory(
-        string? connectionString = null, string? bucket = null, string? storageUrl = null, bool migrate = true) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
-            .UseSetting("ConnectionStrings:Main", connectionString ?? infrastructure.ConnectionString)
-            .UseSetting("Database:MigrateOnStartup", migrate ? "true" : "false")
-            .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? infrastructure.StorageUrl)
-            .UseSetting("ObjectStorage:AccessKey", InfrastructureFixture.AccessKey)
-            .UseSetting("ObjectStorage:SecretKey", InfrastructureFixture.SecretKey)
-            .UseSetting("ObjectStorage:Bucket", bucket ?? InfrastructureFixture.Bucket)
-            .UseSetting("ObjectStorage:Region", InfrastructureFixture.Region));
 
     private static async Task<(HttpStatusCode Status, string Body)> GetReadyAsync(WebApplicationFactory<Program> factory)
     {

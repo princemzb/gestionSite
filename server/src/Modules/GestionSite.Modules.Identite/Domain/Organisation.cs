@@ -3,6 +3,7 @@ namespace GestionSite.Modules.Identite.Domain;
 /// <summary>Organisation cliente (église ou réseau d'églises), frontière d'isolation des données (RG-01).</summary>
 internal sealed class Organisation
 {
+    // Compté en unités UTF-16 : plus strict que varchar(200) (points de code), donc jamais rejeté par la base.
     internal const int NomMaxLength = 200;
 
     private Organisation()

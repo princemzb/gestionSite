@@ -21,6 +21,10 @@ internal static class IdentitePersistence
     internal static DbContextOptionsBuilder Configure(DbContextOptionsBuilder options, NpgsqlDataSource dataSource) =>
         options.UseNpgsql(dataSource, ConfigureNpgsql).UseSnakeCaseNamingConvention();
 
+    /// <summary>Variante sans source de données partagée, pour `dotnet ef` : rien à libérer.</summary>
+    internal static DbContextOptionsBuilder Configure(DbContextOptionsBuilder options, string connectionString) =>
+        options.UseNpgsql(connectionString, ConfigureNpgsql).UseSnakeCaseNamingConvention();
+
     private static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
         npgsql.MigrationsHistoryTable(IdentiteDbContext.MigrationsTable, IdentiteDbContext.Schema);
 }

@@ -2,6 +2,7 @@ using Amazon.S3;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using GestionSite.Api.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Testcontainers.PostgreSql;
 
 namespace GestionSite.Api.Tests;
@@ -31,6 +32,18 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     internal string ConnectionString => _postgres.GetConnectionString();
 
     internal string StorageUrl => $"http://{_storage.Hostname}:{_storage.GetMappedPublicPort(S3Port)}";
+
+    /// <summary>API réelle branchée sur ces conteneurs ; chaque paramètre remplace la valeur par défaut.</summary>
+    internal WebApplicationFactory<Program> CreateApi(
+        string? connectionString = null, bool migrate = true, string? bucket = null, string? storageUrl = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+            .UseSetting("ConnectionStrings:Main", connectionString ?? ConnectionString)
+            .UseSetting("Database:MigrateOnStartup", migrate ? "true" : "false")
+            .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? StorageUrl)
+            .UseSetting("ObjectStorage:AccessKey", AccessKey)
+            .UseSetting("ObjectStorage:SecretKey", SecretKey)
+            .UseSetting("ObjectStorage:Bucket", bucket ?? Bucket)
+            .UseSetting("ObjectStorage:Region", Region));
 
     public async Task InitializeAsync()
     {

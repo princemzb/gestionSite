@@ -33,7 +33,7 @@ public sealed class IdentitePersistenceTests
     public void RuntimeContextUsesTheSameModelAsMigrations()
     {
         var services = new ServiceCollection()
-            .AddSingleton(Npgsql.NpgsqlDataSource.Create("Host=localhost"))
+            .AddSingleton(_ => Npgsql.NpgsqlDataSource.Create("Host=localhost")) // fabrique : libérée avec le conteneur
             .AddIdentiteModule();
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();

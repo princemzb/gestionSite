@@ -39,7 +39,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs`.
 - Ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
-- Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports.
+- Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports (`ConnectionStrings__Main` sert aussi aux commandes `dotnet ef`). Les valeurs locales de PostgreSQL figurent dans `server/compose.yaml`, `appsettings.Development.json` et `IdentiteDesignTimeFactory` : les modifier ensemble.
 - Jamais de secret dans le dépôt : jetons Trello et Sonar dans le Trousseau macOS du porteur ; jeton CI dans le secret GitHub `SONAR_TOKEN` ; signature Android dans `mobile/android/key.properties` (non versionné).
 
 ### Intégration continue
