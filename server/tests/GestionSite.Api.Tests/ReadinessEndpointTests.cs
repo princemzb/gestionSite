@@ -48,13 +48,24 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
     }
 
-    [Fact]
-    public async Task StartupFailsWithMalformedConnectionString()
+    [Theory]
+    [InlineData("Database=gestionsite;Username=x;Password=y")]
+    [InlineData("pas une chaîne de connexion")]
+    public async Task StartupFailsWithUnusableConnectionString(string connectionString)
     {
-        await using var factory = CreateFactory(connectionString: "pas une chaîne de connexion");
+        await using var factory = CreateFactory(connectionString: connectionString);
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
+    }
+
+    [Fact]
+    public async Task StartupFailsWithNonHttpStorageUrl()
+    {
+        await using var factory = CreateFactory(storageUrl: "ftp://stockage.example");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
     }
 
     [Fact]
@@ -66,10 +77,10 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
         Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
     }
 
-    private WebApplicationFactory<Program> CreateFactory(string? connectionString = null, string? bucket = null) =>
+    private WebApplicationFactory<Program> CreateFactory(string? connectionString = null, string? bucket = null, string? storageUrl = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Main", connectionString ?? infrastructure.ConnectionString)
-            .UseSetting("ObjectStorage:ServiceUrl", infrastructure.StorageUrl)
+            .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? infrastructure.StorageUrl)
             .UseSetting("ObjectStorage:AccessKey", InfrastructureFixture.AccessKey)
             .UseSetting("ObjectStorage:SecretKey", InfrastructureFixture.SecretKey)
             .UseSetting("ObjectStorage:Bucket", bucket ?? InfrastructureFixture.Bucket)

@@ -1,5 +1,3 @@
-using System.Net;
-using Amazon.Runtime;
 using Amazon.S3;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -58,19 +56,13 @@ public sealed class InfrastructureFixture : IAsyncLifetime
             {
                 return; // une tentative précédente a abouti malgré une réponse perdue
             }
-            catch (Exception exception) when (attempt < 30 && IsTransient(exception))
+            // SeaweedFS en démarrage peut renvoyer des erreurs variées (4xx, coupures) : essais bornés.
+            catch (Exception) when (attempt < 30)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
             }
         }
     }
-
-    private static bool IsTransient(Exception exception) => exception switch
-    {
-        HttpRequestException => true,
-        AmazonServiceException service => service.StatusCode is 0 or >= HttpStatusCode.InternalServerError,
-        _ => false,
-    };
 
     private static string ServerDirectory()
     {

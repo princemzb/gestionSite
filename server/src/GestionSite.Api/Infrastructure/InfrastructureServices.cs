@@ -15,7 +15,7 @@ internal static class InfrastructureServices
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.Section))
             .ValidateDataAnnotations()
-            .Validate(options => IsValidConnectionString(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
+            .Validate(options => CanBuildDataSource(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
             .ValidateOnStart();
         services.AddSingleton(provider => new NpgsqlDataSourceBuilder(
                 provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main)
@@ -25,6 +25,7 @@ internal static class InfrastructureServices
         services.AddOptions<ObjectStorageOptions>()
             .Bind(configuration.GetSection(ObjectStorageOptions.Section))
             .ValidateDataAnnotations()
+            .Validate(options => IsHttpUrl(options.ServiceUrl), "ObjectStorage:ServiceUrl doit être une adresse http ou https.")
             .ValidateOnStart();
         services.AddSingleton<IAmazonS3>(provider =>
         {
@@ -39,11 +40,12 @@ internal static class InfrastructureServices
         return services;
     }
 
-    private static bool IsValidConnectionString(string value)
+    /// <summary>Mêmes contrôles que la construction réelle (hôte obligatoire, etc.), sans ouvrir de connexion.</summary>
+    private static bool CanBuildDataSource(string value)
     {
         try
         {
-            _ = new NpgsqlConnectionStringBuilder(value);
+            using var dataSource = new NpgsqlDataSourceBuilder(value).Build();
             return true;
         }
         catch (ArgumentException)
@@ -51,4 +53,7 @@ internal static class InfrastructureServices
             return false;
         }
     }
+
+    private static bool IsHttpUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }
