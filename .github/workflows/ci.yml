@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Serveur .NET (porte qualité)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: server/global.json
+      - name: Build, format, tests, couverture ≥ 80 %, dépendances
+        run: server/eng/verify.sh
+      - name: Rapport de couverture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: couverture-serveur
+          path: server/artifacts/coverage
+          if-no-files-found: ignore
+
+  tooling:
+    name: Outillage Trello (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -W error -m unittest discover -s scripts/trello -v
+
+  sonar:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Actif dès que le secret SONAR_TOKEN est configuré (ADR-09) ; les PR de forks n'y ont pas accès.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'princemzb_gestionSite' }}
+    steps:
+      - name: Jeton Sonar absent
+        if: env.SONAR_TOKEN == ''
+        run: |
+          echo "::warning::SONAR_TOKEN non configuré, analyse Sonar non exécutée (voir docs/dev/GUIDE.md)."
+      - uses: actions/checkout@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-dotnet@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          global-json-file: server/global.json
+      - name: Analyse et porte qualité Sonar
+        if: env.SONAR_TOKEN != ''
+        working-directory: server
+        run: |
+          dotnet tool restore
+          dotnet sonarscanner begin \
+            /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+            /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.qualitygate.wait=true \
+            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="tests/**"
+          dotnet build GestionSite.slnx --configuration Release
+          dotnet test GestionSite.slnx --no-build --configuration Release \
+            --collect:"XPlat Code Coverage" --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
