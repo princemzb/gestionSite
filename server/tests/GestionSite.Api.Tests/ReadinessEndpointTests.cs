@@ -1,0 +1,95 @@
+using System.Net;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Options;
+
+namespace GestionSite.Api.Tests;
+
+/// <summary>Disponibilité (/health/ready) contre de vrais PostgreSQL et stockage S3.</summary>
+public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure) : IClassFixture<InfrastructureFixture>
+{
+    [Fact]
+    public async Task ReadyWhenDatabaseAndStorageAreReachable()
+    {
+        await using var factory = CreateFactory();
+
+        var (status, body) = await GetReadyAsync(factory);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("Healthy", body);
+    }
+
+    [Fact]
+    public async Task NotReadyWhenDatabaseIsUnreachable()
+    {
+        await using var factory = CreateFactory(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2");
+
+        var (status, body) = await GetReadyAsync(factory);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        Assert.Equal("Unhealthy", body); // aucun détail de connexion exposé
+    }
+
+    [Fact]
+    public async Task NotReadyWhenBucketDoesNotExist()
+    {
+        await using var factory = CreateFactory(bucket: "compartiment-absent");
+
+        var (status, _) = await GetReadyAsync(factory);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+    }
+
+    [Fact]
+    public async Task StartupFailsWithoutStorageConfiguration()
+    {
+        await using var factory = CreateFactory(bucket: string.Empty);
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
+    }
+
+    [Theory]
+    [InlineData("Database=gestionsite;Username=x;Password=y")]
+    [InlineData("pas une chaîne de connexion")]
+    public async Task StartupFailsWithUnusableConnectionString(string connectionString)
+    {
+        await using var factory = CreateFactory(connectionString: connectionString);
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
+    }
+
+    [Fact]
+    public async Task StartupFailsWithNonHttpStorageUrl()
+    {
+        await using var factory = CreateFactory(storageUrl: "ftp://stockage.example");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.ObjectStorageOptions), exception.OptionsType);
+    }
+
+    [Fact]
+    public async Task StartupFailsWithoutConnectionString()
+    {
+        await using var factory = CreateFactory(connectionString: string.Empty);
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.DatabaseOptions), exception.OptionsType);
+    }
+
+    private WebApplicationFactory<Program> CreateFactory(string? connectionString = null, string? bucket = null, string? storageUrl = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+            .UseSetting("ConnectionStrings:Main", connectionString ?? infrastructure.ConnectionString)
+            .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? infrastructure.StorageUrl)
+            .UseSetting("ObjectStorage:AccessKey", InfrastructureFixture.AccessKey)
+            .UseSetting("ObjectStorage:SecretKey", InfrastructureFixture.SecretKey)
+            .UseSetting("ObjectStorage:Bucket", bucket ?? InfrastructureFixture.Bucket)
+            .UseSetting("ObjectStorage:Region", InfrastructureFixture.Region));
+
+    private static async Task<(HttpStatusCode Status, string Body)> GetReadyAsync(WebApplicationFactory<Program> factory)
+    {
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
+        return (response.StatusCode, await response.Content.ReadAsStringAsync());
+    }
+}

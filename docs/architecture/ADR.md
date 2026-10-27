@@ -29,7 +29,7 @@ Contexte, exigences concernées, options évaluées, preuves, choix et auteur ap
 | Préproduction | Cloudflare Containers (API + Blazor, offre Workers Paid existante) ; PostgreSQL géré Neon, région UE, projet dédié, via Hyperdrive | VPS UE + Docker Compose, PaaS français, Azure, Supabase (pause après inactivité) |
 | Compléments | Cloudflare R2 (fichiers privés), Turnstile (anti-abus du formulaire public), Tunnel (accès tablette en développement) | Resend reporté à US-18 |
 
-Langages à maintenir : C# et Dart. En local, Docker simule les services (PostgreSQL, stockage compatible S3).
+Langages à maintenir : C# et Dart. En local, Docker simule les services : PostgreSQL et stockage compatible S3 SeaweedFS (MinIO ne publiant plus d'image Docker communautaire, constat du 27/10/2026).
 
 **Conséquences.**
 - Les conteneurs Cloudflare ont un disque éphémère et se mettent en veille : aucune donnée durable dans le conteneur ; tâches différées (ADR-06) réveillées par déclenchements planifiés ; démarrage à froid de l’ordre de 1–3 s accepté en préproduction.
