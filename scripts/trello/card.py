@@ -11,15 +11,16 @@ Prêt à livrer ou Livré exige une preuve d'au moins 20 caractères ; l'outil n
 que sa présence, les conditions de passage de docs/pilotage/TRELLO.md restent à la
 charge de l'opérateur. Un passage en Bloqué consigne la liste précédente.
 
-Le déplacement (rejouable) précède le commentaire de preuve : une carte déjà dans la
-liste cible n'est ni déplacée ni recommentée.
+La preuve est publiée avant le déplacement et porte un marqueur « [US-05 → Livré] » :
+une carte n'entre jamais dans une liste à preuve sans sa preuve, et une relance après
+erreur termine l'opération sans dupliquer le commentaire.
 """
 import argparse
 import json
 import sys
 import unicodedata
 
-from publish_backlog import BACKLOG, Trello, TrelloError
+from publish_backlog import BACKLOG, Trello, TrelloError, open_lists
 
 # Listes dont l'entrée exige une preuve (docs/pilotage/TRELLO.md, « Conditions de passage »).
 PROOF_REQUIRED = {"Revue", "Recette", "Prêt à livrer", "Livré"}
@@ -47,74 +48,81 @@ def parse_args():
     return parser.parse_args()
 
 
-def trello_id(data, card_id):
+def find_card(data, card_id):
+    card_id = nfc(card_id).upper()
     card = next((c for c in data["cards"] if c["id"] == card_id), None)
     if card is None:
         sys.exit(f"Carte inconnue : {card_id}")
     if not card.get("trelloId"):
         sys.exit(f"Carte non publiée dans Trello : {card_id} (lancer publish_backlog.py --apply)")
-    return card["trelloId"]
+    return card_id, card["trelloId"]
 
 
-def post_comment(api, card, text):
+def checked_comment(text):
     text = nfc(text)
     if not text:
         sys.exit("Commentaire vide.")
     if len(text) > MAX_COMMENT_LENGTH:
         sys.exit(f"Commentaire trop long ({len(text)} > {MAX_COMMENT_LENGTH} caractères).")
+    return text
+
+
+def post_comment(api, trello_id, text):
     if not api.apply:
-        print(f"[simulation] commentaire sur {card} :\n{text}")
-    api.call("POST", f"/cards/{card}/actions/comments", text=text)
+        print(f"[simulation] commentaire sur {trello_id} :\n{text}")
+    api.call("POST", f"/cards/{trello_id}/actions/comments", text=text)
 
 
-def board_lists(api, data):
-    return {l["id"]: l["name"] for l in api.call("GET", f"/boards/{data['boardId']}/lists", filter="open")}
+def has_comment_starting_with(api, trello_id, prefix):
+    actions = api.call("GET", f"/cards/{trello_id}/actions", filter="commentCard", limit=100)
+    return any(a["data"]["text"].startswith(prefix) for a in actions)
 
 
 def status(api, data):
-    names = board_lists(api, data)
+    names = open_lists(api, data["boardId"])
     by_list = {}
     for card in api.call("GET", f"/boards/{data['boardId']}/cards", fields="name,idList"):
         by_list.setdefault(card["idList"], []).append(card["name"])
-    for list_id, list_name in names.items():  # ordre du tableau, listes ajoutées dans Trello comprises
-        cards = sorted(by_list.get(list_id, []))
+    sections = [(names[i], by_list.get(i, [])) for i in names]  # ordre du tableau
+    orphans = [n for i, cards in by_list.items() if i not in names for n in cards]
+    sections.append(("Liste archivée ou inconnue", orphans))
+    for list_name, cards in sections:
         if cards:
             print(f"\n{list_name} ({len(cards)})")
-            print("\n".join(f"  {n}" for n in cards))
-
-
-def current_list(api, card):
-    return api.call("GET", f"/cards/{card}", fields="idList")["idList"]
+            print("\n".join(f"  {n}" for n in sorted(cards)))
 
 
 def move(api, data, card_id, target, proof):
-    target, proof = nfc(target), nfc(proof)
+    target = nfc(target)
     if target not in data["listIds"]:
         sys.exit(f"Liste inconnue : {target} (listes : {', '.join(data['lists'])})")
+    proof = nfc(proof)
     if target in PROOF_REQUIRED and len(proof) < MIN_PROOF_LENGTH:
         sys.exit(f"Une preuve d'au moins {MIN_PROOF_LENGTH} caractères est obligatoire pour « {target} ».")
-    card, target_id = trello_id(data, card_id), data["listIds"][target]
-    before = current_list(api, card)
-    if before == target_id:
-        print(f"{card_id} est déjà dans « {target} » : aucune écriture.")
-        return False
-    if target == "Bloqué":
-        proof = f"Liste précédente : {board_lists(api, data).get(before, 'inconnue')}. {proof}"
-    if not api.apply:
-        print(f"[simulation] déplacement de {card_id} ({card}) vers « {target} » ({target_id})")
-    try:
-        api.call("PUT", f"/cards/{card}", idList=target_id, pos="top")
-    except TrelloError:
-        # Une erreur peut survenir après application côté Trello : vérifier l'état réel.
-        if not api.apply or current_list(api, card) != target_id:
-            raise
-    if proof:
-        try:
-            post_comment(api, card, proof)
-        except TrelloError as err:
-            sys.exit(f"{card_id} déplacée vers « {target} » mais preuve non publiée ({err}). "
-                     f"Relancer : card.py comment {card_id} \"…\" --apply")
-    return True
+    card_id, trello_id = find_card(data, card_id)
+    target_id = data["listIds"][target]
+    card = api.call("GET", f"/cards/{trello_id}", fields="idList,closed")
+    if card["closed"]:
+        sys.exit(f"{card_id} est archivée dans Trello : la désarchiver avant de la déplacer.")
+
+    marker = f"[{card_id} → {target}]"
+    if target == "Bloqué" and card["idList"] != target_id:
+        previous = open_lists(api, data["boardId"]).get(card["idList"], "inconnue")
+        proof = f"Liste précédente : {previous}. {proof}"
+    text = checked_comment(f"{marker} {proof}") if proof else None
+
+    wrote = False
+    if text and not has_comment_starting_with(api, trello_id, marker):
+        post_comment(api, trello_id, text)
+        wrote = True
+    if card["idList"] != target_id:
+        if not api.apply:
+            print(f"[simulation] déplacement de {card_id} ({trello_id}) vers « {target} » ({target_id})")
+        api.call("PUT", f"/cards/{trello_id}", idList=target_id, pos="top")
+        wrote = True
+    if not wrote:
+        print(f"{card_id} est déjà dans « {target} » avec sa preuve : aucune écriture.")
+    return wrote
 
 
 def main():
@@ -126,11 +134,12 @@ def main():
             status(api, data)
             return
         if args.action == "comment":
-            post_comment(api, trello_id(data, args.card), args.text)
+            _, trello_id = find_card(data, args.card)
+            post_comment(api, trello_id, checked_comment(args.text))
         elif not move(api, data, args.card, args.target, args.proof):
             return
     except TrelloError as err:
-        sys.exit(str(err))
+        sys.exit(f"{err}\nRelancer la même commande : elle reprend sans dupliquer la preuve.")
     print(f"{args.card} : {args.action} {'effectué' if api.apply else 'simulé (relancer avec --apply)'}")
 
 

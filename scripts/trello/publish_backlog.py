@@ -93,7 +93,7 @@ class Trello:
                     continue
                 body = err.read().decode(errors="replace")[:300]
                 raise TrelloError(f"Erreur Trello {err.code} sur {method} {path} : {body}") from err
-            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as err:
+            except (OSError, http.client.HTTPException) as err:  # URLError, socket.timeout (3.9), ConnectionError
                 if idempotent and not last:
                     time.sleep(2 ** attempt)
                     continue
@@ -144,10 +144,15 @@ def ensure_board(api, data):
     return board["id"]
 
 
+def open_lists(api, board_id):
+    """Listes ouvertes du tableau, dans l'ordre du tableau : {id: nom}."""
+    return {l["id"]: l["name"] for l in api.call("GET", f"/boards/{board_id}/lists", filter="open")}
+
+
 def ensure_lists(api, data, board_id):
     ids = data.setdefault("listIds", {})
     existing = {} if not api.apply and board_id.startswith("<") else {
-        l["name"]: l["id"] for l in api.call("GET", f"/boards/{board_id}/lists", filter="open")}
+        name: list_id for list_id, name in open_lists(api, board_id).items()}
     for pos, name in enumerate(data["lists"], start=1):
         if name in ids or name in existing:
             ids[name] = ids.get(name) or existing[name]
