@@ -52,7 +52,7 @@ export class GestionSite extends DurableObject<Env> {
       this.verification ??= this.arreterSiImagePerimee(conteneur);
       await this.verification;
       if (!conteneur.running) {
-        this.demarrage ??= this.demarrer(conteneur, new URL(request.url).origin).finally(() => (this.demarrage = undefined));
+        this.demarrage ??= this.demarrer(conteneur, adressePublique(request)).finally(() => (this.demarrage = undefined));
       }
       if (this.demarrage) {
         await this.demarrage;
@@ -135,6 +135,15 @@ export class GestionSite extends DurableObject<Env> {
     }
     throw new Error("Le conteneur n'est pas devenu disponible");
   }
+}
+
+// Hôte de la requête (seul le nom workers.dev du Worker y mène), toujours en https et sans port
+// alternatif : les liens d'activation ne dépendent pas du schéma ou du port choisis par le visiteur.
+function adressePublique(request: Request): string {
+  const url = new URL(request.url);
+  url.protocol = "https:";
+  url.port = "";
+  return url.origin;
 }
 
 function indisponible(): Response {
