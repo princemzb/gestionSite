@@ -1,12 +1,14 @@
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Identite.Membres;
 
 /// <summary>POST /auth/activate : le lien à usage unique permet de choisir son mot de passe (ADR-10).</summary>
-internal sealed class ServiceActivation(IdentiteDbContext context, UserManager<Compte> comptes, TimeProvider horloge)
+internal sealed class ServiceActivation(
+    IdentiteDbContext context, UserManager<Compte> comptes, OrganisationCourante organisation, TimeProvider horloge)
 {
     internal async Task ActiverAsync(string jeton, string motDePasse, CancellationToken cancellationToken)
     {
@@ -30,7 +32,16 @@ internal sealed class ServiceActivation(IdentiteDbContext context, UserManager<C
             }
         }
 
+        // L'activation vaut acceptation de l'invitation de l'organisation qui a émis le lien.
+        organisation.Definir(activation.OrganisationId);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var invitation in await context.Membres
+            .Where(m => m.CompteId == compte.Id && m.RevoqueLe == null && m.AccepteLe == null)
+            .ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            invitation.Accepter(maintenant);
+        }
+
         activation.Utiliser(maintenant);
         compte.PasswordHash = comptes.PasswordHasher.HashPassword(compte, motDePasse!);
         // EmailConfirmed reste faux : le lien passe par l'administrateur, l'adresse n'est pas prouvée.

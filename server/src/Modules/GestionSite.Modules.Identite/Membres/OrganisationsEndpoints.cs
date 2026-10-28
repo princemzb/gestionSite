@@ -27,6 +27,17 @@ internal static class OrganisationsEndpoints
         organisation.MapDelete("/members/{memberId:guid}", RevoquerMembreAsync);
         organisation.MapPost("/members/{memberId:guid}/activation", RenouvelerActivationAsync);
         endpoints.MapPost("/auth/activate", ActiverAsync).AllowAnonymous().AddEndpointFilter(TraduireRefus);
+        var invitations = endpoints.MapGroup("/me/invitations/{memberId:guid}").RequireAuthorization().AddEndpointFilter(TraduireRefus);
+        invitations.MapPost("/accept", async (Guid memberId, ServiceInvitations service, CancellationToken ct) =>
+        {
+            await service.AccepterAsync(memberId, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        invitations.MapPost("/decline", async (Guid memberId, ServiceInvitations service, CancellationToken ct) =>
+        {
+            await service.RefuserAsync(memberId, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
         return endpoints;
     }
 

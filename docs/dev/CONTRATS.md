@@ -22,10 +22,13 @@ Statut : esquisse P ; noms et formes non figés. Produire un contrat OpenAPI val
 | POST /auth/refresh | Jeton de renouvellement | jeton → nouveau couple (rotation, l'ancien devient invalide) ; 401 si révoqué ou expiré |
 | POST /auth/logout | Authentifié | → révoque le jeton de renouvellement de l'appareil |
 | POST /auth/activate | Public, lien à usage unique | jeton d'activation, mot de passe → compte actif ; 410 si expiré ou déjà utilisé |
-| GET /me | Authentifié | → identité, organisations, rôles et sites autorisés |
+| GET /me | Authentifié | → identité, organisations (adhésions acceptées), rôles et sites autorisés, invitations en attente |
+| POST /me/invitations/{memberId}/accept | Titulaire de l'invitation | → adhésion acceptée, droits effectifs ; 404 sinon |
+| POST /me/invitations/{memberId}/decline | Titulaire de l'invitation | → invitation refusée (révoquée, historique conservé) ; 404 sinon |
 | GET /organizations/{orgId}/sites | Membre de l'organisation | → sites autorisés pour l'appelant uniquement |
 | POST /organizations/{orgId}/sites | Administrateur d'organisation | nom → site créé |
-| POST /organizations/{orgId}/members | Administrateur d'organisation | nom, e-mail, rôles, sites → membre créé + lien d'activation (montré une seule fois) |
+| POST /organizations/{orgId}/members | Administrateur d'organisation | nom, e-mail, rôles, sites → invitation créée ; lien d'activation (montré une seule fois) seulement si le compte est créé par cet appel ; 409 si compte en attente créé ailleurs |
+| POST /organizations/{orgId}/members/{memberId}/activation | Administrateur d'organisation | → nouveau lien, si cette organisation a créé le compte et qu'il n'est pas activé ; 409 sinon |
 | PUT /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | rôles, sites, version attendue → habilitations révisées et tracées (RG-31) ; 409 si version dépassée |
 | DELETE /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | → accès révoqué, jetons invalidés ; historique conservé |
 

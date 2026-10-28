@@ -31,6 +31,8 @@ internal static class OuvertureOrganisation
         }
 
         var administrateur = new Membre(Guid.NewGuid(), organisationId, compte.Id, maintenant);
+        // Invitation comme ailleurs : compte créé, l'activation l'accepte ; compte existant, le titulaire
+        // l'accepte dans /me (ADR-10, complément du 28/10).
         administrateur.Accorder(Role.Administrateur, site: null);
         context.Membres.Add(administrateur);
         var activation = cree ? await membres.EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;

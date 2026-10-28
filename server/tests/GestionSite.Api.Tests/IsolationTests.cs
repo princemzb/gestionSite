@@ -325,6 +325,7 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         context.Add(compte); // compte global : clé étrangère des adhésions
         membre.Accorder(Role.Administrateur, site: null);
         membre.Accorder(Role.Technicien, site);
+        membre.Accepter(Instant);
         context.AddRange(new Organisation(organisationId, $"Organisation {organisationId:N}", Instant), site, membre);
         await context.SaveChangesAsync();
     }

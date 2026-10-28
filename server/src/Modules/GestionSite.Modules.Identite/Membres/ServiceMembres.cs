@@ -217,7 +217,8 @@ internal sealed class ServiceMembres(
     private async Task ExigerUnAdministrateurAsync(Membre modifie, CancellationToken cancellationToken)
     {
         var autre = await context.Membres.AnyAsync(
-            m => m.Id != modifie.Id && m.RevoqueLe == null && m.Roles.Any(r => r.Role == Role.Administrateur), cancellationToken).ConfigureAwait(false);
+            m => m.Id != modifie.Id && m.RevoqueLe == null && m.AccepteLe != null && m.Roles.Any(r => r.Role == Role.Administrateur),
+            cancellationToken).ConfigureAwait(false);
         if (!autre && !modifie.EstAdministrateur)
         {
             throw RefusException.Conflit("dernier_administrateur", "L'organisation doit garder au moins un administrateur.");

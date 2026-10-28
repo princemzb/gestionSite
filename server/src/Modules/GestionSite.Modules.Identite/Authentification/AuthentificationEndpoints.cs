@@ -14,7 +14,10 @@ internal sealed record DemandeJeton(string JetonRenouvellement);
 
 internal sealed record ReponseJetons(string JetonAcces, DateTimeOffset AccesExpireLe, string JetonRenouvellement, DateTimeOffset RenouvellementExpireLe);
 
-internal sealed record ReponseMoi(Guid CompteId, string? Email, IReadOnlyList<OrganisationAutorisee> Organisations);
+internal sealed record ReponseMoi(
+    Guid CompteId, string? Email, IReadOnlyList<OrganisationAutorisee> Organisations, IReadOnlyList<InvitationEnAttente> Invitations);
+
+internal sealed record InvitationEnAttente(Guid MembreId, Guid OrganisationId, string Organisation);
 
 internal sealed record OrganisationAutorisee(Guid Id, string Nom, IReadOnlyList<RoleAutorise> Roles, IReadOnlyList<SiteAutorise> Sites);
 
@@ -64,8 +67,13 @@ internal static class AuthentificationEndpoints
         var sites = await context.Sites.IgnoreQueryFilters()
             .Where(s => organisationIds.Contains(s.OrganisationId)).ToListAsync(cancellationToken).ConfigureAwait(false);
 
+        var invitations = membres
+            .Where(m => m.AccepteLe is null && organisations.ContainsKey(m.OrganisationId))
+            .Select(m => new InvitationEnAttente(m.Id, m.OrganisationId, organisations[m.OrganisationId].Nom))
+            .OrderBy(i => i.Organisation)
+            .ToList();
         var autorisees = membres
-            .Where(m => organisations.ContainsKey(m.OrganisationId))
+            .Where(m => m.EstActif && organisations.ContainsKey(m.OrganisationId))
             .Select(m => new OrganisationAutorisee(
                 m.OrganisationId,
                 organisations[m.OrganisationId].Nom,
@@ -73,7 +81,7 @@ internal static class AuthentificationEndpoints
                 [.. sites.Where(s => s.OrganisationId == m.OrganisationId && EstAutorise(m, s)).OrderBy(s => s.Nom).Select(s => new SiteAutorise(s.Id, s.Nom))]))
             .OrderBy(o => o.Nom)
             .ToList();
-        return Results.Ok(new ReponseMoi(compteId, email, autorisees));
+        return Results.Ok(new ReponseMoi(compteId, email, autorisees, invitations));
     }
 
     // Même règle que la politique RLS des sites : tous pour l'administrateur, sinon ceux où un rôle est accordé.
