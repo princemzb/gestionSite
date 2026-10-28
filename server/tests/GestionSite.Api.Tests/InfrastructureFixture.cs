@@ -45,7 +45,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     /// </summary>
     internal WebApplicationFactory<Program> CreateApi(
         TestDatabase? database = null, string? connectionString = null, string? migrationsConnectionString = null,
-        string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null, ILoggerProvider? logs = null) =>
+        string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null, ILoggerProvider? logs = null,
+        string? signingKey = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
             .ConfigureLogging(logging =>
             {
@@ -61,7 +62,11 @@ public sealed class InfrastructureFixture : IAsyncLifetime
             .UseSetting("ObjectStorage:AccessKey", AccessKey)
             .UseSetting("ObjectStorage:SecretKey", SecretKey)
             .UseSetting("ObjectStorage:Bucket", bucket ?? Bucket)
-            .UseSetting("ObjectStorage:Region", Region));
+            .UseSetting("ObjectStorage:Region", Region)
+            .UseSetting("Authentification:CleSignature", signingKey ?? TestSigningKey));
+
+    // Clé de test non sensible (32 octets).
+    private const string TestSigningKey = "dGVzdC1zaWduaW5nLWtleS1ub3Qtc2Vuc2l0aXZlLTAwMA==";
 
     public async Task InitializeAsync()
     {

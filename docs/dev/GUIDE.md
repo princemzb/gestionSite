@@ -42,6 +42,12 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - Application automatique au démarrage si `Database:MigrateOnStartup` vaut `true` (profil `dotnet run` local et tests) ; une valeur non booléenne bloque le démarrage, et l'API refuse de démarrer si la migration est demandée sans `ConnectionStrings:Migrations` ou sur une base non locale (hôte autre que localhost, boucle locale ou socket Unix). En préproduction et production, l'étape de déploiement les appliquera (à mettre en place avec le premier déploiement). `/health/ready` répond 503 tant qu'une migration reste en attente.
 - Prudence : `dotnet ef database update --connection …` n'a pas ce garde-fou ; ne jamais lui passer la chaîne propriétaire d'une base partagée hors de l'étape de déploiement.
 
+### Authentification (S06-03)
+- `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /me` (CONTRATS). Jeton d'accès JWT HS256 15 min ; jeton de renouvellement aléatoire (32 octets), stocké en empreinte SHA-256, rotation à chaque usage, réutilisation d'un jeton remplacé = révocation de toute la lignée.
+- Clé de signature `Authentification:CleSignature` (base64, ≥ 32 octets) : valeur locale non sensible dans `appsettings.Development.json`, fournie par l'environnement ailleurs ; l'API refuse de démarrer sans clé valide.
+- Comptes ASP.NET Core Identity (tables `identite.comptes*`, hors organisation, sans RLS) : mot de passe ≥ 12 caractères sans règle de composition, verrouillage 15 min après 5 échecs.
+- `/me` lit les adhésions du compte dans toutes ses organisations grâce aux politiques RLS `lecture_par_compte` (lecture seule, variable `app.compte_id`).
+
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/docker/postgres/roles-local.sql`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` et `TestDatabase.cs`.
 - Ailleurs, `ConnectionStrings:Main`, `ConnectionStrings:Migrations` (étape de migration seulement) et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).

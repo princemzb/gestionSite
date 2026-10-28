@@ -23,6 +23,142 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Compte", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("access_failed_count");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("text")
+                        .HasColumnName("concurrency_stamp");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("email_confirmed");
+
+                    b.Property<bool>("LockoutEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("lockout_enabled");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lockout_end");
+
+                    b.Property<string>("NormalizedEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("normalized_email");
+
+                    b.Property<string>("NormalizedUserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("normalized_user_name");
+
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("text")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("text")
+                        .HasColumnName("phone_number");
+
+                    b.Property<bool>("PhoneNumberConfirmed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("phone_number_confirmed");
+
+                    b.Property<string>("SecurityStamp")
+                        .HasColumnType("text")
+                        .HasColumnName("security_stamp");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("two_factor_enabled");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_comptes");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique()
+                        .HasDatabaseName("ix_comptes_normalized_email");
+
+                    b.HasIndex("NormalizedUserName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_comptes_normalized_user_name");
+
+                    b.ToTable("comptes", "identite");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.JetonRenouvellement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<byte[]>("Empreinte")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .HasColumnName("empreinte")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("ExpireLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expire_le");
+
+                    b.Property<Guid>("Famille")
+                        .HasColumnType("uuid")
+                        .HasColumnName("famille");
+
+                    b.Property<Guid?>("RemplacePar")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("remplace_par");
+
+                    b.Property<DateTimeOffset?>("RevoqueLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoque_le");
+
+                    b.HasKey("Id")
+                        .HasName("pk_jetons_renouvellement");
+
+                    b.HasIndex("CompteId")
+                        .HasDatabaseName("ix_jetons_renouvellement_compte_id");
+
+                    b.HasIndex("Empreinte")
+                        .IsUnique()
+                        .HasDatabaseName("ix_jetons_renouvellement_empreinte");
+
+                    b.HasIndex("Famille")
+                        .HasDatabaseName("ix_jetons_renouvellement_famille");
+
+                    b.ToTable("jetons_renouvellement", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
                 {
                     b.Property<Guid>("Id")
@@ -55,6 +191,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
                     b.HasAlternateKey("Id", "OrganisationId")
                         .HasName("ak_membres_id_organisation_id");
+
+                    b.HasIndex("CompteId")
+                        .HasDatabaseName("ix_membres_compte_id_actives")
+                        .HasFilter("revoque_le IS NULL");
 
                     b.HasIndex("OrganisationId", "CompteId")
                         .IsUnique()
@@ -160,8 +300,106 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.ToTable("sites", "identite");
                 });
 
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClaimType")
+                        .HasColumnType("text")
+                        .HasColumnName("claim_type");
+
+                    b.Property<string>("ClaimValue")
+                        .HasColumnType("text")
+                        .HasColumnName("claim_value");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_comptes_revendications");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_comptes_revendications_user_id");
+
+                    b.ToTable("comptes_revendications", "identite");
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
+                {
+                    b.Property<string>("LoginProvider")
+                        .HasColumnType("text")
+                        .HasColumnName("login_provider");
+
+                    b.Property<string>("ProviderKey")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_key");
+
+                    b.Property<string>("ProviderDisplayName")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_display_name");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("LoginProvider", "ProviderKey")
+                        .HasName("pk_comptes_connexions_externes");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_comptes_connexions_externes_user_id");
+
+                    b.ToTable("comptes_connexions_externes", "identite");
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("LoginProvider")
+                        .HasColumnType("text")
+                        .HasColumnName("login_provider");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("UserId", "LoginProvider", "Name")
+                        .HasName("pk_comptes_jetons");
+
+                    b.ToTable("comptes_jetons", "identite");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.JetonRenouvellement", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("CompteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_jetons_renouvellement_comptes_compte_id");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
                 {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("CompteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_membres_comptes_compte_id");
+
                     b.HasOne("GestionSite.Modules.Identite.Domain.Organisation", null)
                         .WithMany()
                         .HasForeignKey("OrganisationId")
@@ -196,6 +434,36 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_sites_organisations_organisation_id");
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_comptes_revendications_comptes_user_id");
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_comptes_connexions_externes_comptes_user_id");
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_comptes_jetons_comptes_user_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>

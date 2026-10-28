@@ -16,6 +16,10 @@ namespace GestionSite.Api.Tests;
 [Collection(SharedInfrastructure.Name)]
 public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
+    // Hors organisation, sans RLS d'organisation (liste explicite : toute nouvelle table doit être classée).
+    private static readonly string[] TablesGlobales =
+        ["__ef_migrations", "comptes", "comptes_revendications", "comptes_connexions_externes", "comptes_jetons", "jetons_renouvellement"];
+
     private static readonly DateTimeOffset Instant = new(2026, 10, 28, 8, 0, 0, TimeSpan.Zero);
     private readonly Guid _organisationA = Guid.NewGuid();
     private readonly Guid _organisationB = Guid.NewGuid();
@@ -61,7 +65,7 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         var courante = new OrganisationCourante();
         courante.Definir(_organisationA);
         var options = new DbContextOptionsBuilder<IdentiteDbContext>();
-        IdentitePersistence.Configure(options, dataSource, courante);
+        IdentitePersistence.Configure(options, dataSource, new ContexteRequete(courante, new CompteCourant()));
         await using var context = new IdentiteDbContext(options.Options, courante);
 
         Assert.Equal(2, await context.Sites.IgnoreQueryFilters().CountAsync()); // la RLS n'agit pas ici
@@ -78,13 +82,13 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     {
         var sansIsolation = await _database.CountAsync(
             "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace " +
-            "WHERE n.nspname = 'identite' AND c.relkind = 'r' AND c.relname <> '__ef_migrations' " +
+            "WHERE n.nspname = 'identite' AND c.relkind = 'r' AND NOT c.relname = ANY (@globales) " +
             "AND NOT (c.relrowsecurity AND c.relforcerowsecurity " +
-            "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))");
+            "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))", ("globales", TablesGlobales));
 
         Assert.Equal(0L, sansIsolation);
         Assert.Equal(4L, await _database.CountAsync(
-            "SELECT count(*) FROM pg_tables WHERE schemaname = 'identite' AND tablename <> '__ef_migrations'"));
+            "SELECT count(*) FROM pg_tables WHERE schemaname = 'identite' AND NOT tablename = ANY (@globales)", ("globales", TablesGlobales)));
     }
 
     [Fact]
@@ -158,7 +162,7 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         await using (var proprietaire = NpgsqlDataSource.Create(_database.MigrationsConnectionString))
         {
             var options = new DbContextOptionsBuilder<IdentiteDbContext>();
-            IdentitePersistence.Configure(options, proprietaire, new OrganisationCourante());
+            IdentitePersistence.Configure(options, proprietaire, requete: null);
             await using var context = new IdentiteDbContext(options.Options, new OrganisationCourante());
             await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261027201201_InitialeOrganisations");
         }
@@ -263,6 +267,17 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     }
 
     [Fact]
+    public async Task MembershipRequiresAnExistingAccount()
+    {
+        await using var scope = Scope(_organisationA);
+        var context = Context(scope);
+        context.Membres.Add(new Membre(Guid.NewGuid(), _organisationA, Guid.NewGuid(), Instant));
+
+        var refus = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, Assert.IsType<PostgresException>(refus.InnerException).SqlState);
+    }
+
+    [Fact]
     public async Task ARevokedAccountCanBeInvitedAgain()
     {
         await using var scope = Scope(_organisationA);
@@ -305,7 +320,9 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         await using var scope = Scope(organisationId);
         var context = Context(scope);
         var site = new Site(siteId, organisationId, $"Site {siteId:N}", Instant);
-        var membre = new Membre(membreId, organisationId, Guid.NewGuid(), Instant);
+        var compte = new Compte { Id = Guid.NewGuid(), UserName = $"{membreId:N}@exemple.test" };
+        var membre = new Membre(membreId, organisationId, compte.Id, Instant);
+        context.Add(compte); // compte global : clé étrangère des adhésions
         membre.Accorder(Role.Administrateur, site: null);
         membre.Accorder(Role.Technicien, site);
         context.AddRange(new Organisation(organisationId, $"Organisation {organisationId:N}", Instant), site, membre);

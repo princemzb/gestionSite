@@ -25,6 +25,8 @@ builder.Services.AddOutputCache(options =>
 var app = builder.Build();
 
 app.UseOutputCache();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Vivacité : le processus répond, sans dépendance. Disponibilité : base à jour et stockage joignables.
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
