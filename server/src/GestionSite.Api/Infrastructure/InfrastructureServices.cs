@@ -18,17 +18,16 @@ internal static class InfrastructureServices
             .ValidateDataAnnotations()
             .Validate(options => CanBuildDataSource(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
             .Validate(
+                options => !CanBuildDataSource(options.Main) || KeepsSessionState(options.Main),
+                "ConnectionStrings:Main doit être une connexion directe (ni multiplexage ni pooler « -pooler ») : l'isolation RLS repose sur une variable de session.")
+            .Validate(
                 options => string.IsNullOrEmpty(options.Migrations) || CanBuildDataSource(options.Migrations),
                 "ConnectionStrings:Migrations n'est pas une chaîne de connexion PostgreSQL valide.")
             .ValidateOnStart();
         services.AddSingleton(provider => BuildDataSource(provider, provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main));
+        // Résolue seulement par DatabaseMigrations, après son contrôle de présence de la chaîne.
         services.AddKeyedSingleton(DatabaseConnections.Migrations, (provider, _) =>
-        {
-            var migrations = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Migrations;
-            return string.IsNullOrEmpty(migrations)
-                ? throw new InvalidOperationException("ConnectionStrings:Migrations (rôle propriétaire du schéma) est requis pour migrer.")
-                : BuildDataSource(provider, migrations);
-        });
+            BuildDataSource(provider, provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Migrations!));
         services.AddScoped<OrganisationCourante>();
 
         services.AddOptions<ObjectStorageOptions>()
@@ -71,6 +70,15 @@ internal static class InfrastructureServices
         {
             return false;
         }
+    }
+
+    // Pooler en mode transaction (Neon « -pooler », PgBouncer) ou multiplexage : la variable de session
+    // posée à l'ouverture pourrait viser une autre session serveur que la requête.
+    private static bool KeepsSessionState(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        return !builder.Multiplexing
+            && !(builder.Host ?? string.Empty).Contains("-pooler", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHttpUrl(string value) =>

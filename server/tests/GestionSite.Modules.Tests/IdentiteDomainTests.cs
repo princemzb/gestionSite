@@ -97,4 +97,27 @@ public sealed class IdentiteDomainTests
         Assert.Throws<InvalidOperationException>(() => courante.Definir(Guid.NewGuid()));
         Assert.Throws<ArgumentException>(() => new OrganisationCourante().Definir(Guid.Empty));
     }
+
+    [Fact]
+    public void CurrentOrganisationCannotAppearAfterTheDatabaseWasReached()
+    {
+        var courante = new OrganisationCourante();
+        courante.MarquerTransmise();
+
+        Assert.Throws<InvalidOperationException>(() => courante.Definir(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void EveryChangeOfAMemberIncreasesItsVersion()
+    {
+        var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);
+        var site = new Site(Guid.NewGuid(), Organisation, "Nord", Instant);
+
+        membre.Accorder(Role.Technicien, site);
+        membre.Accorder(Role.Technicien, site); // sans effet
+        membre.Revoquer(Instant);
+        membre.Revoquer(Instant); // sans effet
+
+        Assert.Equal(2, membre.Version);
+    }
 }

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Identite.Persistence.Migrations
 {
     [DbContext(typeof(IdentiteDbContext))]
-    [Migration("20261028051037_SitesMembresRoles")]
+    [Migration("20261028065111_SitesMembresRoles")]
     partial class SitesMembresRoles
     {
         /// <inheritdoc />
@@ -48,11 +48,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoque_le");
 
-                    b.Property<uint>("Version")
+                    b.Property<int>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
 
                     b.HasKey("Id")
                         .HasName("pk_membres");
@@ -116,17 +115,14 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_roles_attribues");
 
-                    b.HasIndex("MembreId", "OrganisationId")
-                        .HasDatabaseName("ix_roles_attribues_membre_id_organisation_id");
-
                     b.HasIndex("SiteId", "OrganisationId")
                         .HasDatabaseName("ix_roles_attribues_site_id_organisation_id");
 
-                    b.HasIndex("MembreId", "Role", "SiteId")
+                    b.HasIndex("MembreId", "OrganisationId", "Role", "SiteId")
                         .IsUnique()
-                        .HasDatabaseName("ix_roles_attribues_membre_id_role_site_id");
+                        .HasDatabaseName("ix_roles_attribues_membre_id_organisation_id_role_site_id");
 
-                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("MembreId", "Role", "SiteId"), false);
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("MembreId", "OrganisationId", "Role", "SiteId"), false);
 
                     b.ToTable("roles_attribues", "identite", t =>
                         {

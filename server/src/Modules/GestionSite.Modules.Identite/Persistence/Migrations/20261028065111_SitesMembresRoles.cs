@@ -21,7 +21,7 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     compte_id = table.Column<Guid>(type: "uuid", nullable: false),
                     cree_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     revoque_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    version = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -98,16 +98,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "ix_roles_attribues_membre_id_organisation_id",
+                name: "ix_roles_attribues_membre_id_organisation_id_role_site_id",
                 schema: "identite",
                 table: "roles_attribues",
-                columns: new[] { "membre_id", "organisation_id" });
-
-            migrationBuilder.CreateIndex(
-                name: "ix_roles_attribues_membre_id_role_site_id",
-                schema: "identite",
-                table: "roles_attribues",
-                columns: new[] { "membre_id", "role", "site_id" },
+                columns: new[] { "membre_id", "organisation_id", "role", "site_id" },
                 unique: true)
                 .Annotation("Npgsql:NullsDistinct", false);
 
@@ -130,6 +124,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Retour à l'état d'avant : plus aucun droit du rôle applicatif (sinon accès sans RLS).
+            migrationBuilder.Sql("REVOKE ALL ON identite.organisations FROM gestionsite_app;");
+            migrationBuilder.Sql("REVOKE SELECT ON identite.__ef_migrations FROM gestionsite_app;");
+            migrationBuilder.Sql("REVOKE USAGE ON SCHEMA identite FROM gestionsite_app;");
             // Politiques des tables supprimées ci-dessous : supprimées avec elles.
             migrationBuilder.Sql("DROP POLICY isolation_organisation ON identite.organisations;");
             migrationBuilder.Sql("ALTER TABLE identite.organisations NO FORCE ROW LEVEL SECURITY;");

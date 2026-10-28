@@ -35,7 +35,7 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     internal string ConnectionString => _postgres.GetConnectionString();
 
     /// <summary>Base partagée des tests qui ne vérifient pas eux-mêmes le contenu de la base.</summary>
-    internal TestDatabase Default { get; private set; } = null!;
+    internal TestDatabase Default { get; private set; } = null!; // définie par InitializeAsync
 
     internal string StorageUrl => $"http://{_storage.Hostname}:{_storage.GetMappedPublicPort(S3Port)}";
 
@@ -72,8 +72,17 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await Default.DisposeAsync().ConfigureAwait(false);
-        await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _storage.DisposeAsync().AsTask()).ConfigureAwait(false);
+        try
+        {
+            if (Default is not null) // absente si l'initialisation a échoué
+            {
+                await Default.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _storage.DisposeAsync().AsTask()).ConfigureAwait(false);
+        }
     }
 
     private async Task CreateBucketAsync()

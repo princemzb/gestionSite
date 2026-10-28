@@ -18,6 +18,19 @@ public sealed class IdentitePersistenceTests
     }
 
     [Fact]
+    public void EveryOrganisationDataIsFilteredByOrganisation()
+    {
+        using var module = new RuntimeContext();
+        var marquees = module.Context.Model.GetEntityTypes()
+            .Where(t => typeof(GestionSite.Modules.Identite.Domain.IAppartientAOrganisation).IsAssignableFrom(t.ClrType)
+                || t.ClrType == typeof(Organisation))
+            .ToList();
+
+        Assert.Equal(4, marquees.Count);
+        Assert.All(marquees, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
+    }
+
+    [Fact]
     public void ModelUsesTheIdentiteSchemaAndSnakeCaseColumns()
     {
         using var module = new RuntimeContext();

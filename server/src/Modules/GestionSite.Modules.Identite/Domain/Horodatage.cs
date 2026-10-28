@@ -18,7 +18,4 @@ internal static class Horodatage
 
         return utc;
     }
-
-    internal static DateTimeOffset? ValiderOptionnel(DateTimeOffset? instant, string paramName) =>
-        instant is { } valeur ? Valider(valeur, paramName) : null;
 }

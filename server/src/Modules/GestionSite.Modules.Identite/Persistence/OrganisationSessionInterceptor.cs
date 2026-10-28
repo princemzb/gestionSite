@@ -8,6 +8,8 @@ namespace GestionSite.Modules.Identite.Persistence;
 /// Seconde barrière (RLS) : à chaque ouverture de connexion, la variable de session lue par les
 /// politiques reçoit l'organisation courante, ou une valeur vide (aucune ligne visible). Écrite à
 /// chaque ouverture : une connexion réutilisée du pool ne garde jamais l'organisation précédente.
+/// Variable de session : exige une connexion directe (pas de pooler en mode transaction, pas de
+/// multiplexage), imposé par la validation de ConnectionStrings:Main.
 /// </summary>
 internal sealed class OrganisationSessionInterceptor(OrganisationCourante organisationCourante) : DbConnectionInterceptor
 {
@@ -32,6 +34,7 @@ internal sealed class OrganisationSessionInterceptor(OrganisationCourante organi
         var parametre = command.CreateParameter();
         parametre.ParameterName = "organisation";
         parametre.Value = organisationCourante.Id?.ToString() ?? string.Empty;
+        organisationCourante.MarquerTransmise();
         command.Parameters.Add(parametre);
         return command;
     }

@@ -34,12 +34,18 @@ internal sealed class Membre : IAppartientAOrganisation
 
     public DateTimeOffset? RevoqueLe { get; private set; }
 
-    /// <summary>Jeton de concurrence PostgreSQL (xmin), changé à chaque écriture de la ligne.</summary>
-    public uint Version { get; private set; }
+    /// <summary>
+    /// Version de l'adhésion et de ses rôles, augmentée par chaque modification (rôle accordé,
+    /// révocation) : jeton de concurrence, une révision partie d'une version dépassée échoue (409).
+    /// </summary>
+    public int Version { get; private set; }
 
     public IReadOnlyCollection<RoleAttribue> Roles => _roles;
 
-    /// <summary>Accorde un rôle ; sans effet s'il est déjà accordé sur ce site.</summary>
+    /// <summary>
+    /// Accorde un rôle ; sans effet s'il est déjà accordé sur ce site. Le membre doit être chargé
+    /// avec ses rôles (Include) : sinon le doublon est refusé par l'index unique de la base.
+    /// </summary>
     internal void Accorder(Role role, Site? site)
     {
         if (site is not null && site.OrganisationId != OrganisationId)
@@ -53,10 +59,17 @@ internal sealed class Membre : IAppartientAOrganisation
         }
 
         _roles.Add(new RoleAttribue(Guid.NewGuid(), OrganisationId, Id, role, site?.Id));
+        Version++;
     }
 
     internal void Revoquer(DateTimeOffset le)
     {
-        RevoqueLe ??= Horodatage.Valider(le, nameof(le));
+        if (RevoqueLe is not null)
+        {
+            return;
+        }
+
+        RevoqueLe = Horodatage.Valider(le, nameof(le));
+        Version++;
     }
 }

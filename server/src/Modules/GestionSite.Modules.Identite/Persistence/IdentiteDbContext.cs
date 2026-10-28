@@ -59,14 +59,13 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             // Clé (id, organisation) : les rôles ne peuvent viser qu'un site de leur propre organisation.
             site.HasAlternateKey(s => new { s.Id, s.OrganisationId });
             site.HasOne<Organisation>().WithMany().HasForeignKey(s => s.OrganisationId).OnDelete(DeleteBehavior.Restrict);
-            site.HasQueryFilter(s => s.OrganisationId == OrganisationId);
         });
 
         modelBuilder.Entity<Membre>(membre =>
         {
             membre.HasKey(m => m.Id);
             membre.Property(m => m.Id).ValueGeneratedNever();
-            membre.Property(m => m.Version).IsRowVersion();
+            membre.Property(m => m.Version).IsConcurrencyToken();
             membre.HasAlternateKey(m => new { m.Id, m.OrganisationId });
             membre.HasIndex(m => new { m.OrganisationId, m.CompteId }).IsUnique();
             membre.HasOne<Organisation>().WithMany().HasForeignKey(m => m.OrganisationId).OnDelete(DeleteBehavior.Restrict);
@@ -75,7 +74,6 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
                 .HasPrincipalKey(m => new { m.Id, m.OrganisationId })
                 .OnDelete(DeleteBehavior.Cascade);
             membre.Navigation(m => m.Roles).HasField("_roles").UsePropertyAccessMode(PropertyAccessMode.Field);
-            membre.HasQueryFilter(m => m.OrganisationId == OrganisationId);
         });
 
         modelBuilder.Entity<RoleAttribue>(role =>
@@ -86,14 +84,26 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             role.HasKey(r => r.Id);
             role.Property(r => r.Id).ValueGeneratedNever();
             role.Property(r => r.Role).HasConversion<string>().HasMaxLength(32);
-            role.HasIndex(r => new { r.MembreId, r.Role, r.SiteId }).IsUnique().AreNullsDistinct(false);
+            // Préfixe (membre, organisation) : sert aussi la clé étrangère composite, sans index en double.
+            role.HasIndex(r => new { r.MembreId, r.OrganisationId, r.Role, r.SiteId }).IsUnique().AreNullsDistinct(false);
             role.HasOne<Site>().WithMany()
                 .HasForeignKey(r => new { r.SiteId, r.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
-            role.HasQueryFilter(r => r.OrganisationId == OrganisationId);
         });
+
+        var filtrer = typeof(IdentiteDbContext).GetMethod(nameof(FiltrerParOrganisation), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        foreach (var type in modelBuilder.Model.GetEntityTypes().Select(t => t.ClrType).Where(t => typeof(IAppartientAOrganisation).IsAssignableFrom(t)).ToList())
+        {
+            filtrer.MakeGenericMethod(type).Invoke(this, [modelBuilder]);
+        }
     }
+
+    // Filtre posé sur chaque entité marquée IAppartientAOrganisation : une nouvelle entité marquée
+    // est filtrée sans y penser ; une entité non marquée est refusée à l'écriture (ExigerOrganisationCourante).
+    private void FiltrerParOrganisation<TEntite>(ModelBuilder modelBuilder)
+        where TEntite : class, IAppartientAOrganisation =>
+        modelBuilder.Entity<TEntite>().HasQueryFilter(e => e.OrganisationId == OrganisationId);
 
     // Double barrière : la RLS refuserait aussi ces écritures, mais l'erreur applicative est plus claire.
     private void ExigerOrganisationCourante()
@@ -109,9 +119,10 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             {
                 Organisation o => o.Id,
                 IAppartientAOrganisation donnee => donnee.OrganisationId,
-                _ => (Guid?)null,
+                _ => throw new InvalidOperationException(
+                    $"{entree.Metadata.ClrType.Name} n'est rattachée à aucune organisation : marquer IAppartientAOrganisation."),
             };
-            if (organisation is { } id && id != OrganisationId)
+            if (organisation != OrganisationId)
             {
                 throw new InvalidOperationException("Écriture refusée : la donnée appartient à une autre organisation que celle de la requête.");
             }

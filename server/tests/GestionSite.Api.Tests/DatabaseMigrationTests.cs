@@ -66,6 +66,29 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     }
 
     [Fact]
+    public async Task StartupMigrationRequiresTheOwnerConnection()
+    {
+        await using var factory = infrastructure.CreateApi(migrationsConnectionString: string.Empty, migrateOnStartup: "true");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("ConnectionStrings:Migrations", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Migrations", "pas une chaîne de connexion")]
+    [InlineData("Main", "Host=localhost;Database=gestionsite;Multiplexing=true")]
+    [InlineData("Main", "Host=ep-exemple-pooler.eu-central-1.aws.neon.tech;Database=gestionsite")]
+    public async Task UnsuitableConnectionStringsStopStartup(string cle, string valeur)
+    {
+        await using var factory = cle == "Main"
+            ? infrastructure.CreateApi(connectionString: valeur, migrateOnStartup: "false")
+            : infrastructure.CreateApi(migrationsConnectionString: valeur, migrateOnStartup: "false");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains($"ConnectionStrings:{cle}", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidConfigurationStopsStartupBeforeAnyMigration()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);

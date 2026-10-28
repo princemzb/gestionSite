@@ -3,6 +3,7 @@ using GestionSite.Modules.Identite.Persistence;
 using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -53,6 +54,40 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     }
 
     [Fact]
+    public async Task ApplicationFilterIsolatesEvenWithoutRowLevelSecurity()
+    {
+        // Connexion superutilisateur (ignore la RLS) : seul le filtre EF peut encore isoler.
+        await using var dataSource = NpgsqlDataSource.Create(_database.ConnectionString);
+        var courante = new OrganisationCourante();
+        courante.Definir(_organisationA);
+        var options = new DbContextOptionsBuilder<IdentiteDbContext>();
+        IdentitePersistence.Configure(options, dataSource, courante);
+        await using var context = new IdentiteDbContext(options.Options, courante);
+
+        Assert.Equal(2, await context.Sites.IgnoreQueryFilters().CountAsync()); // la RLS n'agit pas ici
+        Assert.Equal([_organisationA], await context.Organisations.Select(o => o.Id).ToListAsync());
+        Assert.Equal([_siteA], await context.Sites.Select(s => s.Id).ToListAsync());
+        Assert.Equal([_membreA], await context.Membres.Select(m => m.Id).ToListAsync());
+        var roles = await context.RolesAttribues.ToListAsync();
+        Assert.Equal(2, roles.Count);
+        Assert.All(roles, r => Assert.Equal(_organisationA, r.OrganisationId));
+    }
+
+    [Fact]
+    public async Task EveryTableOfTheSchemaHasForcedRowLevelSecurity()
+    {
+        var sansIsolation = await _database.CountAsync(
+            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace " +
+            "WHERE n.nspname = 'identite' AND c.relkind = 'r' AND c.relname <> '__ef_migrations' " +
+            "AND NOT (c.relrowsecurity AND c.relforcerowsecurity " +
+            "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))");
+
+        Assert.Equal(0L, sansIsolation);
+        Assert.Equal(4L, await _database.CountAsync(
+            "SELECT count(*) FROM pg_tables WHERE schemaname = 'identite' AND tablename <> '__ef_migrations'"));
+    }
+
+    [Fact]
     public async Task DatabaseStillIsolatesWhenTheApplicationFilterIsForgotten()
     {
         await using var scope = Scope(_organisationA);
@@ -77,20 +112,61 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     [Fact]
     public async Task PooledConnectionsNeverKeepThePreviousOrganisation()
     {
-        await using (var scope = Scope(_organisationA))
+        // Une seule connexion, jamais réinitialisée par Npgsql : seul l'intercepteur efface l'organisation.
+        var reutilisee = new NpgsqlConnectionStringBuilder(_database.ApplicationConnectionString)
+        {
+            NoResetOnClose = true,
+            MaxPoolSize = 1,
+        }.ConnectionString;
+        await using var api = infrastructure.CreateApi(_database, connectionString: reutilisee, migrateOnStartup: "false");
+
+        await using (var scope = Scope(api, _organisationA))
         {
             Assert.Equal(1, await Context(scope).Sites.IgnoreQueryFilters().CountAsync());
         }
 
-        await using (var scope = Scope(_organisationB))
+        await using (var scope = Scope(api, _organisationB))
         {
             Assert.Equal([_siteB], await Context(scope).Sites.IgnoreQueryFilters().Select(s => s.Id).ToListAsync());
         }
 
-        await using (var scope = Scope(organisation: null))
+        await using (var scope = Scope(api, organisation: null))
         {
             Assert.Equal(0, await Context(scope).Sites.IgnoreQueryFilters().CountAsync());
         }
+    }
+
+    [Fact]
+    public async Task ConcurrentRoleGrantsOnAMemberAreDetected()
+    {
+        await using var premier = Scope(_organisationA);
+        await using var second = Scope(_organisationA);
+        var membrePremier = await Context(premier).Membres.Include(m => m.Roles).SingleAsync(m => m.Id == _membreA);
+        var membreSecond = await Context(second).Membres.Include(m => m.Roles).SingleAsync(m => m.Id == _membreA);
+        var site = await Context(premier).Sites.SingleAsync(s => s.Id == _siteA);
+
+        membrePremier.Accorder(Role.Responsable, site);
+        await Context(premier).SaveChangesAsync();
+        membreSecond.Accorder(Role.Pasteur, site);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => Context(second).SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task RollingBackTheMigrationRemovesTheApplicationRoleAccess()
+    {
+        await using (var proprietaire = NpgsqlDataSource.Create(_database.MigrationsConnectionString))
+        {
+            var options = new DbContextOptionsBuilder<IdentiteDbContext>();
+            IdentitePersistence.Configure(options, proprietaire, new OrganisationCourante());
+            await using var context = new IdentiteDbContext(options.Options, new OrganisationCourante());
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261027201201_InitialeOrganisations");
+        }
+
+        await using var connection = new NpgsqlConnection(_database.ApplicationConnectionString);
+        await connection.OpenAsync();
+        var refus = await Assert.ThrowsAsync<PostgresException>(() => ScalarAsync(connection, "SELECT count(*) FROM identite.organisations"));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, refus.SqlState);
     }
 
     [Theory]
@@ -208,9 +284,11 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         await context.SaveChangesAsync();
     }
 
-    private AsyncServiceScope Scope(Guid? organisation)
+    private AsyncServiceScope Scope(Guid? organisation) => Scope(_api, organisation);
+
+    private static AsyncServiceScope Scope(WebApplicationFactory<Program> api, Guid? organisation)
     {
-        var scope = _api.Services.CreateAsyncScope();
+        var scope = api.Services.CreateAsyncScope();
         if (organisation is { } id)
         {
             scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(id);
