@@ -48,7 +48,11 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - Comptes ASP.NET Core Identity (tables `identite.comptes*`, hors organisation, sans RLS) : mot de passe ≥ 12 caractères sans règle de composition, verrouillage 15 min après 5 échecs.
 - `/me` lit les adhésions du compte dans toutes ses organisations grâce aux politiques RLS `lecture_par_compte` (lecture seule, variable `app.compte_id`).
 
-### Configuration et secrets
+### Membres et ouverture d'organisation (S06-04)
+- Ouvrir une organisation (exploitation, base déjà migrée) : `dotnet run --project server/src/GestionSite.Api -- ouvrir-organisation --nom "<organisation>" --admin-email <e-mail> --admin-nom "<nom>"`. Affiche l'identifiant et le jeton d'activation (72 h, usage unique) à transmettre à l'administrateur, qui l'utilise avec `POST /auth/activate`.
+- L'administrateur gère sites et membres : `GET/POST /organizations/{orgId}/sites`, `POST /organizations/{orgId}/members` (jeton d'activation montré une seule fois, absent si le compte a déjà un mot de passe), `PUT …/members/{id}` avec la version attendue (409 si dépassée), `DELETE …/members/{id}` (adhésion révoquée, sessions du compte invalidées). L'organisation garde toujours un administrateur (409).
+- Erreurs : ProblemDetails avec `code` stable (`introuvable` 404, `droit_insuffisant` 403, `version_depassee` / `dernier_administrateur` / `deja_membre` 409, `lien_invalide` 410, `role_inconnu` / `site_inconnu` / `site_selon_role` / `mot_de_passe_invalide` 422).
+
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/docker/postgres/roles-local.sql`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` et `TestDatabase.cs`.
 - Ailleurs, `ConnectionStrings:Main`, `ConnectionStrings:Migrations` (étape de migration seulement) et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
 - Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main`, `ConnectionStrings__Migrations` et `ObjectStorage__ServiceUrl` avec les nouveaux ports (même base pour les deux chaînes).
