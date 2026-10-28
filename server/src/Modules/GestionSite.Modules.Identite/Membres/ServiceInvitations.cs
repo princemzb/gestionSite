@@ -25,8 +25,17 @@ internal sealed class ServiceInvitations(
 
         // Écriture sous l'organisation de l'invitation (isolation par organisation, RLS comprise).
         organisation.Definir(invitation.OrganisationId);
-        var membre = await context.Membres.SingleAsync(m => m.Id == membreId, cancellationToken).ConfigureAwait(false);
+        var membre = await context.Membres
+            .SingleOrDefaultAsync(m => m.Id == membreId && m.RevoqueLe == null && m.AccepteLe == null, cancellationToken)
+            .ConfigureAwait(false) ?? throw RefusException.Introuvable(); // traitée entre-temps
         action(membre, horloge.GetUtcNow());
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw RefusException.Conflit("invitation_modifiee", "L'invitation a été modifiée entre-temps. Recharger.");
+        }
     }
 }

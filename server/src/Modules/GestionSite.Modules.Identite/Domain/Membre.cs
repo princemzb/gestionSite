@@ -98,7 +98,8 @@ internal sealed class Membre : IAppartientAOrganisation
         Version = avant + (retires > 0 || Version != avant ? 1 : 0);
     }
 
-    internal bool EstAdministrateur => RevoqueLe is null && _roles.Exists(r => r.Role == Role.Administrateur);
+    /// <summary>Administrateur effectif : une invitation d'administrateur pas encore acceptée ne compte pas.</summary>
+    internal bool EstAdministrateur => EstActif && _roles.Exists(r => r.Role == Role.Administrateur);
 
     internal void Accepter(DateTimeOffset le)
     {
@@ -107,11 +108,8 @@ internal sealed class Membre : IAppartientAOrganisation
             throw new InvalidOperationException("Invitation révoquée ou refusée.");
         }
 
-        if (AccepteLe is null)
-        {
-            AccepteLe = Horodatage.Valider(le, nameof(le));
-            Version++;
-        }
+        // Sans changer la version : l'acceptation ne touche pas aux habilitations révisées par l'administrateur.
+        AccepteLe ??= Horodatage.Valider(le, nameof(le));
     }
 
     internal void Revoquer(DateTimeOffset le)

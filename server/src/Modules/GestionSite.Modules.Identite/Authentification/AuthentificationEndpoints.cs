@@ -70,6 +70,7 @@ internal static class AuthentificationEndpoints
         var invitations = membres
             .Where(m => m.AccepteLe is null && organisations.ContainsKey(m.OrganisationId))
             .Select(m => new InvitationEnAttente(m.Id, m.OrganisationId, organisations[m.OrganisationId].Nom))
+            .OrderBy(i => i.Organisation)
             .ToList();
         var autorisees = membres
             .Where(m => m.EstActif && organisations.ContainsKey(m.OrganisationId))

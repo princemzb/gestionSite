@@ -50,7 +50,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Écritures : BEGIN + SET LOCAL + DML + COMMIT (3 allers-retours) ; regrouper SET LOCAL avec la première instruction si la latence Neon le justifie.
 - `AutoTransactionBehavior.Always` posé dans SaveChanges ; Organisation traitée à part (filtre et contrôle) : à unifier si une 2e entité racine apparaît.
 - Authentification (S06-03) : pas de fenêtre de grâce sur un jeton de renouvellement déjà remplacé (une réponse perdue puis rejouée révoque la session de l'appareil) — à arbitrer avec le hors connexion (US-09) ; pas de durée absolue de session (renouvellement glissant) ; jeton d'accès valable jusqu'à 15 min après déconnexion (ADR-10) ; 423 « verrouillé » révèle l'existence d'un compte après 5 échecs (accepté par CONTRATS) ; limitation de débit sur /auth à ajouter avant exposition publique.
-- Révision des habilitations non encore tracée dans un journal (RG-31) : S06-06.
+- Révision des habilitations non encore tracée dans un journal (RG-31) : S06-06. Le refus d'une invitation est aujourd'hui enregistré comme une révocation (même colonne) : à distinguer dans ce journal ; une organisation dont l'unique administrateur invité refuse doit être rouverte par la plateforme.
 - Décision du porteur (28/10) : adhésion par invitation à accepter (ADR-10 complété, CONTRATS, RISQUES : préemption d'adresse jusqu'à US-18). PR « invitations » en revue.
 - Révocation d'une adhésion : accès à l'organisation coupé à la requête suivante, sessions du compte conservées (autres organisations invisibles par la RLS) ; à confirmer par le porteur (CONTRATS dit « jetons invalidés »).
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.

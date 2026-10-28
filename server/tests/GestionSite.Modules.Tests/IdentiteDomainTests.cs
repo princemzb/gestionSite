@@ -149,6 +149,7 @@ public sealed class IdentiteDomainTests
         membre.Revoquer(Instant); // sans effet
 
         Assert.Equal(2, membre.Version);
+        Assert.Throws<InvalidOperationException>(() => membre.Accepter(Instant)); // révoqué
     }
 }
 

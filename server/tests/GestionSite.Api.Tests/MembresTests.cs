@@ -191,6 +191,20 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
     }
 
     [Fact]
+    public async Task APendingAdministratorInvitationDoesNotCountAsAnAdministrator()
+    {
+        await OuvrirAsync("Autre organisation", "admin@autre.test"); // compte existant, donc simple invitation
+        using var invitation = await Post($"/organizations/{_organisation}/members", _admin, NouveauMembre("admin@autre.test", new { role = "Administrateur" }));
+        var moi = await MembreDuCompteAsync(AdminEmail);
+
+        using var depart = await Delete($"/organizations/{_organisation}/members/{moi}", _admin);
+
+        Assert.Equal(HttpStatusCode.Conflict, depart.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, invitation.StatusCode);
+        Assert.Equal("dernier_administrateur", (await Json(depart)).GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task AnInvitationCanBeDeclinedAndOnlyByItsHolder()
     {
         var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
@@ -246,10 +260,13 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
         var nord = await CreerSiteAsync("Nord");
         using var ajout = await Post($"/organizations/{_organisation}/members", _admin, NouveauMembre("admin@autre.test", new { role = "Technicien", siteId = nord }));
+        var membre = (await Json(ajout)).GetProperty("membreId").GetGuid();
+        using var acceptation = await Post($"/me/invitations/{membre}/accept", adminAutre, new { });
+        Assert.Equal(HttpStatusCode.NoContent, acceptation.StatusCode); // adhésion effective avant sa révocation
         using var connexion = await Post("/auth/login", null, new { email = "admin@autre.test", motDePasse = MotDePasse });
         var renouvellement = (await Json(connexion)).GetProperty("jetonRenouvellement").GetString();
 
-        using var revocation = await Delete($"/organizations/{_organisation}/members/{(await Json(ajout)).GetProperty("membreId").GetGuid()}", _admin);
+        using var revocation = await Delete($"/organizations/{_organisation}/members/{membre}", _admin);
         using var apres = await Post("/auth/refresh", null, new { jetonRenouvellement = renouvellement });
         using var sitesAutre = await Get($"/organizations/{autre}/sites", adminAutre);
 
