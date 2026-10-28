@@ -24,6 +24,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | Maquettes du 1er écran testable (carte UX-02) | **Validées le 28/10** : connexion B (bandeau) + membres C (par site), Jour et Nuit | Maquette « Activer mon compte » à faire valider ; puis application web Blazor et première mise en préproduction. |
+| WEB-01 Application web (1er écran testable) | Fusionnée (PR #38, fba5e90) : connexion, activation, membres par site, invitation ; 12 tests de bout en bout ; en Prêt à livrer | **Mise en préproduction** (ADR-08 : Neon + Cloudflare Containers + R2) : comptes et autorisations du porteur nécessaires, guidage pas à pas. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
