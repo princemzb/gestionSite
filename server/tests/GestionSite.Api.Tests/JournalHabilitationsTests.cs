@@ -178,7 +178,7 @@ public sealed class JournalHabilitationsTests(InfrastructureFixture infrastructu
     private async Task ActiverAsync(string jeton)
     {
         using var reponse = await Envoyer(HttpMethod.Post, "/auth/activate", null, new { jeton, motDePasse = MotDePasse });
-        Assert.Equal(HttpStatusCode.NoContent, reponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
     }
 
     private async Task<string> ConnecterAsync(string email)

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Application web d'administration (ADR-08) : Blazor en rendu serveur statique, cliente de l'API. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="GestionSite.Api.Tests" />
+  </ItemGroup>
+</Project>

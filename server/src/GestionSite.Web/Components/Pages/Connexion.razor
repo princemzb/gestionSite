@@ -1,0 +1,62 @@
+@page "/connexion"
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<PageTitle>Connexion · gestionSite</PageTitle>
+
+<h2>Connexion</h2>
+<EditForm Model="Saisie" FormName="connexion" OnValidSubmit="ConnecterAsync" class="formulaire" style="max-width: none; margin: 0">
+    <label class="champ">Adresse e-mail
+        <InputText type="email" @bind-Value="Saisie.Email" autocomplete="username" required />
+    </label>
+    <label class="champ">Mot de passe
+        <InputText type="password" @bind-Value="Saisie.MotDePasse" autocomplete="current-password" required />
+    </label>
+    @if (Issue is null && Active is 1)
+    {
+        <p role="status" class="alerte succes">Votre compte est activé. Connectez-vous avec votre adresse e-mail et votre mot de passe.</p>
+    }
+    @if (Issue is IssueConnexion.CompteVerrouille)
+    {
+        <p role="alert" class="alerte avertissement"><strong>Compte temporairement verrouillé.</strong> Trop d'essais incorrects : réessayez dans 15 minutes.</p>
+    }
+    else if (Issue is IssueConnexion.IdentifiantsInvalides)
+    {
+        <p role="alert" class="alerte danger">E-mail ou mot de passe incorrect.</p>
+    }
+    else if (Issue is IssueConnexion.Indisponible)
+    {
+        <p role="alert" class="alerte danger">Service momentanément indisponible. Réessayez dans un instant.</p>
+    }
+    <button type="submit" class="bouton-principal">Se connecter</button>
+    <p class="note">Vous avez reçu un lien d'activation ? Ouvrez-le pour choisir votre mot de passe.</p>
+</EditForm>
+
+@code {
+    // Le formulaire posté remplit Formulaire (préfixe « Saisie ») ; sans envoi, une saisie vide.
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "connexion")]
+    private SaisieConnexion? Formulaire { get; set; }
+
+    private SaisieConnexion Saisie => Formulaire ??= new();
+
+    private IssueConnexion? Issue { get; set; }
+
+    [SupplyParameterFromQuery(Name = "active")]
+    private int? Active { get; set; }
+
+    private async Task ConnecterAsync()
+    {
+        Issue = await Session.ConnecterAsync(Saisie.Email ?? string.Empty, Saisie.MotDePasse ?? string.Empty, CancellationToken.None);
+        if (Issue is IssueConnexion.Reussie)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private sealed class SaisieConnexion
+    {
+        public string? Email { get; set; }
+
+        public string? MotDePasse { get; set; }
+    }
+}

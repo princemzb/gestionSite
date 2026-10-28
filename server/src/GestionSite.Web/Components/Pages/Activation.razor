@@ -1,0 +1,83 @@
+@page "/activation"
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<PageTitle>Activer mon compte · gestionSite</PageTitle>
+
+<h2>Activer mon compte</h2>
+<EditForm Model="Saisie" FormName="activation" OnSubmit="ActiverAsync" class="formulaire" style="max-width: none; margin: 0">
+    <input type="hidden" name="Saisie.Jeton" value="@(Saisie.Jeton ?? Jeton)" />
+    <label class="champ">Nouveau mot de passe
+        <InputText type="password" @bind-Value="Saisie.MotDePasse" autocomplete="new-password" aria-describedby="regle" required />
+        <span id="regle" class="aide">Au moins 12 caractères. Une phrase facile à retenir convient.</span>
+    </label>
+    <label class="champ">Confirmer le mot de passe
+        <InputText type="password" @bind-Value="Saisie.Confirmation" autocomplete="new-password" required />
+    </label>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte @(LienInvalide ? "avertissement" : "danger")">@((MarkupString)Message)</p>
+    }
+    <button type="submit" class="bouton-principal">Activer et me connecter</button>
+</EditForm>
+
+@code {
+    [SupplyParameterFromQuery(Name = "jeton")]
+    private string? Jeton { get; set; }
+
+    // Le formulaire posté remplit Formulaire (préfixe « Saisie ») ; sans envoi, une saisie vide.
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "activation")]
+    private SaisieActivation? Formulaire { get; set; }
+
+    private SaisieActivation Saisie => Formulaire ??= new();
+
+    private string? Message { get; set; }
+
+    private bool LienInvalide { get; set; }
+
+    private async Task ActiverAsync()
+    {
+        var motDePasse = Saisie.MotDePasse ?? string.Empty;
+        if (motDePasse.Length < 12)
+        {
+            Message = "Le mot de passe doit contenir au moins 12 caractères.";
+            return;
+        }
+
+        if (motDePasse != Saisie.Confirmation)
+        {
+            Message = "Les deux mots de passe ne sont pas identiques.";
+            return;
+        }
+
+        var issue = await Session.ActiverAsync(Saisie.Jeton ?? string.Empty, motDePasse, CancellationToken.None);
+        switch (issue)
+        {
+            case IssueConnexion.Reussie:
+                Navigation.NavigateTo("/");
+                break;
+            case IssueConnexion.LienInvalide:
+                LienInvalide = true;
+                Message = "<strong>Lien expiré ou déjà utilisé.</strong> Demandez un nouveau lien à votre administrateur.";
+                break;
+            case IssueConnexion.ActiveSansConnexion:
+                Navigation.NavigateTo("/connexion?active=1");
+                break;
+            case IssueConnexion.MotDePasseInvalide:
+                Message = "Le mot de passe doit contenir au moins 12 caractères.";
+                break;
+            default:
+                Message = "Service momentanément indisponible. Réessayez dans un instant.";
+                break;
+        }
+    }
+
+    private sealed class SaisieActivation
+    {
+        public string? Jeton { get; set; }
+
+        public string? MotDePasse { get; set; }
+
+        public string? Confirmation { get; set; }
+    }
+}

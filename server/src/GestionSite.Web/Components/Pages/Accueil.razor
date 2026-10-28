@@ -1,0 +1,54 @@
+@page "/"
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<PageTitle>gestionSite</PageTitle>
+
+<h2>Votre compte est actif</h2>
+<p class="note">Les écrans de votre rôle arriveront dans les prochaines versions. Vous pouvez déjà vous connecter et vous déconnecter.</p>
+@if (Message is not null)
+{
+    <p role="alert" class="alerte danger">@Message</p>
+}
+@if (Invitations > 0)
+{
+    <p class="alerte avertissement">Vous avez @Invitations invitation(s) en attente.</p>
+}
+<form method="post" action="/deconnexion">
+    <AntiforgeryToken />
+    <button type="submit" class="bouton-secondaire">Se déconnecter</button>
+</form>
+
+@code {
+    private int Invitations { get; set; }
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        MoiApi moi;
+        try
+        {
+            moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Message;
+            return;
+        }
+
+        // L'administrateur arrive sur la gestion des membres de sa première organisation.
+        Invitations = moi.Invitations?.Count ?? 0;
+        var administree = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
+        if (administree is not null)
+        {
+            Navigation.NavigateTo($"/organisations/{administree.Id}/membres");
+        }
+    }
+}

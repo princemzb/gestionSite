@@ -1,0 +1,19 @@
+@* Navigation latérale de l'administration (maquette C, UX-02). *@
+<nav class="admin-nav" aria-label="Navigation principale">
+    <span class="marque">gestionSite</span>
+    @if (!string.IsNullOrEmpty(Organisation))
+    {
+        <span class="organisation">@Organisation</span>
+    }
+    <a href="@Courant" aria-current="page">Membres</a>
+    <form method="post" action="/deconnexion">
+        <AntiforgeryToken />
+        <button type="submit">Se déconnecter</button>
+    </form>
+</nav>
+
+@code {
+    [Parameter] public string? Organisation { get; set; }
+
+    [Parameter] public string Courant { get; set; } = "/";
+}

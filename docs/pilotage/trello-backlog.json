@@ -2149,6 +2149,34 @@
       ],
       "trelloId": "6ae1e0cdaa1a5065c0ad242f",
       "trelloShortLink": "7jf0uIjG"
+    },
+    {
+      "id": "WEB-01",
+      "name": "[WEB-01] Application web : connexion, activation et membres par site (1er écran testable)",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "UX-02",
+        "US-06"
+      ],
+      "acceptanceCriteria": [
+        "Écrans conformes aux maquettes validées (connexion B, activation, membres C ; Jour et Nuit) ; jetons gardés côté serveur web (cookie chiffré) ; parcours ouvrir-organisation → activation → connexion → invitation → activation du membre testé de bout en bout ; déployé en préproduction pour test du porteur."
+      ],
+      "trelloId": "6ae1ec7e19112c779e20d96f",
+      "trelloShortLink": "XUWNgdKc"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

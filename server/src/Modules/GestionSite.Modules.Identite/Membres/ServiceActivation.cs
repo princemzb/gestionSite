@@ -10,7 +10,8 @@ namespace GestionSite.Modules.Identite.Membres;
 internal sealed class ServiceActivation(
     IdentiteDbContext context, UserManager<Compte> comptes, OrganisationCourante organisation, TimeProvider horloge)
 {
-    internal async Task ActiverAsync(string jeton, string motDePasse, CancellationToken cancellationToken)
+    /// <summary>Rend l'adresse du compte activé : le porteur du lien peut ainsi être connecté aussitôt.</summary>
+    internal async Task<string> ActiverAsync(string jeton, string motDePasse, CancellationToken cancellationToken)
     {
         var empreinte = SecretsAleatoires.Empreinte(jeton);
         var maintenant = horloge.GetUtcNow();
@@ -59,6 +60,7 @@ internal sealed class ServiceActivation(
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return compte.Email!;
     }
 
     private static RefusException LienInvalide() =>

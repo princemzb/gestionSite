@@ -236,7 +236,7 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
     private async Task Activer(string jeton)
     {
         using var reponse = await Envoyer(HttpMethod.Post, "/auth/activate", null, new { jeton, motDePasse = MotDePasse });
-        Assert.Equal(HttpStatusCode.NoContent, reponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
     }
 
     private async Task<(Guid Id, string Jeton)> Connecter(string email)

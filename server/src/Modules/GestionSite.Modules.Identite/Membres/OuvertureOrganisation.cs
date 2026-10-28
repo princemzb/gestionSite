@@ -12,7 +12,8 @@ namespace GestionSite.Modules.Identite.Membres;
 internal static class OuvertureOrganisation
 {
     internal static async Task<(Guid OrganisationId, ActivationEmise? Activation)> OuvrirAsync(
-        IServiceProvider services, string nom, string emailAdministrateur, string nomAdministrateur, CancellationToken cancellationToken)
+        IServiceProvider services, string nom, string emailAdministrateur, string nomAdministrateur, string? premierSite,
+        CancellationToken cancellationToken)
     {
         await using var scope = services.CreateAsyncScope();
         var organisationId = Guid.NewGuid();
@@ -23,6 +24,11 @@ internal static class OuvertureOrganisation
 
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         context.Organisations.Add(new Organisation(organisationId, nom, maintenant));
+        if (!string.IsNullOrWhiteSpace(premierSite))
+        {
+            context.Sites.Add(new Site(Guid.NewGuid(), organisationId, premierSite, maintenant));
+        }
+
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var (compte, cree) = await membres.TrouverOuCreerCompteAsync(emailAdministrateur, nomAdministrateur).ConfigureAwait(false);
         if (!cree && compte.PasswordHash is null)
