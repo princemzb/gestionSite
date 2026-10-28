@@ -23,7 +23,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | PREP-03 / PREP-04 préparation POC-01 et POC-02 | Protocoles proposés : docs/poc/PREP-03-protocole-localisation.md, docs/poc/PREP-04-cas-ia.md ; en Recette (validation du porteur) | Porteur : site et dates d'essai, relecture des 30 cas par le terrain, fournisseur et budget IA, politique d'images. Puis PREP-07 / PREP-08. |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
-| Maquettes du 1er écran testable (carte UX-02) | Choix du porteur : connexion B (bandeau) + membres C (par site), thème Jour ; déclinaison Nuit publiée sur le canevas | **Arrêt : validation de la version Nuit.** Ensuite : application web Blazor (connexion, membres, invitations), puis première mise en préproduction. |
+| Maquettes du 1er écran testable (carte UX-02) | **Validées le 28/10** : connexion B (bandeau) + membres C (par site), Jour et Nuit | Maquette « Activer mon compte » à faire valider ; puis application web Blazor et première mise en préproduction. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
