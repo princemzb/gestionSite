@@ -15,6 +15,10 @@ internal sealed record MembreCree(Guid MembreId, Guid CompteId, int Version, Act
 
 internal sealed record MembreRevise(Guid MembreId, int Version);
 
+/// <summary>Membre vu par l'administrateur : invitation en attente tant qu'elle n'est pas acceptée.</summary>
+internal sealed record MembreListe(
+    Guid MembreId, Guid CompteId, string Nom, string? Email, bool InvitationEnAttente, int Version, IReadOnlyList<RoleDemande> Roles);
+
 /// <summary>Gestion des membres et des sites par l'administrateur d'organisation (CONTRATS, S06-04).</summary>
 internal sealed class ServiceMembres(
     IdentiteDbContext context, UserManager<Compte> comptes, AccesOrganisation acces, CompteCourant auteur, TimeProvider horloge)
@@ -119,6 +123,23 @@ internal sealed class ServiceMembres(
         var activation = await EmettreActivationAsync(compte!.Id, organisationId, cancellationToken).ConfigureAwait(false);
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return activation;
+    }
+
+    /// <summary>Membres non révoqués de l'organisation (GET /members, administrateur), triés par nom.</summary>
+    internal async Task<IReadOnlyList<MembreListe>> ListerAsync(Guid organisationId, CancellationToken cancellationToken)
+    {
+        await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var membres = await context.Membres.AsNoTracking().Include(m => m.Roles).Where(m => m.RevoqueLe == null)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var ids = membres.Select(m => m.CompteId).ToList();
+        var comptesListes = await context.Users.AsNoTracking().Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
+        return [.. membres
+            .Select(m => (Membre: m, Compte: comptesListes.GetValueOrDefault(m.CompteId)))
+            .Select(x => new MembreListe(
+                x.Membre.Id, x.Membre.CompteId, x.Compte?.NomAffiche ?? string.Empty, x.Compte?.Email, x.Membre.AccepteLe is null,
+                x.Membre.Version, [.. x.Membre.Roles.OrderBy(r => r.Role).Select(r => new RoleDemande(r.Role.ToString(), r.SiteId))]))
+            .OrderBy(m => m.Nom, StringComparer.CurrentCulture)];
     }
 
     internal async Task<IReadOnlyList<Site>> ListerSitesAsync(Guid organisationId, CancellationToken cancellationToken)

@@ -65,6 +65,12 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - La matrice `MatriceDroits` reproduit docs/metier/PERMISSIONS.md ; un test en garde une copie ligne à ligne, à modifier dans la même PR que le document (le test ne lit pas le Markdown). L'administrateur n'a que `GererComptes` et `AutoriserSupport` : sans rôle métier, aucun droit sur les opérations. Les conditions propres à un module (technicien affecté, délégation budgétaire, relance interne du pasteur) restent vérifiées par ce module.
 - Toute route `/organizations/...` exige l'authentification (test) et répond à l'identique pour une organisation étrangère et une organisation inexistante.
 
+### Application web d'administration (WEB-01)
+- `server/src/GestionSite.Web` : Blazor en rendu serveur statique (formulaires classiques, aucune connexion persistante), cliente de l'API. Écrans conformes aux maquettes validées (UX-02) : connexion, activation, membres par site avec invitation en 3 étapes ; jetons de la charte en variables CSS, thème Jour (Nuit prêt, bascule par compte à venir).
+- Lancer en local : API (`dotnet run --project server/src/GestionSite.Api`, port 5280) puis web (`dotnet run --project server/src/GestionSite.Web`, http://localhost:5290). Configuration : `Web:ApiUrl` (adresse de l'API, qui doit figurer dans `AllowedHosts` de l'API).
+- Jetons de l'API gardés côté serveur web, dans un cookie chiffré HttpOnly (SameSite=Lax) ; renouvellement automatique, une seule fois par requête. En-têtes : CSP stricte, `Referrer-Policy: no-referrer` (le jeton d'activation n'est pas transmis), `X-Content-Type-Options`.
+- Ouvrir une organisation avec son premier site : `ouvrir-organisation … --site "<nom>"`.
+
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/docker/postgres/roles-local.sql`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` et `TestDatabase.cs`.
 - Ailleurs, `ConnectionStrings:Main`, `ConnectionStrings:Migrations` (étape de migration seulement) et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).

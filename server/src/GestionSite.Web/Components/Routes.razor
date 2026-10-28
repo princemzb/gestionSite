@@ -1,0 +1,11 @@
+<Router AppAssembly="typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(BandeauLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(BandeauLayout)">
+            <h2>Page introuvable</h2>
+            <p class="note"><a href="/">Revenir à l'accueil</a></p>
+        </LayoutView>
+    </NotFound>
+</Router>

@@ -27,10 +27,11 @@ public static class IdentiteModule
     /// lien d'activation à transmettre (null si le compte avait déjà un mot de passe).
     /// </summary>
     public static async Task<OrganisationOuverte> OuvrirOrganisationAsync(
-        IServiceProvider services, string nom, string emailAdministrateur, string nomAdministrateur, CancellationToken cancellationToken)
+        IServiceProvider services, string nom, string emailAdministrateur, string nomAdministrateur, CancellationToken cancellationToken,
+        string? premierSite = null)
     {
-        var (id, activation) = await OuvertureOrganisation.OuvrirAsync(services, nom, emailAdministrateur, nomAdministrateur, cancellationToken)
-            .ConfigureAwait(false);
+        var (id, activation) = await OuvertureOrganisation.OuvrirAsync(
+            services, nom, emailAdministrateur, nomAdministrateur, premierSite, cancellationToken).ConfigureAwait(false);
         return new OrganisationOuverte(id, activation?.Jeton, activation?.ExpireLe);
     }
 }

@@ -45,7 +45,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         using var second = await Post("/auth/activate", null, new { jeton = ouverte.JetonActivation, motDePasse = MotDePasse });
         using var inconnu = await Post("/auth/activate", null, new { jeton = "AAAA", motDePasse = MotDePasse });
 
-        Assert.Equal(HttpStatusCode.NoContent, premier.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, premier.StatusCode);
         Assert.Equal(HttpStatusCode.Gone, second.StatusCode);
         Assert.Equal(HttpStatusCode.Gone, inconnu.StatusCode);
     }
@@ -287,6 +287,38 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
     }
 
     [Fact]
+    public async Task TheAdministratorListsMembersWithTheirRolesAndPendingInvitations()
+    {
+        var nord = await CreerSiteAsync("Nord");
+        var cree = await CreerMembreAsync("marc@exemple.test", new { role = "Technicien", siteId = nord });
+
+        using var liste = await Get($"/organizations/{_organisation}/members", _admin);
+        var membres = (await Json(liste)).EnumerateArray().ToDictionary(m => m.GetProperty("email").GetString()!);
+        await ActiverAsync(cree.GetProperty("activation").GetProperty("jeton").GetString()!);
+        var technicien = await ConnecterAsync("marc@exemple.test");
+        using var parTechnicien = await Get($"/organizations/{_organisation}/members", technicien);
+
+        Assert.Equal(HttpStatusCode.OK, liste.StatusCode);
+        Assert.False(membres[AdminEmail].GetProperty("invitationEnAttente").GetBoolean());
+        Assert.True(membres["marc@exemple.test"].GetProperty("invitationEnAttente").GetBoolean());
+        Assert.Equal("Marc D.", membres["marc@exemple.test"].GetProperty("nom").GetString());
+        var role = membres["marc@exemple.test"].GetProperty("roles")[0];
+        Assert.Equal(("Technicien", nord), (role.GetProperty("role").GetString(), role.GetProperty("siteId").GetGuid()));
+        Assert.Equal(HttpStatusCode.Forbidden, parTechnicien.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivationGivesBackTheAccountEmail()
+    {
+        var nord = await CreerSiteAsync("Nord");
+        var cree = await CreerMembreAsync("Marc.D@Exemple.test", new { role = "Technicien", siteId = nord });
+
+        using var reponse = await Post("/auth/activate", null, new { jeton = cree.GetProperty("activation").GetProperty("jeton").GetString(), motDePasse = MotDePasse });
+
+        Assert.Equal("Marc.D@Exemple.test", (await Json(reponse)).GetProperty("email").GetString());
+    }
+
+    [Fact]
     public async Task AMemberCannotBeAddedTwice()
     {
         var nord = await CreerSiteAsync("Nord");
@@ -307,7 +339,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
     private async Task ActiverAsync(string jeton)
     {
         using var reponse = await Post("/auth/activate", null, new { jeton, motDePasse = MotDePasse });
-        Assert.Equal(HttpStatusCode.NoContent, reponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
     }
 
     private async Task<string> ConnecterAsync(string email)

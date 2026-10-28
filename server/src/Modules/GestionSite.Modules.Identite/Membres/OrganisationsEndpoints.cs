@@ -22,6 +22,8 @@ internal sealed record EntreeJournal(
 
 internal sealed record DemandeActivation(string Jeton, string MotDePasse);
 
+internal sealed record ReponseActivation(string Email);
+
 /// <summary>Sites, membres et activation (CONTRATS, US-06 S06-04).</summary>
 internal static class OrganisationsEndpoints
 {
@@ -30,6 +32,7 @@ internal static class OrganisationsEndpoints
         var organisation = endpoints.MapGroup("/organizations/{orgId:guid}").RequireAuthorization().AddEndpointFilter(TraduireRefus);
         organisation.MapGet("/sites", ListerSitesAsync);
         organisation.MapPost("/sites", CreerSiteAsync);
+        organisation.MapGet("/members", ListerMembresAsync);
         organisation.MapPost("/members", CreerMembreAsync);
         organisation.MapPut("/members/{memberId:guid}", ReviserMembreAsync);
         organisation.MapDelete("/members/{memberId:guid}", RevoquerMembreAsync);
@@ -89,11 +92,11 @@ internal static class OrganisationsEndpoints
     private static List<RoleJournalise>? Lire(string? json) =>
         json is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<RoleJournalise>>(json);
 
-    private static async Task<IResult> ActiverAsync(DemandeActivation demande, ServiceActivation service, CancellationToken cancellationToken)
-    {
-        await service.ActiverAsync(demande.Jeton, demande.MotDePasse, cancellationToken).ConfigureAwait(false);
-        return Results.NoContent();
-    }
+    private static async Task<IResult> ActiverAsync(DemandeActivation demande, ServiceActivation service, CancellationToken cancellationToken) =>
+        Results.Ok(new ReponseActivation(await service.ActiverAsync(demande.Jeton, demande.MotDePasse, cancellationToken).ConfigureAwait(false)));
+
+    private static async Task<IResult> ListerMembresAsync(Guid orgId, ServiceMembres service, CancellationToken cancellationToken) =>
+        Results.Ok(await service.ListerAsync(orgId, cancellationToken).ConfigureAwait(false));
 
     // Refus métier et données invalides du domaine : réponse structurée, code stable (CONTRATS).
     private static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)

@@ -1,0 +1,263 @@
+@page "/organisations/{OrganisationId:guid}/membres"
+@layout AdminLayout
+
+<NavigationAdmin Organisation="@NomOrganisation" Courant="@($"/organisations/{OrganisationId}/membres")" />
+<main class="admin-contenu">
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<PageTitle>Membres · gestionSite</PageTitle>
+
+@if (Introuvable)
+{
+    <div class="entete"><div><h1>Organisation introuvable</h1><p>Elle n'existe pas ou vous n'en gérez pas les membres.</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Qui fait quoi, par site</h1>
+            <p>Les rôles sont accordés site par site ; l'administrateur couvre toute l'organisation.</p>
+        </div>
+        @if (Etape == 0)
+        {
+            <a class="bouton-principal" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres?inviter=1")">Inviter un membre</a>
+        }
+    </div>
+
+    <section aria-label="Rôles par site" class="carte tableau-conteneur">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Membre</th>
+                    @foreach (var site in Sites)
+                    {
+                        <th scope="col">@site.Nom</th>
+                    }
+                    <th scope="col">État</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var membre in Liste)
+                {
+                    <tr>
+                        <td><strong>@membre.Nom</strong><br /><span class="vide" style="font-size: 14px">@membre.Email</span></td>
+                        @if (membre.Roles.Any(r => r.Role == "Administrateur"))
+                        {
+                            <td colspan="@Math.Max(Sites.Count, 1)">Administrateur · toute l'organisation</td>
+                        }
+                        else
+                        {
+                            @foreach (var site in Sites)
+                            {
+                                var roles = membre.Roles.Where(r => r.SiteId == site.Id).Select(r => Libelle(r.Role)).ToList();
+                                <td class="@(roles.Count == 0 ? "vide" : null)">@(roles.Count == 0 ? "—" : string.Join(", ", roles))</td>
+                            }
+                        }
+                        <td class="@(membre.InvitationEnAttente ? "etat-attente" : "etat-actif")">@(membre.InvitationEnAttente ? "Invitation en attente" : "Actif")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    @if (Etape > 0)
+    {
+        <section aria-label="Inviter un membre, étape @Etape sur 3" class="carte etapes-conteneur">
+            <ol class="etapes">
+                <li class="@(Etape > 1 ? "faite" : null)" aria-current="@(Etape == 1 ? "step" : null)">1. Personne@(Etape > 1 ? $" : {Saisie.Nom}" : "")</li>
+                <li class="@(Etape > 2 ? "faite" : null)" aria-current="@(Etape == 2 ? "step" : null)">2. Rôles par site</li>
+                <li aria-current="@(Etape == 3 ? "step" : null)">3. Lien d'activation</li>
+            </ol>
+
+            @if (Message is not null)
+            {
+                <p role="alert" class="alerte danger">@Message</p>
+            }
+
+            @if (Etape == 3 && Lien is not null)
+            {
+                <h2 style="margin: 0; font-size: 20px">Invitation créée pour @Saisie.Nom</h2>
+                <p class="note">Copiez ce lien et transmettez-le vous-même. Il ne sera plus affiché et reste valable 72 heures.</p>
+                <code class="lien-activation">@Lien</code>
+                <div class="actions"><a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
+            }
+            else if (Etape == 3)
+            {
+                <p class="alerte succes">@Saisie.Nom est invité. Son compte existe déjà : l'invitation l'attend dans son espace, à accepter.</p>
+                <div class="actions"><a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
+            }
+            else
+            {
+                <EditForm Model="Saisie" FormName="invitation" OnSubmit="SuivantAsync" style="display: flex; flex-direction: column; gap: 16px">
+                    <input type="hidden" name="Saisie.Etape" value="@Etape" />
+                    @if (Etape == 1)
+                    {
+                        <div class="grille-roles">
+                            <label class="champ">Nom
+                                <InputText @bind-Value="Saisie.Nom" required maxlength="200" />
+                            </label>
+                            <label class="champ">Adresse e-mail
+                                <InputText type="email" @bind-Value="Saisie.Email" required />
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" name="Saisie.Nom" value="@Saisie.Nom" />
+                        <input type="hidden" name="Saisie.Email" value="@Saisie.Email" />
+                        <label class="case"><InputCheckbox @bind-Value="Saisie.Administrateur" /> Administrateur de toute l'organisation</label>
+                        <fieldset class="grille-roles">
+                            <legend>Rôles de @Saisie.Nom sur chaque site</legend>
+                            @for (var i = 0; i < Sites.Count; i++)
+                            {
+                                var index = i;
+                                <input type="hidden" name="Saisie.Roles[@index].SiteId" value="@Sites[index].Id" />
+                                <label class="champ">@Sites[index].Nom
+                                    <InputSelect @bind-Value="Saisie.Roles![index].Role">
+                                        <option value="">Aucun rôle</option>
+                                        @foreach (var (valeur, libelle) in RolesDeSite)
+                                        {
+                                            <option value="@valeur">@libelle</option>
+                                        }
+                                    </InputSelect>
+                                </label>
+                            }
+                        </fieldset>
+                    }
+                    <div class="actions">
+                        <a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Annuler</a>
+                        <button type="submit" class="bouton-principal" style="height: 48px">@(Etape == 1 ? "Continuer" : "Créer l'invitation")</button>
+                    </div>
+                </EditForm>
+            }
+        </section>
+    }
+}
+</main>
+
+@code {
+    private static readonly (string Code, string Libelle)[] RolesDeSite =
+        [("Technicien", "Technicien"), ("Responsable", "Responsable"), ("Delegue", "Délégué"), ("Pasteur", "Pasteur"), ("Coordination", "Coordination")];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    private string? NomOrganisation { get; set; }
+
+    [SupplyParameterFromQuery(Name = "inviter")]
+    private int? Inviter { get; set; }
+
+    // Le formulaire posté remplit Formulaire (préfixe « Saisie ») ; sans envoi, une saisie vide.
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "invitation")]
+    private SaisieInvitation? Formulaire { get; set; }
+
+    private SaisieInvitation Saisie => Formulaire ??= new();
+
+    private List<SiteApi> Sites { get; set; } = [];
+
+    private IReadOnlyList<MembreApi> Liste { get; set; } = [];
+
+    private int Etape { get; set; }
+
+    private bool Introuvable { get; set; }
+
+    private string? Message { get; set; }
+
+    private string? Lien { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Etape = Saisie.Etape > 0 ? Saisie.Etape : Inviter is 1 ? 1 : 0;
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            NomOrganisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId)?.Nom;
+            Sites = [.. await Session.LireAsync<List<SiteApi>>($"/organizations/{OrganisationId}/sites", CancellationToken.None)];
+            Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Introuvable = true;
+            return;
+        }
+
+        // Liste absente du formulaire posté (étape 1) : le lecteur de formulaire la laisse à null.
+        Saisie.Roles ??= [];
+        while (Saisie.Roles.Count < Sites.Count)
+        {
+            Saisie.Roles.Add(new RoleSaisi());
+        }
+    }
+
+    private async Task SuivantAsync()
+    {
+        Message = null;
+        if (Etape == 1)
+        {
+            Etape = string.IsNullOrWhiteSpace(Saisie.Nom) || string.IsNullOrWhiteSpace(Saisie.Email) ? 1 : 2;
+            Message = Etape == 1 ? "Le nom et l'adresse e-mail sont obligatoires." : null;
+            return;
+        }
+
+        var roles = Saisie.Administrateur
+            ? [new { role = "Administrateur", siteId = (Guid?)null }]
+            : (Saisie.Roles ?? []).Where(r => !string.IsNullOrEmpty(r.Role) && r.SiteId is not null)
+                .Select(r => new { role = r.Role!, siteId = r.SiteId }).ToArray();
+        if (roles.Length == 0)
+        {
+            Message = "Choisissez au moins un rôle, ou l'administration de toute l'organisation.";
+            return;
+        }
+
+        try
+        {
+            var cree = await Session.EcrireAsync<MembreCreeApi>(
+                $"/organizations/{OrganisationId}/members", new { nom = Saisie.Nom, email = Saisie.Email, roles }, CancellationToken.None);
+            Lien = cree.Activation is null ? null : $"{Navigation.BaseUri}activation?jeton={Uri.EscapeDataString(cree.Activation.Jeton)}";
+            Etape = 3;
+            Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Code switch
+            {
+                "deja_membre" => "Cette personne est déjà membre ou invitée.",
+                "compte_en_attente" => "Ce compte n'est pas encore activé : réessayez après son activation.",
+                "email_invalide" => "Adresse e-mail invalide.",
+                _ => refus.Message,
+            };
+        }
+    }
+
+    private static string Libelle(string role) => RolesDeSite.FirstOrDefault(r => r.Code == role).Libelle ?? role;
+
+    private sealed class SaisieInvitation
+    {
+        public int Etape { get; set; }
+
+        public string? Nom { get; set; }
+
+        public string? Email { get; set; }
+
+        public bool Administrateur { get; set; }
+
+        public List<RoleSaisi>? Roles { get; set; }
+    }
+
+    private sealed class RoleSaisi
+    {
+        public Guid? SiteId { get; set; }
+
+        public string? Role { get; set; }
+    }
+}
