@@ -11,9 +11,9 @@ LOG=$(mktemp)
 # Le conteneur de création du compartiment se termine après usage : « --wait » le signale en erreur.
 docker compose -f server/compose.yaml up -d --wait >/dev/null 2>&1 || true
 echo "1/4 Démarrage de l'API (migrations appliquées au démarrage, POC actif en Development)…"
-(cd server/src/GestionSite.Api && dotnet run >"$LOG" 2>&1) &
+(cd server/src/GestionSite.Api && exec dotnet run >"$LOG" 2>&1) &
 API_PID=$!
-trap 'kill $API_PID 2>/dev/null; pkill -f GestionSite.Api 2>/dev/null || true; rm -f "$LOG"' EXIT
+trap 'pkill -P $API_PID 2>/dev/null; kill $API_PID 2>/dev/null; rm -f "$LOG"' EXIT
 for _ in $(seq 1 90); do curl -sf "$API/health/ready" >/dev/null 2>&1 && break; sleep 1; done
 curl -sf "$API/health/ready" >/dev/null || { echo "API non prête"; tail -20 "$LOG"; exit 1; }
 

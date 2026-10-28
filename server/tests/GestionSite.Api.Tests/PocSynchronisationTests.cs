@@ -58,8 +58,8 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
         Assert.Equal(("applied", 1), (Resultat(premier), Version(premier)));
         Assert.Equal(("alreadyApplied", 1), (Resultat(rejeu), Version(rejeu)));
         Assert.Equal(("alreadyApplied", 1), (Resultat(troisieme), Version(troisieme)));
-        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_sync.notes"));
-        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_sync.commandes"));
+        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.notes"));
+        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.commandes"));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
 
         Assert.Single(resultats, r => r == "applied");
         Assert.Equal(9, resultats.Count(r => r == "alreadyApplied"));
-        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_sync.notes WHERE version = 1"));
+        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.notes WHERE version = 1"));
     }
 
     [Fact]
@@ -92,8 +92,9 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
         Assert.Equal("conflict", Resultat(tablette2));
         Assert.Equal(2, Version(tablette2));
         Assert.Equal("Bâche posée", tablette2.GetProperty("texteCourant").GetString()); // rien d'écrasé
-        Assert.Equal("conflict", Resultat(rejeuConflit)); // même décision au rejeu
-        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_sync.notes WHERE texte = 'Bâche posée' AND version = 2"));
+        Assert.Equal("conflict", Resultat(rejeuConflit)); // même décision au rejeu, état serveur compris
+        Assert.Equal("Bâche posée", rejeuConflit.GetProperty("texteCourant").GetString());
+        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.notes WHERE texte = 'Bâche posée' AND version = 2"));
     }
 
     [Fact]
@@ -116,7 +117,7 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, reponse.StatusCode);
         Assert.Equal("acteur_different", (await Json(reponse)).GetProperty("code").GetString());
-        Assert.Equal(0L, await _database.CountAsync("SELECT count(*) FROM poc_sync.commandes"));
+        Assert.Equal(0L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.commandes"));
     }
 
     [Fact]
@@ -131,6 +132,60 @@ public sealed class PocSynchronisationTests(InfrastructureFixture infrastructure
         Assert.Equal(HttpStatusCode.Forbidden, sansRole.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, autreOrganisation.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, sansJeton.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARoleOnOneSiteCannotTouchANoteOfAnotherSite()
+    {
+        using var autreSite = await Envoyer(HttpMethod.Post, $"/organizations/{_organisation}/sites", _admin, new { nom = "Sud" });
+        var sud = (await Json(autreSite)).GetProperty("id").GetGuid();
+        using var paulCree = await Envoyer(HttpMethod.Post, $"/organizations/{_organisation}/members", _admin,
+            new { nom = "Paul", email = "paul@poc.test", roles = new[] { new { role = "Technicien", siteId = (Guid?)sud } } });
+        var cree = await Json(paulCree);
+        await Activer(cree.GetProperty("activation").GetProperty("jeton").GetString()!);
+        var paul = (cree.GetProperty("compteId").GetGuid(), (await Connecter("paul@poc.test")).Jeton);
+        var noteDuSud = Guid.NewGuid();
+        var surSud = new { operationId = Guid.NewGuid(), deviceId = "t", acteurId = paul.Item1, siteId = sud, noteId = noteDuSud, baseVersion = 0, texte = "Note du sud", observeLe = DateTimeOffset.UtcNow };
+        Assert.Equal("applied", Resultat(await Appliquer(surSud, paul.Item2)));
+
+        // Marc (site Nord) vise la note du Sud en déclarant le site Nord, où il a un rôle.
+        using var intrusion = await Envoyer(HttpMethod.Post, Route(), _marc.Jeton, Commande(_marc.Id, noteDuSud, 1, "Écrasement"));
+
+        Assert.Equal(HttpStatusCode.NotFound, intrusion.StatusCode);
+        Assert.Equal(1L, await _database.CountAsync("SELECT count(*) FROM poc_synchronisation.notes WHERE texte = 'Note du sud'"));
+    }
+
+    [Fact]
+    public async Task IdentifiersChosenByDevicesNeverCollideAcrossOrganisations()
+    {
+        var autre = await IdentiteModule.OuvrirOrganisationAsync(_api.Services, "Autre", "admin@autre-poc.test", "Admin", CancellationToken.None);
+        await Activer(autre.JetonActivation!);
+        var adminAutre = (await Connecter("admin@autre-poc.test")).Jeton;
+        using var site = await Envoyer(HttpMethod.Post, $"/organizations/{autre.OrganisationId}/sites", adminAutre, new { nom = "Centre" });
+        var siteAutre = (await Json(site)).GetProperty("id").GetGuid();
+        using var tech = await Envoyer(HttpMethod.Post, $"/organizations/{autre.OrganisationId}/members", adminAutre,
+            new { nom = "Zoé", email = "zoe@autre-poc.test", roles = new[] { new { role = "Technicien", siteId = (Guid?)siteAutre } } });
+        var cree = await Json(tech);
+        await Activer(cree.GetProperty("activation").GetProperty("jeton").GetString()!);
+        var zoe = (await Connecter("zoe@autre-poc.test")).Jeton;
+        var operation = Guid.NewGuid();
+        var note = Guid.NewGuid();
+        await Appliquer(Commande(_marc.Id, note, 0, "Chez Saint-Paul", operation: operation), _marc.Jeton);
+
+        using var memesIdentifiants = await Envoyer(HttpMethod.Post, Route(autre.OrganisationId), zoe, new
+        {
+            operationId = operation,
+            deviceId = "t",
+            acteurId = cree.GetProperty("compteId").GetGuid(),
+            siteId = siteAutre,
+            noteId = note,
+            baseVersion = 0,
+            texte = "Ailleurs",
+            observeLe = DateTimeOffset.UtcNow,
+        });
+
+        Assert.Equal(HttpStatusCode.OK, memesIdentifiants.StatusCode);
+        Assert.Equal("applied", Resultat(await Json(memesIdentifiants)));
     }
 
     [Fact]

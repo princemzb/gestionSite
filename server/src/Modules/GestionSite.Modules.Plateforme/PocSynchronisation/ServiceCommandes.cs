@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using GestionSite.SharedKernel;
 using Npgsql;
 
 namespace GestionSite.Modules.Plateforme.PocSynchronisation;
@@ -12,6 +13,9 @@ internal sealed record CommandeNote(
 internal sealed record ResultatCommande(Guid OperationId, string Resultat, int Version, string? TexteCourant);
 
 internal sealed class OperationReutiliseeException() : Exception("Identifiant d'opération déjà utilisé pour un autre contenu.");
+
+/// <summary>Note d'un autre site que celui de la commande (sur lequel l'autorisation a été vérifiée).</summary>
+internal sealed class NoteHorsSiteException() : Exception("Note introuvable sur ce site.");
 
 /// <summary>
 /// Application idempotente : une même opération (même identifiant, même contenu, même auteur) donne
@@ -46,13 +50,14 @@ internal sealed class ServiceCommandes(NpgsqlDataSource application, TimeProvide
     {
         await using var connexion = await application.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connexion.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await using (var organisation = Commande(connexion, "SELECT set_config('app.organisation_id', @org, true)", ("org", organisationId.ToString("D"))))
+        await using (var organisation = Commande(
+            connexion, $"SELECT set_config('{OrganisationCourante.VariableSession}', @org, true)", ("org", organisationId.ToString("D"))))
         {
             await organisation.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await using (var deja = Commande(connexion,
-            "SELECT empreinte, auteur_compte_id, resultat, version FROM poc_sync.commandes WHERE operation_id = @op",
+            "SELECT empreinte, auteur_compte_id, resultat, version, texte_serveur FROM poc_synchronisation.commandes WHERE operation_id = @op",
             ("op", commande.OperationId)))
         await using (var lecture = await deja.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -65,18 +70,28 @@ internal sealed class ServiceCommandes(NpgsqlDataSource application, TimeProvide
                 }
 
                 var resultat = lecture.GetString(2);
-                return new ResultatCommande(commande.OperationId, resultat == Applique ? DejaApplique : resultat, lecture.GetInt32(3), null);
+                // Même décision qu'au premier passage, état serveur du conflit compris.
+                return new ResultatCommande(
+                    commande.OperationId, resultat == Applique ? DejaApplique : resultat, lecture.GetInt32(3),
+                    lecture.IsDBNull(4) ? null : lecture.GetString(4));
             }
         }
 
         // Verrou de la note : deux appareils qui la modifient en même temps sont départagés par sa version.
         int? versionCourante = null;
         string? texteCourant = null;
-        await using (var note = Commande(connexion, "SELECT version, texte FROM poc_sync.notes WHERE id = @id FOR UPDATE", ("id", commande.NoteId)))
+        await using (var note = Commande(
+            connexion, "SELECT version, texte, site_id FROM poc_synchronisation.notes WHERE id = @id FOR UPDATE", ("id", commande.NoteId)))
         await using (var lecture = await note.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
             if (await lecture.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
+                // Le droit a été vérifié sur le site de la commande : la note doit en être.
+                if (lecture.GetGuid(2) != commande.SiteId)
+                {
+                    throw new NoteHorsSiteException();
+                }
+
                 versionCourante = lecture.GetInt32(0);
                 texteCourant = lecture.GetString(1);
             }
@@ -92,8 +107,8 @@ internal sealed class ServiceCommandes(NpgsqlDataSource application, TimeProvide
         {
             var nouvelle = commande.BaseVersion + 1;
             var sql = versionCourante is null
-                ? "INSERT INTO poc_sync.notes (id, organisation_id, site_id, texte, version, auteur_compte_id, modifie_le) VALUES (@id, @org, @site, @texte, @version, @auteur, @le)"
-                : "UPDATE poc_sync.notes SET texte = @texte, version = @version, auteur_compte_id = @auteur, modifie_le = @le WHERE id = @id";
+                ? "INSERT INTO poc_synchronisation.notes (id, organisation_id, site_id, texte, version, auteur_compte_id, modifie_le) VALUES (@id, @org, @site, @texte, @version, @auteur, @le)"
+                : "UPDATE poc_synchronisation.notes SET texte = @texte, version = @version, auteur_compte_id = @auteur, modifie_le = @le WHERE id = @id";
             await using var ecriture = Commande(connexion, sql, ("id", commande.NoteId), ("org", organisationId), ("site", commande.SiteId),
                 ("texte", commande.Texte), ("version", nouvelle), ("auteur", auteur), ("le", maintenant));
             await ecriture.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -101,10 +116,11 @@ internal sealed class ServiceCommandes(NpgsqlDataSource application, TimeProvide
         }
 
         await using (var trace = Commande(connexion,
-            "INSERT INTO poc_sync.commandes (operation_id, organisation_id, device_id, auteur_compte_id, empreinte, resultat, note_id, version, recue_le) " +
-            "VALUES (@op, @org, @device, @auteur, @empreinte, @resultat, @note, @version, @le)",
+            "INSERT INTO poc_synchronisation.commandes (operation_id, organisation_id, device_id, auteur_compte_id, empreinte, resultat, note_id, version, texte_serveur, recue_le) " +
+            "VALUES (@op, @org, @device, @auteur, @empreinte, @resultat, @note, @version, @texte, @le)",
             ("op", commande.OperationId), ("org", organisationId), ("device", commande.DeviceId), ("auteur", auteur), ("empreinte", empreinte),
-            ("resultat", sortie.Resultat), ("note", commande.NoteId), ("version", sortie.Version), ("le", maintenant)))
+            ("resultat", sortie.Resultat), ("note", commande.NoteId), ("version", sortie.Version),
+            ("texte", (object?)sortie.TexteCourant ?? DBNull.Value), ("le", maintenant)))
         {
             await trace.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }

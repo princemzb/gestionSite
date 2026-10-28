@@ -49,6 +49,10 @@ internal static class PocSynchronisationEndpoints
         {
             return Results.Ok(await service.AppliquerAsync(orgId, compte.Id!.Value, commande, cancellationToken).ConfigureAwait(false));
         }
+        catch (NoteHorsSiteException)
+        {
+            return Results.NotFound(); // comme toute ressource hors des sites de l'appelant
+        }
         catch (OperationReutiliseeException)
         {
             return Probleme(StatusCodes.Status409Conflict, "rejected", "operation_reutilisee", "Identifiant d'opération déjà utilisé pour un autre contenu.");

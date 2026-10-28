@@ -10,11 +10,11 @@ Statut : **expérimental**, exécuté le 28 octobre 2026 sur macOS (API .NET 10 
 | Deux profils | Files séparées par compte sur la même tablette ; une commande n'est jamais envoyée sous la session d'un collègue (refus `acteur_different`) | OK |
 | Conflit | Deux appareils modifient la même note depuis la version 1 : le second reçoit `conflict` avec l'état serveur ; sa saisie reste sur l'appareil, rien n'est écrasé ; le rejeu redonne la même décision | OK |
 
-Autres comportements vérifiés : file durable après redémarrage (écriture atomique), ordre de saisie conservé sans réseau, commande refusée gardée et récupérable, identifiant d'opération réutilisé avec un autre contenu refusé (409), droits et isolation inchangés (403 sans rôle, 404 autre organisation), POC absent quand il est désactivé.
+Autres comportements vérifiés : file durable après redémarrage (écriture atomique, écritures sérialisées), ordre de saisie conservé sans réseau, commandes suivantes d'une note en conflit retenues jusqu'à l'arbitrage, session expirée (401), surcharge (429), page de portail captif ou délai dépassé traités comme réseau indisponible (rien n'est perdu), commande refusée gardée et récupérable, identifiant d'opération réutilisé avec un autre contenu refusé (409), note d'un autre site refusée (404), identifiants des appareils sans collision entre organisations, droits et isolation inchangés (403 sans rôle, 404 autre organisation), POC absent quand il est désactivé.
 
 ## Rejouer le rapport
 - `scripts/poc/prep06.sh` : démarre la base Docker et l'API, ouvre une organisation de démonstration (commande d'exploitation), crée un site et deux techniciens, puis exécute le scénario Dart contre l'API (`mobile/test/poc/synchronisation_e2e_test.dart`). Sortie attendue : quatre lignes `RAPPORT | … — OK`.
-- Tests automatiques sans réseau : `server/eng/verify.sh` (`PocSynchronisationTests`, 7 cas sur PostgreSQL réel) et `mobile/eng/verify.sh` (`test/poc/synchronisation_test.dart`, 11 cas).
+- Tests automatiques sans réseau : `server/eng/verify.sh` (`PocSynchronisationTests`, 9 cas sur PostgreSQL réel) et `mobile/eng/verify.sh` (`test/poc/`, 15 cas).
 
 ## Conception retenue pour la suite
 - Identifiant d'opération créé sur l'appareil avant tout envoi ; empreinte du contenu stockée avec le résultat : même opération = même résultat, contenu différent = refus.

@@ -15,6 +15,9 @@ class FileCommandes {
   final File _fichier;
   final List<Commande> _commandes;
 
+  /// Écritures sérialisées : saisie et synchronisation simultanées ne se chevauchent pas.
+  Future<void> _derniereEcriture = Future<void>.value();
+
   /// Ouvre (ou crée) la file du profil [acteurId] dans [dossier].
   static Future<FileCommandes> ouvrir(
     Directory dossier,
@@ -52,29 +55,37 @@ class FileCommandes {
       throw StateError('Commande d\'un autre auteur refusée dans ce profil.');
     }
 
-    _commandes.add(commande);
-    await _enregistrer();
+    await _modifier((liste) => liste.add(commande));
   }
 
-  Future<void> retirer(String operationId) async {
-    _commandes.removeWhere((c) => c.operationId == operationId);
-    await _enregistrer();
-  }
+  Future<void> retirer(String operationId) => _modifier(
+    (liste) => liste.removeWhere((c) => c.operationId == operationId),
+  );
 
-  Future<void> remplacer(Commande commande) async {
-    final index = _commandes.indexWhere(
+  Future<void> remplacer(Commande commande) => _modifier((liste) {
+    final index = liste.indexWhere(
       (c) => c.operationId == commande.operationId,
     );
-    _commandes[index] = commande;
-    await _enregistrer();
-  }
+    liste[index] = commande;
+  });
 
-  Future<void> _enregistrer() async {
-    final temporaire = File('${_fichier.path}.tmp');
-    await temporaire.writeAsString(
-      jsonEncode(_commandes.map((c) => c.toJson()).toList()),
-      flush: true,
-    );
-    await temporaire.rename(_fichier.path);
+  /// Applique le changement à une copie, l'écrit durablement, puis seulement
+  /// l'adopte en mémoire : un échec d'écriture laisse mémoire et disque identiques.
+  Future<void> _modifier(void Function(List<Commande>) changement) {
+    final ecriture = _derniereEcriture.then((_) async {
+      final nouvelle = [..._commandes];
+      changement(nouvelle);
+      final temporaire = File('${_fichier.path}.tmp');
+      await temporaire.writeAsString(
+        jsonEncode(nouvelle.map((c) => c.toJson()).toList()),
+        flush: true,
+      );
+      await temporaire.rename(_fichier.path);
+      _commandes
+        ..clear()
+        ..addAll(nouvelle);
+    });
+    _derniereEcriture = ecriture.catchError((Object _) {});
+    return ecriture;
   }
 }
