@@ -48,6 +48,11 @@ internal sealed class Membre : IAppartientAOrganisation
     /// </summary>
     internal void Accorder(Role role, Site? site)
     {
+        if (RevoqueLe is not null)
+        {
+            throw new InvalidOperationException("Adhésion révoquée : aucun rôle ne peut plus être accordé.");
+        }
+
         if (site is not null && site.OrganisationId != OrganisationId)
         {
             throw new ArgumentException("Le site appartient à une autre organisation.", nameof(site));

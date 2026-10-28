@@ -18,8 +18,9 @@ internal static class InfrastructureServices
             .ValidateDataAnnotations()
             .Validate(options => CanBuildDataSource(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
             .Validate(
-                options => !CanBuildDataSource(options.Main) || KeepsSessionState(options.Main),
-                "ConnectionStrings:Main doit être une connexion directe (ni multiplexage ni pooler « -pooler ») : l'isolation RLS repose sur une variable de session.")
+                options => string.IsNullOrEmpty(options.Migrations) || !CanBuildDataSource(options.Main)
+                    || !CanBuildDataSource(options.Migrations) || SameDatabase(options.Main, options.Migrations),
+                "ConnectionStrings:Main et ConnectionStrings:Migrations doivent désigner la même base (hôte, port, base).")
             .Validate(
                 options => string.IsNullOrEmpty(options.Migrations) || CanBuildDataSource(options.Migrations),
                 "ConnectionStrings:Migrations n'est pas une chaîne de connexion PostgreSQL valide.")
@@ -72,13 +73,12 @@ internal static class InfrastructureServices
         }
     }
 
-    // Pooler en mode transaction (Neon « -pooler », PgBouncer) ou multiplexage : la variable de session
-    // posée à l'ouverture pourrait viser une autre session serveur que la requête.
-    private static bool KeepsSessionState(string connectionString)
+    private static bool SameDatabase(string main, string migrations)
     {
-        var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        return !builder.Multiplexing
-            && !(builder.Host ?? string.Empty).Contains("-pooler", StringComparison.OrdinalIgnoreCase);
+        var a = new NpgsqlConnectionStringBuilder(main);
+        var b = new NpgsqlConnectionStringBuilder(migrations);
+        return string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port
+            && string.Equals(a.Database, b.Database, StringComparison.Ordinal);
     }
 
     private static bool IsHttpUrl(string value) =>

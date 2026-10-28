@@ -58,7 +58,8 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
                     b.HasIndex("OrganisationId", "CompteId")
                         .IsUnique()
-                        .HasDatabaseName("ix_membres_organisation_id_compte_id");
+                        .HasDatabaseName("ix_membres_organisation_id_compte_id")
+                        .HasFilter("revoque_le IS NULL");
 
                     b.ToTable("membres", "identite");
                 });

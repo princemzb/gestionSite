@@ -69,12 +69,24 @@ public sealed class IdentiteDomainTests
     }
 
     [Fact]
+    public void ARevokedMemberGetsNoNewRole()
+    {
+        var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);
+        membre.Revoquer(Instant);
+
+        Assert.Throws<InvalidOperationException>(() => membre.Accorder(Role.Administrateur, site: null));
+        Assert.Empty(membre.Roles);
+    }
+
+    [Fact]
     public void IdentifiersAreRequired()
     {
         Assert.Throws<ArgumentException>(() => new Site(Guid.Empty, Organisation, "Nord", Instant));
         Assert.Throws<ArgumentException>(() => new Site(Guid.NewGuid(), Guid.Empty, "Nord", Instant));
         Assert.Throws<ArgumentException>(() => new Membre(Guid.NewGuid(), Organisation, Guid.Empty, Instant));
         Assert.Throws<ArgumentException>(() => new RoleAttribue(Guid.Empty, Organisation, Guid.NewGuid(), Role.Administrateur, null));
+        Assert.Throws<ArgumentException>(() => new RoleAttribue(Guid.NewGuid(), Guid.Empty, Guid.NewGuid(), Role.Administrateur, null));
+        Assert.Throws<ArgumentException>(() => new RoleAttribue(Guid.NewGuid(), Organisation, Guid.Empty, Role.Administrateur, null));
     }
 
     [Fact]

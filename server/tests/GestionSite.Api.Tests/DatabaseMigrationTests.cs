@@ -59,7 +59,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     [InlineData("Host=localhost,db.example.org;Database=gestionsite;Username=x;Password=x")]
     public async Task StartupMigrationIsRefusedForANonLocalDatabase(string connectionString)
     {
-        await using var factory = infrastructure.CreateApi(migrationsConnectionString: connectionString, migrateOnStartup: "true");
+        await using var factory = infrastructure.CreateApi(connectionString: connectionString, migrationsConnectionString: connectionString, migrateOnStartup: "true");
 
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         Assert.Contains("base PostgreSQL locale", exception.Message, StringComparison.Ordinal);
@@ -75,17 +75,14 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     }
 
     [Theory]
-    [InlineData("Migrations", "pas une chaîne de connexion")]
-    [InlineData("Main", "Host=localhost;Database=gestionsite;Multiplexing=true")]
-    [InlineData("Main", "Host=ep-exemple-pooler.eu-central-1.aws.neon.tech;Database=gestionsite")]
-    public async Task UnsuitableConnectionStringsStopStartup(string cle, string valeur)
+    [InlineData("pas une chaîne de connexion", "ConnectionStrings:Migrations n'est pas")]
+    [InlineData("Host=localhost;Port=55999;Database=autre_base;Username=x", "doivent désigner la même base")]
+    public async Task UnsuitableOwnerConnectionStopsStartup(string valeur, string message)
     {
-        await using var factory = cle == "Main"
-            ? infrastructure.CreateApi(connectionString: valeur, migrateOnStartup: "false")
-            : infrastructure.CreateApi(migrationsConnectionString: valeur, migrateOnStartup: "false");
+        await using var factory = infrastructure.CreateApi(migrationsConnectionString: valeur, migrateOnStartup: "false");
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
-        Assert.Contains($"ConnectionStrings:{cle}", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(message, exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

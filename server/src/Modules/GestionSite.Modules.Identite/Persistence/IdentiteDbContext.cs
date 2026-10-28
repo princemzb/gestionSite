@@ -67,7 +67,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             membre.Property(m => m.Id).ValueGeneratedNever();
             membre.Property(m => m.Version).IsConcurrencyToken();
             membre.HasAlternateKey(m => new { m.Id, m.OrganisationId });
-            membre.HasIndex(m => new { m.OrganisationId, m.CompteId }).IsUnique();
+            // Une adhésion active par compte et organisation ; les révoquées restent en historique.
+            membre.HasIndex(m => new { m.OrganisationId, m.CompteId }).IsUnique().HasFilter("revoque_le IS NULL");
             membre.HasOne<Organisation>().WithMany().HasForeignKey(m => m.OrganisationId).OnDelete(DeleteBehavior.Restrict);
             membre.HasMany(m => m.Roles).WithOne()
                 .HasForeignKey(r => new { r.MembreId, r.OrganisationId })
@@ -108,6 +109,9 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
     // Double barrière : la RLS refuserait aussi ces écritures, mais l'erreur applicative est plus claire.
     private void ExigerOrganisationCourante()
     {
+        // Toute écriture dans une transaction, même d'une seule instruction : l'organisation y est posée
+        // à l'ouverture (OrganisationTransactionInterceptor) ; un préfixe décalerait les résultats lus par EF.
+        Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
         foreach (var entree in ChangeTracker.Entries())
         {
             if (entree.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))

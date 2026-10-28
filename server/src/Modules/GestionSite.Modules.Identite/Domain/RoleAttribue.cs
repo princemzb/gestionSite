@@ -10,6 +10,8 @@ internal sealed class RoleAttribue : IAppartientAOrganisation
     internal RoleAttribue(Guid id, Guid organisationId, Guid membreId, Role role, Guid? siteId)
     {
         Identifiants.ExigerNonVide(id, nameof(id));
+        Identifiants.ExigerNonVide(organisationId, nameof(organisationId));
+        Identifiants.ExigerNonVide(membreId, nameof(membreId));
         if (!Enum.IsDefined(role))
         {
             throw new ArgumentOutOfRangeException(nameof(role), role, "Rôle inconnu.");
@@ -21,9 +23,9 @@ internal sealed class RoleAttribue : IAppartientAOrganisation
                 "Le rôle administrateur couvre toute l'organisation ; les autres rôles exigent un site.", nameof(siteId));
         }
 
-        if (siteId == Guid.Empty)
+        if (siteId is { } site)
         {
-            throw new ArgumentException("L'identifiant de site ne peut pas être vide.", nameof(siteId));
+            Identifiants.ExigerNonVide(site, nameof(siteId));
         }
 
         Id = id;

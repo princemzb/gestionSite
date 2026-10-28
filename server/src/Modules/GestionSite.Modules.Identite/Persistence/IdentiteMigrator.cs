@@ -10,16 +10,17 @@ namespace GestionSite.Modules.Identite.Persistence;
 /// Applique les migrations avec le rôle propriétaire du schéma ; l'état des migrations est lu
 /// avec le rôle applicatif (droit de lecture de l'historique accordé par la migration).
 /// </summary>
-internal sealed class IdentiteMigrator(IdentiteDbContext context, IServiceProvider services) : IDatabaseMigrator
+internal sealed class IdentiteMigrator(IdentiteDbContext context, IServiceProvider services, ILoggerFactory loggerFactory) : IDatabaseMigrator
 {
     public string ModuleName => "Identite";
 
     public async Task MigrateAsync(CancellationToken cancellationToken)
     {
+        // Résolue ici seulement : la sonde de disponibilité utilise aussi ce migrateur, sans chaîne propriétaire.
         var proprietaire = services.GetRequiredKeyedService<NpgsqlDataSource>(DatabaseConnections.Migrations);
         var sansOrganisation = new OrganisationCourante(); // migrations : aucune donnée d'organisation lue
         var options = new DbContextOptionsBuilder<IdentiteDbContext>()
-            .UseLoggerFactory(services.GetRequiredService<ILoggerFactory>()); // journal des migrations appliquées
+            .UseLoggerFactory(loggerFactory); // journal des migrations appliquées
         IdentitePersistence.Configure(options, proprietaire, sansOrganisation);
         await using var migration = new IdentiteDbContext(options.Options, sansOrganisation);
         await migration.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);

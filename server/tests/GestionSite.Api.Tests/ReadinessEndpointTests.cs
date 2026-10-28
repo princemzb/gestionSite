@@ -10,6 +10,8 @@ namespace GestionSite.Api.Tests;
 [Collection(SharedInfrastructure.Name)]
 public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
 {
+    private const string Injoignable = "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2";
+
     [Fact]
     public async Task ReadyWhenDatabaseAndStorageAreReachable()
     {
@@ -47,7 +49,8 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Fact]
     public async Task NotReadyWhenDatabaseIsUnreachable()
     {
-        await using var factory = infrastructure.CreateApi(connectionString: "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=2", migrateOnStartup: "false");
+        await using var factory = infrastructure.CreateApi(
+            connectionString: Injoignable, migrationsConnectionString: Injoignable, migrateOnStartup: "false");
 
         var (status, body) = await GetReadyAsync(factory);
 

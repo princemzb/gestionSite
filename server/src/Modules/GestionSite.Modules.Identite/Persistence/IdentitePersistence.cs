@@ -25,7 +25,9 @@ internal static class IdentitePersistence
         options
             .UseNpgsql(dataSource, ConfigureNpgsql)
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new OrganisationSessionInterceptor(organisationCourante));
+            .AddInterceptors(
+                new OrganisationCommandInterceptor(organisationCourante),
+                new OrganisationTransactionInterceptor(organisationCourante));
 
     private static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
         npgsql.MigrationsHistoryTable(IdentiteDbContext.MigrationsTable, IdentiteDbContext.Schema);

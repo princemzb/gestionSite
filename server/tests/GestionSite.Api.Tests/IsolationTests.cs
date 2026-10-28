@@ -263,6 +263,34 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     }
 
     [Fact]
+    public async Task ARevokedAccountCanBeInvitedAgain()
+    {
+        await using var scope = Scope(_organisationA);
+        var context = Context(scope);
+        var membre = await context.Membres.SingleAsync(m => m.Id == _membreA);
+        membre.Revoquer(Instant);
+        context.Membres.Add(new Membre(Guid.NewGuid(), _organisationA, membre.CompteId, Instant.AddDays(1)));
+
+        await context.SaveChangesAsync(); // l'adhésion révoquée reste en historique
+
+        Assert.Equal(2, await context.Membres.CountAsync(m => m.CompteId == membre.CompteId));
+    }
+
+    [Fact]
+    public async Task OrganisationTravelsInsideEachCommandNotInTheSession()
+    {
+        await using var scope = Scope(_organisationA);
+        var context = Context(scope);
+        await context.Database.OpenConnectionAsync();
+        Assert.Equal(1, await context.Sites.IgnoreQueryFilters().CountAsync());
+
+        // Même connexion, hors EF : la variable n'a pas survécu à la transaction de la commande.
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT count(*) FROM identite.sites";
+        Assert.Equal(0L, await command.ExecuteScalarAsync());
+    }
+
+    [Fact]
     public async Task MemberRolesAreStoredPerSite()
     {
         await using var scope = Scope(_organisationA);
