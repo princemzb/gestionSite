@@ -4,7 +4,8 @@ Statut : exemples détaillés P ; les tickets applicatifs restent bloqués tant 
 ## F-01 — Dépôt public (US-08)
 Objectif : recevoir un constat sans compte sur le bon site. Références RG-02/03, UI-01, T-02.
 Inclus : formulaire, photo facultative, persistance, confirmation locale, protection d’abus. Exclu : suivi public, vérification contact, consultation d’inventaire.
-Préconditions : route publique/site active, stockage photos, types/tailles arrêtés.
+Préconditions : route publique/site active, stockage photos, types/tailles arrêtés (décisions du 28/10, REGLES : 3 photos, 10 Mo, JPEG/PNG/HEIC, métadonnées retirées ; Turnstile + limites ; QR pour A et R/D ; liste en lecture des dépôts).
+Découpage adopté (28/10) : UX-03 maquettes ; S08-01 contrat et persistance sans doublon ; S08-02 photos ; S08-03 anti-abus ; S08-04 formulaire et QR ; S08-05 liste des dépôts reçus.
 Critères :
 - Étant donné un lien de site actif, quand tous les champs requis sont envoyés sans photo, alors un dossier est créé pour ce site.
 - Si le contact n’est pas vérifié, le dépôt reste possible ; il est conservé comme information déclarative.

@@ -31,6 +31,8 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Inventaire (bâtiments, niveaux, zones, composants, lots) | Comptes internes du site | R/D ; techniciens du site (ajout et correction tracés) |
 | Grilles d’évaluation | Comptes internes du site | R/D ; chaque modification crée une version |
 | Plans 2D | Comptes internes du site | R/D ; droit attribuable nominativement par A ; chaque modification crée une version |
+| QR code et lien public d’un site (US-08, V 28/10) | A (tous les sites) ; R/D (leurs sites) | — (dérivés du site) |
+| Dépôts publics reçus, liste en lecture (US-08, V 28/10) | T, R/D, P/C du site | — (traitement : US-09) |
 
 Conséquence : les contacts des déclarants sont visibles par un cercle plus large que la proposition initiale ; à reprendre dans l’inventaire des données (SECURITE) et DEC-07. Administration des paramètres sensibles limitée à A et aux compétences explicitement attribuées.
 
