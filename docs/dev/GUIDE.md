@@ -2,7 +2,7 @@
 Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor) ; socle technique US-05 en place. Lire d'abord docs/pilotage/ETAT.md, puis README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
 
 ## Installation (S05-05)
-Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur macOS 14.5 (arm64). Lancer depuis la racine du dépôt.
+Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur macOS 14.5 (arm64) ; celles de la section « Base de données et migrations » (`dotnet ef migrations add/list/script/has-pending-model-changes`, `database update`) le 28 octobre 2026. Lancer depuis la racine du dépôt.
 
 ### Prérequis
 | Outil | Version | Rôle |
@@ -30,10 +30,17 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - `python3 -m unittest discover -s scripts/trello` : outillage Trello.
 - Application Flutter : voir `mobile/README.md`.
 
+### Base de données et migrations (S06-01)
+- Chaque module a son schéma PostgreSQL et ses migrations EF Core (`src/Modules/<Module>/Persistence/Migrations`, code généré exclu du style et de la couverture).
+- Créer une migration après un changement de modèle : `dotnet ef migrations add <Nom> --project server/src/Modules/GestionSite.Modules.Identite --startup-project server/src/GestionSite.Api --context IdentiteDbContext --output-dir Persistence/Migrations`. Un test échoue si une migration manque.
+- Voir le SQL : `dotnet ef migrations script --project server/src/Modules/GestionSite.Modules.Identite --startup-project server/src/GestionSite.Api --context IdentiteDbContext` (sans `--output-dir`). `dotnet ef` construit l'hôte de l'API (environnement Development) : les commandes qui se connectent (`database update`, `migrations list`) visent donc la même base que `dotnet run`, `ConnectionStrings__Main` si la variable est définie, sinon la base Docker locale.
+- Application automatique au démarrage si `Database:MigrateOnStartup` vaut `true` (profil `dotnet run` local et tests) ; une valeur non booléenne bloque le démarrage, et l'API refuse de démarrer si la migration est demandée sur une base non locale (hôte autre que localhost, boucle locale ou socket Unix). En préproduction et production, l'étape de déploiement les appliquera (à mettre en place avec le premier déploiement). `/health/ready` répond 503 tant qu'une migration reste en attente.
+- Prudence : `dotnet ef database update` n'a pas ce garde-fou. Ne pas le lancer dans un terminal où `ConnectionStrings__Main` désigne une base partagée (préproduction) ; le rôle applicatif de préproduction n'aura pas les droits de modifier le schéma (à appliquer au premier déploiement).
+
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs`.
 - Ailleurs, `ConnectionStrings:Main` et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
-- Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports.
+- Ports locaux modifiables par `GESTIONSITE_POSTGRES_PORT` et `GESTIONSITE_STORAGE_PORT` ; fournir alors à l'API `ConnectionStrings__Main` et `ObjectStorage__ServiceUrl` avec les nouveaux ports (`ConnectionStrings__Main` sert aussi aux commandes `dotnet ef`).
 - Jamais de secret dans le dépôt : jetons Trello et Sonar dans le Trousseau macOS du porteur ; jeton CI dans le secret GitHub `SONAR_TOKEN` ; signature Android dans `mobile/android/key.properties` (non versionné).
 
 ### Intégration continue

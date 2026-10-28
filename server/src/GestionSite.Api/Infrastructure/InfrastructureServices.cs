@@ -33,9 +33,14 @@ internal static class InfrastructureServices
             return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
 
+        services.AddOptions<MigrationOptions>()
+            .Bind(configuration.GetSection(MigrationOptions.Section))
+            .ValidateOnStart();
+        services.AddHostedService<DatabaseMigrations>();
+
         // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
         services.AddHealthChecks()
-            .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
+            .AddCheck<DatabaseHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
             .AddCheck<ObjectStorageHealthCheck>("stockage-fichiers", tags: [ReadyTag], timeout: CheckTimeout);
         return services;
     }

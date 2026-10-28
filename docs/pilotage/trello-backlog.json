@@ -2009,7 +2009,7 @@
         "S06-01"
       ],
       "acceptanceCriteria": [
-        "Modèle organisation/site/adhésion/rôle par site ; filtre automatique par organisation ; politiques RLS PostgreSQL ; tests prouvant qu'une requête sans filtre applicatif ne lit rien d'une autre organisation."
+        "Modèle organisation/site/adhésion/rôle par site ; filtre automatique par organisation ; politiques RLS PostgreSQL avec FORCE ROW LEVEL SECURITY ; rôle propriétaire du schéma (migrations) distinct du rôle applicatif de l'API, sans droit de modifier le schéma ni BYPASSRLS, mais avec USAGE sur les schémas et SELECT sur les tables d'historique __ef_migrations (sonde /health/ready) ; tests prouvant qu'une requête sans filtre applicatif ne lit rien d'une autre organisation, avec le rôle applicatif comme avec le rôle propriétaire."
       ],
       "trelloId": "6ae10299e35b2f591a4e8da1",
       "trelloShortLink": "VvTkESUi"

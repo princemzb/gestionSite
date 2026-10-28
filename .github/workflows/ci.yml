@@ -126,8 +126,9 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py" \
-            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**" \
+            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**" \
+            /d:sonar.cpd.exclusions="server/**/Migrations/**" \
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello

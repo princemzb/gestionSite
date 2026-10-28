@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/GestionSite.Api/GestionSite.Api.csproj" />
+    <Project Path="src/GestionSite.SharedKernel/GestionSite.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/GestionSite.Modules.Budget/GestionSite.Modules.Budget.csproj" />

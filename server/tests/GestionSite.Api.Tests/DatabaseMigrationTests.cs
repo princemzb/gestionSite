@@ -1,0 +1,84 @@
+using GestionSite.Modules.Identite.Persistence;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+namespace GestionSite.Api.Tests;
+
+/// <summary>Migrations appliquées au démarrage sur un PostgreSQL réel, base dédiée à chaque test.</summary>
+[Collection(SharedInfrastructure.Name)]
+public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
+{
+    private const string CountMigrations = "SELECT count(*) FROM identite.__ef_migrations";
+
+    [Fact]
+    public async Task MigrationsCreateTheIdentiteSchemaAtStartup()
+    {
+        await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true");
+
+        using var client = factory.CreateClient();
+
+        Assert.Equal(1L, await database.CountTablesAsync("identite", "organisations"));
+        Assert.Equal(KnownMigrations(factory), await database.CountAsync(CountMigrations));
+    }
+
+    [Fact]
+    public async Task RestartingDoesNotReapplyMigrations()
+    {
+        await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await using (var first = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true"))
+        {
+            using var client = first.CreateClient();
+        }
+
+        using var logs = new RecordingLoggerProvider();
+        await using var second = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", logs: logs);
+        using var secondClient = second.CreateClient();
+
+        Assert.Equal(KnownMigrations(second), await database.CountAsync(CountMigrations));
+        Assert.Contains(logs.Entries, e => e.EventId == RelationalEventId.MigrationsNotApplied.Id);
+        Assert.DoesNotContain(logs.Entries, e => e.EventId == RelationalEventId.MigrationApplying.Id);
+    }
+
+    [Fact]
+    public async Task DatabaseIsUntouchedWhenMigrationIsNotRequested()
+    {
+        await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "false");
+
+        using var client = factory.CreateClient();
+
+        Assert.Equal(0L, await database.CountTablesAsync("identite", "organisations"));
+    }
+
+    [Theory]
+    [InlineData("Host=ep-exemple.eu-central-1.aws.neon.tech;Database=gestionsite;Username=x;Password=x")]
+    [InlineData("Host=localhost,db.example.org;Database=gestionsite;Username=x;Password=x")]
+    public async Task StartupMigrationIsRefusedForANonLocalDatabase(string connectionString)
+    {
+        await using var factory = infrastructure.CreateApi(connectionString, migrateOnStartup: "true");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("base PostgreSQL locale", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvalidConfigurationStopsStartupBeforeAnyMigration()
+    {
+        await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", bucket: string.Empty);
+
+        Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(0L, await database.CountTablesAsync("identite", "organisations"));
+    }
+
+    // Migrations embarquées dans le code : le compte suit l'ajout de nouvelles migrations.
+    private static long KnownMigrations(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IdentiteDbContext>().Database.GetMigrations().LongCount();
+    }
+}

@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | Choix faits (ADR-10) : Identity intégré, lien d'activation, double barrière EF + RLS ; contrats dans CONTRATS.md ; sous-cartes S06-01 à S06-06 | S06-01 en cours (persistance EF Core, migrations, Testcontainers) |
+| US-06 Comptes et droits | ADR-10 ; S06-01 fusionnée (PR #24 : persistance EF Core par module, EF épinglé 10.0.14, migration au démarrage réservée aux bases locales, contrôle /health/ready unique base + schéma, Organisation validée et testée en aller-retour PostgreSQL) | S06-02 (organisations, sites, adhésions, rôles par site, RLS forcée, rôle propriétaire ≠ rôle applicatif). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -39,6 +39,15 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Fusion par l'agent autorisée (`gh pr merge`) seulement quand revue, CI et Sonar sont au vert.
 - Carte Trello mise à jour au début (En cours) et à chaque étape, avec preuve pour Revue, Recette, Prêt à livrer, Livré : `python3 scripts/trello/card.py move <ID> "<Liste>" --proof "…" --apply`.
 - Le porteur préfère des questions en QCM, une décision à la fois.
+- Revue bornée : au plus 3 passages `/code-review` par PR ; au-delà, seuls les défauts avérés (bug reproductible, sécurité, données) bloquent la fusion ; les suggestions de conception vont dans « Points reportés ». Cartes Trello déplacées dès chaque étape (le porteur doit voir l'avancement).
+
+## Points reportés (issus des revues de S06-01)
+- Aide de persistance commune aux modules (DbContext + migrateur générique) : à créer quand un 2e module aura une base.
+- Objet valeur « nom affichable » (règles Unicode d'Organisation) : à extraire en S06-02 pour les sites.
+- Convention EF pour toutes les dates (UTC, microseconde, refus de ±infinity) au lieu du constructeur d'Organisation : S06-02.
+- Image publiée : Microsoft.EntityFrameworkCore.Design est copié à la publication ; l'exclure au premier déploiement (S05-01/OUT).
+- Sonde /health/ready : 1 + 2×N requêtes sur les réponses 503 non mises en cache ; acceptable à ce stade, à revoir si Neon le facture.
+- Tests d'intégration : supposent un démon Docker local (hôte de boucle locale) à cause du garde-fou de migration.
 
 ## Comment reprendre
 1. Lire ce fichier, puis AGENTS.md, puis la carte concernée.
@@ -72,3 +81,5 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 28/10/2026 | Parcours 1er incrément maquetté en Jour et Nuit (8 écrans), en attente de validation | canevas Design |
 | 28/10/2026 | Maquettes du parcours du 1er incrément validées par le porteur | docs/ux/CHARTE.md |
 | 28/10/2026 | US-06 cadrée : ADR-10, contrats, 6 sous-cartes | PR cadrage US-06 |
+| 28/10/2026 | S06-01 persistance EF Core en revue (2 passages /code-review traités) | PR #24 |
+| 28/10/2026 | S06-01 : 11 passages de revue (EF 10.0.4/10.0.14 unifié, garde-fou migration locale, dates, noms) ; revue bornée à 3 passages désormais, après remarque du porteur sur la lenteur | PR #24 |

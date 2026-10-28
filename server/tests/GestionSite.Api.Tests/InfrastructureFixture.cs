@@ -2,13 +2,17 @@ using Amazon.S3;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using GestionSite.Api.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 
 namespace GestionSite.Api.Tests;
 
 /// <summary>
 /// Conteneurs réels PostgreSQL et SeaweedFS (compatible S3), partagés par les tests d'intégration
-/// de disponibilité. Mêmes images et même configuration S3 que server/compose.yaml.
+/// (collection « Infrastructure », démarrés une seule fois). Mêmes images et même configuration S3
+/// que server/compose.yaml.
 /// </summary>
 public sealed class InfrastructureFixture : IAsyncLifetime
 {
@@ -31,6 +35,29 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     internal string ConnectionString => _postgres.GetConnectionString();
 
     internal string StorageUrl => $"http://{_storage.Hostname}:{_storage.GetMappedPublicPort(S3Port)}";
+
+    /// <summary>
+    /// API réelle branchée sur ces conteneurs ; chaque paramètre remplace la valeur par défaut.
+    /// Migration au démarrage par défaut : suppose un démon Docker local (hôte de boucle locale).
+    /// </summary>
+    internal WebApplicationFactory<Program> CreateApi(
+        string? connectionString = null, string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null,
+        ILoggerProvider? logs = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+            .ConfigureLogging(logging =>
+            {
+                if (logs is not null)
+                {
+                    logging.AddProvider(logs);
+                }
+            })
+            .UseSetting("ConnectionStrings:Main", connectionString ?? ConnectionString)
+            .UseSetting("Database:MigrateOnStartup", migrateOnStartup)
+            .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? StorageUrl)
+            .UseSetting("ObjectStorage:AccessKey", AccessKey)
+            .UseSetting("ObjectStorage:SecretKey", SecretKey)
+            .UseSetting("ObjectStorage:Bucket", bucket ?? Bucket)
+            .UseSetting("ObjectStorage:Region", Region));
 
     public async Task InitializeAsync()
     {
@@ -74,4 +101,10 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
         return directory?.FullName ?? throw new InvalidOperationException("Répertoire server/ introuvable.");
     }
+}
+
+[CollectionDefinition(Name)]
+public sealed class SharedInfrastructure : ICollectionFixture<InfrastructureFixture>
+{
+    internal const string Name = "Infrastructure";
 }
