@@ -1,7 +1,7 @@
-namespace GestionSite.Modules.Identite.Domain;
+namespace GestionSite.SharedKernel.Persistence;
 
 /// <summary>Donnée rattachée à une organisation : filtrée par organisation et protégée par la RLS.</summary>
-internal interface IAppartientAOrganisation
+public interface IAppartientAOrganisation
 {
     Guid OrganisationId { get; }
 }

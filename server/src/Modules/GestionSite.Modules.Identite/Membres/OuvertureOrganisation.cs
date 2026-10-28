@@ -26,7 +26,9 @@ internal static class OuvertureOrganisation
         context.Organisations.Add(new Organisation(organisationId, nom, maintenant));
         if (!string.IsNullOrWhiteSpace(premierSite))
         {
-            context.Sites.Add(new Site(Guid.NewGuid(), organisationId, premierSite, maintenant));
+            var site = new Site(Guid.NewGuid(), organisationId, premierSite, maintenant);
+            context.Sites.Add(site);
+            context.CodesSitesPublics.Add(CodeSitePublic.Nouveau(site.Id, organisationId, maintenant));
         }
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -1,6 +1,7 @@
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -17,6 +18,8 @@ namespace GestionSite.Api.Tests;
 public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     // Hors organisation, sans RLS d'organisation (liste explicite : toute nouvelle table doit être classée).
+    private static readonly string[] SchemasIsoles = ["identite", "maintenance"];
+
     private static readonly string[] TablesGlobales =
         ["__ef_migrations", "comptes", "comptes_revendications", "comptes_connexions_externes", "comptes_jetons", "jetons_renouvellement", "activations"];
 
@@ -82,13 +85,15 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     {
         var sansIsolation = await _database.CountAsync(
             "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace " +
-            "WHERE n.nspname = 'identite' AND c.relkind = 'r' AND NOT c.relname = ANY (@globales) " +
+            "WHERE n.nspname = ANY (@schemas) AND c.relkind = 'r' AND NOT c.relname = ANY (@globales) " +
             "AND NOT (c.relrowsecurity AND c.relforcerowsecurity " +
-            "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))", ("globales", TablesGlobales));
+            "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))", ("schemas", SchemasIsoles), ("globales", TablesGlobales));
 
         Assert.Equal(0L, sansIsolation);
-        Assert.Equal(5L, await _database.CountAsync(
-            "SELECT count(*) FROM pg_tables WHERE schemaname = 'identite' AND NOT tablename = ANY (@globales)", ("globales", TablesGlobales)));
+        // identite : organisations, sites, codes publics, membres, rôles, journal ; maintenance : signalements, alertes.
+        Assert.Equal(8L, await _database.CountAsync(
+            "SELECT count(*) FROM pg_tables WHERE schemaname = ANY (@schemas) AND NOT tablename = ANY (@globales)",
+            ("schemas", SchemasIsoles), ("globales", TablesGlobales)));
     }
 
     [Fact]

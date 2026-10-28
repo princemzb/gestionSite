@@ -3,6 +3,7 @@ using GestionSite.Modules.Identite.Autorisation;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Identite.Membres;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.Modules.Identite.SitesPublics;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +18,7 @@ public static class IdentiteModule
     public static IServiceCollection AddIdentiteModule(this IServiceCollection services) =>
         services.AddIdentitePersistence().AddAuthentificationIdentite()
             .AddScoped<Autorisations>().AddScoped<IAutorisations>(p => p.GetRequiredService<Autorisations>())
+            .AddScoped<ISitesPublics, RechercheSitesPublics>()
             .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>().AddScoped<ServiceInvitations>();
 
     public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) =>

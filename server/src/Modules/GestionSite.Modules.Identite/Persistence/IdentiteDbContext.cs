@@ -3,6 +3,7 @@ using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Identite.Persistence;
 
@@ -21,6 +22,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
     public DbSet<Organisation> Organisations => Set<Organisation>();
 
     public DbSet<Site> Sites => Set<Site>();
+
+    public DbSet<CodeSitePublic> CodesSitesPublics => Set<CodeSitePublic>();
 
     public DbSet<Membre> Membres => Set<Membre>();
 
@@ -116,9 +119,24 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             site.HasKey(s => s.Id);
             site.Property(s => s.Id).ValueGeneratedNever();
             site.Property(s => s.Nom).HasMaxLength(Site.NomMaxLength).IsRequired();
+            site.Property(s => s.NumeroUrgence).HasMaxLength(Site.NumeroUrgenceMaxLength);
             // Clé (id, organisation) : les rôles ne peuvent viser qu'un site de leur propre organisation.
             site.HasAlternateKey(s => new { s.Id, s.OrganisationId });
             site.HasOne<Organisation>().WithMany().HasForeignKey(s => s.OrganisationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Sans filtre d'organisation : la recherche par code précède toute organisation (dépôt public) ;
+        // l'écriture reste contrôlée (ExigerOrganisationCourante, politique RLS d'insertion).
+        modelBuilder.Entity<CodeSitePublic>(code =>
+        {
+            code.ToTable("codes_sites_publics");
+            code.HasKey(c => c.Code);
+            code.Property(c => c.Code).HasMaxLength(CodeSitePublic.Longueur).IsFixedLength();
+            code.HasIndex(c => new { c.SiteId, c.OrganisationId }).IsUnique(); // un code par site ; sert aussi la clé étrangère
+            code.HasOne<Site>().WithMany()
+                .HasForeignKey(c => new { c.SiteId, c.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Membre>(membre =>
@@ -185,6 +203,7 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             Guid? organisation = entree.Entity switch
             {
                 Organisation o => o.Id,
+                CodeSitePublic c => c.OrganisationId,
                 IAppartientAOrganisation donnee => donnee.OrganisationId,
                 IDonneeGlobale => null,
                 IdentityUserClaim<Guid> or IdentityUserLogin<Guid> or IdentityUserToken<Guid> => null, // détails de compte

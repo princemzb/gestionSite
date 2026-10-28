@@ -19,7 +19,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| **Sprint SP-003 : US-08 Dépôt public et QR** (choix du porteur 28/10 : US-08 puis US-07) | Affinée ; décisions du porteur inscrites (REGLES « Dépôt public », PERMISSIONS) ; cartes UX-03 (en cours), S08-01 à S08-05 (sprint sélectionné) | **UX-03** : propositions de maquettes (formulaire public sur téléphone, QR du site, dépôts reçus) puis STOP jusqu'au choix du porteur. S08-01 (serveur, sans écran) peut avancer en parallèle. |
+| **Sprint SP-003 : US-08 Dépôt public et QR** (choix du porteur 28/10 : US-08 puis US-07) | **Le porteur délègue à l'agent la validation des choix jusqu'à la fin du sprint (29/10)** : décisions prises par l'agent notées ici, révisables. Maquettes UX-03 validées par le porteur (formulaire C, dépôts reçus A, affiche + Sites, numéro d'urgence par site, Nuit). S08-01 en cours : branche `feat/s08-01-depot-public` (noyau d'isolation partagé, codes publics de site, module Maintenance, `POST /public/sites/{code}/reports`). | S08-01 : PR + revues ; puis S08-02 (photos), S08-03 (Turnstile + limites), S08-04 (formulaire + QR), S08-05 (liste des dépôts), mise en préproduction. |
 | US-06 Comptes et droits | **Livrée le 28/10** (S06-01 à S06-06) : en service en préproduction | — |
 | PREP-06 POC commandes hors connexion | Terminée (PR #32, 3b2e968) : protocole idempotent + file par profil, rapport exécutable 4 × OK (docs/poc/PREP-06.md) ; conception à reprendre dans US-14 | PREP-07 (essais de localisation sur site) et PREP-08 (cas IA, service externe) : décision et actions du porteur nécessaires. |
 | PREP-03 / PREP-04 préparation POC-01 et POC-02 | Protocoles proposés : docs/poc/PREP-03-protocole-localisation.md, docs/poc/PREP-04-cas-ia.md ; en Recette (validation du porteur) | Porteur : site et dates d'essai, relecture des 30 cas par le terrain, fournisseur et budget IA, politique d'images. Puis PREP-07 / PREP-08. |
@@ -56,9 +56,8 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - DEP-01 (revue PR #41) : vérifier en usage réel que `setInactivityTimeout` compte depuis la dernière activité (sinon renouveler à chaque requête) ; cas « image précédente » non encore observé en vrai (seul le redémarrage sur veille l'a été).
 - Hébergement de production (ADR à venir) : réveil ≈ 20 s et mode `durable_object` en bêta publique ; mesurer la mémoire réelle puis comparer conteneur Cloudflare toujours actif (≈ 28 $/mois en `standard-1`) et hébergeur UE classique.
 - Option Hyperdrive mentionnée par l'ADR-08 non utilisée (connexion directe à Neon) : à réévaluer avec la latence mesurée.
-- Aide de persistance commune aux modules (DbContext + migrateur générique) : à créer quand un 2e module aura une base.
+- Aide de persistance commune aux modules (migrateur générique) : les intercepteurs et marqueurs sont dans le noyau depuis S08-01 ; le migrateur reste dupliqué (Identité, Maintenance), à factoriser au 3e module.
 - Règles de nom et de date extraites en S06-02 (`NomAffichable`, `Horodatage`) ; une convention EF globale reste possible si d'autres modules en ont besoin.
-- Intercepteur de session RLS et `IAppartientAOrganisation` dans le module Identité : à déplacer dans un noyau de persistance partagé quand un 2e module aura des données d'organisation.
 - Noms des rôles PostgreSQL figés (`gestionsite_app` cité dans les GRANT des migrations) : contrat pour la préproduction.
 - Sonde /health/ready sur une base migrée seulement jusqu'à S06-01 : « invérifiable » (droits absents) au lieu de « en attente » ; sans effet, aucune base partagée dans cet état.
 - Écritures : BEGIN + SET LOCAL + DML + COMMIT (3 allers-retours) ; regrouper SET LOCAL avec la première instruction si la latence Neon le justifie.

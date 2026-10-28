@@ -22,7 +22,7 @@ public sealed class IdentitePersistenceTests
     {
         using var module = new RuntimeContext();
         var marquees = module.Context.Model.GetEntityTypes()
-            .Where(t => typeof(GestionSite.Modules.Identite.Domain.IAppartientAOrganisation).IsAssignableFrom(t.ClrType)
+            .Where(t => typeof(GestionSite.SharedKernel.Persistence.IAppartientAOrganisation).IsAssignableFrom(t.ClrType)
                 || t.ClrType == typeof(Organisation))
             .ToList();
 

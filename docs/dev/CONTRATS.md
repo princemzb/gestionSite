@@ -4,7 +4,7 @@ Statut : esquisse P ; noms et formes non figés. Produire un contrat OpenAPI val
 ## Opérations proposées
 | Domaine | Opération HTTP indicative | Entrées et sortie métier |
 | --- | --- | --- |
-| Public | POST /public/sites/{code}/reports | Nom, contact, emplacement texte, type, description, danger, références photos → accusé sans jeton de suivi |
+| Public | POST /public/sites/{code}/reports | Nom, contact, emplacement texte, type, description, danger, références photos → accusé sans jeton de suivi (détail : section « Dépôt public ») |
 | Dossiers | GET /sites/{id}/cases | Filtres autorisés, pagination → dossiers visibles |
 | Affectation | POST /cases/{id}/assignment | Intervenant, priorité, version attendue → dossier révisé |
 | Clôture | POST /interventions/{id}/closure | Actions, état final, photos, version → clôture ou validation refusée |
@@ -35,6 +35,14 @@ Statut : esquisse P ; noms et formes non figés. Produire un contrat OpenAPI val
 | GET /organizations/{orgId}/members/journal?limite=&avant= | Administrateur d'organisation | → journal des habilitations (RG-31) : nature, auteur, date, motif, rôles avant/après, du plus récent au plus ancien ; pages de 200 au plus, `avant` = identifiant de la dernière entrée reçue |
 
 Rôles : administrateur d'organisation (A), responsable (R), délégué (D), technicien (T), pasteur (P), coordination (C) ; cumulables ; chacun accordé sur des sites précis (A : toute l'organisation). Toute ressource d'une autre organisation répond 404, jamais 403, pour empêcher l'énumération.
+
+## Dépôt public (US-08, S08-01)
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET /public/sites/{code} | Public | → nom du site et de l'organisation (en-tête du formulaire) ; 404 si code mal formé ou inconnu |
+| POST /public/sites/{code}/reports | Public | `commandeId` (UUID choisi par le formulaire), `nature` (Incident ou Demande), `description` (≤ 2000), `emplacement` (≤ 200), `danger`, `activiteBloquee`, `nom` (≤ 200), `contact` (≤ 200, non vérifié) → 200 `{site, danger, numeroUrgence}` : aucun identifiant ni jeton ; `numeroUrgence` seulement si danger et numéro du site renseigné. Même `commandeId` rejoué ou envoyé en parallèle : même accusé, un seul signalement. 422 `donnee_invalide` + `champ` ; 404 code inconnu. Danger : alerte enregistrée avec le signalement. |
+
+Code de site : 10 caractères de `23456789ABCDEFGHJKMNPQRSTVWXYZ` (casse et tirets ignorés), un par site, créé avec le site ; lisible sans organisation (le code est la clé), écrit seulement par l'organisation du site (garde applicative + RLS).
 
 ## Principes de contrat proposés
 Identifiants stables, horodatages avec fuseau, montants avec devise et précision définie, unités explicites.

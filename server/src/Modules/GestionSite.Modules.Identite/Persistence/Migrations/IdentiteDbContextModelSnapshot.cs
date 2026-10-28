@@ -70,6 +70,36 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.ToTable("activations", "identite");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.CodeSitePublic", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(10)
+                        .HasColumnType("character(10)")
+                        .HasColumnName("code")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.HasKey("Code")
+                        .HasName("pk_codes_sites_publics");
+
+                    b.HasIndex("SiteId", "OrganisationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_codes_sites_publics_site_id_organisation_id");
+
+                    b.ToTable("codes_sites_publics", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Compte", b =>
                 {
                     b.Property<Guid>("Id")
@@ -398,6 +428,11 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nom");
 
+                    b.Property<string>("NumeroUrgence")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("numero_urgence");
+
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
@@ -503,6 +538,17 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_activations_comptes_compte_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.CodeSitePublic", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_codes_sites_publics_sites_site_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.EvenementHabilitation", b =>

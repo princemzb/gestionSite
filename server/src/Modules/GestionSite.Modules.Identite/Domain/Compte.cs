@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Identite.Domain;
 

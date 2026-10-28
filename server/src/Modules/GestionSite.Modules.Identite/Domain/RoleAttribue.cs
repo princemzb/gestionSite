@@ -1,3 +1,5 @@
+using GestionSite.SharedKernel.Persistence;
+
 namespace GestionSite.Modules.Identite.Domain;
 
 /// <summary>Un rôle d'un membre : sur toute l'organisation pour A, sur un site précis pour les autres.</summary>

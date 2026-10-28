@@ -1,3 +1,5 @@
+using GestionSite.Modules.Maintenance.DepotPublic;
+using GestionSite.Modules.Maintenance.Persistence;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +11,8 @@ namespace GestionSite.Modules.Maintenance;
 /// </summary>
 public static class MaintenanceModule
 {
-    public static IServiceCollection AddMaintenanceModule(this IServiceCollection services) => services;
+    public static IServiceCollection AddMaintenanceModule(this IServiceCollection services) =>
+        services.AddMaintenancePersistence().AddScoped<ServiceDepotPublic>();
 
-    public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints;
+    public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic();
 }
