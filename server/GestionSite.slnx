@@ -6,6 +6,7 @@
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/GestionSite.Modules.Budget/GestionSite.Modules.Budget.csproj" />
     <Project Path="src/Modules/GestionSite.Modules.Identite/GestionSite.Modules.Identite.csproj" />
+    <Project Path="src/Modules/GestionSite.Modules.Identite.Contracts/GestionSite.Modules.Identite.Contracts.csproj" />
     <Project Path="src/Modules/GestionSite.Modules.Maintenance/GestionSite.Modules.Maintenance.csproj" />
     <Project Path="src/Modules/GestionSite.Modules.Patrimoine/GestionSite.Modules.Patrimoine.csproj" />
     <Project Path="src/Modules/GestionSite.Modules.Plateforme/GestionSite.Modules.Plateforme.csproj" />
