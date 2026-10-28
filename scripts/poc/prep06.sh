@@ -22,7 +22,7 @@ SORTIE=$(cd server/src/GestionSite.Api && dotnet run --no-build -- ouvrir-organi
 JETON_ACTIVATION=$(echo "$SORTIE" | grep -o '[A-Za-z0-9_-]\{40,\}$')
 
 echo "3/4 Site et deux techniciens (deux profils sur la même tablette)…"
-ENV_SCENARIO=$(python3 scripts/poc/prep06_preparer.py "$API" "$JETON_ACTIVATION" "admin.$RUN@poc.test")
+ENV_SCENARIO=$(python3 scripts/poc/prep06_preparer.py "$JETON_ACTIVATION" "admin.$RUN@poc.test")
 
 echo "4/4 Scénario tablette (Dart) contre l'API réelle :"
 cd mobile
