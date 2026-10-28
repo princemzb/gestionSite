@@ -114,7 +114,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
     }
 
     [Fact]
-    public async Task RevocationEndsTheMembersSessionsAndAccess()
+    public async Task RevocationEndsAccessToTheOrganisationImmediately()
     {
         var nord = await CreerSiteAsync("Nord");
         var cree = await CreerMembreAsync("marc@exemple.test", new { role = "Technicien", siteId = nord });
@@ -123,12 +123,12 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         var jetons = await Json(connexion);
 
         using var revocation = await Delete($"/organizations/{_organisation}/members/{cree.GetProperty("membreId").GetGuid()}", _admin);
-        using var renouvellement = await Post("/auth/refresh", null, new { jetonRenouvellement = jetons.GetProperty("jetonRenouvellement").GetString() });
         using var sites = await Get($"/organizations/{_organisation}/sites", jetons.GetProperty("jetonAcces").GetString());
+        using var me = await Get("/me", jetons.GetProperty("jetonAcces").GetString());
 
         Assert.Equal(HttpStatusCode.NoContent, revocation.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, renouvellement.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, sites.StatusCode); // jeton d'accès encore valide, adhésion révoquée
+        Assert.Equal(0, (await Json(me)).GetProperty("organisations").GetArrayLength());
     }
 
     [Fact]
@@ -151,6 +151,8 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
 
     [Theory]
     [InlineData("Inconnu", false, "role_inconnu")]
+    [InlineData("0", false, "role_inconnu")]
+    [InlineData("Responsable, Delegue", true, "role_inconnu")]
     [InlineData("Technicien", false, "site_selon_role")]
     [InlineData("Administrateur", true, "site_selon_role")]
     [InlineData("Technicien", true, "site_inconnu")]
@@ -175,6 +177,68 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         Assert.Equal(HttpStatusCode.Created, reponse.StatusCode);
         Assert.Equal(JsonValueKind.Null, (await Json(reponse)).GetProperty("activation").ValueKind);
         Assert.Equal(2, (await Json(me)).GetProperty("organisations").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task AnotherOrganisationCannotTakeOverAPendingAccount()
+    {
+        var nord = await CreerSiteAsync("Nord");
+        var cree = await CreerMembreAsync("bob@exemple.test", new { role = "Responsable", siteId = nord });
+        var (autre, adminAutre) = await OuvrirAsync("Organisation tierce", "admin@tierce.test");
+
+        using var prise = await Post($"/organizations/{autre}/members", adminAutre, NouveauMembre("bob@exemple.test", new { role = "Administrateur" }));
+        using var relance = await Post($"/organizations/{autre}/members/{cree.GetProperty("membreId").GetGuid()}/activation", adminAutre, new { });
+
+        Assert.Equal(HttpStatusCode.Conflict, prise.StatusCode);
+        Assert.Equal("compte_en_attente", (await Json(prise)).GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, relance.StatusCode);
+        await ActiverAsync(cree.GetProperty("activation").GetProperty("jeton").GetString()!); // le lien d'origine reste valable
+    }
+
+    [Fact]
+    public async Task TheCreatingOrganisationCanIssueANewLink()
+    {
+        var nord = await CreerSiteAsync("Nord");
+        var cree = await CreerMembreAsync("marc@exemple.test", new { role = "Technicien", siteId = nord });
+        var ancien = cree.GetProperty("activation").GetProperty("jeton").GetString()!;
+
+        using var relance = await Post($"/organizations/{_organisation}/members/{cree.GetProperty("membreId").GetGuid()}/activation", _admin, new { });
+        var nouveau = (await Json(relance)).GetProperty("jeton").GetString()!;
+        using var parAncien = await Post("/auth/activate", null, new { jeton = ancien, motDePasse = MotDePasse });
+        await ActiverAsync(nouveau);
+        using var apresActivation = await Post($"/organizations/{_organisation}/members/{cree.GetProperty("membreId").GetGuid()}/activation", _admin, new { });
+
+        Assert.Equal(HttpStatusCode.OK, relance.StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, parAncien.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, apresActivation.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevocationKeepsSessionsUsedByOtherOrganisations()
+    {
+        var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
+        var nord = await CreerSiteAsync("Nord");
+        using var ajout = await Post($"/organizations/{_organisation}/members", _admin, NouveauMembre("admin@autre.test", new { role = "Technicien", siteId = nord }));
+        using var connexion = await Post("/auth/login", null, new { email = "admin@autre.test", motDePasse = MotDePasse });
+        var renouvellement = (await Json(connexion)).GetProperty("jetonRenouvellement").GetString();
+
+        using var revocation = await Delete($"/organizations/{_organisation}/members/{(await Json(ajout)).GetProperty("membreId").GetGuid()}", _admin);
+        using var apres = await Post("/auth/refresh", null, new { jetonRenouvellement = renouvellement });
+        using var sitesAutre = await Get($"/organizations/{autre}/sites", adminAutre);
+
+        Assert.Equal(HttpStatusCode.NoContent, revocation.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, apres.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, sitesAutre.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmailIsTrimmedBeforeLookingForTheAccount()
+    {
+        var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
+
+        using var reponse = await Post($"/organizations/{autre}/members", adminAutre, NouveauMembre($"  {AdminEmail} ", new { role = "Administrateur" }));
+
+        Assert.Equal(HttpStatusCode.Created, reponse.StatusCode);
     }
 
     [Fact]

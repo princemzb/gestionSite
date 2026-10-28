@@ -111,6 +111,17 @@ public sealed class IdentiteDomainTests
     }
 
     [Fact]
+    public void CurrentOrganisationCannotBeSetInsideAnOpenTransaction()
+    {
+        var courante = new OrganisationCourante();
+        courante.SignalerTransaction(ouverte: true);
+
+        Assert.Throws<InvalidOperationException>(() => courante.Definir(Guid.NewGuid()));
+        courante.SignalerTransaction(ouverte: false);
+        courante.Definir(Guid.NewGuid());
+    }
+
+    [Fact]
     public void EveryChangeOfAMemberIncreasesItsVersion()
     {
         var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);

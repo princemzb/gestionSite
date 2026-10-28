@@ -33,7 +33,7 @@ internal sealed class ServiceActivation(IdentiteDbContext context, UserManager<C
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         activation.Utiliser(maintenant);
         compte.PasswordHash = comptes.PasswordHasher.HashPassword(compte, motDePasse!);
-        compte.EmailConfirmed = true; // le lien a été transmis à cette adresse par l'administrateur
+        // EmailConfirmed reste faux : le lien passe par l'administrateur, l'adresse n'est pas prouvée.
         compte.SecurityStamp = Guid.NewGuid().ToString();
         try
         {

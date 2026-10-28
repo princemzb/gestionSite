@@ -9,6 +9,7 @@ internal sealed class OrganisationTransactionInterceptor(OrganisationCourante or
 {
     public override DbTransaction TransactionStarted(DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
     {
+        organisationCourante.SignalerTransaction(ouverte: true);
         using var command = Commande(connection, result);
         command.ExecuteNonQuery();
         return result;
@@ -17,6 +18,7 @@ internal sealed class OrganisationTransactionInterceptor(OrganisationCourante or
     public override async ValueTask<DbTransaction> TransactionStartedAsync(
         DbConnection connection, TransactionEndEventData eventData, DbTransaction result, CancellationToken cancellationToken = default)
     {
+        organisationCourante.SignalerTransaction(ouverte: true);
         await using var command = Commande(connection, result);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return result;
@@ -29,6 +31,24 @@ internal sealed class OrganisationTransactionInterceptor(OrganisationCourante or
     public override ValueTask<DbTransaction> TransactionUsedAsync(
         DbConnection connection, TransactionEventData eventData, DbTransaction result, CancellationToken cancellationToken = default) =>
         TransactionStartedAsync(connection, null!, result, cancellationToken);
+
+    public override void TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData) =>
+        organisationCourante.SignalerTransaction(ouverte: false);
+
+    public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken = default)
+    {
+        organisationCourante.SignalerTransaction(ouverte: false);
+        return Task.CompletedTask;
+    }
+
+    public override void TransactionRolledBack(DbTransaction transaction, TransactionEndEventData eventData) =>
+        organisationCourante.SignalerTransaction(ouverte: false);
+
+    public override Task TransactionRolledBackAsync(DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken = default)
+    {
+        organisationCourante.SignalerTransaction(ouverte: false);
+        return Task.CompletedTask;
+    }
 
     private DbCommand Commande(DbConnection connection, DbTransaction transaction)
     {

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Identite.Persistence.Migrations
 {
     [DbContext(typeof(IdentiteDbContext))]
-    [Migration("20261028084650_MembresEtActivations")]
+    [Migration("20261028085718_MembresEtActivations")]
     partial class MembresEtActivations
     {
         /// <inheritdoc />
@@ -50,6 +50,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpireLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expire_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
 
                     b.Property<DateTimeOffset?>("UtiliseLe")
                         .IsConcurrencyToken()

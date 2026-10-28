@@ -48,6 +48,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expire_le");
 
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
                     b.Property<DateTimeOffset?>("UtiliseLe")
                         .IsConcurrencyToken()
                         .HasColumnType("timestamp with time zone")

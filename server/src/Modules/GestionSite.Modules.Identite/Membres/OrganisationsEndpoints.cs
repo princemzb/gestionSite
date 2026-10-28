@@ -25,6 +25,7 @@ internal static class OrganisationsEndpoints
         organisation.MapPost("/members", CreerMembreAsync);
         organisation.MapPut("/members/{memberId:guid}", ReviserMembreAsync);
         organisation.MapDelete("/members/{memberId:guid}", RevoquerMembreAsync);
+        organisation.MapPost("/members/{memberId:guid}/activation", RenouvelerActivationAsync);
         endpoints.MapPost("/auth/activate", ActiverAsync).AllowAnonymous().AddEndpointFilter(TraduireRefus);
         return endpoints;
     }
@@ -53,6 +54,9 @@ internal static class OrganisationsEndpoints
         await service.RevoquerAsync(orgId, memberId, cancellationToken).ConfigureAwait(false);
         return Results.NoContent();
     }
+
+    private static async Task<IResult> RenouvelerActivationAsync(Guid orgId, Guid memberId, ServiceMembres service, CancellationToken cancellationToken) =>
+        Results.Ok(await service.RenouvelerActivationAsync(orgId, memberId, cancellationToken).ConfigureAwait(false));
 
     private static async Task<IResult> ActiverAsync(DemandeActivation demande, ServiceActivation service, CancellationToken cancellationToken)
     {

@@ -24,11 +24,16 @@ internal static class OuvertureOrganisation
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         context.Organisations.Add(new Organisation(organisationId, nom, maintenant));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var compte = await membres.TrouverOuCreerCompteAsync(emailAdministrateur, nomAdministrateur).ConfigureAwait(false);
+        var (compte, cree) = await membres.TrouverOuCreerCompteAsync(emailAdministrateur, nomAdministrateur).ConfigureAwait(false);
+        if (!cree && compte.PasswordHash is null)
+        {
+            throw new InvalidOperationException("Ce compte n'est pas encore activé : l'activer avant de l'ajouter à une autre organisation.");
+        }
+
         var administrateur = new Membre(Guid.NewGuid(), organisationId, compte.Id, maintenant);
         administrateur.Accorder(Role.Administrateur, site: null);
         context.Membres.Add(administrateur);
-        var activation = compte.PasswordHash is null ? membres.EmettreActivation(compte.Id) : null;
+        var activation = cree ? await membres.EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return (organisationId, activation);

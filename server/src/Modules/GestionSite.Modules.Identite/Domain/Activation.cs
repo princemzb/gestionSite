@@ -13,10 +13,11 @@ internal sealed class Activation : IDonneeGlobale
     {
     }
 
-    internal Activation(Guid id, Guid compteId, byte[] empreinte, DateTimeOffset creeLe)
+    internal Activation(Guid id, Guid compteId, Guid organisationId, byte[] empreinte, DateTimeOffset creeLe)
     {
         Identifiants.ExigerNonVide(id, nameof(id));
         Identifiants.ExigerNonVide(compteId, nameof(compteId));
+        Identifiants.ExigerNonVide(organisationId, nameof(organisationId));
         ArgumentNullException.ThrowIfNull(empreinte);
         if (empreinte.Length != EmpreinteLength)
         {
@@ -25,6 +26,7 @@ internal sealed class Activation : IDonneeGlobale
 
         Id = id;
         CompteId = compteId;
+        OrganisationId = organisationId;
         Empreinte = empreinte;
         CreeLe = Horodatage.Valider(creeLe, nameof(creeLe));
         ExpireLe = CreeLe + Validite;
@@ -33,6 +35,12 @@ internal sealed class Activation : IDonneeGlobale
     public Guid Id { get; private set; }
 
     public Guid CompteId { get; private set; }
+
+    /// <summary>
+    /// Organisation qui a créé le compte et émis le lien : seule elle peut en émettre un nouveau. Une autre
+    /// organisation ne reçoit jamais de lien pour un compte qu'elle n'a pas créé (prise de compte).
+    /// </summary>
+    public Guid OrganisationId { get; private set; }
 
     public byte[] Empreinte { get; private set; } = [];
 

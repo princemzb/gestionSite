@@ -27,6 +27,7 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     compte_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    organisation_id = table.Column<Guid>(type: "uuid", nullable: false),
                     empreinte = table.Column<byte[]>(type: "bytea", fixedLength: true, maxLength: 32, nullable: false),
                     cree_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     expire_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
