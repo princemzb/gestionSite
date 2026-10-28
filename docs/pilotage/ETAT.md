@@ -8,7 +8,8 @@ Dernière mise à jour : 28 octobre 2026 (heure de Paris), par l'agent IA.
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
 - Stack adoptée : ADR-08 (ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor ; préproduction Cloudflare Containers + Neon ; R2, Turnstile, Tunnel).
 - Qualité adoptée : ADR-09 et **opérationnelle** : CI GitHub Actions + SonarQube Cloud obligatoires sur `main` (6 vérifications requises, liste dans docs/dev/GUIDE.md). L'analyse couvre tout le dépôt (C# et scripts Python).
-- Trello : https://trello.com/b/NsEhG4sm ; l'agent déplace les cartes avec `scripts/trello/card.py`.
+- Trello : https://trello.com/b/NsEhG4sm ; l'agent déplace les cartes avec `scripts/trello/card.py` (ou l'API Trello). Livrées le 28/10 : S05-01, US-05, S06-01 à S06-06, US-06, WEB-01, DEP-01.
+- **Préproduction en service** depuis le 28/10 (docs/exploitation/DEPLOIEMENT.md) : redéploiement `cd deploy/cloudflare && npx wrangler deploy`, puis `deploy/verification/parcours.py`.
 - Application terrain Flutter fusionnée (PR #15) : `mobile/`, écran technique provisoire sans design, porte `mobile/eng/verify.sh`, Sonar `princemzb_gestionSite_mobile` (Dart + natif), version finale protégée (signature obligatoire, obfuscation, HTTP interdit, sauvegarde désactivée).
 - Socle serveur fusionné sur `main` (PR #5, #14) : solution .NET 10, 6 modules isolés ; environnement local Docker (PostgreSQL 17.6 port 55433, SeaweedFS S3 port 58333) ; `/health` (vivacité) et `/health/ready` (base + stockage, cache 10 s, délai 5 s) ; 40 tests dont tests d'intégration Testcontainers ; couverture ≈ 99 %.
 
@@ -18,17 +19,17 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | Complète : S06-01 à S06-06 fusionnées (PR #24 à #31), en Prêt à livrer (livraison avec le premier écran testable) | — |
+| US-06 Comptes et droits | **Livrée le 28/10** (S06-01 à S06-06) : en service en préproduction | — |
 | PREP-06 POC commandes hors connexion | Terminée (PR #32, 3b2e968) : protocole idempotent + file par profil, rapport exécutable 4 × OK (docs/poc/PREP-06.md) ; conception à reprendre dans US-14 | PREP-07 (essais de localisation sur site) et PREP-08 (cas IA, service externe) : décision et actions du porteur nécessaires. |
 | PREP-03 / PREP-04 préparation POC-01 et POC-02 | Protocoles proposés : docs/poc/PREP-03-protocole-localisation.md, docs/poc/PREP-04-cas-ia.md ; en Recette (validation du porteur) | Porteur : site et dates d'essai, relecture des 30 cas par le terrain, fournisseur et budget IA, politique d'images. Puis PREP-07 / PREP-08. |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | Maquettes du 1er écran testable (carte UX-02) | **Validées le 28/10** : connexion B (bandeau) + membres C (par site), Jour et Nuit | Maquette « Activer mon compte » à faire valider ; puis application web Blazor et première mise en préproduction. |
-| WEB-01 Application web (1er écran testable) | Fusionnée (PR #38, fba5e90) : connexion, activation, membres par site, invitation ; 12 tests de bout en bout ; en Prêt à livrer | **Mise en préproduction** (ADR-08 : Neon + Cloudflare Containers + R2) : comptes et autorisations du porteur nécessaires, guidage pas à pas. |
-| DEP-01 Préproduction | **Déployée et vérifiée le 28/10** (adresse workers.dev du compte, Trousseau `gestionsite-preprod-url`) : `deploy/verification/parcours.py` 10/10 sur une organisation fictive de vérification (activation, membres, styles, invitation, activation du membre, connexion, cookie Secure/HttpOnly). PR #41 : revues code et sécurité faites, Sonar OK. Neon (Francfort, PG 17), R2 UE, 7 secrets du Worker. Organisation de démonstration du porteur ouverte (admin fictif `admin@demo.gestionsite.test`, lien valable jusqu'au 31/10). | Fusion PR #41 puis Livré des cartes ; recette du porteur dans son navigateur (retours = nouvelles cartes) ; alerte de facturation Cloudflare (porteur). |
+| WEB-01 Application web (1er écran testable) | **Livrée le 28/10** : en service en préproduction, parcours vérifié 10/10 | Recette du porteur (retours = nouvelles cartes). Écrans suivants (sites, révision/révocation, journal) : maquettes à valider d'abord. |
+| DEP-01 Préproduction | **Livrée le 28/10** (PR #41, 77cc843) : Cloudflare (adresse workers.dev du compte, Trousseau `gestionsite-preprod-url`), Neon Francfort PG 17, R2 UE ; `deploy/verification/parcours.py` 10/10 sur une organisation fictive de vérification ; revues code + sécurité, Sonar OK. Organisation de démonstration du porteur : admin fictif `admin@demo.gestionsite.test`, lien d'activation valable jusqu'au 31/10. | Porteur : recette dans son navigateur ; alerte de facturation Cloudflare. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
-| S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
+| S05-01 / US-05 | **Livrées le 28/10** (premier déploiement préprod) | — |
 
 ## Blocages et actions du porteur
 1. **Maquettes** : aucun visuel ni écran designé avant validation par le porteur de plusieurs propositions de maquettes ; s'arrêter et attendre sa décision.
@@ -36,6 +37,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 3. **Décisions ouvertes rencontrées** : iPhone encore ciblé et iOS 15 minimum dans le projet Flutter (valeurs du gabarit) — à trancher avec DEC-11 (usage téléphone) et DEC-06 (versions minimales).
 
 ## Accès outillés
+- Préproduction : `neonctl` (OAuth, organisation Neon du porteur) et `wrangler` (OAuth, compte Cloudflare du porteur) connectés sur le poste ; secrets dans le Trousseau `gestionsite-preprod-*` ; fusion de PR autorisée à l'agent (`Bash(gh pr merge:*)`, accord du porteur le 28/10).
 - Trello : clé et jeton dans le Trousseau (`gestionsite-trello-key`, `gestionsite-trello-token`).
 - Sonar : jeton CI en secret GitHub `SONAR_TOKEN` ; jeton utilisateur pour l'API Sonar dans le Trousseau (`gestionsite-sonar-token`).
 
