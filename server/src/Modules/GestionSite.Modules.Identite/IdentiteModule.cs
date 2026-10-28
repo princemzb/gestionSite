@@ -1,3 +1,4 @@
+using GestionSite.Modules.Identite.Authentification;
 using GestionSite.Modules.Identite.Persistence;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,7 +12,7 @@ namespace GestionSite.Modules.Identite;
 public static class IdentiteModule
 {
     public static IServiceCollection AddIdentiteModule(this IServiceCollection services) =>
-        services.AddIdentitePersistence();
+        services.AddIdentitePersistence().AddAuthentificationIdentite();
 
-    public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) => endpoints;
+    public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapAuthentification();
 }

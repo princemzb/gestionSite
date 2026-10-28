@@ -35,6 +35,7 @@ internal static class InfrastructureServices
                 : BuildDataSource(provider, migrations);
         });
         services.AddScoped<OrganisationCourante>();
+        services.AddScoped<CompteCourant>();
 
         services.AddOptions<ObjectStorageOptions>()
             .Bind(configuration.GetSection(ObjectStorageOptions.Section))

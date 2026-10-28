@@ -13,7 +13,7 @@ namespace GestionSite.Modules.Identite.Persistence;
 /// - Transaction (toute écriture : AutoTransactionBehavior.Always) : SET LOCAL à son ouverture, car EF
 ///   lit les résultats d'un lot d'écriture par position et un préfixe les décalerait.
 /// </summary>
-internal sealed class OrganisationCommandInterceptor(OrganisationCourante organisationCourante) : DbCommandInterceptor
+internal sealed class OrganisationCommandInterceptor(OrganisationCourante organisationCourante, CompteCourant compteCourant) : DbCommandInterceptor
 {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
@@ -59,15 +59,18 @@ internal sealed class OrganisationCommandInterceptor(OrganisationCourante organi
     {
         if (command.Transaction is null)
         {
-            command.CommandText = $"{Instruction(organisationCourante)}\n{command.CommandText}";
+            command.CommandText = $"{Instruction(organisationCourante, compteCourant)}\n{command.CommandText}";
         }
     }
 
     // Valeur littérale sûre : un Guid formaté par .NET (chiffres hexadécimaux et tirets) ou vide.
     // SET n'accepte pas de paramètre ; il ne renvoie aucun résultat, le lecteur passe à la suite.
-    internal static string Instruction(OrganisationCourante organisationCourante)
+    internal static string Instruction(OrganisationCourante organisationCourante, CompteCourant compteCourant)
     {
         organisationCourante.MarquerTransmise();
-        return $"SET LOCAL {OrganisationCourante.VariableSession} = '{organisationCourante.Id?.ToString("D") ?? string.Empty}';";
+        return $"SET LOCAL {OrganisationCourante.VariableSession} = '{Litteral(organisationCourante.Id)}'; " +
+            $"SET LOCAL {CompteCourant.VariableSession} = '{Litteral(compteCourant.Id)}';";
     }
+
+    private static string Litteral(Guid? id) => id?.ToString("D") ?? string.Empty;
 }

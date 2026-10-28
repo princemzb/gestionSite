@@ -89,6 +89,15 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     }
 
     [Fact]
+    public async Task StartupFailsWithAWeakSigningKey()
+    {
+        await using var factory = infrastructure.CreateApi(signingKey: "c2hvcnQ=");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains("Authentification:CleSignature", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StartupFailsWithNonHttpStorageUrl()
     {
         await using var factory = infrastructure.CreateApi(storageUrl: "ftp://stockage.example");

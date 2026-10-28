@@ -39,7 +39,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Fusion par l'agent autorisée (`gh pr merge`) seulement quand revue, CI et Sonar sont au vert.
 - Carte Trello mise à jour au début (En cours) et à chaque étape, avec preuve pour Revue, Recette, Prêt à livrer, Livré : `python3 scripts/trello/card.py move <ID> "<Liste>" --proof "…" --apply`.
 - Le porteur préfère des questions en QCM, une décision à la fois.
-- Décision du porteur (28/10) : revue en fin d'US. Les sous-cartes sont fusionnées quand CI + porte Sonar sont verts (tests réels exigés) ; une seule revue `/code-review max` (+ `/security-review` si auth, fichiers ou formulaire public) porte sur l'ensemble de l'US avant sa dernière fusion, corrections des défauts avérés, suggestions en « Points reportés ». Cartes Trello déplacées à chaque étape.
+- Décision du porteur (28/10, révisée le même jour) : revue allégée par PR. Chaque PR : une revue `/code-review high`, plus `/security-review` si auth, fichiers ou formulaire public ; `max` seulement pour budget et stock. Défauts avérés corrigés avant fusion (CI + porte Sonar verts), suggestions en « Points reportés ». Cartes Trello déplacées à chaque étape.
 
 ## Points reportés (issus des revues de S06-01)
 - Aide de persistance commune aux modules (DbContext + migrateur générique) : à créer quand un 2e module aura une base.
