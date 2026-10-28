@@ -175,6 +175,32 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
     }
 
     [Fact]
+    public async Task AnApiStillStartingIsWaitedForInsteadOfFailing()
+    {
+        // Réveil du conteneur : l'API refuse d'abord les connexions, puis répond.
+        await using var web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
+            .UseSetting("Web:ApiUrl", "http://localhost")
+            .ConfigureServices(services => services.AddHttpClient("api")
+                .ConfigurePrimaryHttpMessageHandler(() => new ApiQuiDemarre(_api.Server.CreateHandler(), refus: 2))));
+        await ActiverAdministrateurAsync();
+        using var navigateur = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+
+        using var connexion = await PosterAsync(navigateur, "/connexion", "connexion", ("Saisie.Email", AdminEmail), ("Saisie.MotDePasse", MotDePasse));
+
+        Assert.Equal(HttpStatusCode.Redirect, connexion.StatusCode);
+    }
+
+    [Fact]
+    public async Task IncompleteKeyStorageSettingsStopStartup()
+    {
+        await using var web = _web.WithWebHostBuilder(builder => builder.UseSetting("Web:Cles:ServiceUrl", "http://stockage.exemple"));
+
+        var erreur = Assert.ThrowsAny<Exception>(() => web.CreateClient());
+
+        Assert.Contains("Web:Cles incomplet", erreur.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnUnreachableApiIsReportedAsUnavailable()
     {
         await using var web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
@@ -373,4 +399,15 @@ internal sealed class ReseauEnPanne : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         throw new HttpRequestException("API injoignable (simulé).");
+}
+
+/// <summary>API au réveil : les premières connexions sont refusées (requête jamais partie), puis elle répond.</summary>
+internal sealed class ApiQuiDemarre(HttpMessageHandler api, int refus) : DelegatingHandler(api)
+{
+    private int _refus = refus;
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Interlocked.Decrement(ref _refus) >= 0
+            ? throw new HttpRequestException("Connexion refusée (simulée).", new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused))
+            : base.SendAsync(request, cancellationToken);
 }
