@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 namespace GestionSite.Api.Tests;
@@ -26,9 +28,11 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
         await using var factory = infrastructure.CreateApi(connectionString: database.ConnectionString, migrateOnStartup: "false");
 
         var (status, body) = await GetReadyAsync(factory);
+        var report = await factory.Services.GetRequiredService<HealthCheckService>().CheckHealthAsync(c => c.Name == "postgresql");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
         Assert.Equal("Unhealthy", body);
+        Assert.Equal("Migrations de base en attente.", report.Entries["postgresql"].Description);
     }
 
     [Fact]

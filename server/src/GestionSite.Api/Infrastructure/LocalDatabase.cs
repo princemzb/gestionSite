@@ -10,10 +10,7 @@ namespace GestionSite.Api.Infrastructure;
 /// </summary>
 public static class LocalDatabase
 {
-    /// <summary>
-    /// Chaîne invalide ou sans hôte : considérée locale ici, car la validation de
-    /// ConnectionStrings:Main la refuse déjà avec un message plus précis.
-    /// </summary>
+    /// <summary>Dans le doute (chaîne illisible, aucun hôte), répond « non locale » : le garde-fou bloque.</summary>
     public static bool IsLocal(string connectionString)
     {
         string? hosts;
@@ -23,10 +20,10 @@ public static class LocalDatabase
         }
         catch (ArgumentException)
         {
-            return true;
+            return false;
         }
 
-        return string.IsNullOrWhiteSpace(hosts) || hosts.Split(',').All(IsLocalHost);
+        return !string.IsNullOrWhiteSpace(hosts) && hosts.Split(',').All(IsLocalHost);
     }
 
     private static bool IsLocalHost(string host)

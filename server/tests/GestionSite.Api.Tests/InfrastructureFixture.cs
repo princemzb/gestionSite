@@ -2,7 +2,9 @@ using Amazon.S3;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using GestionSite.Api.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 
 namespace GestionSite.Api.Tests;
@@ -34,10 +36,21 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     internal string StorageUrl => $"http://{_storage.Hostname}:{_storage.GetMappedPublicPort(S3Port)}";
 
-    /// <summary>API réelle branchée sur ces conteneurs ; chaque paramètre remplace la valeur par défaut.</summary>
+    /// <summary>
+    /// API réelle branchée sur ces conteneurs ; chaque paramètre remplace la valeur par défaut.
+    /// Migration au démarrage par défaut : suppose un démon Docker local (hôte de boucle locale).
+    /// </summary>
     internal WebApplicationFactory<Program> CreateApi(
-        string? connectionString = null, string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null) =>
+        string? connectionString = null, string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null,
+        ILoggerProvider? logs = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+            .ConfigureLogging(logging =>
+            {
+                if (logs is not null)
+                {
+                    logging.AddProvider(logs);
+                }
+            })
             .UseSetting("ConnectionStrings:Main", connectionString ?? ConnectionString)
             .UseSetting("Database:MigrateOnStartup", migrateOnStartup)
             .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? StorageUrl)

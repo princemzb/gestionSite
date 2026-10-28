@@ -32,8 +32,9 @@ public sealed class LocalDatabaseTests
     [Theory]
     [InlineData("")]
     [InlineData("pas une chaîne de connexion")]
-    public void InvalidStringsAreLeftToTheConnectionStringValidation(string connectionString)
+    [InlineData("Database=gestionsite;Username=x")]
+    public void UndecidableStringsAreRefused(string connectionString)
     {
-        Assert.True(LocalDatabase.IsLocal(connectionString));
+        Assert.False(LocalDatabase.IsLocal(connectionString));
     }
 }

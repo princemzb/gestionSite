@@ -29,10 +29,13 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
             using var client = first.CreateClient();
         }
 
-        await using var second = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true");
+        using var logs = new RecordingLoggerProvider();
+        await using var second = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", logs: logs);
         using var secondClient = second.CreateClient();
 
         Assert.Equal(1L, await database.CountAsync(CountMigrations));
+        Assert.Contains("Schéma de la base à jour pour le module Identite", logs.Messages);
+        Assert.DoesNotContain(logs.Messages, m => m.StartsWith("Application des migrations", StringComparison.Ordinal));
     }
 
     [Fact]
