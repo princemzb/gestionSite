@@ -2121,6 +2121,34 @@
       ],
       "trelloId": "6ae1029cc2debb01ed14645c",
       "trelloShortLink": "G4PwV05e"
+    },
+    {
+      "id": "UX-02",
+      "name": "[UX-02] Maquettes du 1er écran testable : connexion et gestion des membres (web)",
+      "type": "preparation",
+      "list": "Recette",
+      "labels": [
+        "BA"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 4,
+        "accounting": "Inclus dans les macro-stories d'écrans"
+      },
+      "dependencies": [
+        "UX-01",
+        "US-06"
+      ],
+      "acceptanceCriteria": [
+        "Trois propositions (A Sobre, B Bandeau, C Par site) en thème Jour sur le canevas des maquettes ; choix du porteur, puis déclinaison Nuit de la proposition retenue avant tout code d'écran."
+      ],
+      "trelloId": "6ae1e0cdaa1a5065c0ad242f",
+      "trelloShortLink": "7jf0uIjG"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
