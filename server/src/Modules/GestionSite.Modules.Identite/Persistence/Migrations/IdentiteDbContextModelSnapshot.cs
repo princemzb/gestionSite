@@ -218,6 +218,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("AccepteLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepte_le");
+
                     b.Property<Guid>("CompteId")
                         .HasColumnType("uuid")
                         .HasColumnName("compte_id");

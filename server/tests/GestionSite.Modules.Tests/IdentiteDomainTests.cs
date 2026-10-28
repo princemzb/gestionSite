@@ -122,6 +122,22 @@ public sealed class IdentiteDomainTests
     }
 
     [Fact]
+    public void AMemberIsActiveOnlyOnceAcceptedAndUntilRevoked()
+    {
+        var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);
+        Assert.False(membre.EstActif);
+
+        membre.Accepter(Instant.AddHours(1));
+        membre.Accepter(Instant.AddHours(2));
+        Assert.True(membre.EstActif);
+        Assert.Equal(Instant.AddHours(1), membre.AccepteLe);
+
+        membre.Revoquer(Instant.AddDays(1));
+        Assert.False(membre.EstActif);
+        Assert.Throws<InvalidOperationException>(() => new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant).Also(m => m.Revoquer(Instant)).Accepter(Instant));
+    }
+
+    [Fact]
     public void EveryChangeOfAMemberIncreasesItsVersion()
     {
         var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);
@@ -133,5 +149,14 @@ public sealed class IdentiteDomainTests
         membre.Revoquer(Instant); // sans effet
 
         Assert.Equal(2, membre.Version);
+    }
+}
+
+internal static class EssaiExtensions
+{
+    internal static T Also<T>(this T valeur, Action<T> action)
+    {
+        action(valeur);
+        return valeur;
     }
 }

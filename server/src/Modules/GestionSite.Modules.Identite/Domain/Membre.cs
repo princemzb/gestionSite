@@ -35,6 +35,15 @@ internal sealed class Membre : IAppartientAOrganisation
     public DateTimeOffset? RevoqueLe { get; private set; }
 
     /// <summary>
+    /// Acceptation de l'invitation par le titulaire (ADR-10, complément du 28/10) : aucun droit avant. Pour un
+    /// compte créé par l'invitation, l'activation par le lien vaut acceptation.
+    /// </summary>
+    public DateTimeOffset? AccepteLe { get; private set; }
+
+    /// <summary>Adhésion effective : acceptée et non révoquée.</summary>
+    internal bool EstActif => RevoqueLe is null && AccepteLe is not null;
+
+    /// <summary>
     /// Version de l'adhésion et de ses rôles, augmentée par chaque modification (rôle accordé,
     /// révocation) : jeton de concurrence, une révision partie d'une version dépassée échoue (409).
     /// </summary>
@@ -90,6 +99,20 @@ internal sealed class Membre : IAppartientAOrganisation
     }
 
     internal bool EstAdministrateur => RevoqueLe is null && _roles.Exists(r => r.Role == Role.Administrateur);
+
+    internal void Accepter(DateTimeOffset le)
+    {
+        if (RevoqueLe is not null)
+        {
+            throw new InvalidOperationException("Invitation révoquée ou refusée.");
+        }
+
+        if (AccepteLe is null)
+        {
+            AccepteLe = Horodatage.Valider(le, nameof(le));
+            Version++;
+        }
+    }
 
     internal void Revoquer(DateTimeOffset le)
     {

@@ -21,6 +21,7 @@ Statut initial : tous les arbitrages ci-dessous sont ouverts ; aucune approbatio
 - Équipe réduite face à une cible large : déploiements par lots, limiter travaux parallèles et mesurer capacité.
 - Données de départ absentes : campagne de relevé/inventaire avec responsable, lots et contrôle.
 - Prix externes incomplets/périmés : date/source, absence de total si essentiel manquant, validation humaine.
+- Préemption d'adresse e-mail : tant que les liens d'activation passent par l'administrateur (ADR-10), un tiers peut créer et activer un compte pour l'adresse d'autrui, puis accepter les invitations qui lui sont faites. Atténuations : invitation à accepter, lien remis seulement par l'organisation qui crée le compte ; levée avec l'envoi des liens à l'adresse (US-18).
 - Révocation sur tablette hors ligne : fenêtre d’exposition à expliciter ; aucune promesse de révocation instantanée.
 - Score rassurant avec données anciennes : couverture et fraîcheur obligatoires, alertes critiques séparées.
 - Documents périmés : liens RG/US/T et revue documentaire obligatoire dans les PR.

@@ -276,6 +276,7 @@ public sealed class AuthentificationTests(InfrastructureFixture infrastructure) 
         var entites = sites.Select(s => new Site(s.Id, organisationId, s.Nom, Instant)).ToList();
         var membre = new Membre(Guid.NewGuid(), organisationId, _compte, Instant);
         membre.Accorder(role.Role, entites.SingleOrDefault(s => s.Id == role.Site));
+        membre.Accepter(Instant);
         context.Add(new Organisation(organisationId, $"Organisation {organisationId:N}", Instant));
         context.AddRange(entites);
         context.Add(membre);

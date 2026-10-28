@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace GestionSite.Modules.Identite.Membres;
 
 /// <summary>
-/// Entrée dans une organisation de la route : l'appelant doit y avoir une adhésion active (lue par la
+/// Entrée dans une organisation de la route : l'appelant doit y avoir une adhésion acceptée et active (lue par la
 /// politique RLS « par compte »), sinon 404 (jamais 403, pas d'énumération entre organisations, CONTRATS).
 /// Ensuite seulement l'organisation devient courante (filtres EF et RLS d'organisation).
 /// </summary>
@@ -16,7 +16,8 @@ internal sealed class AccesOrganisation(IdentiteDbContext context, CompteCourant
     {
         var compteId = compte.Id ?? throw RefusException.Introuvable();
         var appelant = await context.Membres.IgnoreQueryFilters().Include(m => m.Roles)
-            .SingleOrDefaultAsync(m => m.OrganisationId == organisationId && m.CompteId == compteId && m.RevoqueLe == null, cancellationToken)
+            .SingleOrDefaultAsync(
+                m => m.OrganisationId == organisationId && m.CompteId == compteId && m.RevoqueLe == null && m.AccepteLe != null, cancellationToken)
             .ConfigureAwait(false) ?? throw RefusException.Introuvable();
         organisation.Definir(organisationId);
         return appelant;

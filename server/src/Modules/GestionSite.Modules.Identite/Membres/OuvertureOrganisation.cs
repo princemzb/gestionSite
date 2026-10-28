@@ -32,6 +32,11 @@ internal static class OuvertureOrganisation
 
         var administrateur = new Membre(Guid.NewGuid(), organisationId, compte.Id, maintenant);
         administrateur.Accorder(Role.Administrateur, site: null);
+        if (!cree)
+        {
+            administrateur.Accepter(maintenant); // compte existant : ouverture décidée hors ligne avec la plateforme
+        }
+
         context.Membres.Add(administrateur);
         var activation = cree ? await membres.EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

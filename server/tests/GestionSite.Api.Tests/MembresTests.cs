@@ -167,16 +167,43 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
     }
 
     [Fact]
-    public async Task AnActiveAccountJoiningAnotherOrganisationNeedsNoActivation()
+    public async Task AnExistingAccountGetsRightsOnlyAfterAcceptingTheInvitation()
     {
         var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
 
         using var reponse = await Post($"/organizations/{autre}/members", adminAutre, NouveauMembre(AdminEmail, new { role = "Administrateur" }));
-        using var me = await Get("/me", _admin);
+        var invitation = (await Json(reponse)).GetProperty("membreId").GetGuid();
+        using var avant = await Get($"/organizations/{autre}/sites", _admin);
+        using var meAvant = await Get("/me", _admin);
+        using var acceptation = await Post($"/me/invitations/{invitation}/accept", _admin, new { });
+        using var apres = await Get($"/organizations/{autre}/sites", _admin);
+        using var meApres = await Get("/me", _admin);
 
         Assert.Equal(HttpStatusCode.Created, reponse.StatusCode);
         Assert.Equal(JsonValueKind.Null, (await Json(reponse)).GetProperty("activation").ValueKind);
-        Assert.Equal(2, (await Json(me)).GetProperty("organisations").GetArrayLength());
+        Assert.Equal(HttpStatusCode.NotFound, avant.StatusCode); // aucun droit avant acceptation
+        Assert.Equal([invitation], (await Json(meAvant)).GetProperty("invitations").EnumerateArray().Select(i => i.GetProperty("membreId").GetGuid()));
+        Assert.Equal(1, (await Json(meAvant)).GetProperty("organisations").GetArrayLength());
+        Assert.Equal(HttpStatusCode.NoContent, acceptation.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, apres.StatusCode);
+        Assert.Equal(2, (await Json(meApres)).GetProperty("organisations").GetArrayLength());
+        Assert.Equal(0, (await Json(meApres)).GetProperty("invitations").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task AnInvitationCanBeDeclinedAndOnlyByItsHolder()
+    {
+        var (autre, adminAutre) = await OuvrirAsync("Autre organisation", "admin@autre.test");
+        using var reponse = await Post($"/organizations/{autre}/members", adminAutre, NouveauMembre(AdminEmail, new { role = "Administrateur" }));
+        var invitation = (await Json(reponse)).GetProperty("membreId").GetGuid();
+
+        using var parAutrui = await Post($"/me/invitations/{invitation}/accept", adminAutre, new { });
+        using var refus = await Post($"/me/invitations/{invitation}/decline", _admin, new { });
+        using var acceptationApres = await Post($"/me/invitations/{invitation}/accept", _admin, new { });
+
+        Assert.Equal(HttpStatusCode.NotFound, parAutrui.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, refus.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, acceptationApres.StatusCode);
     }
 
     [Fact]
@@ -229,6 +256,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         Assert.Equal(HttpStatusCode.NoContent, revocation.StatusCode);
         Assert.Equal(HttpStatusCode.OK, apres.StatusCode);
         Assert.Equal(HttpStatusCode.OK, sitesAutre.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, ajout.StatusCode);
     }
 
     [Fact]
