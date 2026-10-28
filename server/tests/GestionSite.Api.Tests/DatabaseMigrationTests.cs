@@ -1,3 +1,7 @@
+using GestionSite.Modules.Identite.Persistence;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace GestionSite.Api.Tests;
@@ -17,7 +21,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
         using var client = factory.CreateClient();
 
         Assert.Equal(1L, await database.CountTablesAsync("identite", "organisations"));
-        Assert.Equal(1L, await database.CountAsync(CountMigrations));
+        Assert.Equal(KnownMigrations(factory), await database.CountAsync(CountMigrations));
     }
 
     [Fact]
@@ -33,7 +37,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
         await using var second = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", logs: logs);
         using var secondClient = second.CreateClient();
 
-        Assert.Equal(1L, await database.CountAsync(CountMigrations));
+        Assert.Equal(KnownMigrations(second), await database.CountAsync(CountMigrations));
         Assert.Contains("Schéma de la base à jour pour le module Identite", logs.Messages);
         Assert.DoesNotContain(logs.Messages, m => m.StartsWith("Application des migrations", StringComparison.Ordinal));
     }
@@ -68,5 +72,12 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
 
         Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(0L, await database.CountTablesAsync("identite", "organisations"));
+    }
+
+    // Migrations embarquées dans le code : le compte suit l'ajout de nouvelles migrations.
+    private static long KnownMigrations(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IdentiteDbContext>().Database.GetMigrations().LongCount();
     }
 }

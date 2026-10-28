@@ -74,6 +74,20 @@ public sealed class IdentitePersistenceTests
         Assert.Equal(creeLe.AddTicks(-7), organisation.CreeLe);
     }
 
+    [Theory]
+    [InlineData("Ⅻ")]
+    [InlineData("②")]
+    public void NumbersOfEveryKindAreVisible(string nom)
+    {
+        Assert.Equal(nom, new Organisation(Guid.NewGuid(), nom, DateTimeOffset.UnixEpoch).Nom);
+    }
+
+    [Fact]
+    public void InvisibleCharactersAtTheEdgesAreRemoved()
+    {
+        Assert.Equal("Saint-Paul", new Organisation(Guid.NewGuid(), "\uFEFF Saint-Paul\u200B\u2060 ", DateTimeOffset.UnixEpoch).Nom);
+    }
+
     [Fact]
     public void OrganisationAcceptsCharactersOutsideTheBasicPlane()
     {

@@ -32,15 +32,22 @@ internal sealed partial class DatabaseMigrations(
         await using var scope = scopes.CreateAsyncScope();
         foreach (var migrator in scope.ServiceProvider.GetServices<IDatabaseMigrator>())
         {
-            if (!await migrator.HasPendingMigrationsAsync(cancellationToken).ConfigureAwait(false))
+            // MigrateAsync toujours appelé, même à jour : EF y refuse un modèle modifié sans migration.
+            var pending = await migrator.HasPendingMigrationsAsync(cancellationToken).ConfigureAwait(false);
+            if (pending)
             {
-                Log.UpToDate(logger, migrator.ModuleName);
-                continue;
+                Log.Applying(logger, migrator.ModuleName);
             }
 
-            Log.Applying(logger, migrator.ModuleName);
             await migrator.MigrateAsync(cancellationToken).ConfigureAwait(false);
-            Log.Applied(logger, migrator.ModuleName);
+            if (pending)
+            {
+                Log.Applied(logger, migrator.ModuleName);
+            }
+            else
+            {
+                Log.UpToDate(logger, migrator.ModuleName);
+            }
         }
     }
 

@@ -22,7 +22,7 @@ internal sealed class Organisation
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(nom);
-        var nomNettoye = nom.Trim();
+        var nomNettoye = Nettoyer(nom);
         if (nomNettoye.Length > NomMaxLength)
         {
             throw new ArgumentException($"Le nom ne peut pas dépasser {NomMaxLength} caractères.", nameof(nom));
@@ -78,11 +78,33 @@ internal sealed class Organisation
                 return false;
             }
 
-            visible |= Rune.IsLetterOrDigit(rune) || Rune.IsPunctuation(rune) || Rune.IsSymbol(rune);
+            visible |= Rune.IsLetter(rune) || Rune.IsNumber(rune) || Rune.IsPunctuation(rune) || Rune.IsSymbol(rune)
+                || categorie == UnicodeCategory.SpacingCombiningMark;
             reste = reste[lus..];
         }
 
         return visible;
+    }
+
+    // Espaces et caractères de format invisibles en bordure (U+200B, U+2060, U+FEFF…) : sinon deux noms
+    // identiques à l'œil différeraient. Les étiquettes de drapeau (hors plan de base) ne sont pas touchées.
+    private static string Nettoyer(string nom)
+    {
+        static bool Invisible(char c) => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format;
+
+        var debut = 0;
+        var fin = nom.Length;
+        while (debut < fin && Invisible(nom[debut]))
+        {
+            debut++;
+        }
+
+        while (fin > debut && Invisible(nom[fin - 1]))
+        {
+            fin--;
+        }
+
+        return nom[debut..fin];
     }
 
     private static bool EstControleBidirectionnel(int point) =>

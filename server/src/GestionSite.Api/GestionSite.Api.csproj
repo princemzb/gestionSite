@@ -10,7 +10,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+    <!-- Outil `dotnet ef` seulement : absent des builds Release, donc de l'image publiée. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Condition="'$(Configuration)' != 'Release'">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
