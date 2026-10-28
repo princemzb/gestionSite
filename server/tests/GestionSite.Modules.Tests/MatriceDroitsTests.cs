@@ -4,7 +4,10 @@ using GestionSite.Modules.Identite.Domain;
 
 namespace GestionSite.Modules.Tests;
 
-/// <summary>La matrice du code reproduit docs/metier/PERMISSIONS.md (T, R/D, P/C, A).</summary>
+/// <summary>
+/// La matrice du code reproduit docs/metier/PERMISSIONS.md (T, R/D, P/C, A). Copie du tableau tenue à la
+/// main : toute modification du document doit modifier ce test et la matrice dans la même PR.
+/// </summary>
 public sealed class MatriceDroitsTests
 {
     // Lecture directe du tableau de PERMISSIONS.md (+ décisions DEC-04) : « T R D P C A ».
@@ -23,6 +26,10 @@ public sealed class MatriceDroitsTests
     [InlineData(Droit.ReceptionnerAjusterStock, "R D")]
     [InlineData(Droit.VoirPosition, "T R D")]
     [InlineData(Droit.LireContactsDeclarant, "T R D P C")]
+    [InlineData(Droit.CorrigerContactDeclarant, "R D")]
+    [InlineData(Droit.LireJustificatifs, "R D P C")]
+    [InlineData(Droit.EcrireJustificatifs, "R D")]
+    [InlineData(Droit.ValiderEstimation, "R D")]
     [InlineData(Droit.LireMontants, "R D P C")]
     [InlineData(Droit.ModifierInventaire, "T R D")]
     [InlineData(Droit.ModifierGrilles, "R D")]

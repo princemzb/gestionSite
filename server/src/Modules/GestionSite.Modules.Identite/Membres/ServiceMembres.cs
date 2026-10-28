@@ -114,6 +114,7 @@ internal sealed class ServiceMembres(
     {
         var appelant = await acces.EntrerAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var sites = await context.Sites.OrderBy(s => s.Nom).ToListAsync(cancellationToken).ConfigureAwait(false);
+        // Même règle de visibilité que les décisions d'autorisation (Autorisations.EstVisibleAsync).
         return appelant.EstAdministrateur ? sites : [.. sites.Where(s => appelant.Roles.Any(r => r.SiteId == s.Id))];
     }
 

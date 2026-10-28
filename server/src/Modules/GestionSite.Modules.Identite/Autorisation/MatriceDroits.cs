@@ -29,6 +29,10 @@ internal static class MatriceDroits
         [Droit.ReceptionnerAjusterStock] = Encadrement,
         [Droit.VoirPosition] = Terrain,
         [Droit.LireContactsDeclarant] = Internes,
+        [Droit.CorrigerContactDeclarant] = Encadrement,
+        [Droit.LireJustificatifs] = [Role.Responsable, Role.Delegue, Role.Pasteur, Role.Coordination],
+        [Droit.EcrireJustificatifs] = Encadrement,
+        [Droit.ValiderEstimation] = Encadrement,
         [Droit.LireMontants] = [Role.Responsable, Role.Delegue, Role.Pasteur, Role.Coordination],
         [Droit.ModifierInventaire] = Terrain,
         [Droit.ModifierGrilles] = Encadrement,
@@ -38,8 +42,7 @@ internal static class MatriceDroits
     };
 
     /// <summary>Permissions d'administration : toute l'organisation, jamais un site.</summary>
-    internal static bool EstOrganisationnelle(Droit droit) =>
-        droit is Droit.GererComptes or Droit.AutoriserSupport;
+    internal static bool EstOrganisationnelle(Droit droit) => RolesPour(droit).Contains(Role.Administrateur);
 
     internal static IReadOnlyCollection<Role> RolesPour(Droit droit) =>
         Roles.TryGetValue(droit, out var roles) ? roles : throw new ArgumentOutOfRangeException(nameof(droit), droit, "Droit inconnue.");

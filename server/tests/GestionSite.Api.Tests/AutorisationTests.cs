@@ -102,6 +102,24 @@ public sealed class AutorisationTests(InfrastructureFixture infrastructure) : IA
     }
 
     [Fact]
+    public void DefaultDecisionNeverAuthorises()
+    {
+        Assert.NotEqual(DecisionAutorisation.Autorise, default);
+    }
+
+    [Fact]
+    public async Task MisusedArgumentsFailTheSameWayForEveryone()
+    {
+        await using var membre = Scope("technicien");
+        await using var etranger = Scope("adminB");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => membre.ServiceProvider.GetRequiredService<IAutorisations>()
+            .VerifierAsync(_orgA, Droit.ConsulterSite, null, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => etranger.ServiceProvider.GetRequiredService<IAutorisations>()
+            .VerifierAsync(_orgA, Droit.GererComptes, _s1, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task AuthorisedSitesListOnlySitesWhereTheRoleGrantsTheRight()
     {
         await using var scope = Scope("cumul");

@@ -57,7 +57,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 
 ### Autorisation des opérations (S06-05)
 - Tout module vérifie les droits par le contrat `GestionSite.Modules.Identite.Contracts.IAutorisations` : `VerifierAsync(orgId, Droit.X, siteId)` → `Autorise`, `Introuvable` (répondre 404 : non-membre, invitation non acceptée, site sans aucun rôle de l'appelant ou inconnu) ou `Refuse` (403 : site visible, rôle insuffisant). Quand l'appelant est membre actif, l'organisation devient courante (filtres EF et RLS).
-- La matrice `MatriceDroits` reproduit docs/metier/PERMISSIONS.md ; un test la compare au tableau. L'administrateur n'a que `GererComptes` et `AutoriserSupport` : sans rôle métier, aucun droit sur les opérations. Les conditions propres à un module (technicien affecté, délégation budgétaire, relance interne du pasteur) restent vérifiées par ce module.
+- La matrice `MatriceDroits` reproduit docs/metier/PERMISSIONS.md ; un test en garde une copie ligne à ligne, à modifier dans la même PR que le document (le test ne lit pas le Markdown). L'administrateur n'a que `GererComptes` et `AutoriserSupport` : sans rôle métier, aucun droit sur les opérations. Les conditions propres à un module (technicien affecté, délégation budgétaire, relance interne du pasteur) restent vérifiées par ce module.
 - Toute route `/organizations/...` exige l'authentification (test) et répond à l'identique pour une organisation étrangère et une organisation inexistante.
 
 ### Configuration et secrets

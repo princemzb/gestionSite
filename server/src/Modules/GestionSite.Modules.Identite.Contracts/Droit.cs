@@ -27,6 +27,12 @@ public enum Droit
     ReceptionnerAjusterStock,
     VoirPosition,
     LireContactsDeclarant,
+    CorrigerContactDeclarant,
+    /// <summary>Justificatifs financiers : factures, devis, décisions finance (DEC-04).</summary>
+    LireJustificatifs,
+    EcrireJustificatifs,
+    /// <summary>Validation d'une estimation proposée (DEC-04), distincte de l'engagement budgétaire.</summary>
+    ValiderEstimation,
     /// <summary>Estimation d'un dossier affecté au technicien : règle propre au module (DEC-04).</summary>
     LireMontants,
     ModifierInventaire,

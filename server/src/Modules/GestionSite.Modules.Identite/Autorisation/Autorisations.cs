@@ -17,32 +17,33 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
     public async Task<DecisionAutorisation> VerifierAsync(
         Guid organisationId, Droit droit, Guid? siteId, CancellationToken cancellationToken)
     {
+        // Arguments contrôlés avant toute lecture : une erreur d'usage échoue de la même façon pour tous.
+        var autorises = MatriceDroits.RolesPour(droit);
+        var organisationnel = MatriceDroits.EstOrganisationnelle(droit);
+        if (organisationnel != (siteId is null))
+        {
+            throw new ArgumentException(organisationnel ? $"Le droit {droit} porte sur l'organisation." : $"Le droit {droit} porte sur un site.", nameof(siteId));
+        }
+
         var appelant = await AppelantAsync(organisationId, cancellationToken).ConfigureAwait(false);
         if (appelant is null)
         {
             return DecisionAutorisation.Introuvable;
         }
 
-        var autorises = MatriceDroits.RolesPour(droit);
-        if (MatriceDroits.EstOrganisationnelle(droit))
+        if (organisationnel)
         {
             return appelant.Roles.Any(r => autorises.Contains(r.Role)) ? DecisionAutorisation.Autorise : DecisionAutorisation.Refuse;
         }
 
-        if (siteId is not { } site)
-        {
-            throw new ArgumentException($"Le droit {droit} porte sur un site.", nameof(siteId));
-        }
-
-        // Site sans aucun rôle de l'appelant (ou inexistant) : introuvable. L'administrateur voit les sites
-        // de son organisation (il les gère) mais n'y a pas de droit métier sans rôle.
-        var visible = appelant.EstAdministrateur ? await SiteExisteAsync(site, cancellationToken).ConfigureAwait(false) : RolesSur(appelant, site).Any();
-        if (!visible)
+        var site = siteId!.Value;
+        var rolesSurSite = RolesSur(appelant, site).ToList();
+        if (rolesSurSite.Count == 0 && !await EstVisibleAsync(appelant, site, cancellationToken).ConfigureAwait(false))
         {
             return DecisionAutorisation.Introuvable;
         }
 
-        return RolesSur(appelant, site).Any(autorises.Contains) ? DecisionAutorisation.Autorise : DecisionAutorisation.Refuse;
+        return rolesSurSite.Exists(autorises.Contains) ? DecisionAutorisation.Autorise : DecisionAutorisation.Refuse;
     }
 
     public async Task<IReadOnlySet<Guid>> SitesAutorisesAsync(Guid organisationId, Droit droit, CancellationToken cancellationToken)
@@ -72,7 +73,8 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
             return null;
         }
 
-        _appelant = await context.Membres.IgnoreQueryFilters().Include(m => m.Roles)
+        // Lecture sans suivi : instantané de l'appelant, indépendant des modifications en cours dans la portée.
+        _appelant = await context.Membres.IgnoreQueryFilters().AsNoTracking().Include(m => m.Roles)
             .SingleOrDefaultAsync(
                 m => m.OrganisationId == organisationId && m.CompteId == compteId && m.RevoqueLe == null && m.AccepteLe != null, cancellationToken)
             .ConfigureAwait(false);
@@ -87,6 +89,14 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
     private static IEnumerable<Role> RolesSur(Membre membre, Guid site) =>
         membre.Roles.Where(r => r.SiteId == site).Select(r => r.Role);
 
-    private Task<bool> SiteExisteAsync(Guid site, CancellationToken cancellationToken) =>
-        context.Sites.AnyAsync(s => s.Id == site, cancellationToken); // filtre d'organisation : la sienne seulement
+    /// <summary>
+    /// Site visible : un rôle de l'appelant y est accordé, ou l'appelant administre l'organisation (il gère
+    /// ses sites, sans droit métier pour autant). Sinon introuvable, qu'il existe ou non.
+    /// </summary>
+    internal Task<bool> EstVisibleAsync(Membre appelant, Guid site, CancellationToken cancellationToken) =>
+        RolesSur(appelant, site).Any()
+            ? Task.FromResult(true)
+            : appelant.EstAdministrateur
+                ? context.Sites.AnyAsync(s => s.Id == site, cancellationToken) // filtre d'organisation : la sienne seulement
+                : Task.FromResult(false);
 }
