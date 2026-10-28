@@ -6,10 +6,10 @@ set -eu
 ASPNETCORE_URLS=http://127.0.0.1:8081 dotnet /app/api/GestionSite.Api.dll &
 API=$!
 
-# L'application web appelle l'API en interne (elle réessaie tant que l'API démarre) ; derrière le proxy TLS.
+# L’application web appelle l’API en interne (elle réessaie tant que l’API démarre). Derrière un relais TLS,
+# le schéma d’origine n’est repris que si Web__RelaisHttps=true (fourni par le relais, jamais par défaut).
 ASPNETCORE_URLS=http://0.0.0.0:8080 \
 Web__ApiUrl=http://localhost:8081 \
-ASPNETCORE_FORWARDEDHEADERS_ENABLED=true \
   dotnet /app/web/GestionSite.Web.dll &
 WEB=$!
 

@@ -66,19 +66,21 @@ internal static class Programme
             cles.PersistKeysToFileSystem(new DirectoryInfo(dossier));
         }
 
+        // Hors développement, toujours Secure : derrière un proxy TLS, la requête interne peut être en http.
+        var securite = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {
             options.LoginPath = "/connexion";
             options.Cookie.Name = "gestionsite";
             options.Cookie.HttpOnly = true;
-            // Hors développement, toujours Secure : derrière un proxy TLS, la requête interne est en http.
-            options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = securite;
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.SlidingExpiration = false;
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement
         });
         builder.Services.AddAuthorization();
-        // Par défaut, le cookie antiforgery n'est jamais Secure : il le devient dès que la requête d'origine est en https.
+        // Par défaut, le cookie antiforgery n'est jamais Secure ; « Always » est exclu : l'antiforgery refuse alors
+        // toute requête interne en http. Il suit donc le schéma d'origine (https derrière le relais, Web:RelaisHttps).
         builder.Services.AddAntiforgery(options => options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest);
         var relaisHttps = builder.Configuration.GetValue<bool>("Web:RelaisHttps");
         if (relaisHttps)

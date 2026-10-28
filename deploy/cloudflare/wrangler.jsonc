@@ -22,9 +22,7 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GestionSite"] }],
   "vars": {
-    // Adresse workers.dev du compte ; compartiments R2 en juridiction UE (point d’accès « .eu »).
-    "URL_PUBLIQUE": "https://gestionsite-preprod.les-delices-de-natacha.workers.dev",
-    "R2_URL": "https://04da106372ff7dccc960a3a8bbf8966f.eu.r2.cloudflarestorage.com",
+    // Adresse publique : déduite de la requête par le Worker. Point d'accès R2 (juridiction UE) : secret R2_URL.
     "R2_COMPARTIMENT": "gestionsite-preprod",
     "R2_CLES_COMPARTIMENT": "gestionsite-preprod-cles"
   }
