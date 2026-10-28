@@ -28,6 +28,7 @@ const ATTENTE_MAX_MS = 60_000;
 
 export class GestionSite extends DurableObject<Env> {
   private demarrage?: Promise<void>;
+  private verification?: Promise<void>;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -41,13 +42,29 @@ export class GestionSite extends DurableObject<Env> {
     if (!conteneur) {
       return new Response("Conteneur indisponible", { status: 503 });
     }
+    // Un déploiement ne redémarre pas un conteneur déjà lancé : une fois par vie de l'objet (donc après
+    // chaque déploiement), arrêter celui qui tourne encore sur une image précédente.
+    this.verification ??= this.arreterSiImagePerimee(conteneur);
+    await this.verification;
     if (!conteneur.running) {
       this.demarrage ??= this.demarrer(conteneur).finally(() => (this.demarrage = undefined));
     }
     if (this.demarrage) {
       await this.demarrage;
     }
-    return conteneur.getTcpPort(PORT_WEB).fetch(request);
+    return conteneur.getTcpPort(PORT_WEB).fetch(relayer(request));
+  }
+
+  private async arreterSiImagePerimee(conteneur: Container): Promise<void> {
+    if (!conteneur.running) {
+      return;
+    }
+    const attendue = conteneur.images.application;
+    const actuelle = (await conteneur.inspect())?.image;
+    console.log(`Image du conteneur : ${actuelle ?? "inconnue"} ; attendue : ${attendue}`);
+    if (actuelle !== undefined && actuelle !== attendue) {
+      await conteneur.destroy("image précédente");
+    }
   }
 
   private async demarrer(conteneur: Container): Promise<void> {
@@ -65,6 +82,7 @@ export class GestionSite extends DurableObject<Env> {
         ObjectStorage__Bucket: env.R2_COMPARTIMENT,
         ObjectStorage__Region: "auto",
         Web__UrlPublique: env.URL_PUBLIQUE,
+        Web__RelaisHttps: "true", // le Worker est le seul à joindre le conteneur (voir relayer)
         Web__Cles__ServiceUrl: env.R2_URL,
         Web__Cles__AccessKey: env.R2_CLES_ACCES,
         Web__Cles__SecretKey: env.R2_CLES_SECRET,
@@ -86,6 +104,17 @@ export class GestionSite extends DurableObject<Env> {
     }
     throw new Error("Le conteneur n'a pas répondu dans le délai imparti");
   }
+}
+
+// Le conteneur n'accepte que http (lien déjà chiffré par Cloudflare) : le schéma d'origine passe par
+// X-Forwarded-Proto, toujours réécrit ici pour qu'un visiteur ne puisse pas l'imposer.
+function relayer(request: Request): Request {
+  const url = new URL(request.url);
+  const origine = url.protocol.replace(":", "");
+  url.protocol = "http:";
+  const relayee = new Request(url, request);
+  relayee.headers.set("X-Forwarded-Proto", origine);
+  return relayee;
 }
 
 export default {

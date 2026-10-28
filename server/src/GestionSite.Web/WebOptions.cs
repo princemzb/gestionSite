@@ -15,6 +15,12 @@ internal sealed class WebOptions
     /// l'adresse vue par le serveur est interne. Vide : l'adresse de la requête.
     /// </summary>
     public string? UrlPublique { get; init; }
+
+    /// <summary>
+    /// Derrière un relais TLS joignable seul (Worker Cloudflare en préproduction) : se fier à son en-tête
+    /// X-Forwarded-Proto pour connaître le schéma d'origine (HSTS, cookies Secure). Faux par défaut.
+    /// </summary>
+    public bool RelaisHttps { get; init; }
 }
 
 /// <summary>Stockage compatible S3 des clés de chiffrement (Web:Cles), R2 en préproduction.</summary>

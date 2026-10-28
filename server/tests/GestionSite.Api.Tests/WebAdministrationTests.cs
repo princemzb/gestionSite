@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using GestionSite.Modules.Identite;
 using GestionSite.Web;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -198,6 +199,27 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
         var erreur = Assert.ThrowsAny<Exception>(() => web.CreateClient());
 
         Assert.Contains("Web:Cles incomplet", erreur.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task TheTlsRelaySchemeIsTrustedOnlyWhenConfigured(bool relaisHttps, bool https)
+    {
+        // Production : HSTS actif (hors hôtes locaux, d'où l'hôte public de la requête).
+        await using var web = _web.WithWebHostBuilder(builder => builder
+            .UseEnvironment("Production")
+            .UseSetting("Web:RelaisHttps", relaisHttps.ToString()));
+        using var navigateur = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
+        using var requete = new HttpRequestMessage(HttpMethod.Get, new Uri("/connexion", UriKind.Relative));
+        requete.Headers.Host = "gestion.exemple.test";
+        requete.Headers.Add("X-Forwarded-Proto", "https");
+
+        using var reponse = await navigateur.SendAsync(requete);
+        var antiforgery = reponse.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(".AspNetCore.Antiforgery", StringComparison.Ordinal));
+
+        Assert.Equal(https, reponse.Headers.Contains("Strict-Transport-Security"));
+        Assert.Equal(https, antiforgery.Contains("secure", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

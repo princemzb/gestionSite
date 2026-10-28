@@ -5,6 +5,7 @@ using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace GestionSite.Web;
 
@@ -77,9 +78,26 @@ internal static class Programme
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement
         });
         builder.Services.AddAuthorization();
-        builder.Services.AddAntiforgery();
+        // Par défaut, le cookie antiforgery n'est jamais Secure : il le devient dès que la requête d'origine est en https.
+        builder.Services.AddAntiforgery(options => options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest);
+        var relaisHttps = builder.Configuration.GetValue<bool>("Web:RelaisHttps");
+        if (relaisHttps)
+        {
+            // Le relais est le seul à joindre le conteneur : son adresse n'est pas connue à l'avance.
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+                options.KnownIPNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
+        }
 
         var app = builder.Build();
+        if (relaisHttps)
+        {
+            app.UseForwardedHeaders();
+        }
+
         if (!app.Environment.IsDevelopment())
         {
             app.UseHsts();
