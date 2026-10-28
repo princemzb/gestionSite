@@ -5,6 +5,7 @@ Origine : couleurs, dégradés et formes relevés sur le site de référence ind
 
 ## Maquettes validées
 - 28 octobre 2026 : parcours du 1er incrément validé par le porteur, en Jour et Nuit — Réglages (bascule de thème), file de qualification (UI-03), dossier (UI-04), clôture d'intervention (tablette), sur le même canevas. Ils font référence pour l'implémentation.
+- 28 octobre 2026 (UX-02) : 1er écran testable — connexion = proposition B « Bandeau », gestion des membres = proposition C « Par site » (thème Jour, choix du porteur) ; déclinaison Nuit validée le même jour. Ils font référence pour l'implémentation web.
 - Restent à maquetter, puis à faire valider avant code, avec leurs US : fiche composant (UI-05), proposition IA (UI-08), autorisation budgétaire (UI-09), plan (UI-10), stock (UI-11), administration (UI-12).
 
 ## Règles de thème
