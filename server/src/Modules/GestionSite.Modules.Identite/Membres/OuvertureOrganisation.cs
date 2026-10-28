@@ -35,9 +35,8 @@ internal static class OuvertureOrganisation
         // l'accepte dans /me (ADR-10, complément du 28/10).
         administrateur.Accorder(Role.Administrateur, site: null);
         context.Membres.Add(administrateur);
-        context.JournalHabilitations.Add(new EvenementHabilitation(
-            administrateur, NatureHabilitation.Ouverture, auteurCompteId: null, maintenant, "Ouverture de l'organisation par la plateforme",
-            avant: null, EvenementHabilitation.Instantane(administrateur)));
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+            administrateur, NatureHabilitation.Ouverture, auteurCompteId: null, maintenant, "Ouverture de l'organisation par la plateforme", avant: null));
         var activation = cree ? await membres.EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

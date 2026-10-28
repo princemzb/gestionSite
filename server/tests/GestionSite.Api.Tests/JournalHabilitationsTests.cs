@@ -53,7 +53,7 @@ public sealed class JournalHabilitationsTests(InfrastructureFixture infrastructu
         var membre = cree.GetProperty("membreId").GetGuid();
         using var revision = await Envoyer(HttpMethod.Put, $"/organizations/{_organisation}/members/{membre}", _admin,
             new { roles = new[] { new { role = "Responsable", siteId = (Guid?)nord } }, version = cree.GetProperty("version").GetInt32(), motif = "Promotion" });
-        using var revocation = await Envoyer(HttpMethod.Delete, $"/organizations/{_organisation}/members/{membre}?motif=D%C3%A9part", _admin);
+        using var revocation = await Envoyer(HttpMethod.Delete, $"/organizations/{_organisation}/members/{membre}", _admin, new { motif = "Départ" });
 
         var entrees = (await JournalAsync(_admin)).Where(e => e.GetProperty("membreId").GetGuid() == membre).ToList();
         var auteur = (await Json(await Envoyer(HttpMethod.Get, "/me", _admin))).GetProperty("compteId").GetGuid();
@@ -66,6 +66,41 @@ public sealed class JournalHabilitationsTests(InfrastructureFixture infrastructu
         Assert.Equal("Responsable", entrees[0].GetProperty("rolesAvant")[0].GetProperty("role").GetString());
         Assert.Equal(JsonValueKind.Null, entrees[0].GetProperty("rolesApres").ValueKind);
         Assert.Equal(JsonValueKind.Null, entrees[2].GetProperty("rolesAvant").ValueKind);
+    }
+
+    [Fact]
+    public async Task RevisionAndRevocationRequireAReasonAndNoOpIsNotJournaled()
+    {
+        var nord = await CreerSiteAsync("Nord");
+        using var creation = await Envoyer(HttpMethod.Post, $"/organizations/{_organisation}/members", _admin,
+            new { nom = "Marc", email = "marc@journal.test", roles = new[] { new { role = "Technicien", siteId = (Guid?)nord } } });
+        var cree = await Json(creation);
+        var membre = cree.GetProperty("membreId").GetGuid();
+        var version = cree.GetProperty("version").GetInt32();
+
+        using var sansMotif = await Envoyer(HttpMethod.Put, $"/organizations/{_organisation}/members/{membre}", _admin,
+            new { roles = new[] { new { role = "Responsable", siteId = (Guid?)nord } }, version });
+        using var revocationSansMotif = await Envoyer(HttpMethod.Delete, $"/organizations/{_organisation}/members/{membre}", _admin);
+        using var identique = await Envoyer(HttpMethod.Put, $"/organizations/{_organisation}/members/{membre}", _admin,
+            new { roles = new[] { new { role = "Technicien", siteId = (Guid?)nord } }, version, motif = "Rien" });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, sansMotif.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, revocationSansMotif.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, identique.StatusCode);
+        Assert.Equal(["Creation"], (await JournalAsync(_admin)).Where(e => e.GetProperty("membreId").GetGuid() == membre)
+            .Select(e => e.GetProperty("nature").GetString()));
+    }
+
+    [Fact]
+    public async Task TheJournalIsReadPageByPage()
+    {
+        var page1 = await JournalAsync(_admin, "?limite=1");
+        var page2 = await JournalAsync(_admin, $"?limite=1&avant={page1[0].GetProperty("id").GetGuid()}");
+        var fin = await JournalAsync(_admin, $"?limite=1&avant={page2[0].GetProperty("id").GetGuid()}");
+
+        Assert.Equal("Acceptation", page1.Single().GetProperty("nature").GetString());
+        Assert.Equal("Ouverture", page2.Single().GetProperty("nature").GetString());
+        Assert.Empty(fin);
     }
 
     [Fact]
@@ -127,9 +162,9 @@ public sealed class JournalHabilitationsTests(InfrastructureFixture infrastructu
         Assert.DoesNotContain(renouvellement, texte, StringComparison.Ordinal);
     }
 
-    private async Task<List<JsonElement>> JournalAsync(string jeton)
+    private async Task<List<JsonElement>> JournalAsync(string jeton, string requete = "")
     {
-        using var reponse = await Envoyer(HttpMethod.Get, $"/organizations/{_organisation}/members/journal", jeton);
+        using var reponse = await Envoyer(HttpMethod.Get, $"/organizations/{_organisation}/members/journal{requete}", jeton);
         Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
         return [.. (await Json(reponse)).EnumerateArray()];
     }

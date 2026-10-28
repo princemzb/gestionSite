@@ -7,7 +7,7 @@ namespace GestionSite.Modules.Identite.Membres;
 
 /// <summary>Le titulaire accepte ou refuse ses invitations (CONTRATS : /me/invitations).</summary>
 internal sealed class ServiceInvitations(
-    IdentiteDbContext context, CompteCourant compte, OrganisationCourante organisation, ServiceMembres membres, TimeProvider horloge)
+    IdentiteDbContext context, CompteCourant compte, OrganisationCourante organisation, TimeProvider horloge)
 {
     internal Task AccepterAsync(Guid membreId, CancellationToken cancellationToken) =>
         TraiterAsync(membreId, NatureHabilitation.Acceptation, (m, le) => m.Accepter(le), cancellationToken);
@@ -29,8 +29,9 @@ internal sealed class ServiceInvitations(
             .SingleOrDefaultAsync(m => m.Id == membreId && m.RevoqueLe == null && m.AccepteLe == null, cancellationToken)
             .ConfigureAwait(false) ?? throw RefusException.Introuvable(); // traitée entre-temps
         var avant = EvenementHabilitation.Instantane(membre);
-        action(membre, horloge.GetUtcNow());
-        membres.Journaliser(membre, nature, motif: null, avant, apres: nature == NatureHabilitation.Acceptation);
+        var maintenant = horloge.GetUtcNow();
+        action(membre, maintenant);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(membre, nature, compteId, maintenant, motif: null, avant));
         try
         {
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

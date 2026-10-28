@@ -28,18 +28,34 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
     {
     }
 
-    internal EvenementHabilitation(
+    /// <summary>
+    /// Seule fabrique d'entrées : les rôles après sont l'état du membre, sauf révocation et refus (aucun).
+    /// Révision et révocation exigent un motif (RG-31 : auteur, motif et valeur précédente).
+    /// </summary>
+    internal static EvenementHabilitation Pour(
+        Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif, IReadOnlyCollection<RoleJournalise>? avant)
+    {
+        if (nature is NatureHabilitation.Revision or NatureHabilitation.Revocation && string.IsNullOrWhiteSpace(motif))
+        {
+            throw new ArgumentException("Un motif est requis pour réviser ou révoquer une habilitation.", nameof(motif));
+        }
+
+        var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus ? null : Instantane(membre);
+        return new EvenementHabilitation(membre, nature, auteurCompteId, le, motif, avant, apres);
+    }
+
+    private EvenementHabilitation(
         Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif,
         IReadOnlyCollection<RoleJournalise>? avant, IReadOnlyCollection<RoleJournalise>? apres)
     {
         ArgumentNullException.ThrowIfNull(membre);
-        Id = Guid.NewGuid();
+        Le = Horodatage.Valider(le, nameof(le));
+        Id = Guid.CreateVersion7(Le); // ordonné dans le temps : départage et pagination stables
         OrganisationId = membre.OrganisationId;
         MembreId = membre.Id;
         CompteId = membre.CompteId;
         Nature = nature;
         AuteurCompteId = auteurCompteId;
-        Le = Horodatage.Valider(le, nameof(le));
         Motif = NettoyerMotif(motif);
         RolesAvant = avant is null ? null : JsonSerializer.Serialize(avant);
         RolesApres = apres is null ? null : JsonSerializer.Serialize(apres);

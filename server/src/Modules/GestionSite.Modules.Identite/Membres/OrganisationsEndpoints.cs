@@ -13,6 +13,9 @@ internal sealed record DemandeMembre(string Nom, string Email, IReadOnlyList<Rol
 
 internal sealed record DemandeRevision(IReadOnlyList<RoleDemande> Roles, int Version, string? Motif);
 
+/// <summary>Motif dans le corps (pas dans l'URL) : il ne doit pas finir dans les journaux d'accès.</summary>
+internal sealed record DemandeRevocation(string? Motif);
+
 internal sealed record EntreeJournal(
     Guid Id, Guid MembreId, Guid CompteId, string Nature, Guid? AuteurCompteId, DateTimeOffset Le, string? Motif,
     IReadOnlyList<RoleJournalise>? RolesAvant, IReadOnlyList<RoleJournalise>? RolesApres);
@@ -67,17 +70,20 @@ internal static class OrganisationsEndpoints
         Results.Ok(await service.ReviserAsync(orgId, memberId, demande.Roles ?? [], demande.Version, demande.Motif, cancellationToken).ConfigureAwait(false));
 
     private static async Task<IResult> RevoquerMembreAsync(
-        Guid orgId, Guid memberId, string? motif, ServiceMembres service, CancellationToken cancellationToken)
+        Guid orgId, Guid memberId,
+        [Microsoft.AspNetCore.Mvc.FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] DemandeRevocation? demande,
+        ServiceMembres service, CancellationToken cancellationToken)
     {
-        await service.RevoquerAsync(orgId, memberId, motif, cancellationToken).ConfigureAwait(false);
+        await service.RevoquerAsync(orgId, memberId, demande?.Motif, cancellationToken).ConfigureAwait(false);
         return Results.NoContent();
     }
 
     private static async Task<IResult> RenouvelerActivationAsync(Guid orgId, Guid memberId, ServiceMembres service, CancellationToken cancellationToken) =>
         Results.Ok(await service.RenouvelerActivationAsync(orgId, memberId, cancellationToken).ConfigureAwait(false));
 
-    private static async Task<IResult> JournalAsync(Guid orgId, int? limite, ServiceMembres service, CancellationToken cancellationToken) =>
-        Results.Ok((await service.JournalAsync(orgId, limite ?? 100, cancellationToken).ConfigureAwait(false)).Select(e => new EntreeJournal(
+    private static async Task<IResult> JournalAsync(
+        Guid orgId, int? limite, Guid? avant, ServiceMembres service, CancellationToken cancellationToken) =>
+        Results.Ok((await service.JournalAsync(orgId, limite ?? 100, avant, cancellationToken).ConfigureAwait(false)).Select(e => new EntreeJournal(
             e.Id, e.MembreId, e.CompteId, e.Nature.ToString(), e.AuteurCompteId, e.Le, e.Motif, Lire(e.RolesAvant), Lire(e.RolesApres))));
 
     private static List<RoleJournalise>? Lire(string? json) =>

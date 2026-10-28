@@ -42,7 +42,7 @@ internal sealed class ServiceMembres(
         var membre = new Membre(Guid.NewGuid(), organisationId, compte.Id, horloge.GetUtcNow());
         membre.Reviser(habilitations);
         context.Membres.Add(membre);
-        Journaliser(membre, NatureHabilitation.Creation, motif, avant: null);
+        Journaliser(membre, NatureHabilitation.Creation, motif, avant: null, membre.CreeLe);
         var activation = cree ? await EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;
         try
         {
@@ -72,8 +72,13 @@ internal sealed class ServiceMembres(
 
         var avant = EvenementHabilitation.Instantane(membre);
         membre.Reviser(habilitations);
+        if (membre.Version == versionAttendue)
+        {
+            return new MembreRevise(membre.Id, membre.Version); // rien n'a changé : ni écriture ni entrée de journal
+        }
+
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
-        Journaliser(membre, NatureHabilitation.Revision, motif, avant);
+        Journaliser(membre, NatureHabilitation.Revision, motif, avant, horloge.GetUtcNow());
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new MembreRevise(membre.Id, membre.Version);
@@ -93,7 +98,7 @@ internal sealed class ServiceMembres(
         var maintenant = horloge.GetUtcNow();
         membre.Revoquer(maintenant);
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
-        Journaliser(membre, NatureHabilitation.Revocation, motif, EvenementHabilitation.Instantane(membre), apres: false);
+        Journaliser(membre, NatureHabilitation.Revocation, motif, EvenementHabilitation.Instantane(membre), maintenant);
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -133,19 +138,27 @@ internal sealed class ServiceMembres(
         return site;
     }
 
-    /// <summary>Journal des habilitations de l'organisation (RG-31), du plus récent au plus ancien.</summary>
-    internal async Task<IReadOnlyList<EvenementHabilitation>> JournalAsync(Guid organisationId, int limite, CancellationToken cancellationToken)
+    /// <summary>
+    /// Journal des habilitations (RG-31), du plus récent au plus ancien, par pages : `avant` = identifiant de la
+    /// dernière entrée reçue (identifiants ordonnés dans le temps).
+    /// </summary>
+    internal async Task<IReadOnlyList<EvenementHabilitation>> JournalAsync(
+        Guid organisationId, int limite, Guid? avant, CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
-        return await context.JournalHabilitations.AsNoTracking().OrderByDescending(e => e.Le).ThenBy(e => e.Id)
-            .Take(Math.Clamp(limite, 1, 200)).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var entrees = context.JournalHabilitations.AsNoTracking();
+        if (avant is { } curseur)
+        {
+            entrees = entrees.Where(e => e.Id.CompareTo(curseur) < 0);
+        }
+
+        return await entrees.OrderByDescending(e => e.Id).Take(Math.Clamp(limite, 1, 200))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Entrée ajoutée au contexte, enregistrée dans la même transaction que le changement.</summary>
-    internal void Journaliser(
-        Membre membre, NatureHabilitation nature, string? motif, IReadOnlyCollection<RoleJournalise>? avant, bool apres = true) =>
-        context.JournalHabilitations.Add(new EvenementHabilitation(
-            membre, nature, auteur.Id, horloge.GetUtcNow(), motif, avant, apres ? EvenementHabilitation.Instantane(membre) : null));
+    private void Journaliser(Membre membre, NatureHabilitation nature, string? motif, IReadOnlyCollection<RoleJournalise>? avant, DateTimeOffset le) =>
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(membre, nature, auteur.Id, le, motif, avant));
 
     /// <summary>Nouveau lien : les liens précédents non utilisés de ce compte sont annulés.</summary>
     internal async Task<ActivationEmise> EmettreActivationAsync(Guid compteId, Guid organisationId, CancellationToken cancellationToken)

@@ -40,10 +40,9 @@ internal sealed class ServiceActivation(
             .ToListAsync(cancellationToken).ConfigureAwait(false))
         {
             invitation.Accepter(maintenant);
-            var roles = EvenementHabilitation.Instantane(invitation);
             // Auteur : le titulaire, qui active son compte (requête anonyme, compte prouvé par le lien).
-            context.JournalHabilitations.Add(new EvenementHabilitation(
-                invitation, NatureHabilitation.Acceptation, compte.Id, maintenant, motif: null, roles, roles));
+            context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+                invitation, NatureHabilitation.Acceptation, compte.Id, maintenant, motif: null, EvenementHabilitation.Instantane(invitation)));
         }
 
         activation.Utiliser(maintenant);
