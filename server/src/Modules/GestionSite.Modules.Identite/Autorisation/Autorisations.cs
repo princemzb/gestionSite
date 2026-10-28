@@ -56,7 +56,7 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
         var appelant = await AppelantAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var autorises = MatriceDroits.RolesPour(droit);
         return appelant is null
-            ? new HashSet<Guid>()
+            ? []
             : appelant.Roles.Where(r => r.SiteId is not null && autorises.Contains(r.Role)).Select(r => r.SiteId!.Value).ToHashSet();
     }
 
