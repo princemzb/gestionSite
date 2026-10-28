@@ -31,6 +31,12 @@ if (args is ["ouvrir-organisation", ..])
     return await CommandesExploitation.OuvrirOrganisationAsync(app.Services, args[1..], Console.Out).ConfigureAwait(false);
 }
 
+// Étape de déploiement : `dotnet GestionSite.Api.dll migrer` applique les migrations avec ConnectionStrings:Migrations.
+if (args is ["migrer"])
+{
+    return await CommandesExploitation.MigrerAsync(app.Services, Console.Out).ConfigureAwait(false);
+}
+
 app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -60,10 +60,18 @@ internal static class InfrastructureServices
         return services;
     }
 
-    private static NpgsqlDataSource BuildDataSource(IServiceProvider provider, string connectionString) =>
-        new NpgsqlDataSourceBuilder(connectionString)
-            .UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>())
-            .Build();
+    private static NpgsqlDataSource BuildDataSource(IServiceProvider provider, string connectionString)
+    {
+        var builder = new NpgsqlDataSourceBuilder(connectionString).UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>());
+        if (!connectionString.Contains("GSS", StringComparison.OrdinalIgnoreCase))
+        {
+            // Pas de Kerberos (ni local ni Neon) : sans cela, chaque connexion tente GSS et journalise une erreur
+            // de bibliothèque absente dans l'image.
+            builder.ConnectionStringBuilder.GssEncryptionMode = GssEncryptionMode.Disable;
+        }
+
+        return builder.Build();
+    }
 
     /// <summary>Mêmes contrôles que la construction réelle (hôte obligatoire, etc.), sans ouvrir de connexion.</summary>
     private static bool CanBuildDataSource(string value)

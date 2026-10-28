@@ -2177,6 +2177,34 @@
       ],
       "trelloId": "6ae1ec7e19112c779e20d96f",
       "trelloShortLink": "XUWNgdKc"
+    },
+    {
+      "id": "DEP-01",
+      "name": "[DEP-01] Préproduction : image Docker, Neon, Cloudflare Containers et R2",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [
+        "Identité"
+      ],
+      "sprint": "SP-002",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-05",
+        "US-06"
+      ],
+      "estimatePersonDays": {
+        "low": 2,
+        "high": 3,
+        "accounting": "Inclus dans US-06"
+      },
+      "dependencies": [
+        "WEB-01"
+      ],
+      "acceptanceCriteria": [
+        "Image unique API + web, migrations appliquées par l'étape de déploiement (rôle propriétaire), rôles applicatif/propriétaire créés sur Neon, fichiers et clés de chiffrement dans R2, secrets hors dépôt ; application web accessible en https et parcours d'activation vérifié en préproduction."
+      ],
+      "trelloId": "6ae1fdadbc9d4249aeb2cb9f",
+      "trelloShortLink": "cvEYmE6c"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

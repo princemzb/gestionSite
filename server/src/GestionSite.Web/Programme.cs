@@ -1,7 +1,10 @@
+using Amazon.Runtime;
+using Amazon.S3;
 using GestionSite.Web.Components;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 
 namespace GestionSite.Web;
 
@@ -34,7 +37,25 @@ internal static class Programme
         builder.Services.AddScoped<SessionApi>();
         // Clés de chiffrement des cookies : à conserver entre redémarrages (sinon déconnexion de tous).
         var cles = builder.Services.AddDataProtection().SetApplicationName("gestionsite-web");
-        if (builder.Configuration["Web:DossierCles"] is { Length: > 0 } dossier)
+        var stockage = builder.Configuration.GetSection("Web:Cles").Get<StockageCles>();
+        if (stockage is { ServiceUrl.Length: > 0 })
+        {
+            builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
+                new BasicAWSCredentials(stockage.AccessKey, stockage.SecretKey),
+                new AmazonS3Config
+                {
+                    ServiceURL = stockage.ServiceUrl,
+                    ForcePathStyle = true,
+                    AuthenticationRegion = stockage.Region,
+                    // Stockages compatibles S3 (R2, SeaweedFS) : pas d'envoi « aws-chunked » avec sommes de contrôle,
+                    // qu'ils peuvent enregistrer tel quel et corrompre le contenu.
+                    RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+                    ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
+                }));
+            builder.Services.AddOptions<KeyManagementOptions>().Configure<IAmazonS3>((options, client) =>
+                options.XmlRepository = new DepotClesS3(client, stockage.Compartiment, "protection-donnees/web/"));
+        }
+        else if (builder.Configuration["Web:DossierCles"] is { Length: > 0 } dossier)
         {
             cles.PersistKeysToFileSystem(new DirectoryInfo(dossier));
         }
@@ -74,6 +95,20 @@ internal static class Programme
         app.UseAuthorization();
         app.UseAntiforgery();
         app.MapPost("/deconnexion", SessionApi.DeconnecterAsync).RequireAuthorization();
+        // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
+        app.MapGet("/sante", async (IHttpClientFactory clients) =>
+        {
+            try
+            {
+                using var reponse = await clients.CreateClient(ClientApi).GetAsync(new Uri("/health/ready", UriKind.Relative), CancellationToken.None)
+                    .ConfigureAwait(false);
+                return reponse.IsSuccessStatusCode ? Results.Text("Disponible") : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (HttpRequestException)
+            {
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+        });
         app.MapRazorComponents<App>();
         await app.RunAsync().ConfigureAwait(false);
     }
