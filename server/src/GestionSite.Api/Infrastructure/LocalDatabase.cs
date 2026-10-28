@@ -3,7 +3,11 @@ using Npgsql;
 
 namespace GestionSite.Api.Infrastructure;
 
-/// <summary>Reconnaît une base PostgreSQL locale : localhost, boucle locale ou socket Unix, pour chaque hôte listé.</summary>
+/// <summary>
+/// Reconnaît une base PostgreSQL locale : localhost, boucle locale ou socket Unix, pour chaque hôte listé.
+/// Garde-fou contre l'erreur courante, pas une barrière : un tunnel (SSH, port-forward) vers une base
+/// distante sur localhost reste vu comme local. La vraie barrière est le rôle sans droit de schéma.
+/// </summary>
 public static class LocalDatabase
 {
     /// <summary>

@@ -33,21 +33,14 @@ internal static class InfrastructureServices
             return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
 
-        // Garde-fou : une variable ConnectionStrings__Main oubliée dans un terminal ne doit pas
-        // faire migrer une base partagée par un simple `dotnet run`.
         services.AddOptions<MigrationOptions>()
             .Bind(configuration.GetSection(MigrationOptions.Section))
-            .Validate(
-                migration => !migration.MigrateOnStartup
-                    || LocalDatabase.IsLocal(configuration.GetConnectionString("Main") ?? string.Empty),
-                "Database:MigrateOnStartup n'est autorisé que pour une base PostgreSQL locale.")
             .ValidateOnStart();
         services.AddHostedService<DatabaseMigrations>();
 
         // Délai borné : une dépendance muette doit donner un 503 rapide, pas une sonde bloquée.
         services.AddHealthChecks()
-            .AddCheck<PostgresHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
-            .AddCheck<SchemaHealthCheck>("schema-a-jour", tags: [ReadyTag], timeout: CheckTimeout)
+            .AddCheck<DatabaseHealthCheck>("postgresql", tags: [ReadyTag], timeout: CheckTimeout)
             .AddCheck<ObjectStorageHealthCheck>("stockage-fichiers", tags: [ReadyTag], timeout: CheckTimeout);
         return services;
     }

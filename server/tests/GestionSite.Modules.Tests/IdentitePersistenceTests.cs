@@ -33,7 +33,7 @@ public sealed class IdentitePersistenceTests
     [Fact]
     public void OrganisationRequiresARealCreationDate()
     {
-        DateTimeOffset[] dates = [default, DateTimeOffset.MinValue, DateTimeOffset.MaxValue];
+        DateTimeOffset[] dates = [default, DateTimeOffset.MinValue, DateTimeOffset.MinValue.AddTicks(5), DateTimeOffset.MaxValue];
 
         Assert.All(dates, date =>
             Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), "Saint-Paul", date)));
@@ -45,8 +45,9 @@ public sealed class IdentitePersistenceTests
     [InlineData("Saint\u2028Paul")]
     [InlineData("\u200B")]
     [InlineData("\u200B \u2060")]
-    [InlineData("\u200BSaint-Paul")]
+    [InlineData("\u0301\uFE0F")]
     [InlineData("Saint-\u202EluaP")]
+    [InlineData("Saint\u2066Paul")]
     [InlineData("\u200D")]
     public void OrganisationRejectsControlCharacters(string nom)
     {
@@ -76,7 +77,8 @@ public sealed class IdentitePersistenceTests
     [Fact]
     public void OrganisationAcceptsCharactersOutsideTheBasicPlane()
     {
-        const string Nom = "Saint-Paul ⛪ 🕊️ 👨‍👩‍👧"; // le dernier émoji est composé avec U+200D
+        // Émojis composés (U+200D, étiquettes de drapeau) et U+200C d'une graphie persane.
+        const string Nom = "Saint-Paul ⛪ 🕊️ 👨\u200D👩\u200D👧 🏴\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F کلیسا\u200Cها";
 
         Assert.Equal(Nom, new Organisation(Guid.NewGuid(), Nom, DateTimeOffset.UnixEpoch).Nom);
     }

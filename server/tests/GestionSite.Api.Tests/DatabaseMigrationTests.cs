@@ -53,8 +53,8 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     {
         await using var factory = infrastructure.CreateApi(connectionString, migrateOnStartup: "true");
 
-        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
-        Assert.Equal(typeof(GestionSite.Api.Infrastructure.MigrationOptions), exception.OptionsType);
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("base PostgreSQL locale", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

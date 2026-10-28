@@ -10,7 +10,8 @@ namespace GestionSite.Api.Infrastructure;
 /// (ValidateOnStart), avant l'ouverture du serveur, et annulable par l'arrêt de l'hôte.
 /// </summary>
 internal sealed partial class DatabaseMigrations(
-    IOptions<MigrationOptions> options, IServiceScopeFactory scopes, ILogger<DatabaseMigrations> logger)
+    IOptions<MigrationOptions> options, IOptions<DatabaseOptions> database,
+    IServiceScopeFactory scopes, ILogger<DatabaseMigrations> logger)
     : IHostedLifecycleService
 {
     public async Task StartingAsync(CancellationToken cancellationToken)
@@ -18,6 +19,14 @@ internal sealed partial class DatabaseMigrations(
         if (!options.Value.MigrateOnStartup)
         {
             return;
+        }
+
+        // Garde-fou : une variable ConnectionStrings__Main oubliée dans un terminal ne doit pas
+        // faire migrer une base partagée par un simple `dotnet run` (chaîne déjà validée ici).
+        if (!LocalDatabase.IsLocal(database.Value.Main))
+        {
+            throw new InvalidOperationException(
+                $"{MigrationOptions.Section}:{nameof(MigrationOptions.MigrateOnStartup)} n'est autorisé que pour une base PostgreSQL locale.");
         }
 
         await using var scope = scopes.CreateAsyncScope();

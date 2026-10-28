@@ -30,20 +30,23 @@ internal sealed class Organisation
 
         if (!EstNomValide(nomNettoye))
         {
-            throw new ArgumentException("Le nom doit tenir sur une ligne, sans caractère de contrôle ni invisible seul.", nameof(nom));
+            throw new ArgumentException("Le nom doit tenir sur une ligne et contenir au moins un caractère visible.", nameof(nom));
         }
 
+        // PostgreSQL « timestamp with time zone » : UTC seulement, à la microseconde (le reste serait perdu).
+        var utc = creeLe.ToUniversalTime();
+        utc = utc.AddTicks(-(utc.Ticks % TimeSpan.TicksPerMicrosecond));
+
         // Valeur par défaut ou bornes extrêmes : Npgsql écrirait « -infinity » / « infinity ».
-        if (creeLe.UtcDateTime == DateTime.MinValue || creeLe.UtcDateTime == DateTime.MaxValue)
+        // Minimum testé après arrondi (MinValue + quelques ticks y retombe) ; maximum avant.
+        if (utc.UtcDateTime == DateTime.MinValue || creeLe.UtcDateTime == DateTime.MaxValue)
         {
             throw new ArgumentException("La date de création est obligatoire et doit être une date réelle.", nameof(creeLe));
         }
 
         Id = id;
         Nom = nomNettoye;
-        // PostgreSQL « timestamp with time zone » : UTC seulement, à la microseconde (le reste serait perdu).
-        var utc = creeLe.ToUniversalTime();
-        CreeLe = utc.AddTicks(-(utc.Ticks % (TimeSpan.TicksPerMillisecond / 1000)));
+        CreeLe = utc;
     }
 
     public Guid Id { get; private set; }
@@ -52,10 +55,11 @@ internal sealed class Organisation
 
     public DateTimeOffset CreeLe { get; private set; }
 
-    private const int ZeroWidthJoiner = 0x200D;
-
-    // PostgreSQL refuse le caractère NUL, l'encodage UTF-8 échoue sur une demi-paire de substitution,
-    // et un nom fait seulement de caractères invisibles paraîtrait vide.
+    // Refusés : ce que PostgreSQL ou UTF-8 ne stockent pas (NUL, demi-paire de substitution), les retours
+    // à la ligne et les contrôles d'inversion bidirectionnelle (texte affiché à l'envers). Les autres
+    // caractères de format restent permis (U+200C persan, U+200D et étiquettes des émojis composés).
+    // Au moins une lettre, un chiffre, une ponctuation ou un symbole. Limite connue : les homoglyphes
+    // et quelques caractères d'apparence vide (U+3164, U+2800) ne sont pas détectés.
     private static bool EstNomValide(string nom)
     {
         var visible = false;
@@ -68,18 +72,19 @@ internal sealed class Organisation
             }
 
             var categorie = Rune.GetUnicodeCategory(rune);
-            // Caractères de format refusés (inversion bidirectionnelle, espaces de largeur nulle…),
-            // sauf le liant U+200D des émojis composés : pas de noms d'apparence trompeuse.
             if (categorie is UnicodeCategory.Control or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator
-                || (categorie == UnicodeCategory.Format && rune.Value != ZeroWidthJoiner))
+                || EstControleBidirectionnel(rune.Value))
             {
                 return false;
             }
 
-            visible |= rune.Value != ZeroWidthJoiner && !Rune.IsWhiteSpace(rune);
+            visible |= Rune.IsLetterOrDigit(rune) || Rune.IsPunctuation(rune) || Rune.IsSymbol(rune);
             reste = reste[lus..];
         }
 
         return visible;
     }
+
+    private static bool EstControleBidirectionnel(int point) =>
+        point is (>= 0x202A and <= 0x202E) or (>= 0x2066 and <= 0x2069) or 0x200E or 0x200F or 0x061C;
 }
