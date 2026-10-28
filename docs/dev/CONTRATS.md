@@ -30,7 +30,8 @@ Statut : esquisse P ; noms et formes non figés. Produire un contrat OpenAPI val
 | POST /organizations/{orgId}/members | Administrateur d'organisation | nom, e-mail, rôles, sites → invitation créée ; lien d'activation (montré une seule fois) seulement si le compte est créé par cet appel ; 409 si compte en attente créé ailleurs |
 | POST /organizations/{orgId}/members/{memberId}/activation | Administrateur d'organisation | → nouveau lien, si cette organisation a créé le compte et qu'il n'est pas activé ; 409 sinon |
 | PUT /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | rôles, sites, version attendue → habilitations révisées et tracées (RG-31) ; 409 si version dépassée |
-| DELETE /organizations/{orgId}/members/{memberId} | Administrateur d'organisation | → accès révoqué, jetons invalidés ; historique conservé |
+| DELETE /organizations/{orgId}/members/{memberId}?motif= | Administrateur d'organisation | → accès révoqué (adhésion vérifiée à chaque requête) ; historique conservé |
+| GET /organizations/{orgId}/members/journal?limite= | Administrateur d'organisation | → journal des habilitations (RG-31) : nature, auteur, date, motif, rôles avant/après, du plus récent au plus ancien (200 au plus) |
 
 Rôles : administrateur d'organisation (A), responsable (R), délégué (D), technicien (T), pasteur (P), coordination (C) ; cumulables ; chacun accordé sur des sites précis (A : toute l'organisation). Toute ressource d'une autre organisation répond 404, jamais 403, pour empêcher l'énumération.
 

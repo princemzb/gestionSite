@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -16,10 +17,10 @@ internal sealed record MembreRevise(Guid MembreId, int Version);
 
 /// <summary>Gestion des membres et des sites par l'administrateur d'organisation (CONTRATS, S06-04).</summary>
 internal sealed class ServiceMembres(
-    IdentiteDbContext context, UserManager<Compte> comptes, AccesOrganisation acces, TimeProvider horloge)
+    IdentiteDbContext context, UserManager<Compte> comptes, AccesOrganisation acces, CompteCourant auteur, TimeProvider horloge)
 {
     internal async Task<MembreCree> CreerAsync(
-        Guid organisationId, string nom, string email, IReadOnlyCollection<RoleDemande> roles, CancellationToken cancellationToken)
+        Guid organisationId, string nom, string email, IReadOnlyCollection<RoleDemande> roles, string? motif, CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var habilitations = await ResoudreAsync(roles, cancellationToken).ConfigureAwait(false);
@@ -41,6 +42,7 @@ internal sealed class ServiceMembres(
         var membre = new Membre(Guid.NewGuid(), organisationId, compte.Id, horloge.GetUtcNow());
         membre.Reviser(habilitations);
         context.Membres.Add(membre);
+        Journaliser(membre, NatureHabilitation.Creation, motif, avant: null);
         var activation = cree ? await EmettreActivationAsync(compte.Id, organisationId, cancellationToken).ConfigureAwait(false) : null;
         try
         {
@@ -56,7 +58,8 @@ internal sealed class ServiceMembres(
     }
 
     internal async Task<MembreRevise> ReviserAsync(
-        Guid organisationId, Guid membreId, IReadOnlyCollection<RoleDemande> roles, int versionAttendue, CancellationToken cancellationToken)
+        Guid organisationId, Guid membreId, IReadOnlyCollection<RoleDemande> roles, int versionAttendue, string? motif,
+        CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var habilitations = await ResoudreAsync(roles, cancellationToken).ConfigureAwait(false);
@@ -67,8 +70,10 @@ internal sealed class ServiceMembres(
             throw VersionDepassee();
         }
 
+        var avant = EvenementHabilitation.Instantane(membre);
         membre.Reviser(habilitations);
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
+        Journaliser(membre, NatureHabilitation.Revision, motif, avant);
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new MembreRevise(membre.Id, membre.Version);
@@ -80,7 +85,7 @@ internal sealed class ServiceMembres(
     /// peut-être d'autres organisations, que la RLS rend invisibles d'ici (et qu'un administrateur tiers ne
     /// doit pas pouvoir interrompre).
     /// </summary>
-    internal async Task RevoquerAsync(Guid organisationId, Guid membreId, CancellationToken cancellationToken)
+    internal async Task RevoquerAsync(Guid organisationId, Guid membreId, string? motif, CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
@@ -88,6 +93,7 @@ internal sealed class ServiceMembres(
         var maintenant = horloge.GetUtcNow();
         membre.Revoquer(maintenant);
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
+        Journaliser(membre, NatureHabilitation.Revocation, motif, EvenementHabilitation.Instantane(membre), apres: false);
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -126,6 +132,20 @@ internal sealed class ServiceMembres(
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return site;
     }
+
+    /// <summary>Journal des habilitations de l'organisation (RG-31), du plus récent au plus ancien.</summary>
+    internal async Task<IReadOnlyList<EvenementHabilitation>> JournalAsync(Guid organisationId, int limite, CancellationToken cancellationToken)
+    {
+        await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        return await context.JournalHabilitations.AsNoTracking().OrderByDescending(e => e.Le).ThenBy(e => e.Id)
+            .Take(Math.Clamp(limite, 1, 200)).ToListAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Entrée ajoutée au contexte, enregistrée dans la même transaction que le changement.</summary>
+    internal void Journaliser(
+        Membre membre, NatureHabilitation nature, string? motif, IReadOnlyCollection<RoleJournalise>? avant, bool apres = true) =>
+        context.JournalHabilitations.Add(new EvenementHabilitation(
+            membre, nature, auteur.Id, horloge.GetUtcNow(), motif, avant, apres ? EvenementHabilitation.Instantane(membre) : null));
 
     /// <summary>Nouveau lien : les liens précédents non utilisés de ce compte sont annulés.</summary>
     internal async Task<ActivationEmise> EmettreActivationAsync(Guid compteId, Guid organisationId, CancellationToken cancellationToken)

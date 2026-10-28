@@ -1,3 +1,4 @@
+using GestionSite.Modules.Identite.Domain;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -8,9 +9,13 @@ internal sealed record DemandeSite(string Nom);
 
 internal sealed record ReponseSite(Guid Id, string Nom);
 
-internal sealed record DemandeMembre(string Nom, string Email, IReadOnlyList<RoleDemande> Roles);
+internal sealed record DemandeMembre(string Nom, string Email, IReadOnlyList<RoleDemande> Roles, string? Motif);
 
-internal sealed record DemandeRevision(IReadOnlyList<RoleDemande> Roles, int Version);
+internal sealed record DemandeRevision(IReadOnlyList<RoleDemande> Roles, int Version, string? Motif);
+
+internal sealed record EntreeJournal(
+    Guid Id, Guid MembreId, Guid CompteId, string Nature, Guid? AuteurCompteId, DateTimeOffset Le, string? Motif,
+    IReadOnlyList<RoleJournalise>? RolesAvant, IReadOnlyList<RoleJournalise>? RolesApres);
 
 internal sealed record DemandeActivation(string Jeton, string MotDePasse);
 
@@ -26,6 +31,7 @@ internal static class OrganisationsEndpoints
         organisation.MapPut("/members/{memberId:guid}", ReviserMembreAsync);
         organisation.MapDelete("/members/{memberId:guid}", RevoquerMembreAsync);
         organisation.MapPost("/members/{memberId:guid}/activation", RenouvelerActivationAsync);
+        organisation.MapGet("/members/journal", JournalAsync);
         endpoints.MapPost("/auth/activate", ActiverAsync).AllowAnonymous().AddEndpointFilter(TraduireRefus);
         var invitations = endpoints.MapGroup("/me/invitations/{memberId:guid}").RequireAuthorization().AddEndpointFilter(TraduireRefus);
         invitations.MapPost("/accept", async (Guid memberId, ServiceInvitations service, CancellationToken ct) =>
@@ -52,22 +58,30 @@ internal static class OrganisationsEndpoints
 
     private static async Task<IResult> CreerMembreAsync(Guid orgId, DemandeMembre demande, ServiceMembres service, CancellationToken cancellationToken)
     {
-        var cree = await service.CreerAsync(orgId, demande.Nom, demande.Email, demande.Roles ?? [], cancellationToken).ConfigureAwait(false);
+        var cree = await service.CreerAsync(orgId, demande.Nom, demande.Email, demande.Roles ?? [], demande.Motif, cancellationToken).ConfigureAwait(false);
         return Results.Created($"/organizations/{orgId}/members/{cree.MembreId}", cree);
     }
 
     private static async Task<IResult> ReviserMembreAsync(
         Guid orgId, Guid memberId, DemandeRevision demande, ServiceMembres service, CancellationToken cancellationToken) =>
-        Results.Ok(await service.ReviserAsync(orgId, memberId, demande.Roles ?? [], demande.Version, cancellationToken).ConfigureAwait(false));
+        Results.Ok(await service.ReviserAsync(orgId, memberId, demande.Roles ?? [], demande.Version, demande.Motif, cancellationToken).ConfigureAwait(false));
 
-    private static async Task<IResult> RevoquerMembreAsync(Guid orgId, Guid memberId, ServiceMembres service, CancellationToken cancellationToken)
+    private static async Task<IResult> RevoquerMembreAsync(
+        Guid orgId, Guid memberId, string? motif, ServiceMembres service, CancellationToken cancellationToken)
     {
-        await service.RevoquerAsync(orgId, memberId, cancellationToken).ConfigureAwait(false);
+        await service.RevoquerAsync(orgId, memberId, motif, cancellationToken).ConfigureAwait(false);
         return Results.NoContent();
     }
 
     private static async Task<IResult> RenouvelerActivationAsync(Guid orgId, Guid memberId, ServiceMembres service, CancellationToken cancellationToken) =>
         Results.Ok(await service.RenouvelerActivationAsync(orgId, memberId, cancellationToken).ConfigureAwait(false));
+
+    private static async Task<IResult> JournalAsync(Guid orgId, int? limite, ServiceMembres service, CancellationToken cancellationToken) =>
+        Results.Ok((await service.JournalAsync(orgId, limite ?? 100, cancellationToken).ConfigureAwait(false)).Select(e => new EntreeJournal(
+            e.Id, e.MembreId, e.CompteId, e.Nature.ToString(), e.AuteurCompteId, e.Le, e.Motif, Lire(e.RolesAvant), Lire(e.RolesApres))));
+
+    private static List<RoleJournalise>? Lire(string? json) =>
+        json is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<RoleJournalise>>(json);
 
     private static async Task<IResult> ActiverAsync(DemandeActivation demande, ServiceActivation service, CancellationToken cancellationToken)
     {

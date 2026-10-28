@@ -87,7 +87,7 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
             "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))", ("globales", TablesGlobales));
 
         Assert.Equal(0L, sansIsolation);
-        Assert.Equal(4L, await _database.CountAsync(
+        Assert.Equal(5L, await _database.CountAsync(
             "SELECT count(*) FROM pg_tables WHERE schemaname = 'identite' AND NOT tablename = ANY (@globales)", ("globales", TablesGlobales)));
     }
 

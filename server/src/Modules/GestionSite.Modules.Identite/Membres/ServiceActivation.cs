@@ -35,11 +35,15 @@ internal sealed class ServiceActivation(
         // L'activation vaut acceptation de l'invitation de l'organisation qui a émis le lien.
         organisation.Definir(activation.OrganisationId);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var invitation in await context.Membres
+        foreach (var invitation in await context.Membres.Include(m => m.Roles)
             .Where(m => m.CompteId == compte.Id && m.RevoqueLe == null && m.AccepteLe == null)
             .ToListAsync(cancellationToken).ConfigureAwait(false))
         {
             invitation.Accepter(maintenant);
+            var roles = EvenementHabilitation.Instantane(invitation);
+            // Auteur : le titulaire, qui active son compte (requête anonyme, compte prouvé par le lien).
+            context.JournalHabilitations.Add(new EvenementHabilitation(
+                invitation, NatureHabilitation.Acceptation, compte.Id, maintenant, motif: null, roles, roles));
         }
 
         activation.Utiliser(maintenant);

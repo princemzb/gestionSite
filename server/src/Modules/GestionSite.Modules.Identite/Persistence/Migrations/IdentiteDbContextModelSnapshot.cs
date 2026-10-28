@@ -158,6 +158,63 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.ToTable("comptes", "identite");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.EvenementHabilitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("Le")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("le");
+
+                    b.Property<Guid>("MembreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membre_id");
+
+                    b.Property<string>("Motif")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("motif");
+
+                    b.Property<string>("Nature")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("nature");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<string>("RolesApres")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("roles_apres");
+
+                    b.Property<string>("RolesAvant")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("roles_avant");
+
+                    b.HasKey("Id")
+                        .HasName("pk_journal_habilitations");
+
+                    b.HasIndex("MembreId", "OrganisationId")
+                        .HasDatabaseName("ix_journal_habilitations_membre_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "Le")
+                        .HasDatabaseName("ix_journal_habilitations_organisation_id_le");
+
+                    b.ToTable("journal_habilitations", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.JetonRenouvellement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -446,6 +503,17 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_activations_comptes_compte_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.EvenementHabilitation", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Membre", null)
+                        .WithMany()
+                        .HasForeignKey("MembreId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_habilitations_membres_membre_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.JetonRenouvellement", b =>
