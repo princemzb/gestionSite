@@ -25,7 +25,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | Maquettes du 1er écran testable (carte UX-02) | **Validées le 28/10** : connexion B (bandeau) + membres C (par site), Jour et Nuit | Maquette « Activer mon compte » à faire valider ; puis application web Blazor et première mise en préproduction. |
 | WEB-01 Application web (1er écran testable) | Fusionnée (PR #38, fba5e90) : connexion, activation, membres par site, invitation ; 12 tests de bout en bout ; en Prêt à livrer | **Mise en préproduction** (ADR-08 : Neon + Cloudflare Containers + R2) : comptes et autorisations du porteur nécessaires, guidage pas à pas. |
-| DEP-01 Préproduction | Préparée : image API + web, Worker Cloudflare, rôles Neon, commande `migrer`, clés de cookies dans R2 ; guide docs/exploitation/DEPLOIEMENT.md | **Attente du porteur** : comptes Neon et R2, jeton Cloudflare (étapes P du guide), guidage pas à pas. |
+| DEP-01 Préproduction | **Déployée et vérifiée le 28/10** (adresse workers.dev du compte, Trousseau `gestionsite-preprod-url`) : `deploy/verification/parcours.py` 10/10 sur une organisation fictive de vérification (activation, membres, styles, invitation, activation du membre, connexion, cookie Secure/HttpOnly). PR #41 : revues code et sécurité faites, Sonar OK. Neon (Francfort, PG 17), R2 UE, 7 secrets du Worker. Organisation de démonstration du porteur ouverte (admin fictif `admin@demo.gestionsite.test`, lien valable jusqu'au 31/10). | Fusion PR #41 puis Livré des cartes ; recette du porteur dans son navigateur (retours = nouvelles cartes) ; alerte de facturation Cloudflare (porteur). |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
 | S05-05 Guide d'installation | Livré (PR #16) | — |
 | S05-01 | Prêt à livrer | Livré au premier déploiement préprod. |
@@ -50,6 +50,9 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Décision du porteur (28/10, révisée le même jour) : revue allégée par PR. Chaque PR : une revue `/code-review high`, plus `/security-review` si auth, fichiers ou formulaire public ; `max` seulement pour budget et stock. Défauts avérés corrigés avant fusion (CI + porte Sonar verts), suggestions en « Points reportés ». Cartes Trello déplacées à chaque étape.
 
 ## Points reportés (issus des revues de S06-01)
+- DEP-01 (revue PR #41) : vérifier en usage réel que `setInactivityTimeout` compte depuis la dernière activité (sinon renouveler à chaque requête) ; cas « image précédente » non encore observé en vrai (seul le redémarrage sur veille l'a été).
+- Hébergement de production (ADR à venir) : réveil ≈ 20 s et mode `durable_object` en bêta publique ; mesurer la mémoire réelle puis comparer conteneur Cloudflare toujours actif (≈ 28 $/mois en `standard-1`) et hébergeur UE classique.
+- Option Hyperdrive mentionnée par l'ADR-08 non utilisée (connexion directe à Neon) : à réévaluer avec la latence mesurée.
 - Aide de persistance commune aux modules (DbContext + migrateur générique) : à créer quand un 2e module aura une base.
 - Règles de nom et de date extraites en S06-02 (`NomAffichable`, `Horodatage`) ; une convention EF globale reste possible si d'autres modules en ont besoin.
 - Intercepteur de session RLS et `IAppartientAOrganisation` dans le module Identité : à déplacer dans un noyau de persistance partagé quand un 2e module aura des données d'organisation.

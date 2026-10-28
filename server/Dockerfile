@@ -1,6 +1,7 @@
 # Image de préproduction (DEP-01, ADR-08) : API (interne, 127.0.0.1:8081) + application web (publique, :8080).
 # Construire depuis la racine du dépôt : docker build --platform linux/amd64 -f server/Dockerfile .
-FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS construction
+# Compilation sur l’architecture du poste (sortie .NET portable) : évite l’émulation amd64, lente et fragile.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.302 AS construction
 WORKDIR /depot
 COPY global.json dotnet-tools.json ./
 COPY server/ server/
