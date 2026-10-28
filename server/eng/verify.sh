@@ -10,7 +10,8 @@ readonly COVERAGE=artifacts/coverage
 
 rm -rf artifacts
 dotnet tool restore
-dotnet restore GestionSite.slnx
+# Restauration en Release, comme la compilation : les références conditionnées (outil EF) suivent.
+dotnet restore GestionSite.slnx -p:Configuration=Release
 dotnet build GestionSite.slnx --no-restore --configuration Release
 dotnet format GestionSite.slnx --verify-no-changes --no-restore
 dotnet test GestionSite.slnx --no-build --configuration Release \

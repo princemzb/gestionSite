@@ -32,22 +32,10 @@ internal sealed partial class DatabaseMigrations(
         await using var scope = scopes.CreateAsyncScope();
         foreach (var migrator in scope.ServiceProvider.GetServices<IDatabaseMigrator>())
         {
-            // MigrateAsync toujours appelé, même à jour : EF y refuse un modèle modifié sans migration.
-            var pending = await migrator.HasPendingMigrationsAsync(cancellationToken).ConfigureAwait(false);
-            if (pending)
-            {
-                Log.Applying(logger, migrator.ModuleName);
-            }
-
+            // EF journalise lui-même chaque migration appliquée ou l'absence de migration,
+            // et refuse un modèle modifié sans migration.
             await migrator.MigrateAsync(cancellationToken).ConfigureAwait(false);
-            if (pending)
-            {
-                Log.Applied(logger, migrator.ModuleName);
-            }
-            else
-            {
-                Log.UpToDate(logger, migrator.ModuleName);
-            }
+            Log.Checked(logger, migrator.ModuleName);
         }
     }
 
@@ -63,13 +51,7 @@ internal sealed partial class DatabaseMigrations(
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Information, Message = "Schéma de la base à jour pour le module {Module}")]
-        internal static partial void UpToDate(ILogger logger, string module);
-
-        [LoggerMessage(Level = LogLevel.Information, Message = "Application des migrations de la base pour le module {Module}")]
-        internal static partial void Applying(ILogger logger, string module);
-
-        [LoggerMessage(Level = LogLevel.Information, Message = "Migrations de la base appliquées pour le module {Module}")]
-        internal static partial void Applied(ILogger logger, string module);
+        [LoggerMessage(Level = LogLevel.Information, Message = "Schéma de la base vérifié pour le module {Module}")]
+        internal static partial void Checked(ILogger logger, string module);
     }
 }

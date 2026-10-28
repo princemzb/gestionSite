@@ -2,7 +2,7 @@
 Statut : règles de travail proposées. Stack retenue par ADR-08 (C# / ASP.NET Core .NET 10, PostgreSQL, Flutter, Blazor) ; socle technique US-05 en place. Lire d'abord docs/pilotage/ETAT.md, puis README documentaire → PRD → règles/permissions → architecture → carte et contrats liés.
 
 ## Installation (S05-05)
-Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur macOS 14.5 (arm64). Lancer depuis la racine du dépôt.
+Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur macOS 14.5 (arm64) ; celles de la section « Base de données et migrations » (`dotnet ef migrations add/list/script/has-pending-model-changes`, `database update`) le 28 octobre 2026. Lancer depuis la racine du dépôt.
 
 ### Prérequis
 | Outil | Version | Rôle |

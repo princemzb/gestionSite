@@ -1,6 +1,7 @@
 using GestionSite.Modules.Identite.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -38,8 +39,8 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
         using var secondClient = second.CreateClient();
 
         Assert.Equal(KnownMigrations(second), await database.CountAsync(CountMigrations));
-        Assert.Contains("Schéma de la base à jour pour le module Identite", logs.Messages);
-        Assert.DoesNotContain(logs.Messages, m => m.StartsWith("Application des migrations", StringComparison.Ordinal));
+        Assert.Contains(logs.Entries, e => e.EventId == RelationalEventId.MigrationsNotApplied.Id);
+        Assert.DoesNotContain(logs.Entries, e => e.EventId == RelationalEventId.MigrationApplying.Id);
     }
 
     [Fact]

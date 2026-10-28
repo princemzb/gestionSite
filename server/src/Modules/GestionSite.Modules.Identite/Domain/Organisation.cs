@@ -23,14 +23,16 @@ internal sealed class Organisation
 
         ArgumentException.ThrowIfNullOrWhiteSpace(nom);
         var nomNettoye = Nettoyer(nom);
-        if (nomNettoye.Length > NomMaxLength)
-        {
-            throw new ArgumentException($"Le nom ne peut pas dépasser {NomMaxLength} caractères.", nameof(nom));
-        }
-
         if (!EstNomValide(nomNettoye))
         {
             throw new ArgumentException("Le nom doit tenir sur une ligne et contenir au moins un caractère visible.", nameof(nom));
+        }
+
+        // Forme NFC : « É » précomposé ou « E » + accent combinant donnent le même nom stocké.
+        nomNettoye = nomNettoye.Normalize(NormalizationForm.FormC);
+        if (nomNettoye.Length > NomMaxLength)
+        {
+            throw new ArgumentException($"Le nom ne peut pas dépasser {NomMaxLength} caractères.", nameof(nom));
         }
 
         // PostgreSQL « timestamp with time zone » : UTC seulement, à la microseconde (le reste serait perdu).

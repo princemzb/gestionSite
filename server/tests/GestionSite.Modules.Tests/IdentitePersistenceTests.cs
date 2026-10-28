@@ -83,6 +83,12 @@ public sealed class IdentitePersistenceTests
     }
 
     [Fact]
+    public void NamesAreStoredInCanonicalComposedForm()
+    {
+        Assert.Equal("\u00C9glise Saint-Paul", new Organisation(Guid.NewGuid(), "E\u0301glise Saint-Paul", DateTimeOffset.UnixEpoch).Nom);
+    }
+
+    [Fact]
     public void InvisibleCharactersAtTheEdgesAreRemoved()
     {
         Assert.Equal("Saint-Paul", new Organisation(Guid.NewGuid(), "\uFEFF Saint-Paul\u200B\u2060 ", DateTimeOffset.UnixEpoch).Nom);
