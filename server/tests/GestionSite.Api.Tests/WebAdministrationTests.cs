@@ -119,6 +119,54 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
         {
             Assert.Contains("Qui fait quoi, par site", await LirePageAsync(navigateur, $"/organisations/{_ouverte.OrganisationId}/membres"), StringComparison.Ordinal);
         }
+
+        // Deux onglets au même moment, même cookie : le renouvellement est partagé, pas pris pour un vol.
+        var simultanes = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
+            navigateur.GetAsync(new Uri($"/organisations/{_ouverte.OrganisationId}/membres", UriKind.Relative))));
+        Assert.All(simultanes, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Contains("Qui fait quoi, par site", await LirePageAsync(navigateur, $"/organisations/{_ouverte.OrganisationId}/membres"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnreachableApiIsReportedAsUnavailable()
+    {
+        await using var web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
+            .UseSetting("Web:ApiUrl", "http://localhost")
+            .ConfigureServices(services => services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => new ReseauEnPanne())));
+        using var navigateur = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+
+        var page = await LireAsync(await PosterAsync(navigateur, "/connexion", "connexion", ("Saisie.Email", AdminEmail), ("Saisie.MotDePasse", MotDePasse)));
+
+        Assert.Contains("Service momentanément indisponible.", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LogoutRequiresTheAntiforgeryToken()
+    {
+        using var admin = await AdministrateurConnecteAsync();
+
+        using var sansJeton = await admin.PostAsync(new Uri("/deconnexion", UriKind.Relative), new FormUrlEncodedContent([]));
+        var toujoursConnecte = await admin.GetAsync(new Uri($"/organisations/{_ouverte.OrganisationId}/membres", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.BadRequest, sansJeton.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, toujoursConnecte.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivationLinksUseTheConfiguredPublicAddress()
+    {
+        await using var web = _web.WithWebHostBuilder(builder => builder.UseSetting("Web:UrlPublique", "https://gestion.exemple.test/"));
+        await ActiverAdministrateurAsync();
+        using var admin = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        await PosterAsync(admin, "/connexion", "connexion", ("Saisie.Email", AdminEmail), ("Saisie.MotDePasse", MotDePasse));
+        var page = $"/organisations/{_ouverte.OrganisationId}/membres";
+        var etape2 = await LireAsync(await PosterAsync(admin, page + "?inviter=1", "invitation",
+            ("Saisie.Etape", "1"), ("Saisie.Nom", "Luc B."), ("Saisie.Email", "luc@web.test")));
+
+        var etape3 = await LireAsync(await PosterAsync(admin, page, "invitation", ("Saisie.Etape", "2"), ("Saisie.Nom", "Luc B."),
+            ("Saisie.Email", "luc@web.test"), ("Saisie.Roles[0].SiteId", SiteId().Match(etape2).Groups[1].Value), ("Saisie.Roles[0].Role", "Technicien")));
+
+        Assert.StartsWith("https://gestion.exemple.test/activation?jeton=", Lien().Match(etape3).Groups[1].Value, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,4 +318,11 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
 
     [GeneratedRegex("<code class=\"lien-activation\">([^<]+)</code>")]
     private static partial Regex Lien();
+}
+
+/// <summary>Réseau coupé : chaque appel échoue aussitôt, comme une API injoignable.</summary>
+internal sealed class ReseauEnPanne : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        throw new HttpRequestException("API injoignable (simulé).");
 }

@@ -60,6 +60,9 @@
                 LienInvalide = true;
                 Message = "<strong>Lien expiré ou déjà utilisé.</strong> Demandez un nouveau lien à votre administrateur.";
                 break;
+            case IssueConnexion.ActiveSansConnexion:
+                Navigation.NavigateTo("/connexion?active=1");
+                break;
             case IssueConnexion.MotDePasseInvalide:
                 Message = "Le mot de passe doit contenir au moins 12 caractères.";
                 break;

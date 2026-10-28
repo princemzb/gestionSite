@@ -1,6 +1,7 @@
 using GestionSite.Web.Components;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace GestionSite.Web;
 
@@ -28,13 +29,23 @@ internal static class Programme
             client.Timeout = TimeSpan.FromSeconds(30);
         });
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddMemoryCache();
+        builder.Services.AddSingleton<RenouvellementsPartages>();
         builder.Services.AddScoped<SessionApi>();
+        // Clés de chiffrement des cookies : à conserver entre redémarrages (sinon déconnexion de tous).
+        var cles = builder.Services.AddDataProtection().SetApplicationName("gestionsite-web");
+        if (builder.Configuration["Web:DossierCles"] is { Length: > 0 } dossier)
+        {
+            cles.PersistKeysToFileSystem(new DirectoryInfo(dossier));
+        }
+
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
         {
             options.LoginPath = "/connexion";
             options.Cookie.Name = "gestionsite";
             options.Cookie.HttpOnly = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            // Hors développement, toujours Secure : derrière un proxy TLS, la requête interne est en http.
+            options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.SlidingExpiration = false;
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement

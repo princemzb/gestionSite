@@ -60,6 +60,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Décision du porteur (28/10) : adhésion par invitation à accepter (ADR-10 complété, CONTRATS, RISQUES : préemption d'adresse jusqu'à US-18). Fusionnée (PR #28).
 - Décision du porteur (28/10) : révocation d'une adhésion = accès à cette organisation coupé dès la requête suivante ; la personne reste connectée pour ses autres organisations (CONTRATS).
 - T-01.10 à T-01.18 : décisions automatisées en S06-05 ; à rejouer de bout en bout avec les modules Maintenance, Budget, Patrimoine (dossiers, budgets, grilles, plans). Droit nominatif « plans » attribuable par A : US-21.
+- Application web (WEB-01) : stockage durable des clés de chiffrement des cookies (`Web:DossierCles`) à choisir au déploiement (disque éphémère des conteneurs) ; partage des renouvellements de jetons en mémoire d'une seule instance web ; bascule de thème Jour/Nuit par compte, écrans sites, révision/révocation et journal à maquetter.
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
 - Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
 - Image publiée : Microsoft.EntityFrameworkCore.Design est copié à la publication ; l'exclure au premier déploiement (S05-01/OUT).

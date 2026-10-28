@@ -7,6 +7,10 @@
 
 <h2>Votre compte est actif</h2>
 <p class="note">Les écrans de votre rôle arriveront dans les prochaines versions. Vous pouvez déjà vous connecter et vous déconnecter.</p>
+@if (Message is not null)
+{
+    <p role="alert" class="alerte danger">@Message</p>
+}
 @if (Invitations > 0)
 {
     <p class="alerte avertissement">Vous avez @Invitations invitation(s) en attente.</p>
@@ -19,6 +23,8 @@
 @code {
     private int Invitations { get; set; }
 
+    private string? Message { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         MoiApi moi;
@@ -29,6 +35,11 @@
         catch (SessionExpireeException)
         {
             Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Message;
             return;
         }
 

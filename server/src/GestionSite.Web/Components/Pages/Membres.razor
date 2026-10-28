@@ -6,6 +6,7 @@
 @attribute [Authorize]
 @inject SessionApi Session
 @inject NavigationManager Navigation
+@inject Microsoft.Extensions.Options.IOptions<WebOptions> Options
 
 <PageTitle>Membres · gestionSite</PageTitle>
 
@@ -15,6 +16,10 @@
 }
 else
 {
+    @if (Etape == 0 && Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
     <div class="entete">
         <div>
             <h1>Qui fait quoi, par site</h1>
@@ -186,6 +191,11 @@ else
             Introuvable = true;
             return;
         }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Message; // service indisponible, notamment
+            Etape = 0;
+        }
 
         // Liste absente du formulaire posté (étape 1) : le lecteur de formulaire la laisse à null.
         Saisie.Roles ??= [];
@@ -219,7 +229,8 @@ else
         {
             var cree = await Session.EcrireAsync<MembreCreeApi>(
                 $"/organizations/{OrganisationId}/members", new { nom = Saisie.Nom, email = Saisie.Email, roles }, CancellationToken.None);
-            Lien = cree.Activation is null ? null : $"{Navigation.BaseUri}activation?jeton={Uri.EscapeDataString(cree.Activation.Jeton)}";
+            var racine = Options.Value.UrlPublique is { Length: > 0 } publique ? publique.TrimEnd('/') + "/" : Navigation.BaseUri;
+            Lien = cree.Activation is null ? null : $"{racine}activation?jeton={Uri.EscapeDataString(cree.Activation.Jeton)}";
             Etape = 3;
             Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);
         }

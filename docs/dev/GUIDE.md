@@ -67,8 +67,8 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 
 ### Application web d'administration (WEB-01)
 - `server/src/GestionSite.Web` : Blazor en rendu serveur statique (formulaires classiques, aucune connexion persistante), cliente de l'API. Écrans conformes aux maquettes validées (UX-02) : connexion, activation, membres par site avec invitation en 3 étapes ; jetons de la charte en variables CSS, thème Jour (Nuit prêt, bascule par compte à venir).
-- Lancer en local : API (`dotnet run --project server/src/GestionSite.Api`, port 5280) puis web (`dotnet run --project server/src/GestionSite.Web`, http://localhost:5290). Configuration : `Web:ApiUrl` (adresse de l'API, qui doit figurer dans `AllowedHosts` de l'API).
-- Jetons de l'API gardés côté serveur web, dans un cookie chiffré HttpOnly (SameSite=Lax) ; renouvellement automatique, une seule fois par requête. En-têtes : CSP stricte, `Referrer-Policy: no-referrer` (le jeton d'activation n'est pas transmis), `X-Content-Type-Options`.
+- Lancer en local : API (`dotnet run --project server/src/GestionSite.Api`, port 5280) puis web (`dotnet run --project server/src/GestionSite.Web`, http://localhost:5290). Configuration : `Web:ApiUrl` (adresse de l'API, qui doit figurer dans `AllowedHosts` de l'API) ; derrière un proxy TLS : `Web:UrlPublique` (adresse publique des liens d'activation) et `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` ; `Web:DossierCles` (clés de chiffrement des cookies, à conserver entre redémarrages, sinon tout le monde est déconnecté). Cookie toujours `Secure` hors développement.
+- Jetons de l'API gardés côté serveur web, dans un cookie chiffré HttpOnly (SameSite=Lax) ; renouvellement automatique, partagé deux minutes entre requêtes simultanées (deux onglets, double clic) pour ne pas déclencher la détection de vol ; déconnexion protégée par jeton anti-falsification. En-têtes : CSP stricte, `Referrer-Policy: no-referrer` (le jeton d'activation n'est pas transmis), `X-Content-Type-Options`.
 - Ouvrir une organisation avec son premier site : `ouvrir-organisation … --site "<nom>"`.
 
 ### Configuration et secrets
