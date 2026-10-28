@@ -136,8 +136,9 @@ internal sealed class SessionApi(
         {
             try
             {
+                // Sans annulation : la révocation doit aboutir même si le navigateur abandonne la requête.
                 using var reponse = await clients.CreateClient(Programme.ClientApi)
-                    .PostAsJsonAsync("/auth/logout", new { jetonRenouvellement = renouvellement }).ConfigureAwait(false);
+                    .PostAsJsonAsync("/auth/logout", new { jetonRenouvellement = renouvellement }, CancellationToken.None).ConfigureAwait(false);
             }
             catch (HttpRequestException)
             {
