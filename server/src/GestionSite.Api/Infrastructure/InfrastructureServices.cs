@@ -28,7 +28,12 @@ internal static class InfrastructureServices
         services.AddSingleton(provider => BuildDataSource(provider, provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main));
         // Résolue seulement par DatabaseMigrations, après son contrôle de présence de la chaîne.
         services.AddKeyedSingleton(DatabaseConnections.Migrations, (provider, _) =>
-            BuildDataSource(provider, provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Migrations!));
+        {
+            var migrations = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Migrations;
+            return string.IsNullOrEmpty(migrations)
+                ? throw new InvalidOperationException("ConnectionStrings:Migrations (rôle propriétaire du schéma) est requis pour migrer.")
+                : BuildDataSource(provider, migrations);
+        });
         services.AddScoped<OrganisationCourante>();
 
         services.AddOptions<ObjectStorageOptions>()
@@ -77,8 +82,9 @@ internal static class InfrastructureServices
     {
         var a = new NpgsqlConnectionStringBuilder(main);
         var b = new NpgsqlConnectionStringBuilder(migrations);
+        // Sans « Database », PostgreSQL prend le nom d'utilisateur : comparer la base réellement visée.
         return string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port
-            && string.Equals(a.Database, b.Database, StringComparison.Ordinal);
+            && string.Equals(a.Database ?? a.Username, b.Database ?? b.Username, StringComparison.Ordinal);
     }
 
     private static bool IsHttpUrl(string value) =>

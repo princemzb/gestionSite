@@ -21,7 +21,7 @@ internal sealed class IdentiteMigrator(IdentiteDbContext context, IServiceProvid
         var sansOrganisation = new OrganisationCourante(); // migrations : aucune donnée d'organisation lue
         var options = new DbContextOptionsBuilder<IdentiteDbContext>()
             .UseLoggerFactory(loggerFactory); // journal des migrations appliquées
-        IdentitePersistence.Configure(options, proprietaire, sansOrganisation);
+        IdentitePersistence.Configure(options, proprietaire, organisationCourante: null); // ni SET LOCAL ni lot implicite
         await using var migration = new IdentiteDbContext(options.Options, sansOrganisation);
         await migration.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
     }

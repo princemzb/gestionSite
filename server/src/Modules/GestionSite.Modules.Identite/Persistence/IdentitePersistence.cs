@@ -20,14 +20,17 @@ internal static class IdentitePersistence
         return services;
     }
 
+    /// <summary>Sans organisation courante (migrations) : aucun intercepteur, les commandes partent telles quelles.</summary>
     internal static DbContextOptionsBuilder Configure(
-        DbContextOptionsBuilder options, NpgsqlDataSource dataSource, OrganisationCourante organisationCourante) =>
-        options
-            .UseNpgsql(dataSource, ConfigureNpgsql)
-            .UseSnakeCaseNamingConvention()
-            .AddInterceptors(
+        DbContextOptionsBuilder options, NpgsqlDataSource dataSource, OrganisationCourante? organisationCourante)
+    {
+        options.UseNpgsql(dataSource, ConfigureNpgsql).UseSnakeCaseNamingConvention();
+        return organisationCourante is null
+            ? options
+            : options.AddInterceptors(
                 new OrganisationCommandInterceptor(organisationCourante),
                 new OrganisationTransactionInterceptor(organisationCourante));
+    }
 
     private static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
         npgsql.MigrationsHistoryTable(IdentiteDbContext.MigrationsTable, IdentiteDbContext.Schema);

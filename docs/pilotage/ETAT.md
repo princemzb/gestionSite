@@ -47,6 +47,8 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Intercepteur de session RLS et `IAppartientAOrganisation` dans le module Identité : à déplacer dans un noyau de persistance partagé quand un 2e module aura des données d'organisation.
 - Noms des rôles PostgreSQL figés (`gestionsite_app` cité dans les GRANT des migrations) : contrat pour la préproduction.
 - Sonde /health/ready sur une base migrée seulement jusqu'à S06-01 : « invérifiable » (droits absents) au lieu de « en attente » ; sans effet, aucune base partagée dans cet état.
+- Écritures : BEGIN + SET LOCAL + DML + COMMIT (3 allers-retours) ; regrouper SET LOCAL avec la première instruction si la latence Neon le justifie.
+- `AutoTransactionBehavior.Always` posé dans SaveChanges ; Organisation traitée à part (filtre et contrôle) : à unifier si une 2e entité racine apparaît.
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
 - Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
 - Image publiée : Microsoft.EntityFrameworkCore.Design est copié à la publication ; l'exclure au premier déploiement (S05-01/OUT).

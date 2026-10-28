@@ -77,6 +77,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     [Theory]
     [InlineData("pas une chaîne de connexion", "ConnectionStrings:Migrations n'est pas")]
     [InlineData("Host=localhost;Port=55999;Database=autre_base;Username=x", "doivent désigner la même base")]
+    [InlineData("Host=localhost;Username=gestionsite_migrator", "doivent désigner la même base")]
     public async Task UnsuitableOwnerConnectionStopsStartup(string valeur, string message)
     {
         await using var factory = infrastructure.CreateApi(migrationsConnectionString: valeur, migrateOnStartup: "false");
