@@ -47,6 +47,8 @@ public sealed class IdentitePersistenceTests
     [InlineData("\u200B \u2060")]
     [InlineData("\u0301\uFE0F")]
     [InlineData("Saint-\u202EluaP")]
+    [InlineData("Saint\u200B-Paul")]
+    [InlineData("Saint\u00ADPaul")]
     [InlineData("Saint\u2066Paul")]
     [InlineData("\u200D")]
     public void OrganisationRejectsControlCharacters(string nom)

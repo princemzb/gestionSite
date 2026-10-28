@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Une seule version d'EF Core partout : sans épinglage, Npgsql tire EF 10.0.4 dans les modules et
-         les tests alors que l'hôte (via Design, en Debug) tire 10.0.14 ; les tests ne testeraient pas le livré. -->
+         les tests alors que l'hôte (via Design) tire 10.0.14 ; les tests ne testeraient pas le livré. -->
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>

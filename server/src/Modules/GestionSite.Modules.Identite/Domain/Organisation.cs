@@ -59,7 +59,8 @@ internal sealed class Organisation
 
     // Refusés : ce que PostgreSQL ou UTF-8 ne stockent pas (NUL, demi-paire de substitution), les retours
     // à la ligne et les contrôles d'inversion bidirectionnelle (texte affiché à l'envers). Les autres
-    // caractères de format restent permis (U+200C persan, U+200D et étiquettes des émojis composés).
+    // caractères de format invisibles du plan de base sont refusés, sauf U+200C (persan) et U+200D (émojis) ;
+    // les étiquettes de drapeau (hors plan de base) restent permises.
     // Au moins une lettre, un chiffre, une ponctuation ou un symbole. Limite connue : les homoglyphes
     // et quelques caractères d'apparence vide (U+3164, U+2800) ne sont pas détectés.
     private static bool EstNomValide(string nom)
@@ -75,7 +76,8 @@ internal sealed class Organisation
 
             var categorie = Rune.GetUnicodeCategory(rune);
             if (categorie is UnicodeCategory.Control or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator
-                || EstControleBidirectionnel(rune.Value))
+                || EstControleBidirectionnel(rune.Value)
+                || (categorie == UnicodeCategory.Format && rune.Value < 0x10000 && rune.Value is not (ZeroWidthNonJoiner or ZeroWidthJoiner)))
             {
                 return false;
             }
@@ -108,6 +110,9 @@ internal sealed class Organisation
 
         return nom[debut..fin];
     }
+
+    private const int ZeroWidthNonJoiner = 0x200C;
+    private const int ZeroWidthJoiner = 0x200D;
 
     private static bool EstControleBidirectionnel(int point) =>
         point is (>= 0x202A and <= 0x202E) or (>= 0x2066 and <= 0x2069) or 0x200E or 0x200F or 0x061C;
