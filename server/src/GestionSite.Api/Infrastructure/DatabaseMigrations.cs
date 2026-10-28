@@ -5,7 +5,7 @@ namespace GestionSite.Api.Infrastructure;
 
 /// <summary>
 /// Applique les migrations de chaque module au démarrage si « Database:MigrateOnStartup » est vrai
-/// (développement local, tests). En préproduction et production, l'étape de déploiement s'en charge.
+/// (développement local, tests ; base locale exigée). En préproduction et production, l'étape de déploiement s'en charge.
 /// Exécuté au tout début du démarrage de l'hôte : après la validation de la configuration
 /// (ValidateOnStart), avant l'ouverture du serveur, et annulable par l'arrêt de l'hôte.
 /// </summary>
@@ -23,6 +23,12 @@ internal sealed partial class DatabaseMigrations(
         await using var scope = scopes.CreateAsyncScope();
         foreach (var migrator in scope.ServiceProvider.GetServices<IDatabaseMigrator>())
         {
+            if (!await migrator.HasPendingMigrationsAsync(cancellationToken).ConfigureAwait(false))
+            {
+                Log.UpToDate(logger, migrator.ModuleName);
+                continue;
+            }
+
             Log.Applying(logger, migrator.ModuleName);
             await migrator.MigrateAsync(cancellationToken).ConfigureAwait(false);
             Log.Applied(logger, migrator.ModuleName);
@@ -41,6 +47,9 @@ internal sealed partial class DatabaseMigrations(
 
     private static partial class Log
     {
+        [LoggerMessage(Level = LogLevel.Information, Message = "Schéma de la base à jour pour le module {Module}")]
+        internal static partial void UpToDate(ILogger logger, string module);
+
         [LoggerMessage(Level = LogLevel.Information, Message = "Application des migrations de la base pour le module {Module}")]
         internal static partial void Applying(ILogger logger, string module);
 

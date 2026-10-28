@@ -46,6 +46,17 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
         Assert.Equal(0L, await database.CountTablesAsync("identite", "organisations"));
     }
 
+    [Theory]
+    [InlineData("Host=ep-exemple.eu-central-1.aws.neon.tech;Database=gestionsite;Username=x;Password=x")]
+    [InlineData("Host=localhost,db.example.org;Database=gestionsite;Username=x;Password=x")]
+    public async Task StartupMigrationIsRefusedForANonLocalDatabase(string connectionString)
+    {
+        await using var factory = infrastructure.CreateApi(connectionString, migrateOnStartup: "true");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Equal(typeof(GestionSite.Api.Infrastructure.MigrationOptions), exception.OptionsType);
+    }
+
     [Fact]
     public async Task InvalidConfigurationStopsStartupBeforeAnyMigration()
     {

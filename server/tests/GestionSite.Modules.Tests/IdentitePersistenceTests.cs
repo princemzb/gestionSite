@@ -45,6 +45,9 @@ public sealed class IdentitePersistenceTests
     [InlineData("Saint\u2028Paul")]
     [InlineData("\u200B")]
     [InlineData("\u200B \u2060")]
+    [InlineData("\u200BSaint-Paul")]
+    [InlineData("Saint-\u202EluaP")]
+    [InlineData("\u200D")]
     public void OrganisationRejectsControlCharacters(string nom)
     {
         Assert.Throws<ArgumentException>(() => new Organisation(Guid.NewGuid(), nom, DateTimeOffset.UnixEpoch));
@@ -61,9 +64,21 @@ public sealed class IdentitePersistenceTests
     }
 
     [Fact]
+    public void CreationDateIsKeptToTheMicrosecondLikePostgreSql()
+    {
+        var creeLe = new DateTimeOffset(2026, 10, 28, 9, 30, 15, TimeSpan.Zero).AddTicks(1_234_567);
+
+        var organisation = new Organisation(Guid.NewGuid(), "Saint-Paul", creeLe);
+
+        Assert.Equal(creeLe.AddTicks(-7), organisation.CreeLe);
+    }
+
+    [Fact]
     public void OrganisationAcceptsCharactersOutsideTheBasicPlane()
     {
-        Assert.Equal("Saint-Paul ⛪ 🕊️", new Organisation(Guid.NewGuid(), "Saint-Paul ⛪ 🕊️", DateTimeOffset.UnixEpoch).Nom);
+        const string Nom = "Saint-Paul ⛪ 🕊️ 👨‍👩‍👧"; // le dernier émoji est composé avec U+200D
+
+        Assert.Equal(Nom, new Organisation(Guid.NewGuid(), Nom, DateTimeOffset.UnixEpoch).Nom);
     }
 
     [Theory]

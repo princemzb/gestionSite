@@ -18,7 +18,7 @@ public sealed class OrganisationPersistenceTests(InfrastructureFixture infrastru
 
         // Limite exacte en unités UTF-16 (198 + une paire de substitution), acceptée par varchar(200).
         var nom = new string('a', Organisation.NomMaxLength - 2) + "🕊";
-        var creeLe = new DateTimeOffset(2026, 10, 28, 9, 30, 15, TimeSpan.FromHours(2));
+        var creeLe = new DateTimeOffset(2026, 10, 28, 9, 30, 15, TimeSpan.FromHours(2)).AddTicks(1_234_560);
         var organisation = new Organisation(Guid.NewGuid(), nom, creeLe);
 
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -34,7 +34,8 @@ public sealed class OrganisationPersistenceTests(InfrastructureFixture infrastru
             var relue = await context.Organisations.AsNoTracking().SingleAsync(o => o.Id == organisation.Id);
 
             Assert.Equal(nom, relue.Nom);
-            Assert.Equal(creeLe, relue.CreeLe);
+            Assert.Equal(creeLe, relue.CreeLe); // microsecondes comprises
+            Assert.Equal(organisation.CreeLe, relue.CreeLe);
             Assert.Equal(TimeSpan.Zero, relue.CreeLe.Offset);
         }
 

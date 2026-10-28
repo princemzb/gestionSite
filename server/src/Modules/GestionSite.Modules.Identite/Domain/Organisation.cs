@@ -41,7 +41,9 @@ internal sealed class Organisation
 
         Id = id;
         Nom = nomNettoye;
-        CreeLe = creeLe.ToUniversalTime(); // PostgreSQL « timestamp with time zone » n'accepte que l'UTC.
+        // PostgreSQL « timestamp with time zone » : UTC seulement, à la microseconde (le reste serait perdu).
+        var utc = creeLe.ToUniversalTime();
+        CreeLe = utc.AddTicks(-(utc.Ticks % (TimeSpan.TicksPerMillisecond / 1000)));
     }
 
     public Guid Id { get; private set; }
@@ -50,8 +52,10 @@ internal sealed class Organisation
 
     public DateTimeOffset CreeLe { get; private set; }
 
+    private const int ZeroWidthJoiner = 0x200D;
+
     // PostgreSQL refuse le caractère NUL, l'encodage UTF-8 échoue sur une demi-paire de substitution,
-    // et un nom fait seulement de caractères invisibles (U+200B…) paraîtrait vide.
+    // et un nom fait seulement de caractères invisibles paraîtrait vide.
     private static bool EstNomValide(string nom)
     {
         var visible = false;
@@ -64,12 +68,15 @@ internal sealed class Organisation
             }
 
             var categorie = Rune.GetUnicodeCategory(rune);
-            if (categorie is UnicodeCategory.Control or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+            // Caractères de format refusés (inversion bidirectionnelle, espaces de largeur nulle…),
+            // sauf le liant U+200D des émojis composés : pas de noms d'apparence trompeuse.
+            if (categorie is UnicodeCategory.Control or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator
+                || (categorie == UnicodeCategory.Format && rune.Value != ZeroWidthJoiner))
             {
                 return false;
             }
 
-            visible |= categorie != UnicodeCategory.Format && !Rune.IsWhiteSpace(rune);
+            visible |= rune.Value != ZeroWidthJoiner && !Rune.IsWhiteSpace(rune);
             reste = reste[lus..];
         }
 

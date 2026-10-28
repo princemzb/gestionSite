@@ -33,8 +33,14 @@ internal static class InfrastructureServices
             return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
 
+        // Garde-fou : une variable ConnectionStrings__Main oubliée dans un terminal ne doit pas
+        // faire migrer une base partagée par un simple `dotnet run`.
         services.AddOptions<MigrationOptions>()
             .Bind(configuration.GetSection(MigrationOptions.Section))
+            .Validate(
+                migration => !migration.MigrateOnStartup
+                    || LocalDatabase.IsLocal(configuration.GetConnectionString("Main") ?? string.Empty),
+                "Database:MigrateOnStartup n'est autorisé que pour une base PostgreSQL locale.")
             .ValidateOnStart();
         services.AddHostedService<DatabaseMigrations>();
 

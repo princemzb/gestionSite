@@ -5,6 +5,9 @@ public sealed class MigrationOptions
 {
     public const string Section = "Database";
 
-    /// <summary>Valeur autre que « true » ou « false » : démarrage refusé (lecture validée au démarrage).</summary>
+    /// <summary>
+    /// Valeur non booléenne (casse indifférente) : démarrage refusé. Vrai seulement avec une base
+    /// locale (localhost, boucle locale, socket Unix), vérifié au démarrage.
+    /// </summary>
     public bool MigrateOnStartup { get; init; }
 }
