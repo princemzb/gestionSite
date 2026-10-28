@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | ADR-10 ; S06-01 fusionnée (PR #24) ; S06-02 en revue : sites, membres, rôles par site, filtre EF + RLS forcée, rôles `gestionsite_migrator` / `gestionsite_app`, 15 tests d'isolation sur PostgreSQL réel | Revue (3 passages max), fusion, puis S06-03 (connexion, jetons, verrouillage ; /security-review). |
+| US-06 Comptes et droits | ADR-10 ; S06-01 (PR #24) et S06-02 (PR #25, f80fb8e) fusionnées : sites, membres, rôles par site, isolation filtre EF + RLS forcée par SET LOCAL, rôles `gestionsite_migrator` / `gestionsite_app` | S06-03 en cours (branche `feat/s06-03-connexion`) : connexion, jetons, verrouillage ; `/security-review` requis. |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -88,5 +88,5 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 28/10/2026 | Maquettes du parcours du 1er incrément validées par le porteur | docs/ux/CHARTE.md |
 | 28/10/2026 | US-06 cadrée : ADR-10, contrats, 6 sous-cartes | PR cadrage US-06 |
 | 28/10/2026 | S06-01 persistance EF Core en revue (2 passages /code-review traités) | PR #24 |
-| 28/10/2026 | S06-02 : isolation en double barrière, PR ouverte | PR S06-02 |
+| 28/10/2026 | S06-02 fusionnée après 3 passages de revue (max puis 2 high) ; organisation posée par SET LOCAL (compatible pooler) | PR #25 |
 | 28/10/2026 | S06-01 : 11 passages de revue (EF 10.0.4/10.0.14 unifié, garde-fou migration locale, dates, noms) ; revue bornée à 3 passages désormais, après remarque du porteur sur la lenteur | PR #24 |
