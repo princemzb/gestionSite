@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | ADR-10 ; S06-01, S06-02, S06-03 (PR #26, c7a2231) fusionnées ; S06-04 en revue (PR #27) : membres, lien d'activation 72 h, révision versionnée, révocation avec sessions invalidées, commande `ouvrir-organisation` (essai réel local) | Fusion #27 puis S06-05 (autorisation par rôle et par site, tests de refus interclient T-01). |
+| US-06 Comptes et droits | ADR-10 (complété : invitation à accepter) ; S06-01 à S06-04 fusionnées (PR #24 à #28) : persistance, isolation filtre EF + RLS forcée, connexion et jetons, membres, activation, invitations, commande `ouvrir-organisation` | S06-05 : autorisation par rôle et par site, tests de refus interclient (T-01) ; puis S06-06 journal d'audit (RG-31). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -51,7 +51,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - `AutoTransactionBehavior.Always` posé dans SaveChanges ; Organisation traitée à part (filtre et contrôle) : à unifier si une 2e entité racine apparaît.
 - Authentification (S06-03) : pas de fenêtre de grâce sur un jeton de renouvellement déjà remplacé (une réponse perdue puis rejouée révoque la session de l'appareil) — à arbitrer avec le hors connexion (US-09) ; pas de durée absolue de session (renouvellement glissant) ; jeton d'accès valable jusqu'à 15 min après déconnexion (ADR-10) ; 423 « verrouillé » révèle l'existence d'un compte après 5 échecs (accepté par CONTRATS) ; limitation de débit sur /auth à ajouter avant exposition publique.
 - Révision des habilitations non encore tracée dans un journal (RG-31) : S06-06. Le refus d'une invitation est aujourd'hui enregistré comme une révocation (même colonne) : à distinguer dans ce journal ; une organisation dont l'unique administrateur invité refuse doit être rouverte par la plateforme.
-- Décision du porteur (28/10) : adhésion par invitation à accepter (ADR-10 complété, CONTRATS, RISQUES : préemption d'adresse jusqu'à US-18). PR « invitations » en revue.
+- Décision du porteur (28/10) : adhésion par invitation à accepter (ADR-10 complété, CONTRATS, RISQUES : préemption d'adresse jusqu'à US-18). Fusionnée (PR #28).
 - Révocation d'une adhésion : accès à l'organisation coupé à la requête suivante, sessions du compte conservées (autres organisations invisibles par la RLS) ; à confirmer par le porteur (CONTRATS dit « jetons invalidés »).
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
 - Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
