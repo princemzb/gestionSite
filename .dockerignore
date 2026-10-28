@@ -6,3 +6,7 @@ mobile/
 docs/
 scripts/
 .git/
+deploy/
+**/node_modules/
+**/.wrangler/
+**/dist/

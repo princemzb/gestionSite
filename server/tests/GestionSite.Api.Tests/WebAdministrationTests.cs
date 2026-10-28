@@ -154,6 +154,11 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
         using var reponse = await nouveau.SendAsync(page);
 
         Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
+        // Preuve que les clés viennent bien du stockage S3 (et non du dossier local par défaut).
+        using var s3 = GestionSite.Api.Infrastructure.ObjectStorageClientFactory.Create(
+            infrastructure.StorageUrl, InfrastructureFixture.AccessKey, InfrastructureFixture.SecretKey, InfrastructureFixture.Region);
+        var cles = await s3.ListObjectsV2Async(new Amazon.S3.Model.ListObjectsV2Request { BucketName = InfrastructureFixture.Bucket, Prefix = "protection-donnees/web/" });
+        Assert.Contains(cles.S3Objects ?? [], o => o.Key.EndsWith(".xml", StringComparison.Ordinal));
     }
 
     [Fact]

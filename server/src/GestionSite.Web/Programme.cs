@@ -40,6 +40,11 @@ internal static class Programme
         var stockage = builder.Configuration.GetSection("Web:Cles").Get<StockageCles>();
         if (stockage is { ServiceUrl.Length: > 0 })
         {
+            if (new[] { stockage.AccessKey, stockage.SecretKey, stockage.Compartiment }.Any(string.IsNullOrWhiteSpace))
+            {
+                throw new InvalidOperationException("Web:Cles incomplet : AccessKey, SecretKey et Compartiment sont requis avec ServiceUrl.");
+            }
+
             builder.Services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
                 new BasicAWSCredentials(stockage.AccessKey, stockage.SecretKey),
                 new AmazonS3Config
@@ -104,7 +109,7 @@ internal static class Programme
                     .ConfigureAwait(false);
                 return reponse.IsSuccessStatusCode ? Results.Text("Disponible") : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
             }
-            catch (HttpRequestException)
+            catch (Exception erreur) when (erreur is HttpRequestException or TaskCanceledException)
             {
                 return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
             }

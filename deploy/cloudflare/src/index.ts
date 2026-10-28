@@ -14,6 +14,10 @@ interface Env {
   CLE_SIGNATURE: string;
   R2_ACCES: string;
   R2_SECRET: string;
+  // Compartiment et jeton distincts pour les clés de chiffrement des cookies (moindre privilège).
+  R2_CLES_COMPARTIMENT: string;
+  R2_CLES_ACCES: string;
+  R2_CLES_SECRET: string;
 }
 
 export class GestionSite extends Container<Env> {
@@ -33,9 +37,9 @@ export class GestionSite extends Container<Env> {
       ObjectStorage__Region: "auto",
       Web__UrlPublique: env.URL_PUBLIQUE,
       Web__Cles__ServiceUrl: env.R2_URL,
-      Web__Cles__AccessKey: env.R2_ACCES,
-      Web__Cles__SecretKey: env.R2_SECRET,
-      Web__Cles__Compartiment: env.R2_COMPARTIMENT,
+      Web__Cles__AccessKey: env.R2_CLES_ACCES,
+      Web__Cles__SecretKey: env.R2_CLES_SECRET,
+      Web__Cles__Compartiment: env.R2_CLES_COMPARTIMENT,
       Web__Cles__Region: "auto",
     };
   }

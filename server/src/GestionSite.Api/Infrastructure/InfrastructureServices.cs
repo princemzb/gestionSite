@@ -63,7 +63,8 @@ internal static class InfrastructureServices
     private static NpgsqlDataSource BuildDataSource(IServiceProvider provider, string connectionString)
     {
         var builder = new NpgsqlDataSourceBuilder(connectionString).UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>());
-        if (!connectionString.Contains("GSS", StringComparison.OrdinalIgnoreCase))
+        var reglages = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+        if (!reglages.Keys.Cast<string>().Any(cle => cle.Replace(" ", "", StringComparison.Ordinal).Equals("GssEncryptionMode", StringComparison.OrdinalIgnoreCase)))
         {
             // Pas de Kerberos (ni local ni Neon) : sans cela, chaque connexion tente GSS et journalise une erreur
             // de bibliothèque absente dans l'image.

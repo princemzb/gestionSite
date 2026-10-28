@@ -22,6 +22,7 @@
     // À compléter au premier déploiement (adresse workers.dev du compte, point d'accès R2 du compte).
     "URL_PUBLIQUE": "https://gestionsite-preprod.[SOUS-DOMAINE].workers.dev",
     "R2_URL": "https://[ID-DU-COMPTE].r2.cloudflarestorage.com",
-    "R2_COMPARTIMENT": "gestionsite-preprod"
+    "R2_COMPARTIMENT": "gestionsite-preprod",
+    "R2_CLES_COMPARTIMENT": "gestionsite-preprod-cles"
   }
 }
