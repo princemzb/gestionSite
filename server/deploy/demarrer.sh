@@ -3,14 +3,13 @@
 # et la plateforme le relance. Configuration et secrets : variables d'environnement (jamais dans l'image).
 set -eu
 
-ASPNETCORE_URLS=http://127.0.0.1:8081 dotnet /app/api/GestionSite.Api.dll &
+# Chaque processus part de son dossier : racine de contenu = wwwroot (styles) et appsettings.json.
+(cd /app/api && ASPNETCORE_URLS=http://127.0.0.1:8081 exec dotnet GestionSite.Api.dll) &
 API=$!
 
 # L’application web appelle l’API en interne (elle réessaie tant que l’API démarre). Derrière un relais TLS,
 # le schéma d’origine n’est repris que si Web__RelaisHttps=true (fourni par le relais, jamais par défaut).
-ASPNETCORE_URLS=http://0.0.0.0:8080 \
-Web__ApiUrl=http://localhost:8081 \
-  dotnet /app/web/GestionSite.Web.dll &
+(cd /app/web && ASPNETCORE_URLS=http://0.0.0.0:8080 Web__ApiUrl=http://localhost:8081 exec dotnet GestionSite.Web.dll) &
 WEB=$!
 
 # Le shell est le processus 1 : il transmet l'arrêt (mise en veille, redéploiement) aux deux processus,
