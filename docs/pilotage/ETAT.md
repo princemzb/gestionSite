@@ -20,6 +20,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | --- | --- | --- |
 | US-06 Comptes et droits | Complète : S06-01 à S06-06 fusionnées (PR #24 à #31), en Prêt à livrer (livraison avec le premier écran testable) | — |
 | PREP-06 POC commandes hors connexion | Terminée (PR #32, 3b2e968) : protocole idempotent + file par profil, rapport exécutable 4 × OK (docs/poc/PREP-06.md) ; conception à reprendre dans US-14 | PREP-07 (essais de localisation sur site) et PREP-08 (cas IA, service externe) : décision et actions du porteur nécessaires. |
+| PREP-03 / PREP-04 préparation POC-01 et POC-02 | Protocoles proposés : docs/poc/PREP-03-protocole-localisation.md, docs/poc/PREP-04-cas-ia.md ; en Recette (validation du porteur) | Porteur : site et dates d'essai, relecture des 30 cas par le terrain, fournisseur et budget IA, politique d'images. Puis PREP-07 / PREP-08. |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
