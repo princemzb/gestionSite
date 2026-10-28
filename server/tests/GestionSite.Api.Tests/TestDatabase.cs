@@ -2,7 +2,11 @@ using Npgsql;
 
 namespace GestionSite.Api.Tests;
 
-/// <summary>Base PostgreSQL vide et dédiée à un test, supprimée à la fin du test.</summary>
+/// <summary>
+/// Base PostgreSQL vide et dédiée à un test, supprimée à la fin du test, avec les rôles locaux
+/// (server/docker/postgres/roles-local.sql). ConnectionString : superutilisateur, pour les
+/// vérifications (ignore la RLS) ; l'API utilise les rôles applicatif et propriétaire.
+/// </summary>
 internal sealed class TestDatabase : IAsyncDisposable
 {
     private readonly string _serverConnectionString;
@@ -19,6 +23,10 @@ internal sealed class TestDatabase : IAsyncDisposable
 
     internal string ConnectionString { get; }
 
+    internal string ApplicationConnectionString => WithRole("gestionsite_app", "local-dev-app-password");
+
+    internal string MigrationsConnectionString => WithRole("gestionsite_migrator", "local-dev-migrator-password");
+
     internal static async Task<TestDatabase> CreateAsync(string serverConnectionString)
     {
         var name = $"test_{Guid.NewGuid():N}";
@@ -26,7 +34,17 @@ internal sealed class TestDatabase : IAsyncDisposable
 
         // Source de données créée seulement une fois la base existante : rien à libérer si CREATE échoue.
         var connectionString = new NpgsqlConnectionStringBuilder(serverConnectionString) { Database = name }.ConnectionString;
-        return new TestDatabase(serverConnectionString, name, connectionString);
+        var database = new TestDatabase(serverConnectionString, name, connectionString);
+        try
+        {
+            await ExecuteOnServerAsync(connectionString, await File.ReadAllTextAsync(RolesScript).ConfigureAwait(false)).ConfigureAwait(false);
+            return database;
+        }
+        catch
+        {
+            await database.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     internal async Task<long> CountAsync(string sql, params (string Name, object Value)[] parameters)
@@ -55,6 +73,11 @@ internal sealed class TestDatabase : IAsyncDisposable
             await ExecuteOnServerAsync(_serverConnectionString, $"DROP DATABASE IF EXISTS {Quote(_name)} WITH (FORCE)").ConfigureAwait(false);
         }
     }
+
+    private static string RolesScript => Path.Combine(InfrastructureFixture.ServerDirectory(), "docker", "postgres", "roles-local.sql");
+
+    private string WithRole(string username, string password) =>
+        new NpgsqlConnectionStringBuilder(ConnectionString) { Username = username, Password = password }.ConnectionString;
 
     // Nom généré localement (préfixe + GUID hexadécimal) puis cité : jamais de donnée externe.
     private static string Quote(string name) => $"\"{name}\"";

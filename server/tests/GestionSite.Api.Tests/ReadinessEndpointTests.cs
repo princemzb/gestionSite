@@ -25,7 +25,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     public async Task NotReadyWhileMigrationsArePending()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(connectionString: database.ConnectionString, migrateOnStartup: "false");
+        await using var factory = infrastructure.CreateApi(database, migrateOnStartup: "false");
 
         var (status, body) = await GetReadyAsync(factory);
         var report = await factory.Services.GetRequiredService<HealthCheckService>().CheckHealthAsync(c => c.Name == "postgresql");

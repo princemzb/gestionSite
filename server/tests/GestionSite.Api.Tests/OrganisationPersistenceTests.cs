@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,7 +14,7 @@ public sealed class OrganisationPersistenceTests(InfrastructureFixture infrastru
     public async Task OrganisationIsStoredAndReadBackUnchanged()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(database.ConnectionString);
+        await using var factory = infrastructure.CreateApi(database);
         using var client = factory.CreateClient(); // démarre l'hôte : migrations appliquées
 
         // Limite exacte en unités UTF-16 (198 + une paire de substitution), acceptée par varchar(200).
@@ -23,6 +24,7 @@ public sealed class OrganisationPersistenceTests(InfrastructureFixture infrastru
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(organisation.Id);
             var context = scope.ServiceProvider.GetRequiredService<IdentiteDbContext>();
             context.Organisations.Add(organisation);
             await context.SaveChangesAsync();
@@ -30,6 +32,7 @@ public sealed class OrganisationPersistenceTests(InfrastructureFixture infrastru
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(organisation.Id);
             var context = scope.ServiceProvider.GetRequiredService<IdentiteDbContext>();
             var relue = await context.Organisations.AsNoTracking().SingleAsync(o => o.Id == organisation.Id);
 

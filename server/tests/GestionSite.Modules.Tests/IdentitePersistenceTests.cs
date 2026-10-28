@@ -152,6 +152,7 @@ public sealed class IdentitePersistenceTests
     {
         private readonly ServiceProvider _provider = new ServiceCollection()
             .AddSingleton(_ => Npgsql.NpgsqlDataSource.Create("Host=localhost")) // fabrique : libérée avec le conteneur
+            .AddScoped<GestionSite.SharedKernel.OrganisationCourante>()
             .AddIdentiteModule()
             .BuildServiceProvider();
 
