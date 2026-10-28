@@ -57,6 +57,20 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 "CREATE POLICY ecriture_organisation ON identite.codes_sites_publics FOR INSERT " +
                 "WITH CHECK (organisation_id = NULLIF(current_setting('app.organisation_id', true), '')::uuid);");
             migrationBuilder.Sql("GRANT SELECT, INSERT ON identite.codes_sites_publics TO gestionsite_app;");
+
+            // Sites existants : un code chacun. Le propriétaire est soumis à la RLS (FORCE) : levée le temps de
+            // cette insertion seulement, dans la transaction de la migration. Octets tirés de gen_random_uuid
+            // (aléa fort), hors octets de version et de variante ; même alphabet que CodeSitePublic.
+            migrationBuilder.Sql("ALTER TABLE identite.sites NO FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql("ALTER TABLE identite.codes_sites_publics NO FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql(
+                "INSERT INTO identite.codes_sites_publics (code, site_id, organisation_id, cree_le) " +
+                "SELECT (SELECT string_agg(substr('23456789ABCDEFGHJKMNPQRSTVWXYZ', 1 + get_byte(t.octets, i) % 30, 1), '' ORDER BY i) " +
+                "FROM unnest(ARRAY[0, 1, 2, 3, 4, 5, 16, 17, 18, 19]) AS i), t.id, t.organisation_id, now() " +
+                "FROM (SELECT s.id, s.organisation_id, uuid_send(gen_random_uuid()) || uuid_send(gen_random_uuid()) AS octets " +
+                "FROM identite.sites s) t;");
+            migrationBuilder.Sql("ALTER TABLE identite.codes_sites_publics FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql("ALTER TABLE identite.sites FORCE ROW LEVEL SECURITY;");
         }
 
         /// <inheritdoc />

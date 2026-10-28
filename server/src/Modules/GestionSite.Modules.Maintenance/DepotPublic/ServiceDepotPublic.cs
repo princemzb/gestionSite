@@ -16,12 +16,17 @@ internal sealed record DemandeDepot(
 /// </summary>
 internal sealed record AccuseDepot(string Site, bool Danger, string? NumeroUrgence);
 
+/// <summary>Commande déjà utilisée pour un autre contenu (CONTRATS : même clé, contenu différent → erreur).</summary>
+internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant d'envoi a déjà servi pour un autre signalement.");
+
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
 internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPublics sites, TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
     /// <summary>L'accusé, ou null si le code de site est inconnu (404).</summary>
+    /// <exception cref="SaisieInvalideException">Champ manquant ou invalide (422).</exception>
+    /// <exception cref="CommandeReutiliseeException">Même commande, contenu différent (409).</exception>
     internal async Task<AccuseDepot?> DeposerAsync(string code, DemandeDepot demande, CancellationToken cancellationToken)
     {
         // Avant toute transaction : la recherche fixe l'organisation courante (filtres et RLS).
@@ -30,17 +35,15 @@ internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPub
             return null;
         }
 
-        var dejaRecu = await context.Signalements.AsNoTracking().Where(s => s.CommandeId == demande.CommandeId)
-            .Select(s => (bool?)s.Danger).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        if (dejaRecu is { } danger)
-        {
-            return Accuse(site, danger);
-        }
-
         var maintenant = horloge.GetUtcNow();
         var signalement = new Signalement(
             Guid.CreateVersion7(maintenant), site.OrganisationId, site.SiteId, demande.CommandeId, Nature(demande.Nature), demande.Description,
             demande.Emplacement, demande.Danger, demande.ActiviteBloquee, demande.Nom, demande.Contact, maintenant);
+        if (await DejaRecuAsync(signalement, cancellationToken).ConfigureAwait(false) is { } accuse)
+        {
+            return accuse;
+        }
+
         context.Signalements.Add(signalement);
         if (signalement.Danger)
         {
@@ -53,17 +56,31 @@ internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPub
         }
         catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // Même envoi reçu en parallèle : l'autre requête l'a enregistré, celle-ci rend le même accusé.
-            return Accuse(site, signalement.Danger);
+            // Même envoi reçu en parallèle : l'autre requête l'a enregistré ; même réponse que pour un rejeu.
+            context.ChangeTracker.Clear();
+            return await DejaRecuAsync(signalement, cancellationToken).ConfigureAwait(false) ?? throw new InvalidOperationException(
+                "Doublon signalé par la base mais introuvable.", doublon);
         }
 
-        return Accuse(site, signalement.Danger);
+        return Accuse(site.NomSite, signalement.Danger, site.NumeroUrgence);
+
+        async Task<AccuseDepot?> DejaRecuAsync(Signalement envoye, CancellationToken ct)
+        {
+            var recu = await context.Signalements.AsNoTracking().SingleOrDefaultAsync(s => s.CommandeId == envoye.CommandeId, ct)
+                .ConfigureAwait(false);
+            return recu switch
+            {
+                null => null,
+                _ when recu.MemeEnvoi(envoye) => Accuse(site.NomSite, recu.Danger, site.NumeroUrgence),
+                _ => throw new CommandeReutiliseeException(),
+            };
+        }
     }
 
-    private static AccuseDepot Accuse(SitePublic site, bool danger) => new(site.NomSite, danger, danger ? site.NumeroUrgence : null);
+    private static AccuseDepot Accuse(string site, bool danger, string? numeroUrgence) => new(site, danger, danger ? numeroUrgence : null);
 
     private static NatureSignalement Nature(string? nature) =>
         Enum.TryParse<NatureSignalement>(nature, ignoreCase: true, out var valeur) && Enum.IsDefined(valeur) && !int.TryParse(nature, out _)
             ? valeur
-            : throw new ArgumentException("Nature attendue : Incident ou Demande.", nameof(nature));
+            : throw new SaisieInvalideException(nameof(nature), "Nature attendue : Incident ou Demande.");
 }

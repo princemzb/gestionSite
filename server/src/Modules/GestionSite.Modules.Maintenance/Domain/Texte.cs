@@ -1,16 +1,20 @@
+using GestionSite.SharedKernel;
+
 namespace GestionSite.Modules.Maintenance.Domain;
 
-/// <summary>Texte saisi obligatoire : espaces de bord retirés, longueur bornée (refus : 422 « donnee_invalide »).</summary>
+/// <summary>
+/// Saisie refusée d'un champ du formulaire (422 « donnee_invalide » + champ). Distincte d'ArgumentException :
+/// une erreur interne n'est jamais présentée comme une erreur de saisie.
+/// </summary>
+internal sealed class SaisieInvalideException(string champ, string message) : Exception(message)
+{
+    internal string Champ { get; } = champ;
+}
+
+/// <summary>Texte saisi obligatoire, règles du noyau (TexteAffichable).</summary>
 internal static class Texte
 {
-    internal static string Exiger(string? valeur, int longueurMax, string champ)
-    {
-        var texte = valeur?.Trim() ?? string.Empty;
-        if (texte.Length == 0 || texte.Length > longueurMax)
-        {
-            throw new ArgumentException($"{champ} est obligatoire et limité à {longueurMax} caractères.", champ);
-        }
-
-        return texte;
-    }
+    internal static string Exiger(string? valeur, int longueurMax, string champ, bool multiligne = false) =>
+        TexteAffichable.Nettoyer(valeur, longueurMax, multiligne)
+            ?? throw new SaisieInvalideException(champ, $"{champ} est obligatoire, visible et limité à {longueurMax} caractères.");
 }

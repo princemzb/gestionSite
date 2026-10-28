@@ -79,10 +79,35 @@ public sealed class MaintenancePersistenceTests
     [Fact]
     public void AnUnknownNatureIsRefused()
     {
-        var refus = Assert.Throws<ArgumentException>(() => new Signalement(
+        var refus = Assert.Throws<SaisieInvalideException>(() => new Signalement(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), (NatureSignalement)9, "d", "e", false, false, "n", "c", DateTimeOffset.UtcNow));
 
-        Assert.Equal("nature", refus.ParamName);
+        Assert.Equal("nature", refus.Champ);
+    }
+
+    [Theory]
+    [InlineData("Ligne 1\nLigne 2\tsuite", true, "Ligne 1\nLigne 2\tsuite")]
+    [InlineData("Ligne 1\nLigne 2", false, null)]
+    [InlineData("Nul\u0000", true, null)]
+    [InlineData("a\u202Ebc", true, null)] // en bordure, il serait seulement retiré
+    [InlineData(" \u200B ", true, null)]
+    [InlineData("  Cafe\u0301  ", false, "Café")]
+    public void SharedDisplayTextRules(string saisi, bool multiligne, string? attendu)
+    {
+        Assert.Equal(attendu, TexteAffichable.Nettoyer(saisi, 200, multiligne));
+    }
+
+    [Fact]
+    public void SameSubmissionMeansSameSiteAndContent()
+    {
+        var premier = Signalement(Guid.NewGuid());
+        var copie = new Signalement(Guid.NewGuid(), premier.OrganisationId, premier.SiteId, premier.CommandeId, premier.Nature, premier.Description,
+            premier.Emplacement, premier.Danger, premier.ActiviteBloquee, premier.NomDeclarant, premier.ContactDeclarant, DateTimeOffset.UtcNow);
+        var autreSite = new Signalement(Guid.NewGuid(), premier.OrganisationId, Guid.NewGuid(), premier.CommandeId, premier.Nature, premier.Description,
+            premier.Emplacement, premier.Danger, premier.ActiviteBloquee, premier.NomDeclarant, premier.ContactDeclarant, DateTimeOffset.UtcNow);
+
+        Assert.True(premier.MemeEnvoi(copie));
+        Assert.False(premier.MemeEnvoi(autreSite));
     }
 
     private static Signalement Signalement(Guid organisation) => new(

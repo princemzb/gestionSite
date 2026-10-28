@@ -32,9 +32,9 @@ internal sealed class Signalement : IAppartientAOrganisation
         Id = Exiger(id, nameof(id));
         OrganisationId = Exiger(organisationId, nameof(organisationId));
         SiteId = Exiger(siteId, nameof(siteId));
-        CommandeId = Exiger(commandeId, "commandeId");
-        Nature = Enum.IsDefined(nature) ? nature : throw new ArgumentException("Nature inconnue.", nameof(nature));
-        Description = Texte.Exiger(description, DescriptionMax, "description");
+        CommandeId = commandeId != Guid.Empty ? commandeId : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi manquant.");
+        Nature = Enum.IsDefined(nature) ? nature : throw new SaisieInvalideException("nature", "Nature attendue : Incident ou Demande.");
+        Description = Texte.Exiger(description, DescriptionMax, "description", multiligne: true);
         Emplacement = Texte.Exiger(emplacement, EmplacementMax, "emplacement");
         Danger = danger;
         ActiviteBloquee = activiteBloquee;
@@ -67,6 +67,11 @@ internal sealed class Signalement : IAppartientAOrganisation
     public string ContactDeclarant { get; private set; } = string.Empty;
 
     public DateTimeOffset RecuLe { get; private set; }
+
+    /// <summary>Même envoi (rejeu) : même site et même contenu, sinon la commande est réutilisée à tort.</summary>
+    internal bool MemeEnvoi(Signalement autre) =>
+        (SiteId, Nature, Description, Emplacement, Danger, ActiviteBloquee, NomDeclarant, ContactDeclarant)
+        == (autre.SiteId, autre.Nature, autre.Description, autre.Emplacement, autre.Danger, autre.ActiviteBloquee, autre.NomDeclarant, autre.ContactDeclarant);
 
     private static Guid Exiger(Guid id, string champ) =>
         id != Guid.Empty ? id : throw new ArgumentException($"{champ} est obligatoire.", champ);

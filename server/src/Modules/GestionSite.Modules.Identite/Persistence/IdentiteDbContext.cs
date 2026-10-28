@@ -125,10 +125,12 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             site.HasOne<Organisation>().WithMany().HasForeignKey(s => s.OrganisationId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Sans filtre d'organisation : la recherche par code précède toute organisation (dépôt public) ;
-        // l'écriture reste contrôlée (ExigerOrganisationCourante, politique RLS d'insertion).
+        // Filtré par organisation comme le reste ; seule la recherche par code (dépôt public, avant toute
+        // organisation) l'ignore explicitement, la RLS de lecture étant ouverte pour elle. Écriture contrôlée
+        // (ExigerOrganisationCourante, politique RLS d'insertion).
         modelBuilder.Entity<CodeSitePublic>(code =>
         {
+            code.HasQueryFilter(c => c.OrganisationId == OrganisationId);
             code.ToTable("codes_sites_publics");
             code.HasKey(c => c.Code);
             code.Property(c => c.Code).HasMaxLength(CodeSitePublic.Longueur).IsFixedLength();

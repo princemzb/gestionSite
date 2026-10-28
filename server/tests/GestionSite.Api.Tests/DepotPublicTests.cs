@@ -2,7 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using GestionSite.Modules.Identite;
+using GestionSite.Modules.Identite.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace GestionSite.Api.Tests;
@@ -60,20 +65,84 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
     }
 
     [Fact]
-    public async Task ReplayingTheSameSubmissionCreatesASingleReport()
+    public async Task AReplayGetsTheSameAcknowledgementButADifferentContentIsRefused()
     {
-        var demande = Demande();
+        var demande = Demande() with { Danger = true };
 
         using var premier = await DeposerAsync(_code, demande);
         using var rejeu = await DeposerAsync(_code, demande);
-        var paralleles = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => DeposerAsync(_code, demande with { CommandeId = demande.CommandeId })));
+        using var modifie = await DeposerAsync(_code, demande with { Description = "Autre chose" });
+        var probleme = await modifie.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.All(paralleles.Append(premier).Append(rejeu), r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal(await premier.Content.ReadAsStringAsync(), await rejeu.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Conflict, modifie.StatusCode);
+        Assert.Equal("commande_reutilisee", probleme.GetProperty("code").GetString());
         Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements"));
-        foreach (var reponse in paralleles)
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.alertes_danger"));
+    }
+
+    [Theory]
+    [InlineData("{\"commandeId\": \"abc\"}")]
+    [InlineData("pas du JSON")]
+    [InlineData("null")]
+    public async Task AnUnreadableBodyIsAnInputError(string corps)
+    {
+        using var contenu = new StringContent(corps, System.Text.Encoding.UTF8, "application/json");
+        using var reponse = await _client.PostAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), contenu);
+        var probleme = await reponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, reponse.StatusCode);
+        Assert.Equal("corps", probleme.GetProperty("champ").GetString());
+    }
+
+    [Theory]
+    [InlineData("description", "Fuite\u0000d'eau")] // refusé par PostgreSQL : jamais une erreur 500
+    [InlineData("emplacement", "Salle\u202Eetuoc")] // texte affiché à l'envers
+    [InlineData("nom", "Jeanne\nP.")] // une ligne
+    [InlineData("contact", "06\u000700")] // caractère de contrôle (une demi-paire arrive déjà remplacée par le lecteur JSON)
+    public async Task ForbiddenCharactersAreInputErrors(string champ, string valeur)
+    {
+        var demande = champ switch
         {
-            reponse.Dispose();
-        }
+            "description" => Demande() with { Description = valeur },
+            "emplacement" => Demande() with { Emplacement = valeur },
+            "nom" => Demande() with { Nom = valeur },
+            _ => Demande() with { Contact = valeur },
+        };
+
+        using var reponse = await DeposerAsync(_code, demande);
+        var probleme = await reponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, reponse.StatusCode);
+        Assert.Equal(champ, probleme.GetProperty("champ").GetString());
+    }
+
+    [Fact]
+    public async Task AMultiLineDescriptionIsKept()
+    {
+        using var reponse = await DeposerAsync(_code, Demande() with { Description = "Fuite au plafond.\nSeau posé dessous." });
+
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements WHERE description LIKE '%\n%'"));
+    }
+
+    [Fact]
+    public async Task SitesCreatedBeforeTheMigrationReceiveACode()
+    {
+        await using var ancienne = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
+        await MigrerIdentiteAsync(ancienne, "20261028102034_JournalHabilitations");
+        await ExecuterAsync(ancienne,
+            "INSERT INTO identite.organisations (id, nom, cree_le) VALUES ('11111111-1111-1111-1111-111111111111', 'Ancienne', now()); " +
+            "INSERT INTO identite.sites (id, organisation_id, nom, cree_le) VALUES " +
+            "('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Nef', now()), " +
+            "('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Crypte', now());");
+
+        await MigrerIdentiteAsync(ancienne, cible: null);
+
+        Assert.Equal(2, await ancienne.CountAsync(
+            "SELECT count(DISTINCT code) FROM identite.codes_sites_publics WHERE code ~ '^[2-9A-HJKMNP-TV-Z]{10}$'"));
+        Assert.Equal(1, await ancienne.CountAsync(
+            "SELECT count(*) FROM pg_class WHERE relname = 'sites' AND relforcerowsecurity"));
     }
 
     [Fact]
@@ -163,6 +232,23 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
         // Seconde barrière : le rôle de l'API ne voit rien sans organisation, seulement la sienne avec.
         Assert.Equal(0, await CompterCommeApplicationAsync(organisation: null));
         Assert.Equal(1, await CompterCommeApplicationAsync(_ouverte.OrganisationId));
+    }
+
+    private static async Task MigrerIdentiteAsync(TestDatabase base_, string? cible)
+    {
+        await using var proprietaire = NpgsqlDataSource.Create(base_.MigrationsConnectionString);
+        var options = new DbContextOptionsBuilder<IdentiteDbContext>();
+        IdentitePersistence.Configure(options, proprietaire, requete: null);
+        await using var context = new IdentiteDbContext(options.Options, new OrganisationCourante());
+        await context.GetService<IMigrator>().MigrateAsync(cible);
+    }
+
+    private static async Task ExecuterAsync(TestDatabase base_, string sql)
+    {
+        await using var connexion = new NpgsqlConnection(base_.ConnectionString);
+        await connexion.OpenAsync();
+        await using var commande = new NpgsqlCommand(sql, connexion);
+        await commande.ExecuteNonQueryAsync();
     }
 
     private static DemandeTest Demande() => new(

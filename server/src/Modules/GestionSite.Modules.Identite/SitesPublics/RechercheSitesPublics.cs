@@ -15,7 +15,7 @@ internal sealed class RechercheSitesPublics(IdentiteDbContext context, Organisat
             return null;
         }
 
-        var entree = await context.CodesSitesPublics.AsNoTracking()
+        var entree = await context.CodesSitesPublics.AsNoTracking().IgnoreQueryFilters() // seule lecture hors organisation
             .SingleOrDefaultAsync(c => c.Code == normalise, cancellationToken).ConfigureAwait(false);
         if (entree is null)
         {
@@ -24,10 +24,12 @@ internal sealed class RechercheSitesPublics(IdentiteDbContext context, Organisat
 
         // Le code est la seule clé : la suite de la requête (lectures et dépôt) se fait dans l'organisation du site.
         organisationCourante.Definir(entree.OrganisationId);
-        var site = await context.Sites.AsNoTracking().Where(s => s.Id == entree.SiteId)
-            .Select(s => new { s.Nom, s.NumeroUrgence }).SingleAsync(cancellationToken).ConfigureAwait(false);
-        var organisation = await context.Organisations.AsNoTracking().Select(o => o.Nom)
+        var site = await (
+                from s in context.Sites.AsNoTracking()
+                join o in context.Organisations.AsNoTracking() on s.OrganisationId equals o.Id
+                where s.Id == entree.SiteId
+                select new SitePublic(s.OrganisationId, s.Id, s.Nom, o.Nom, s.NumeroUrgence))
             .SingleAsync(cancellationToken).ConfigureAwait(false);
-        return new SitePublic(entree.OrganisationId, entree.SiteId, site.Nom, organisation, site.NumeroUrgence);
+        return site;
     }
 }
