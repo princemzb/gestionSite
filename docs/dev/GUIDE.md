@@ -55,6 +55,11 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - Adhésion par invitation (ADR-10, complément du 28/10) : tout membre créé est d'abord invité, sans aucun droit. Compte créé par l'invitation : l'activation vaut acceptation. Compte existant : le titulaire voit l'invitation dans `GET /me` (`invitations`) et l'accepte ou la refuse (`POST /me/invitations/{memberId}/accept|decline`).
 - Erreurs : ProblemDetails avec `code` stable (`introuvable` 404, `droit_insuffisant` 403, `version_depassee` / `dernier_administrateur` / `deja_membre` / `compte_en_attente` / `activation_impossible` 409, `lien_invalide` 410, `role_inconnu` / `site_inconnu` / `site_selon_role` / `mot_de_passe_invalide` 422).
 
+### Autorisation des opérations (S06-05)
+- Tout module vérifie les droits par le contrat `GestionSite.Modules.Identite.Contracts.IAutorisations` : `VerifierAsync(orgId, Droit.X, siteId)` → `Autorise`, `Introuvable` (répondre 404 : non-membre, invitation non acceptée, site sans aucun rôle de l'appelant ou inconnu) ou `Refuse` (403 : site visible, rôle insuffisant). Quand l'appelant est membre actif, l'organisation devient courante (filtres EF et RLS).
+- La matrice `MatriceDroits` reproduit docs/metier/PERMISSIONS.md ; un test la compare au tableau. L'administrateur n'a que `GererComptes` et `AutoriserSupport` : sans rôle métier, aucun droit sur les opérations. Les conditions propres à un module (technicien affecté, délégation budgétaire, relance interne du pasteur) restent vérifiées par ce module.
+- Toute route `/organizations/...` exige l'authentification (test) et répond à l'identique pour une organisation étrangère et une organisation inexistante.
+
 ### Configuration et secrets
 - Valeurs locales non sensibles, à modifier ensemble : `server/src/GestionSite.Api/appsettings.Development.json`, `server/compose.yaml`, `server/docker/seaweedfs-s3.json`, `server/docker/postgres/roles-local.sql`, `server/tests/GestionSite.Api.Tests/InfrastructureFixture.cs` et `TestDatabase.cs`.
 - Ailleurs, `ConnectionStrings:Main`, `ConnectionStrings:Migrations` (étape de migration seulement) et la section `ObjectStorage` viennent de l'environnement (validées au démarrage : l'API refuse de démarrer si elles sont absentes ou invalides).
