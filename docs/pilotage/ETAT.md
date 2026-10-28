@@ -18,7 +18,8 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | ADR-10 (complété : invitation à accepter) ; S06-01 à S06-05 fusionnées (PR #24 à #30) ; S06-06 en revue : journal des habilitations en ajout seul | Fusion S06-06 ; US-06 alors complète (Prêt à livrer : livraison avec le premier écran testable). Suite du sprint : PREP-06 (POC commandes hors connexion). |
+| US-06 Comptes et droits | Complète : S06-01 à S06-06 fusionnées (PR #24 à #31), en Prêt à livrer (livraison avec le premier écran testable) | — |
+| PREP-06 POC commandes hors connexion | Expérimental : protocole applied/alreadyApplied/conflict/rejected (API, désactivé par défaut) + file par profil (Dart) ; rapport exécutable `scripts/poc/prep06.sh` : 4 cas OK contre l'API réelle (docs/poc/PREP-06.md) | Revue, fusion ; puis PREP-07/PREP-08 (terrain et IA : préparation, arrêt pour décision). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
