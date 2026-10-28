@@ -21,9 +21,15 @@ internal sealed partial class DatabaseMigrations(
             return;
         }
 
-        // Garde-fou : une variable ConnectionStrings__Main oubliée dans un terminal ne doit pas
+        // Garde-fou : une variable ConnectionStrings__Migrations oubliée dans un terminal ne doit pas
         // faire migrer une base partagée par un simple `dotnet run` (chaîne déjà validée ici).
-        if (!LocalDatabase.IsLocal(database.Value.Main))
+        if (string.IsNullOrEmpty(database.Value.Migrations))
+        {
+            throw new InvalidOperationException(
+                "ConnectionStrings:Migrations (rôle propriétaire du schéma) est requis quand Database:MigrateOnStartup est vrai.");
+        }
+
+        if (!LocalDatabase.IsLocal(database.Value.Migrations))
         {
             throw new InvalidOperationException(
                 $"{MigrationOptions.Section}:{nameof(MigrationOptions.MigrateOnStartup)} n'est autorisé que pour une base PostgreSQL locale.");

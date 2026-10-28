@@ -17,7 +17,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     public async Task MigrationsCreateTheIdentiteSchemaAtStartup()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true");
+        await using var factory = infrastructure.CreateApi(database, migrateOnStartup: "true");
 
         using var client = factory.CreateClient();
 
@@ -29,13 +29,13 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     public async Task RestartingDoesNotReapplyMigrations()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using (var first = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true"))
+        await using (var first = infrastructure.CreateApi(database, migrateOnStartup: "true"))
         {
             using var client = first.CreateClient();
         }
 
         using var logs = new RecordingLoggerProvider();
-        await using var second = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", logs: logs);
+        await using var second = infrastructure.CreateApi(database, migrateOnStartup: "true", logs: logs);
         using var secondClient = second.CreateClient();
 
         Assert.Equal(KnownMigrations(second), await database.CountAsync(CountMigrations));
@@ -47,7 +47,7 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     public async Task DatabaseIsUntouchedWhenMigrationIsNotRequested()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "false");
+        await using var factory = infrastructure.CreateApi(database, migrateOnStartup: "false");
 
         using var client = factory.CreateClient();
 
@@ -59,17 +59,38 @@ public sealed class DatabaseMigrationTests(InfrastructureFixture infrastructure)
     [InlineData("Host=localhost,db.example.org;Database=gestionsite;Username=x;Password=x")]
     public async Task StartupMigrationIsRefusedForANonLocalDatabase(string connectionString)
     {
-        await using var factory = infrastructure.CreateApi(connectionString, migrateOnStartup: "true");
+        await using var factory = infrastructure.CreateApi(connectionString: connectionString, migrationsConnectionString: connectionString, migrateOnStartup: "true");
 
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         Assert.Contains("base PostgreSQL locale", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
+    public async Task StartupMigrationRequiresTheOwnerConnection()
+    {
+        await using var factory = infrastructure.CreateApi(migrationsConnectionString: string.Empty, migrateOnStartup: "true");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.Contains("ConnectionStrings:Migrations", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("pas une chaîne de connexion", "ConnectionStrings:Migrations n'est pas")]
+    [InlineData("Host=localhost;Port=55999;Database=autre_base;Username=x", "doivent désigner la même base")]
+    [InlineData("Host=localhost;Username=gestionsite_migrator", "doivent désigner la même base")]
+    public async Task UnsuitableOwnerConnectionStopsStartup(string valeur, string message)
+    {
+        await using var factory = infrastructure.CreateApi(migrationsConnectionString: valeur, migrateOnStartup: "false");
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains(message, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidConfigurationStopsStartupBeforeAnyMigration()
     {
         await using var database = await TestDatabase.CreateAsync(infrastructure.ConnectionString);
-        await using var factory = infrastructure.CreateApi(database.ConnectionString, migrateOnStartup: "true", bucket: string.Empty);
+        await using var factory = infrastructure.CreateApi(database, migrateOnStartup: "true", bucket: string.Empty);
 
         Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Equal(0L, await database.CountTablesAsync("identite", "organisations"));

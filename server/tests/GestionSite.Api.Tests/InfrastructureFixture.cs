@@ -34,6 +34,9 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     internal string ConnectionString => _postgres.GetConnectionString();
 
+    /// <summary>Base partagée des tests qui ne vérifient pas eux-mêmes le contenu de la base.</summary>
+    internal TestDatabase Default { get; private set; } = null!; // définie par InitializeAsync
+
     internal string StorageUrl => $"http://{_storage.Hostname}:{_storage.GetMappedPublicPort(S3Port)}";
 
     /// <summary>
@@ -41,8 +44,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     /// Migration au démarrage par défaut : suppose un démon Docker local (hôte de boucle locale).
     /// </summary>
     internal WebApplicationFactory<Program> CreateApi(
-        string? connectionString = null, string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null,
-        ILoggerProvider? logs = null) =>
+        TestDatabase? database = null, string? connectionString = null, string? migrationsConnectionString = null,
+        string migrateOnStartup = "true", string? bucket = null, string? storageUrl = null, ILoggerProvider? logs = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
             .ConfigureLogging(logging =>
             {
@@ -51,7 +54,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
                     logging.AddProvider(logs);
                 }
             })
-            .UseSetting("ConnectionStrings:Main", connectionString ?? ConnectionString)
+            .UseSetting("ConnectionStrings:Main", connectionString ?? (database ?? Default).ApplicationConnectionString)
+            .UseSetting("ConnectionStrings:Migrations", migrationsConnectionString ?? (database ?? Default).MigrationsConnectionString)
             .UseSetting("Database:MigrateOnStartup", migrateOnStartup)
             .UseSetting("ObjectStorage:ServiceUrl", storageUrl ?? StorageUrl)
             .UseSetting("ObjectStorage:AccessKey", AccessKey)
@@ -63,9 +67,23 @@ public sealed class InfrastructureFixture : IAsyncLifetime
     {
         await Task.WhenAll(_postgres.StartAsync(), _storage.StartAsync()).ConfigureAwait(false);
         await CreateBucketAsync().ConfigureAwait(false);
+        Default = await TestDatabase.CreateAsync(ConnectionString).ConfigureAwait(false);
     }
 
-    public Task DisposeAsync() => Task.WhenAll(_postgres.DisposeAsync().AsTask(), _storage.DisposeAsync().AsTask());
+    public async Task DisposeAsync()
+    {
+        try
+        {
+            if (Default is not null) // absente si l'initialisation a échoué
+            {
+                await Default.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _storage.DisposeAsync().AsTask()).ConfigureAwait(false);
+        }
+    }
 
     private async Task CreateBucketAsync()
     {
@@ -91,7 +109,7 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         }
     }
 
-    private static string ServerDirectory()
+    internal static string ServerDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && directory.GetFiles("GestionSite.slnx").Length == 0)

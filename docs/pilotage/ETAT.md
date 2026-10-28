@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | ADR-10 ; S06-01 fusionnée (PR #24 : persistance EF Core par module, EF épinglé 10.0.14, migration au démarrage réservée aux bases locales, contrôle /health/ready unique base + schéma, Organisation validée et testée en aller-retour PostgreSQL) | S06-02 (organisations, sites, adhésions, rôles par site, RLS forcée, rôle propriétaire ≠ rôle applicatif). |
+| US-06 Comptes et droits | ADR-10 ; S06-01 fusionnée (PR #24) ; S06-02 en revue : sites, membres, rôles par site, filtre EF + RLS forcée, rôles `gestionsite_migrator` / `gestionsite_app`, 15 tests d'isolation sur PostgreSQL réel | Revue (3 passages max), fusion, puis S06-03 (connexion, jetons, verrouillage ; /security-review). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -43,8 +43,14 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 
 ## Points reportés (issus des revues de S06-01)
 - Aide de persistance commune aux modules (DbContext + migrateur générique) : à créer quand un 2e module aura une base.
-- Objet valeur « nom affichable » (règles Unicode d'Organisation) : à extraire en S06-02 pour les sites.
-- Convention EF pour toutes les dates (UTC, microseconde, refus de ±infinity) au lieu du constructeur d'Organisation : S06-02.
+- Règles de nom et de date extraites en S06-02 (`NomAffichable`, `Horodatage`) ; une convention EF globale reste possible si d'autres modules en ont besoin.
+- Intercepteur de session RLS et `IAppartientAOrganisation` dans le module Identité : à déplacer dans un noyau de persistance partagé quand un 2e module aura des données d'organisation.
+- Noms des rôles PostgreSQL figés (`gestionsite_app` cité dans les GRANT des migrations) : contrat pour la préproduction.
+- Sonde /health/ready sur une base migrée seulement jusqu'à S06-01 : « invérifiable » (droits absents) au lieu de « en attente » ; sans effet, aucune base partagée dans cet état.
+- Écritures : BEGIN + SET LOCAL + DML + COMMIT (3 allers-retours) ; regrouper SET LOCAL avec la première instruction si la latence Neon le justifie.
+- `AutoTransactionBehavior.Always` posé dans SaveChanges ; Organisation traitée à part (filtre et contrôle) : à unifier si une 2e entité racine apparaît.
+- `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
+- Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
 - Image publiée : Microsoft.EntityFrameworkCore.Design est copié à la publication ; l'exclure au premier déploiement (S05-01/OUT).
 - Sonde /health/ready : 1 + 2×N requêtes sur les réponses 503 non mises en cache ; acceptable à ce stade, à revoir si Neon le facture.
 - Tests d'intégration : supposent un démon Docker local (hôte de boucle locale) à cause du garde-fou de migration.
@@ -82,4 +88,5 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 28/10/2026 | Maquettes du parcours du 1er incrément validées par le porteur | docs/ux/CHARTE.md |
 | 28/10/2026 | US-06 cadrée : ADR-10, contrats, 6 sous-cartes | PR cadrage US-06 |
 | 28/10/2026 | S06-01 persistance EF Core en revue (2 passages /code-review traités) | PR #24 |
+| 28/10/2026 | S06-02 : isolation en double barrière, PR ouverte | PR S06-02 |
 | 28/10/2026 | S06-01 : 11 passages de revue (EF 10.0.4/10.0.14 unifié, garde-fou migration locale, dates, noms) ; revue bornée à 3 passages désormais, après remarque du porteur sur la lenteur | PR #24 |

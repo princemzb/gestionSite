@@ -23,6 +23,47 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<DateTimeOffset?>("RevoqueLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoque_le");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_membres");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_membres_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "CompteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_membres_organisation_id_compte_id")
+                        .HasFilter("revoque_le IS NULL");
+
+                    b.ToTable("membres", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Organisation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -43,6 +84,123 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasName("pk_organisations");
 
                     b.ToTable("organisations", "identite");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.RoleAttribue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("MembreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membre_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.Property<Guid?>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_roles_attribues");
+
+                    b.HasIndex("SiteId", "OrganisationId")
+                        .HasDatabaseName("ix_roles_attribues_site_id_organisation_id");
+
+                    b.HasIndex("MembreId", "OrganisationId", "Role", "SiteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_roles_attribues_membre_id_organisation_id_role_site_id");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("MembreId", "OrganisationId", "Role", "SiteId"), false);
+
+                    b.ToTable("roles_attribues", "identite", t =>
+                        {
+                            t.HasCheckConstraint("ck_roles_attribues_site_selon_role", "(role = 'Administrateur') = (site_id IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Site", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("nom");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sites");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_sites_id_organisation_id");
+
+                    b.HasIndex("OrganisationId")
+                        .HasDatabaseName("ix_sites_organisation_id");
+
+                    b.ToTable("sites", "identite");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Organisation", null)
+                        .WithMany()
+                        .HasForeignKey("OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_membres_organisations_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.RoleAttribue", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Membre", null)
+                        .WithMany("Roles")
+                        .HasForeignKey("MembreId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_roles_attribues_membres_membre_id_organisation_id");
+
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_roles_attribues_sites_site_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Site", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Organisation", null)
+                        .WithMany()
+                        .HasForeignKey("OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_sites_organisations_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
+                {
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }

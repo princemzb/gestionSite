@@ -1,4 +1,5 @@
 using Amazon.S3;
+using GestionSite.SharedKernel;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -16,11 +17,24 @@ internal static class InfrastructureServices
             .Bind(configuration.GetSection(DatabaseOptions.Section))
             .ValidateDataAnnotations()
             .Validate(options => CanBuildDataSource(options.Main), "ConnectionStrings:Main n'est pas une chaîne de connexion PostgreSQL valide.")
+            .Validate(
+                options => string.IsNullOrEmpty(options.Migrations) || !CanBuildDataSource(options.Main)
+                    || !CanBuildDataSource(options.Migrations) || SameDatabase(options.Main, options.Migrations),
+                "ConnectionStrings:Main et ConnectionStrings:Migrations doivent désigner la même base (hôte, port, base).")
+            .Validate(
+                options => string.IsNullOrEmpty(options.Migrations) || CanBuildDataSource(options.Migrations),
+                "ConnectionStrings:Migrations n'est pas une chaîne de connexion PostgreSQL valide.")
             .ValidateOnStart();
-        services.AddSingleton(provider => new NpgsqlDataSourceBuilder(
-                provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main)
-            .UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>())
-            .Build());
+        services.AddSingleton(provider => BuildDataSource(provider, provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Main));
+        // Résolue seulement par DatabaseMigrations, après son contrôle de présence de la chaîne.
+        services.AddKeyedSingleton(DatabaseConnections.Migrations, (provider, _) =>
+        {
+            var migrations = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Migrations;
+            return string.IsNullOrEmpty(migrations)
+                ? throw new InvalidOperationException("ConnectionStrings:Migrations (rôle propriétaire du schéma) est requis pour migrer.")
+                : BuildDataSource(provider, migrations);
+        });
+        services.AddScoped<OrganisationCourante>();
 
         services.AddOptions<ObjectStorageOptions>()
             .Bind(configuration.GetSection(ObjectStorageOptions.Section))
@@ -45,6 +59,11 @@ internal static class InfrastructureServices
         return services;
     }
 
+    private static NpgsqlDataSource BuildDataSource(IServiceProvider provider, string connectionString) =>
+        new NpgsqlDataSourceBuilder(connectionString)
+            .UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>())
+            .Build();
+
     /// <summary>Mêmes contrôles que la construction réelle (hôte obligatoire, etc.), sans ouvrir de connexion.</summary>
     private static bool CanBuildDataSource(string value)
     {
@@ -57,6 +76,15 @@ internal static class InfrastructureServices
         {
             return false;
         }
+    }
+
+    private static bool SameDatabase(string main, string migrations)
+    {
+        var a = new NpgsqlConnectionStringBuilder(main);
+        var b = new NpgsqlConnectionStringBuilder(migrations);
+        // Sans « Database », PostgreSQL prend le nom d'utilisateur : comparer la base réellement visée.
+        return string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port
+            && string.Equals(a.Database ?? a.Username, b.Database ?? b.Username, StringComparison.Ordinal);
     }
 
     private static bool IsHttpUrl(string value) =>
