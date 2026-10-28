@@ -41,6 +41,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Fusion par l'agent autorisée (`gh pr merge`) seulement quand revue, CI et Sonar sont au vert.
 - Carte Trello mise à jour au début (En cours) et à chaque étape, avec preuve pour Revue, Recette, Prêt à livrer, Livré : `python3 scripts/trello/card.py move <ID> "<Liste>" --proof "…" --apply`.
 - Le porteur préfère des questions en QCM, une décision à la fois.
+- Décision du porteur (28/10) : essais PREP-07 (localisation) et PREP-08 (IA) reportés ; prochaine étape : maquettes du premier écran testable (connexion + gestion des membres, web admin), plusieurs propositions puis validation avant tout code d'écran.
 - Décision du porteur (28/10) : « Relancer » — le technicien n'a pas ce droit ; le pasteur relance en interne seulement (PERMISSIONS.md corrigé).
 - Décision du porteur (28/10) : la préproduction (Neon + Cloudflare, ADR-08) sera mise en place quand un utilisateur pourra tester quelque chose (premier écran maquetté et validé) ; d'ici là, les cartes fusionnées restent en « Prêt à livrer ».
 - Décision du porteur (28/10, révisée le même jour) : revue allégée par PR. Chaque PR : une revue `/code-review high`, plus `/security-review` si auth, fichiers ou formulaire public ; `max` seulement pour budget et stock. Défauts avérés corrigés avant fusion (CI + porte Sonar verts), suggestions en « Points reportés ». Cartes Trello déplacées à chaque étape.
@@ -56,7 +57,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Authentification (S06-03) : pas de fenêtre de grâce sur un jeton de renouvellement déjà remplacé (une réponse perdue puis rejouée révoque la session de l'appareil) — à arbitrer avec le hors connexion (US-09) ; pas de durée absolue de session (renouvellement glissant) ; jeton d'accès valable jusqu'à 15 min après déconnexion (ADR-10) ; 423 « verrouillé » révèle l'existence d'un compte après 5 échecs (accepté par CONTRATS) ; limitation de débit sur /auth à ajouter avant exposition publique.
 - Journal des habilitations (RG-31) en place (S06-06). Une organisation dont l'unique administrateur invité refuse doit être rouverte par la plateforme.
 - Décision du porteur (28/10) : adhésion par invitation à accepter (ADR-10 complété, CONTRATS, RISQUES : préemption d'adresse jusqu'à US-18). Fusionnée (PR #28).
-- Révocation d'une adhésion : accès à l'organisation coupé à la requête suivante, sessions du compte conservées (autres organisations invisibles par la RLS) ; à confirmer par le porteur (CONTRATS dit « jetons invalidés »).
+- Décision du porteur (28/10) : révocation d'une adhésion = accès à cette organisation coupé dès la requête suivante ; la personne reste connectée pour ses autres organisations (CONTRATS).
 - T-01.10 à T-01.18 : décisions automatisées en S06-05 ; à rejouer de bout en bout avec les modules Maintenance, Budget, Patrimoine (dossiers, budgets, grilles, plans). Droit nominatif « plans » attribuable par A : US-21.
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
 - Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
