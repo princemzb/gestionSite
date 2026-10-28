@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Identite.Persistence.Migrations
 {
     [DbContext(typeof(IdentiteDbContext))]
-    [Migration("20261028072623_ComptesEtJetons")]
+    [Migration("20261028083719_ComptesEtJetons")]
     partial class ComptesEtJetons
     {
         /// <inheritdoc />
@@ -98,6 +98,7 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasName("pk_comptes");
 
                     b.HasIndex("NormalizedEmail")
+                        .IsUnique()
                         .HasDatabaseName("ix_comptes_normalized_email");
 
                     b.HasIndex("NormalizedUserName")
@@ -193,6 +194,10 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
                     b.HasAlternateKey("Id", "OrganisationId")
                         .HasName("ak_membres_id_organisation_id");
+
+                    b.HasIndex("CompteId")
+                        .HasDatabaseName("ix_membres_compte_id_actives")
+                        .HasFilter("revoque_le IS NULL");
 
                     b.HasIndex("OrganisationId", "CompteId")
                         .IsUnique()
@@ -391,6 +396,13 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Membre", b =>
                 {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("CompteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_membres_comptes_compte_id");
+
                     b.HasOne("GestionSite.Modules.Identite.Domain.Organisation", null)
                         .WithMany()
                         .HasForeignKey("OrganisationId")

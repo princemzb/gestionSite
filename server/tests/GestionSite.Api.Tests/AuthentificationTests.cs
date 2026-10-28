@@ -98,6 +98,46 @@ public sealed class AuthentificationTests(InfrastructureFixture infrastructure) 
     }
 
     [Fact]
+    public async Task ParallelFailuresAreAllCountedAndLockTheAccount()
+    {
+        var essais = Enumerable.Range(0, 20).Select(async _ =>
+        {
+            using var client = _api.CreateClient();
+            using var reponse = await client.PostAsJsonAsync("/auth/login", new { email = Email, motDePasse = "mauvais" });
+            return reponse.StatusCode;
+        });
+        await Task.WhenAll(essais);
+
+        using var bon = await _client.PostAsJsonAsync("/auth/login", new { email = Email, motDePasse = MotDePasse });
+        Assert.Equal((HttpStatusCode)423, bon.StatusCode);
+    }
+
+    [Fact]
+    public async Task LockoutDoesNotEndAnExistingSession()
+    {
+        var jetons = await ConnecterAsync();
+        for (var essai = 0; essai < 5; essai++)
+        {
+            using var echec = await _client.PostAsJsonAsync("/auth/login", new { email = Email, motDePasse = "mauvais" });
+        }
+
+        using var renouvellement = await _client.PostAsJsonAsync("/auth/refresh", new { jetonRenouvellement = jetons.JetonRenouvellement });
+        Assert.Equal(HttpStatusCode.OK, renouvellement.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmailIsUniqueInTheDatabase()
+    {
+        var refus = await Assert.ThrowsAsync<PostgresException>(() => _database.CountAsync(
+            "WITH ajout AS (INSERT INTO identite.comptes (id, user_name, normalized_user_name, email, normalized_email, email_confirmed, " +
+            "phone_number_confirmed, two_factor_enabled, lockout_enabled, access_failed_count) VALUES (@id, 'double', 'DOUBLE', @email, " +
+            "upper(@email), false, false, false, true, 0) RETURNING 1) SELECT count(*) FROM ajout",
+            ("id", Guid.NewGuid()), ("email", Email)));
+
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, refus.SqlState);
+    }
+
+    [Fact]
     public async Task RefreshRotatesAndAReusedTokenRevokesTheWholeFamily()
     {
         var premier = await ConnecterAsync();
@@ -116,7 +156,8 @@ public sealed class AuthentificationTests(InfrastructureFixture infrastructure) 
     {
         var jetons = await ConnecterAsync();
 
-        using var deconnexion = await AvecJeton(HttpMethod.Post, "/auth/logout", jetons.JetonAcces, new { jetonRenouvellement = jetons.JetonRenouvellement });
+        // Sans jeton d'accès (souvent expiré au moment de se déconnecter) : le jeton de renouvellement suffit.
+        using var deconnexion = await _client.PostAsJsonAsync("/auth/logout", new { jetonRenouvellement = jetons.JetonRenouvellement });
         using var apres = await _client.PostAsJsonAsync("/auth/refresh", new { jetonRenouvellement = jetons.JetonRenouvellement });
 
         Assert.Equal(HttpStatusCode.NoContent, deconnexion.StatusCode);

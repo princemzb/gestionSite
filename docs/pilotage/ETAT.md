@@ -18,7 +18,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
-| US-06 Comptes et droits | ADR-10 ; S06-01 (PR #24) et S06-02 (PR #25, f80fb8e) fusionnées : sites, membres, rôles par site, isolation filtre EF + RLS forcée par SET LOCAL, rôles `gestionsite_migrator` / `gestionsite_app` | S06-03 en cours (branche `feat/s06-03-connexion`) : connexion, jetons, verrouillage ; `/security-review` requis. |
+| US-06 Comptes et droits | ADR-10 ; S06-01 (PR #24), S06-02 (PR #25) fusionnées ; S06-03 en revue (PR #26 : login/refresh/logout/me, Identity, verrouillage atomique, rotation avec détection de vol ; /security-review sans constat) | Fusion #26, puis S06-04 (membres, lien d'activation, commande d'ouverture d'organisation). |
 | S05-02 Docker local (PostgreSQL, SeaweedFS S3) | Fusionné (PR #14) : `server/compose.yaml`, `/health/ready` | Livré (environnement local utilisable). |
 | Maquettes (carte UX-01) | **Validées le 28/10** : charte (Jour + Nuit) et parcours du 1er incrément (docs/ux/CHARTE.md) | Les autres écrans seront maquettés et validés avec leurs US, avant tout code d'écran. |
 | S05-03 Projet Flutter | Livré : APK installé et lancé sur la Lenovo Tab M11 le 27/10 | — |
@@ -49,6 +49,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Sonde /health/ready sur une base migrée seulement jusqu'à S06-01 : « invérifiable » (droits absents) au lieu de « en attente » ; sans effet, aucune base partagée dans cet état.
 - Écritures : BEGIN + SET LOCAL + DML + COMMIT (3 allers-retours) ; regrouper SET LOCAL avec la première instruction si la latence Neon le justifie.
 - `AutoTransactionBehavior.Always` posé dans SaveChanges ; Organisation traitée à part (filtre et contrôle) : à unifier si une 2e entité racine apparaît.
+- Authentification (S06-03) : pas de fenêtre de grâce sur un jeton de renouvellement déjà remplacé (une réponse perdue puis rejouée révoque la session de l'appareil) — à arbitrer avec le hors connexion (US-09) ; pas de durée absolue de session (renouvellement glissant) ; jeton d'accès valable jusqu'à 15 min après déconnexion (ADR-10) ; 423 « verrouillé » révèle l'existence d'un compte après 5 échecs (accepté par CONTRATS) ; limitation de débit sur /auth à ajouter avant exposition publique.
 - `Membre.Accorder` suppose les rôles chargés (Include) : à garantir par le service de S06-04.
 - Préproduction : créer les rôles `gestionsite_migrator` / `gestionsite_app` (sans le script local, mots de passe hors dépôt) au premier déploiement.
 - Image publiée : Microsoft.EntityFrameworkCore.Design est copié à la publication ; l'exclure au premier déploiement (S05-01/OUT).

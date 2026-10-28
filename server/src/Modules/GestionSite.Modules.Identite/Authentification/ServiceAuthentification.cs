@@ -48,13 +48,14 @@ internal sealed class ServiceAuthentification(
 
         if (await comptes.IsLockedOutAsync(compte).ConfigureAwait(false))
         {
+            // Même coût qu'une vérification réelle : le temps de réponse ne distingue pas le verrouillage.
+            comptes.PasswordHasher.VerifyHashedPassword(new Compte(), EmpreinteFactice.Value, motDePasse ?? string.Empty);
             return ResultatAuthentification.Refuse(EchecAuthentification.CompteVerrouille);
         }
 
         if (!await comptes.CheckPasswordAsync(compte, motDePasse ?? string.Empty).ConfigureAwait(false))
         {
-            await comptes.AccessFailedAsync(compte).ConfigureAwait(false);
-            return await comptes.IsLockedOutAsync(compte).ConfigureAwait(false)
+            return await CompterEchecAsync(compte.Id, cancellationToken).ConfigureAwait(false)
                 ? ResultatAuthentification.Refuse(EchecAuthentification.CompteVerrouille)
                 : ResultatAuthentification.Refuse(EchecAuthentification.IdentifiantsInvalides);
         }
@@ -81,8 +82,9 @@ internal sealed class ServiceAuthentification(
             return ResultatAuthentification.Refuse(EchecAuthentification.JetonInvalide);
         }
 
-        var compte = await comptes.FindByIdAsync(actuel.CompteId.ToString()).ConfigureAwait(false);
-        if (!actuel.EstUtilisable(maintenant) || compte is null || await comptes.IsLockedOutAsync(compte).ConfigureAwait(false))
+        // Le verrouillage freine les essais de mot de passe ; il ne coupe pas les sessions déjà ouvertes
+        // (sinon cinq essais anonymes déconnecteraient la victime). La révocation passe par S06-04.
+        if (!actuel.EstUtilisable(maintenant))
         {
             return ResultatAuthentification.Refuse(EchecAuthentification.JetonInvalide);
         }
@@ -95,20 +97,43 @@ internal sealed class ServiceAuthentification(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return ResultatAuthentification.Refuse(EchecAuthentification.JetonInvalide); // rotation concurrente
+            // Deux usages simultanés du même jeton : l'un est peut-être un voleur. Lignée révoquée.
+            context.ChangeTracker.Clear();
+            await RevoquerFamilleAsync(actuel.Famille, maintenant, cancellationToken).ConfigureAwait(false);
+            return ResultatAuthentification.Refuse(EchecAuthentification.JetonInvalide);
         }
 
         return ResultatAuthentification.Reussi(jetons);
     }
 
-    /// <summary>Déconnexion de l'appareil : la lignée du jeton présenté, s'il appartient au compte.</summary>
-    internal async Task DeconnecterAsync(Guid compteId, string jeton, CancellationToken cancellationToken)
+    /// <summary>
+    /// Déconnexion de l'appareil : révoque la lignée du jeton présenté. Détenir le jeton suffit à prouver
+    /// la session (pas besoin d'un jeton d'accès encore valide, souvent expiré à la déconnexion).
+    /// </summary>
+    internal async Task DeconnecterAsync(string jeton, CancellationToken cancellationToken)
     {
         var actuel = await TrouverAsync(jeton, cancellationToken).ConfigureAwait(false);
-        if (actuel is not null && actuel.CompteId == compteId)
+        if (actuel is not null)
         {
             await RevoquerFamilleAsync(actuel.Famille, horloge.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Échec compté en une seule instruction SQL (verrou de ligne) : des essais simultanés ne peuvent pas
+    /// se perdre, contrairement à UserManager.AccessFailedAsync (jeton de concurrence, échecs ignorés).
+    /// Rend vrai si le compte est désormais verrouillé.
+    /// </summary>
+    private async Task<bool> CompterEchecAsync(Guid compteId, CancellationToken cancellationToken)
+    {
+        var verrou = comptes.Options.Lockout;
+        var finVerrou = horloge.GetUtcNow() + verrou.DefaultLockoutTimeSpan;
+        await context.Users.Where(c => c.Id == compteId && c.LockoutEnabled).ExecuteUpdateAsync(s => s
+            .SetProperty(c => c.LockoutEnd, c => c.AccessFailedCount + 1 >= verrou.MaxFailedAccessAttempts ? finVerrou : c.LockoutEnd)
+            .SetProperty(c => c.AccessFailedCount, c => c.AccessFailedCount + 1 >= verrou.MaxFailedAccessAttempts ? 0 : c.AccessFailedCount + 1)
+            .SetProperty(c => c.ConcurrencyStamp, Guid.NewGuid().ToString()), cancellationToken).ConfigureAwait(false);
+        var fin = await context.Users.Where(c => c.Id == compteId).Select(c => c.LockoutEnd).SingleAsync(cancellationToken).ConfigureAwait(false);
+        return fin > horloge.GetUtcNow();
     }
 
     private CoupleJetons Emettre(Guid compteId, Guid famille) => Emettre(compteId, famille, out _);

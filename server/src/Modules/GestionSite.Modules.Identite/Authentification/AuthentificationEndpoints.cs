@@ -30,7 +30,7 @@ internal static class AuthentificationEndpoints
         var auth = endpoints.MapGroup("/auth");
         auth.MapPost("/login", ConnecterAsync).AllowAnonymous();
         auth.MapPost("/refresh", RenouvelerAsync).AllowAnonymous();
-        auth.MapPost("/logout", DeconnecterAsync).RequireAuthorization();
+        auth.MapPost("/logout", DeconnecterAsync).AllowAnonymous(); // le jeton de renouvellement fait preuve
         endpoints.MapGet("/me", MoiAsync).RequireAuthorization();
         return endpoints;
     }
@@ -41,10 +41,9 @@ internal static class AuthentificationEndpoints
     private static async Task<IResult> RenouvelerAsync(DemandeJeton demande, ServiceAuthentification service, CancellationToken cancellationToken) =>
         Repondre(await service.RenouvelerAsync(demande.JetonRenouvellement, cancellationToken).ConfigureAwait(false));
 
-    private static async Task<IResult> DeconnecterAsync(
-        DemandeJeton demande, ServiceAuthentification service, CompteCourant compte, CancellationToken cancellationToken)
+    private static async Task<IResult> DeconnecterAsync(DemandeJeton demande, ServiceAuthentification service, CancellationToken cancellationToken)
     {
-        await service.DeconnecterAsync(compte.Id!.Value, demande.JetonRenouvellement, cancellationToken).ConfigureAwait(false);
+        await service.DeconnecterAsync(demande.JetonRenouvellement, cancellationToken).ConfigureAwait(false);
         return Results.NoContent();
     }
 

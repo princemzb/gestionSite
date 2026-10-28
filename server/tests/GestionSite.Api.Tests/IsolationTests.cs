@@ -267,6 +267,17 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     }
 
     [Fact]
+    public async Task MembershipRequiresAnExistingAccount()
+    {
+        await using var scope = Scope(_organisationA);
+        var context = Context(scope);
+        context.Membres.Add(new Membre(Guid.NewGuid(), _organisationA, Guid.NewGuid(), Instant));
+
+        var refus = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, Assert.IsType<PostgresException>(refus.InnerException).SqlState);
+    }
+
+    [Fact]
     public async Task ARevokedAccountCanBeInvitedAgain()
     {
         await using var scope = Scope(_organisationA);
@@ -309,7 +320,9 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
         await using var scope = Scope(organisationId);
         var context = Context(scope);
         var site = new Site(siteId, organisationId, $"Site {siteId:N}", Instant);
-        var membre = new Membre(membreId, organisationId, Guid.NewGuid(), Instant);
+        var compte = new Compte { Id = Guid.NewGuid(), UserName = $"{membreId:N}@exemple.test" };
+        var membre = new Membre(membreId, organisationId, compte.Id, Instant);
+        context.Add(compte); // compte global : clé étrangère des adhésions
         membre.Accorder(Role.Administrateur, site: null);
         membre.Accorder(Role.Technicien, site);
         context.AddRange(new Organisation(organisationId, $"Organisation {organisationId:N}", Instant), site, membre);

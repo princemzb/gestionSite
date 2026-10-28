@@ -50,7 +50,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.Entity<Compte>(compte =>
         {
             compte.ToTable("comptes");
-            compte.HasIndex(c => c.NormalizedEmail).HasDatabaseName("ix_comptes_normalized_email");
+            // Unicité garantie par la base aussi : deux créations simultanées ne peuvent pas doubler un e-mail.
+            compte.HasIndex(c => c.NormalizedEmail).HasDatabaseName("ix_comptes_normalized_email").IsUnique();
             compte.HasIndex(c => c.NormalizedUserName).HasDatabaseName("ix_comptes_normalized_user_name");
         });
         modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("comptes_revendications");
@@ -97,6 +98,9 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             // Une adhésion active par compte et organisation ; les révoquées restent en historique.
             membre.HasIndex(m => new { m.OrganisationId, m.CompteId }).IsUnique().HasFilter("revoque_le IS NULL");
             membre.HasOne<Organisation>().WithMany().HasForeignKey(m => m.OrganisationId).OnDelete(DeleteBehavior.Restrict);
+            membre.HasOne<Compte>().WithMany().HasForeignKey(m => m.CompteId).OnDelete(DeleteBehavior.Restrict);
+            // Sert les politiques RLS « par compte » (adhésions actives d'un compte).
+            membre.HasIndex(m => m.CompteId).HasFilter("revoque_le IS NULL").HasDatabaseName("ix_membres_compte_id_actives");
             membre.HasMany(m => m.Roles).WithOne()
                 .HasForeignKey(r => new { r.MembreId, r.OrganisationId })
                 .HasPrincipalKey(m => new { m.Id, m.OrganisationId })
@@ -151,7 +155,7 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
                 Organisation o => o.Id,
                 IAppartientAOrganisation donnee => donnee.OrganisationId,
                 IDonneeGlobale => null,
-                _ when entree.Metadata.ClrType.Namespace == typeof(IdentityUserClaim<>).Namespace => null, // détails de compte
+                IdentityUserClaim<Guid> or IdentityUserLogin<Guid> or IdentityUserToken<Guid> => null, // détails de compte
                 _ => throw new InvalidOperationException(
                     $"{entree.Metadata.ClrType.Name} n'est rattachée à aucune organisation : marquer IAppartientAOrganisation ou IDonneeGlobale."),
             };

@@ -132,10 +132,18 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "ix_membres_compte_id_actives",
+                schema: "identite",
+                table: "membres",
+                column: "compte_id",
+                filter: "revoque_le IS NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_comptes_normalized_email",
                 schema: "identite",
                 table: "comptes",
-                column: "normalized_email");
+                column: "normalized_email",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_comptes_normalized_user_name",
@@ -175,6 +183,16 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                 table: "jetons_renouvellement",
                 column: "famille");
 
+            migrationBuilder.AddForeignKey(
+                name: "fk_membres_comptes_compte_id",
+                schema: "identite",
+                table: "membres",
+                column: "compte_id",
+                principalSchema: "identite",
+                principalTable: "comptes",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Restrict);
+
             AccorderRoleApplicatif(migrationBuilder);
             AutoriserLectureParCompte(migrationBuilder);
         }
@@ -188,6 +206,11 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
             }
 
             // Tables supprimées ci-dessous : leurs droits disparaissent avec elles.
+            migrationBuilder.DropForeignKey(
+                name: "fk_membres_comptes_compte_id",
+                schema: "identite",
+                table: "membres");
+
             migrationBuilder.DropTable(
                 name: "comptes_connexions_externes",
                 schema: "identite");
@@ -207,6 +230,11 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
             migrationBuilder.DropTable(
                 name: "comptes",
                 schema: "identite");
+
+            migrationBuilder.DropIndex(
+                name: "ix_membres_compte_id_actives",
+                schema: "identite",
+                table: "membres");
         }
 
         // Nom figé (CompteCourant.VariableSession) : une migration appliquée ne doit pas changer.
