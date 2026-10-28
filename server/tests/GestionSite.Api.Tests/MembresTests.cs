@@ -104,9 +104,9 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
         var version = cree.GetProperty("version").GetInt32();
 
         using var revise = await Put($"/organizations/{_organisation}/members/{membre}", _admin,
-            new { roles = new object[] { new { role = "Responsable", siteId = nord } }, version });
+            new { roles = new object[] { new { role = "Responsable", siteId = nord } }, version, motif = "Changement de rôle" });
         using var perime = await Put($"/organizations/{_organisation}/members/{membre}", _admin,
-            new { roles = new object[] { new { role = "Pasteur", siteId = nord } }, version });
+            new { roles = new object[] { new { role = "Pasteur", siteId = nord } }, version, motif = "Changement de rôle" });
 
         Assert.Equal(HttpStatusCode.OK, revise.StatusCode);
         Assert.Equal(version + 1, (await Json(revise)).GetProperty("version").GetInt32());
@@ -142,7 +142,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
 
         using var revocation = await Delete($"/organizations/{_organisation}/members/{membreAdmin}", _admin);
         using var retrait = await Put($"/organizations/{_organisation}/members/{membreAdmin}", _admin,
-            new { roles = new object[] { new { role = "Pasteur", siteId = await CreerSiteAsync("Nord") } }, version = 1 });
+            new { roles = new object[] { new { role = "Pasteur", siteId = await CreerSiteAsync("Nord") } }, version = 1, motif = "Changement de rôle" });
 
         Assert.Equal("Saint-Paul", moi.GetProperty("nom").GetString());
         Assert.Equal(HttpStatusCode.Conflict, revocation.StatusCode);
@@ -353,7 +353,7 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
 
     private Task<HttpResponseMessage> Put(string chemin, string? jeton, object corps) => Envoyer(HttpMethod.Put, chemin, jeton, corps);
 
-    private Task<HttpResponseMessage> Delete(string chemin, string? jeton) => Envoyer(HttpMethod.Delete, chemin, jeton, null);
+    private Task<HttpResponseMessage> Delete(string chemin, string? jeton) => Envoyer(HttpMethod.Delete, chemin, jeton, new { motif = "Départ" });
 
     private async Task<HttpResponseMessage> Envoyer(HttpMethod methode, string chemin, string? jeton, object? corps)
     {

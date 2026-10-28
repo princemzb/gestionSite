@@ -11,7 +11,7 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Documenter intervention affectée | Non | Oui | Oui | Non | Non |
 | Clôturer intervention affectée | Non | Oui | Oui | Non | Non |
 | Rouvrir / arbitrer conflit | Non | Non | Oui | Non | Non |
-| Relancer | Non | P : interne | Oui | Oui | Non |
+| Relancer | Non | Non | Oui | Oui (P : relance interne seulement) | Non |
 | Lancer IA | Non | Oui | Oui | Non | Non |
 | Valider estimation / engager budget | Non | Non | Oui selon délégation | Non | Non |
 | Enregistrer accord finance | Non | Non | Oui | Non | Non |

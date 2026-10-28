@@ -30,6 +30,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
 
     public DbSet<Activation> Activations => Set<Activation>();
 
+    public DbSet<EvenementHabilitation> JournalHabilitations => Set<EvenementHabilitation>();
+
     // Lu à chaque requête par les filtres (paramètre EF) : sans organisation, aucune ligne.
     private Guid? OrganisationId => organisationCourante.Id;
 
@@ -60,6 +62,22 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("comptes_revendications");
         modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("comptes_connexions_externes");
         modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("comptes_jetons");
+        modelBuilder.Entity<EvenementHabilitation>(evenement =>
+        {
+            evenement.ToTable("journal_habilitations");
+            evenement.HasKey(e => e.Id);
+            evenement.Property(e => e.Id).ValueGeneratedNever();
+            evenement.Property(e => e.Nature).HasConversion<string>().HasMaxLength(32);
+            evenement.Property(e => e.Motif).HasMaxLength(EvenementHabilitation.MotifMaxLength);
+            evenement.Property(e => e.RolesAvant).HasColumnType("jsonb");
+            evenement.Property(e => e.RolesApres).HasColumnType("jsonb");
+            evenement.HasIndex(e => new { e.OrganisationId, e.Le });
+            evenement.HasOne<Membre>().WithMany()
+                .HasForeignKey(e => new { e.MembreId, e.OrganisationId })
+                .HasPrincipalKey(m => new { m.Id, m.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Activation>(activation =>
         {
             activation.HasKey(a => a.Id);

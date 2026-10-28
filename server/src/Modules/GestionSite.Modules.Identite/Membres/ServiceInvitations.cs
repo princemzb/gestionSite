@@ -10,12 +10,12 @@ internal sealed class ServiceInvitations(
     IdentiteDbContext context, CompteCourant compte, OrganisationCourante organisation, TimeProvider horloge)
 {
     internal Task AccepterAsync(Guid membreId, CancellationToken cancellationToken) =>
-        TraiterAsync(membreId, (m, le) => m.Accepter(le), cancellationToken);
+        TraiterAsync(membreId, NatureHabilitation.Acceptation, (m, le) => m.Accepter(le), cancellationToken);
 
     internal Task RefuserAsync(Guid membreId, CancellationToken cancellationToken) =>
-        TraiterAsync(membreId, (m, le) => m.Revoquer(le), cancellationToken);
+        TraiterAsync(membreId, NatureHabilitation.Refus, (m, le) => m.Revoquer(le), cancellationToken);
 
-    private async Task TraiterAsync(Guid membreId, Action<Membre, DateTimeOffset> action, CancellationToken cancellationToken)
+    private async Task TraiterAsync(Guid membreId, NatureHabilitation nature, Action<Membre, DateTimeOffset> action, CancellationToken cancellationToken)
     {
         var compteId = compte.Id ?? throw RefusException.Introuvable();
         // Lecture par la politique « par compte » : seulement une invitation de l'appelant lui-même.
@@ -25,10 +25,13 @@ internal sealed class ServiceInvitations(
 
         // Écriture sous l'organisation de l'invitation (isolation par organisation, RLS comprise).
         organisation.Definir(invitation.OrganisationId);
-        var membre = await context.Membres
+        var membre = await context.Membres.Include(m => m.Roles)
             .SingleOrDefaultAsync(m => m.Id == membreId && m.RevoqueLe == null && m.AccepteLe == null, cancellationToken)
             .ConfigureAwait(false) ?? throw RefusException.Introuvable(); // traitée entre-temps
-        action(membre, horloge.GetUtcNow());
+        var avant = EvenementHabilitation.Instantane(membre);
+        var maintenant = horloge.GetUtcNow();
+        action(membre, maintenant);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(membre, nature, compteId, maintenant, motif: null, avant));
         try
         {
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
