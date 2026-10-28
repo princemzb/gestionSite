@@ -23,6 +23,49 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Activation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<byte[]>("Empreinte")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .HasColumnName("empreinte")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("ExpireLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expire_le");
+
+                    b.Property<DateTimeOffset?>("UtiliseLe")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("utilise_le");
+
+                    b.HasKey("Id")
+                        .HasName("pk_activations");
+
+                    b.HasIndex("CompteId")
+                        .HasDatabaseName("ix_activations_compte_id");
+
+                    b.HasIndex("Empreinte")
+                        .IsUnique()
+                        .HasDatabaseName("ix_activations_empreinte");
+
+                    b.ToTable("activations", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Compte", b =>
                 {
                     b.Property<Guid>("Id")
@@ -55,6 +98,12 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lockout_end");
+
+                    b.Property<string>("NomAffiche")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("nom_affiche");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
@@ -379,6 +428,16 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasName("pk_comptes_jetons");
 
                     b.ToTable("comptes_jetons", "identite");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Activation", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("CompteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_activations_comptes_compte_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.JetonRenouvellement", b =>

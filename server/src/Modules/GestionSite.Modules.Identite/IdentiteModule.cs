@@ -1,4 +1,5 @@
 using GestionSite.Modules.Identite.Authentification;
+using GestionSite.Modules.Identite.Membres;
 using GestionSite.Modules.Identite.Persistence;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,24 @@ namespace GestionSite.Modules.Identite;
 public static class IdentiteModule
 {
     public static IServiceCollection AddIdentiteModule(this IServiceCollection services) =>
-        services.AddIdentitePersistence().AddAuthentificationIdentite();
+        services.AddIdentitePersistence().AddAuthentificationIdentite()
+            .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>();
 
-    public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapAuthentification();
+    public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) =>
+        endpoints.MapAuthentification().MapOrganisations();
+
+    /// <summary>
+    /// Commande d'exploitation « ouvrir-organisation » : crée l'organisation et son administrateur ; rend le
+    /// lien d'activation à transmettre (null si le compte avait déjà un mot de passe).
+    /// </summary>
+    public static async Task<OrganisationOuverte> OuvrirOrganisationAsync(
+        IServiceProvider services, string nom, string emailAdministrateur, string nomAdministrateur, CancellationToken cancellationToken)
+    {
+        var (id, activation) = await OuvertureOrganisation.OuvrirAsync(services, nom, emailAdministrateur, nomAdministrateur, cancellationToken)
+            .ConfigureAwait(false);
+        return new OrganisationOuverte(id, activation?.Jeton, activation?.ExpireLe);
+    }
 }
+
+/// <summary>Résultat de la commande d'ouverture d'organisation.</summary>
+public sealed record OrganisationOuverte(Guid OrganisationId, string? JetonActivation, DateTimeOffset? ActivationExpireLe);

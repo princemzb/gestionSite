@@ -67,6 +67,30 @@ internal sealed class Membre : IAppartientAOrganisation
         Version++;
     }
 
+    /// <summary>
+    /// Révision complète des habilitations (PUT /members) : les rôles absents sont retirés, les nouveaux
+    /// accordés ; une seule nouvelle version, même si plusieurs rôles changent.
+    /// </summary>
+    internal void Reviser(IReadOnlyCollection<(Role Role, Site? Site)> roles)
+    {
+        if (RevoqueLe is not null)
+        {
+            throw new InvalidOperationException("Adhésion révoquée : aucun rôle ne peut plus être accordé.");
+        }
+
+        var voulus = roles.Select(r => (r.Role, SiteId: r.Site?.Id)).ToHashSet();
+        var avant = Version;
+        var retires = _roles.RemoveAll(r => !voulus.Contains((r.Role, r.SiteId)));
+        foreach (var (role, site) in roles)
+        {
+            Accorder(role, site);
+        }
+
+        Version = avant + (retires > 0 || Version != avant ? 1 : 0);
+    }
+
+    internal bool EstAdministrateur => RevoqueLe is null && _roles.Exists(r => r.Role == Role.Administrateur);
+
     internal void Revoquer(DateTimeOffset le)
     {
         if (RevoqueLe is not null)

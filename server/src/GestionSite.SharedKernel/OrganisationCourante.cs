@@ -9,11 +9,12 @@ public sealed class OrganisationCourante
     /// <summary>Variable de session PostgreSQL lue par les politiques RLS.</summary>
     public const string VariableSession = "app.organisation_id";
 
-    private bool _transmise;
-
     public Guid? Id { get; private set; }
 
-    /// <summary>Définie une seule fois par portée : changer d'organisation en cours de requête est refusé.</summary>
+    /// <summary>
+    /// Définie une seule fois par portée : changer d'organisation en cours de requête est refusé. Peut l'être
+    /// après un premier accès à la base (contrôle d'adhésion) : chaque commande transmet la valeur du moment.
+    /// </summary>
     public void Definir(Guid id)
     {
         if (id == Guid.Empty)
@@ -26,15 +27,6 @@ public sealed class OrganisationCourante
             throw new InvalidOperationException("L'organisation courante est déjà définie pour cette requête.");
         }
 
-        if (Id is null && _transmise)
-        {
-            // La variable de session RLS a déjà reçu « aucune organisation » : les barrières divergeraient.
-            throw new InvalidOperationException("L'organisation courante doit être définie avant le premier accès à la base.");
-        }
-
         Id = id;
     }
-
-    /// <summary>Appelée quand la valeur est transmise à une connexion : elle ne peut plus apparaître ensuite.</summary>
-    public void MarquerTransmise() => _transmise = true;
 }

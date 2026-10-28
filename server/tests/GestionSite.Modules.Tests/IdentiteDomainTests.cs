@@ -111,15 +111,6 @@ public sealed class IdentiteDomainTests
     }
 
     [Fact]
-    public void CurrentOrganisationCannotAppearAfterTheDatabaseWasReached()
-    {
-        var courante = new OrganisationCourante();
-        courante.MarquerTransmise();
-
-        Assert.Throws<InvalidOperationException>(() => courante.Definir(Guid.NewGuid()));
-    }
-
-    [Fact]
     public void EveryChangeOfAMemberIncreasesItsVersion()
     {
         var membre = new Membre(Guid.NewGuid(), Organisation, Guid.NewGuid(), Instant);
