@@ -41,6 +41,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 - Fusion par l'agent autorisée (`gh pr merge`) seulement quand revue, CI et Sonar sont au vert.
 - Carte Trello mise à jour au début (En cours) et à chaque étape, avec preuve pour Revue, Recette, Prêt à livrer, Livré : `python3 scripts/trello/card.py move <ID> "<Liste>" --proof "…" --apply`.
 - Le porteur préfère des questions en QCM, une décision à la fois.
+- Décision du porteur (28/10) : essais PREP-07 (localisation) et PREP-08 (IA) reportés ; prochaine étape : maquettes du premier écran testable (connexion + gestion des membres, web admin), plusieurs propositions puis validation avant tout code d'écran.
 - Décision du porteur (28/10) : « Relancer » — le technicien n'a pas ce droit ; le pasteur relance en interne seulement (PERMISSIONS.md corrigé).
 - Décision du porteur (28/10) : la préproduction (Neon + Cloudflare, ADR-08) sera mise en place quand un utilisateur pourra tester quelque chose (premier écran maquetté et validé) ; d'ici là, les cartes fusionnées restent en « Prêt à livrer ».
 - Décision du porteur (28/10, révisée le même jour) : revue allégée par PR. Chaque PR : une revue `/code-review high`, plus `/security-review` si auth, fichiers ou formulaire public ; `max` seulement pour budget et stock. Défauts avérés corrigés avant fusion (CI + porte Sonar verts), suggestions en « Points reportés ». Cartes Trello déplacées à chaque étape.
