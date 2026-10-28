@@ -128,6 +128,79 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
     }
 
     [Fact]
+    public async Task SessionsSurviveARestartWhenKeysAreKeptInObjectStorage()
+    {
+        // Deux instances successives (réveil du conteneur) partageant les clés dans le stockage S3.
+        WebApplicationFactory<WebOptions> Instance() => _web.WithWebHostBuilder(builder => builder
+            .UseSetting("Web:Cles:ServiceUrl", infrastructure.StorageUrl)
+            .UseSetting("Web:Cles:AccessKey", InfrastructureFixture.AccessKey)
+            .UseSetting("Web:Cles:SecretKey", InfrastructureFixture.SecretKey)
+            .UseSetting("Web:Cles:Compartiment", InfrastructureFixture.Bucket)
+            .UseSetting("Web:Cles:Region", InfrastructureFixture.Region));
+        string cookie;
+        await using (var avant = Instance())
+        {
+            using var navigateur = avant.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+            using var activation = await PosterAsync(navigateur, "/activation?jeton=x", "activation",
+                ("Saisie.Jeton", _ouverte.JetonActivation!), ("Saisie.MotDePasse", MotDePasse), ("Saisie.Confirmation", MotDePasse));
+            Assert.Equal(HttpStatusCode.Redirect, activation.StatusCode);
+            cookie = activation.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("gestionsite=", StringComparison.Ordinal)).Split(';')[0];
+        }
+
+        await using var apres = Instance();
+        using var nouveau = apres.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
+        using var page = new HttpRequestMessage(HttpMethod.Get, new Uri($"/organisations/{_ouverte.OrganisationId}/membres", UriKind.Relative));
+        page.Headers.Add("Cookie", cookie);
+        using var reponse = await nouveau.SendAsync(page);
+
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
+        // Preuve que les clés viennent bien du stockage S3 (et non du dossier local par défaut).
+        using var s3 = GestionSite.Api.Infrastructure.ObjectStorageClientFactory.Create(
+            infrastructure.StorageUrl, InfrastructureFixture.AccessKey, InfrastructureFixture.SecretKey, InfrastructureFixture.Region);
+        var cles = await s3.ListObjectsV2Async(new Amazon.S3.Model.ListObjectsV2Request { BucketName = InfrastructureFixture.Bucket, Prefix = "protection-donnees/web/" });
+        Assert.Contains(cles.S3Objects ?? [], o => o.Key.EndsWith(".xml", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HealthEndpointReflectsTheApi()
+    {
+        using var navigateur = Navigateur();
+        await using var enPanne = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
+            .UseSetting("Web:ApiUrl", "http://localhost")
+            .ConfigureServices(services => services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => new ReseauEnPanne())));
+        using var sansApi = enPanne.CreateClient();
+
+        Assert.Equal(HttpStatusCode.OK, (await navigateur.GetAsync(new Uri("/sante", UriKind.Relative))).StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await sansApi.GetAsync(new Uri("/sante", UriKind.Relative))).StatusCode);
+    }
+
+    [Fact]
+    public async Task AnApiStillStartingIsWaitedForInsteadOfFailing()
+    {
+        // Réveil du conteneur : l'API refuse d'abord les connexions, puis répond.
+        await using var web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
+            .UseSetting("Web:ApiUrl", "http://localhost")
+            .ConfigureServices(services => services.AddHttpClient("api")
+                .ConfigurePrimaryHttpMessageHandler(() => new ApiQuiDemarre(_api.Server.CreateHandler(), refus: 2))));
+        await ActiverAdministrateurAsync();
+        using var navigateur = web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+
+        using var connexion = await PosterAsync(navigateur, "/connexion", "connexion", ("Saisie.Email", AdminEmail), ("Saisie.MotDePasse", MotDePasse));
+
+        Assert.Equal(HttpStatusCode.Redirect, connexion.StatusCode);
+    }
+
+    [Fact]
+    public async Task IncompleteKeyStorageSettingsStopStartup()
+    {
+        await using var web = _web.WithWebHostBuilder(builder => builder.UseSetting("Web:Cles:ServiceUrl", "http://stockage.exemple"));
+
+        var erreur = Assert.ThrowsAny<Exception>(() => web.CreateClient());
+
+        Assert.Contains("Web:Cles incomplet", erreur.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnUnreachableApiIsReportedAsUnavailable()
     {
         await using var web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
@@ -296,8 +369,9 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
     private static async Task<string> LirePageAsync(HttpClient navigateur, string page)
     {
         using var reponse = await navigateur.GetAsync(new Uri(page, UriKind.Relative));
-        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
-        return WebUtility.HtmlDecode(await reponse.Content.ReadAsStringAsync()); // texte tel qu'affiché (« É » encodé en entité)
+        var corps = WebUtility.HtmlDecode(await reponse.Content.ReadAsStringAsync()); // texte tel qu'affiché (« É » encodé en entité)
+        Assert.True(reponse.StatusCode == HttpStatusCode.OK, $"{reponse.StatusCode} : {corps[..Math.Min(corps.Length, 3000)]}");
+        return corps;
     }
 
     private static async Task<string> LireAsync(HttpResponseMessage reponse)
@@ -325,4 +399,15 @@ internal sealed class ReseauEnPanne : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         throw new HttpRequestException("API injoignable (simulé).");
+}
+
+/// <summary>API au réveil : les premières connexions sont refusées (requête jamais partie), puis elle répond.</summary>
+internal sealed class ApiQuiDemarre(HttpMessageHandler api, int refus) : DelegatingHandler(api)
+{
+    private int _refus = refus;
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Interlocked.Decrement(ref _refus) >= 0
+            ? throw new HttpRequestException("Connexion refusée (simulée).", new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused))
+            : base.SendAsync(request, cancellationToken);
 }

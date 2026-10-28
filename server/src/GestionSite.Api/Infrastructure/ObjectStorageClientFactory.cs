@@ -12,5 +12,9 @@ public static class ObjectStorageClientFactory
             ServiceURL = serviceUrl,
             ForcePathStyle = true,
             AuthenticationRegion = region,
+            // Stockages compatibles S3 (R2, SeaweedFS) : pas d'envoi « aws-chunked » avec sommes de contrôle,
+            // qu'ils peuvent enregistrer tel quel et corrompre le contenu.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         });
 }

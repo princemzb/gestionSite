@@ -16,3 +16,17 @@ internal sealed class WebOptions
     /// </summary>
     public string? UrlPublique { get; init; }
 }
+
+/// <summary>Stockage compatible S3 des clés de chiffrement (Web:Cles), R2 en préproduction.</summary>
+internal sealed class StockageCles
+{
+    public string ServiceUrl { get; init; } = string.Empty;
+
+    public string AccessKey { get; init; } = string.Empty;
+
+    public string SecretKey { get; init; } = string.Empty;
+
+    public string Compartiment { get; init; } = string.Empty;
+
+    public string Region { get; init; } = "auto";
+}

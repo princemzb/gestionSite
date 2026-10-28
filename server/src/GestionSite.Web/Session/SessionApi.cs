@@ -203,14 +203,17 @@ internal sealed class SessionApi(
 
     private async Task<HttpResponseMessage> EnvoyerAvecAsync(HttpMethod methode, string chemin, object? corps, string acces, CancellationToken annulation)
     {
-        using var demande = new HttpRequestMessage(methode, new Uri(chemin, UriKind.Relative));
-        demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", acces);
-        if (corps is not null)
+        return await AvecReessaisAsync(async () =>
         {
-            demande.Content = JsonContent.Create(corps);
-        }
+            using var demande = new HttpRequestMessage(methode, new Uri(chemin, UriKind.Relative));
+            demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", acces);
+            if (corps is not null)
+            {
+                demande.Content = JsonContent.Create(corps);
+            }
 
-        return await Client.SendAsync(demande, annulation).ConfigureAwait(false);
+            return await Client.SendAsync(demande, annulation).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
 
     private async Task<string> JetonValideAsync(bool forcer, CancellationToken annulation)
@@ -270,11 +273,33 @@ internal sealed class SessionApi(
         return proprietes;
     }
 
+    /// <summary>
+    /// Au réveil du conteneur, l'application web écoute avant l'API : une connexion refusée (requête jamais
+    /// partie, donc sans effet) est réessayée quelques secondes. Toute autre erreur remonte aussitôt.
+    /// </summary>
+    private static async Task<HttpResponseMessage> AvecReessaisAsync(Func<Task<HttpResponseMessage>> envoi)
+    {
+        for (var essai = 1; ; essai++)
+        {
+            try
+            {
+                return await envoi().ConfigureAwait(false);
+            }
+            catch (HttpRequestException erreur) when (essai < 10 && erreur.InnerException is System.Net.Sockets.SocketException
+            {
+                SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused,
+            })
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * essai)).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async Task<HttpResponseMessage?> EnvoyerAnonymeAsync(string chemin, object corps, CancellationToken annulation)
     {
         try
         {
-            return await Client.PostAsJsonAsync(chemin, corps, annulation).ConfigureAwait(false);
+            return await AvecReessaisAsync(() => Client.PostAsJsonAsync(chemin, corps, annulation)).ConfigureAwait(false);
         }
         catch (HttpRequestException)
         {

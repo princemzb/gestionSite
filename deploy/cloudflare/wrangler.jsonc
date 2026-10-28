@@ -1,0 +1,28 @@
+// Préproduction gestionSite (DEP-01). Secrets à poser une fois : voir docs/exploitation/DEPLOIEMENT.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gestionsite-preprod",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "GestionSite",
+      "image": "../../server/Dockerfile",
+      "image_build_context": "../..",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "GESTIONSITE", "class_name": "GestionSite" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GestionSite"] }],
+  "vars": {
+    // À compléter au premier déploiement (adresse workers.dev du compte, point d'accès R2 du compte).
+    "URL_PUBLIQUE": "https://gestionsite-preprod.[SOUS-DOMAINE].workers.dev",
+    "R2_URL": "https://[ID-DU-COMPTE].r2.cloudflarestorage.com",
+    "R2_COMPARTIMENT": "gestionsite-preprod",
+    "R2_CLES_COMPARTIMENT": "gestionsite-preprod-cles"
+  }
+}
