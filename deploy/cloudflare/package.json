@@ -6,9 +6,6 @@
     "verifier": "tsc --noEmit && wrangler deploy --dry-run --outdir dist",
     "deployer": "wrangler deploy"
   },
-  "dependencies": {
-    "@cloudflare/containers": "0.3.7"
-  },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261013.1",
     "typescript": "5.9.3",

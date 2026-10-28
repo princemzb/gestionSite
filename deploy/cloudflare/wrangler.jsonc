@@ -5,13 +5,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
   "containers": [
     {
       "class_name": "GestionSite",
-      "image": "../../server/Dockerfile",
-      "image_build_context": "../..",
-      "instance_type": "basic",
-      "max_instances": 1
+      // Politique imposée par Cloudflare pour ce compte : type d'instance et démarrage dans src/index.ts.
+      "scheduling_policy": "durable_object",
+      "images": {
+        "application": { "dockerfile": "../../server/Dockerfile", "build_context": "../.." }
+      }
     }
   ],
   "durable_objects": {
@@ -19,9 +22,9 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GestionSite"] }],
   "vars": {
-    // À compléter au premier déploiement (adresse workers.dev du compte, point d'accès R2 du compte).
-    "URL_PUBLIQUE": "https://gestionsite-preprod.[SOUS-DOMAINE].workers.dev",
-    "R2_URL": "https://[ID-DU-COMPTE].r2.cloudflarestorage.com",
+    // Adresse workers.dev du compte ; compartiments R2 en juridiction UE (point d’accès « .eu »).
+    "URL_PUBLIQUE": "https://gestionsite-preprod.les-delices-de-natacha.workers.dev",
+    "R2_URL": "https://04da106372ff7dccc960a3a8bbf8966f.eu.r2.cloudflarestorage.com",
     "R2_COMPARTIMENT": "gestionsite-preprod",
     "R2_CLES_COMPARTIMENT": "gestionsite-preprod-cles"
   }
