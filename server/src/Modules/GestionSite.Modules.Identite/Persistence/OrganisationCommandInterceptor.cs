@@ -67,7 +67,6 @@ internal sealed class OrganisationCommandInterceptor(OrganisationCourante organi
     // SET n'accepte pas de paramètre ; il ne renvoie aucun résultat, le lecteur passe à la suite.
     internal static string Instruction(OrganisationCourante organisationCourante, CompteCourant compteCourant)
     {
-        organisationCourante.MarquerTransmise();
         return $"SET LOCAL {OrganisationCourante.VariableSession} = '{Litteral(organisationCourante.Id)}'; " +
             $"SET LOCAL {CompteCourant.VariableSession} = '{Litteral(compteCourant.Id)}';";
     }

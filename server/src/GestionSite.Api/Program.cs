@@ -24,6 +24,13 @@ builder.Services.AddOutputCache(options =>
 
 var app = builder.Build();
 
+// Commande d'exploitation (ADR-10) : `dotnet GestionSite.Api.dll ouvrir-organisation --nom … --admin-email … --admin-nom …`.
+// N'ouvre aucun port ; la base doit déjà être migrée.
+if (args is ["ouvrir-organisation", ..])
+{
+    return await CommandesExploitation.OuvrirOrganisationAsync(app.Services, args[1..], Console.Out).ConfigureAwait(false);
+}
+
 app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -40,4 +47,5 @@ app.MapIdentiteEndpoints()
     .MapPlateformeEndpoints();
 
 await app.RunAsync().ConfigureAwait(false);
+return 0;
 

@@ -28,6 +28,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
 
     public DbSet<JetonRenouvellement> JetonsRenouvellement => Set<JetonRenouvellement>();
 
+    public DbSet<Activation> Activations => Set<Activation>();
+
     // Lu à chaque requête par les filtres (paramètre EF) : sans organisation, aucune ligne.
     private Guid? OrganisationId => organisationCourante.Id;
 
@@ -50,6 +52,7 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.Entity<Compte>(compte =>
         {
             compte.ToTable("comptes");
+            compte.Property(c => c.NomAffiche).HasMaxLength(Compte.NomMaxLength).IsRequired();
             // Unicité garantie par la base aussi : deux créations simultanées ne peuvent pas doubler un e-mail.
             compte.HasIndex(c => c.NormalizedEmail).HasDatabaseName("ix_comptes_normalized_email").IsUnique();
             compte.HasIndex(c => c.NormalizedUserName).HasDatabaseName("ix_comptes_normalized_user_name");
@@ -57,6 +60,17 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("comptes_revendications");
         modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("comptes_connexions_externes");
         modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("comptes_jetons");
+        modelBuilder.Entity<Activation>(activation =>
+        {
+            activation.HasKey(a => a.Id);
+            activation.Property(a => a.Id).ValueGeneratedNever();
+            activation.Property(a => a.Empreinte).HasMaxLength(Activation.EmpreinteLength).IsFixedLength();
+            activation.HasIndex(a => a.Empreinte).IsUnique();
+            // Deux activations simultanées du même lien : une seule réussit.
+            activation.Property(a => a.UtiliseLe).IsConcurrencyToken();
+            activation.HasOne<Compte>().WithMany().HasForeignKey(a => a.CompteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<JetonRenouvellement>(jeton =>
         {
             jeton.ToTable("jetons_renouvellement");

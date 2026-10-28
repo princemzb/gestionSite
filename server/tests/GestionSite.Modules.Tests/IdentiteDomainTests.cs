@@ -111,12 +111,14 @@ public sealed class IdentiteDomainTests
     }
 
     [Fact]
-    public void CurrentOrganisationCannotAppearAfterTheDatabaseWasReached()
+    public void CurrentOrganisationCannotBeSetInsideAnOpenTransaction()
     {
         var courante = new OrganisationCourante();
-        courante.MarquerTransmise();
+        courante.SignalerTransaction(ouverte: true);
 
         Assert.Throws<InvalidOperationException>(() => courante.Definir(Guid.NewGuid()));
+        courante.SignalerTransaction(ouverte: false);
+        courante.Definir(Guid.NewGuid());
     }
 
     [Fact]
