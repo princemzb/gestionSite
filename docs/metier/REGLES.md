@@ -36,6 +36,13 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 | RG-31 | P | Toute correction sensible conserve l’auteur, le motif et la valeur précédente dans un journal approprié, hors trajets de position. |
 | RG-32 | P | Une modification matérielle d’estimation invalide sa validation antérieure ; nouvelle autorisation si montant ou périmètre autorisé change. |
 
+## Dépôt public — décisions US-08, V, 28 octobre 2026 (porteur du projet)
+- Photos : jusqu’à 3 par dépôt, JPEG, PNG ou HEIC, 10 Mo au plus chacune ; métadonnées (dont la position GPS) retirées à la réception.
+- Anti-abus : Turnstile (Cloudflare, ADR-08) vérifié côté serveur, derrière une interface remplaçable, plus une limite de dépôts par adresse ; aucune vérification d’identité.
+- QR code et lien public d’un site : affichables et imprimables par l’administrateur (tous les sites) et par responsable et délégués (leurs sites).
+- Dépôts reçus : liste en lecture par site dès US-08, pour les comptes habilités sur le site (T, R/D, P/C, conformément à DEC-04) ; leur traitement relève d’US-09.
+- Ouvert, bloquant avant la production seulement : durée de conservation des coordonnées des déclarants publics (données personnelles, SECURITE).
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.

@@ -19,6 +19,7 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 ## Travail en cours
 | Élément | État | Prochaine action |
 | --- | --- | --- |
+| **Sprint SP-003 : US-08 Dépôt public et QR** (choix du porteur 28/10 : US-08 puis US-07) | Affinée ; décisions du porteur inscrites (REGLES « Dépôt public », PERMISSIONS) ; cartes UX-03 (en cours), S08-01 à S08-05 (sprint sélectionné) | **UX-03** : propositions de maquettes (formulaire public sur téléphone, QR du site, dépôts reçus) puis STOP jusqu'au choix du porteur. S08-01 (serveur, sans écran) peut avancer en parallèle. |
 | US-06 Comptes et droits | **Livrée le 28/10** (S06-01 à S06-06) : en service en préproduction | — |
 | PREP-06 POC commandes hors connexion | Terminée (PR #32, 3b2e968) : protocole idempotent + file par profil, rapport exécutable 4 × OK (docs/poc/PREP-06.md) ; conception à reprendre dans US-14 | PREP-07 (essais de localisation sur site) et PREP-08 (cas IA, service externe) : décision et actions du porteur nécessaires. |
 | PREP-03 / PREP-04 préparation POC-01 et POC-02 | Protocoles proposés : docs/poc/PREP-03-protocole-localisation.md, docs/poc/PREP-04-cas-ia.md ; en Recette (validation du porteur) | Porteur : site et dates d'essai, relecture des 30 cas par le terrain, fournisseur et budget IA, politique d'images. Puis PREP-07 / PREP-08. |
