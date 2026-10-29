@@ -23,7 +23,8 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     organisation_id = table.Column<Guid>(type: "uuid", nullable: false),
                     site_id = table.Column<Guid>(type: "uuid", nullable: false),
                     nom = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    cree_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    cree_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -62,12 +63,14 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     site_id = table.Column<Guid>(type: "uuid", nullable: false),
                     batiment_id = table.Column<Guid>(type: "uuid", nullable: false),
                     nom = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    ordre = table.Column<int>(type: "integer", nullable: false)
+                    ordre = table.Column<int>(type: "integer", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_niveaux", x => x.id);
                     table.UniqueConstraint("ak_niveaux_id_organisation_id", x => new { x.id, x.organisation_id });
+                    table.CheckConstraint("ck_niveaux_ordre", "ordre BETWEEN -10 AND 100");
                     table.ForeignKey(
                         name: "fk_niveaux_batiments_batiment_id_organisation_id",
                         columns: x => new { x.batiment_id, x.organisation_id },
@@ -88,7 +91,8 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     batiment_id = table.Column<Guid>(type: "uuid", nullable: false),
                     niveau_id = table.Column<Guid>(type: "uuid", nullable: true),
                     nom = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    parties_communes = table.Column<bool>(type: "boolean", nullable: false)
+                    parties_communes = table.Column<bool>(type: "boolean", nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -111,7 +115,7 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_batiments_organisation_id_site_id_nom",
+                name: "ix_batiments_nom_par_site",
                 schema: "patrimoine",
                 table: "batiments",
                 columns: new[] { "organisation_id", "site_id", "nom" },
@@ -124,16 +128,9 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                 columns: new[] { "organisation_id", "cible_id", "id" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_niveaux_batiment_id_organisation_id_nom",
+                name: "ix_niveaux_nom_par_batiment",
                 schema: "patrimoine",
                 table: "niveaux",
-                columns: new[] { "batiment_id", "organisation_id", "nom" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_zones_batiment_id_organisation_id_nom",
-                schema: "patrimoine",
-                table: "zones",
                 columns: new[] { "batiment_id", "organisation_id", "nom" },
                 unique: true);
 
@@ -142,6 +139,14 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                 schema: "patrimoine",
                 table: "zones",
                 columns: new[] { "niveau_id", "organisation_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_zones_nom_par_niveau",
+                schema: "patrimoine",
+                table: "zones",
+                columns: new[] { "batiment_id", "organisation_id", "niveau_id", "nom" },
+                unique: true)
+                .Annotation("Npgsql:NullsDistinct", false);
 
             migrationBuilder.CreateIndex(
                 name: "ix_zones_parties_communes_par_batiment",
@@ -163,7 +168,6 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
             migrationBuilder.Sql("GRANT SELECT, INSERT ON patrimoine.journal_inventaire TO gestionsite_app;");
         }
 
-        /// <inheritdoc />
         // Seconde barrière (ADR-10), comme les autres modules : sans organisation de session, aucune ligne visible ni écrite.
         private static void Isoler(MigrationBuilder migrationBuilder, string table)
         {

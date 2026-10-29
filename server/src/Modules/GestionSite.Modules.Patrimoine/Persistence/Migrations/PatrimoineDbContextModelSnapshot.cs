@@ -47,6 +47,12 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_batiments");
 
@@ -55,7 +61,7 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
 
                     b.HasIndex("OrganisationId", "SiteId", "Nom")
                         .IsUnique()
-                        .HasDatabaseName("ix_batiments_organisation_id_site_id_nom");
+                        .HasDatabaseName("ix_batiments_nom_par_site");
 
                     b.ToTable("batiments", "patrimoine");
                 });
@@ -143,6 +149,12 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_niveaux");
 
@@ -151,9 +163,12 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
 
                     b.HasIndex("BatimentId", "OrganisationId", "Nom")
                         .IsUnique()
-                        .HasDatabaseName("ix_niveaux_batiment_id_organisation_id_nom");
+                        .HasDatabaseName("ix_niveaux_nom_par_batiment");
 
-                    b.ToTable("niveaux", "patrimoine");
+                    b.ToTable("niveaux", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_niveaux_ordre", "ordre BETWEEN -10 AND 100");
+                        });
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Zone", b =>
@@ -188,6 +203,12 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_zones");
 
@@ -202,9 +223,11 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.HasIndex("NiveauId", "OrganisationId")
                         .HasDatabaseName("ix_zones_niveau_id_organisation_id");
 
-                    b.HasIndex("BatimentId", "OrganisationId", "Nom")
+                    b.HasIndex("BatimentId", "OrganisationId", "NiveauId", "Nom")
                         .IsUnique()
-                        .HasDatabaseName("ix_zones_batiment_id_organisation_id_nom");
+                        .HasDatabaseName("ix_zones_nom_par_niveau");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("BatimentId", "OrganisationId", "NiveauId", "Nom"), false);
 
                     b.ToTable("zones", "patrimoine");
                 });

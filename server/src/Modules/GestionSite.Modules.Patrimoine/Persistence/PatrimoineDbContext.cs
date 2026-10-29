@@ -50,17 +50,20 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             batiment.Property(b => b.Id).ValueGeneratedNever();
             batiment.Property(b => b.Nom).HasMaxLength(Nom.Max);
             batiment.HasAlternateKey(b => new { b.Id, b.OrganisationId });
-            batiment.HasIndex(b => new { b.OrganisationId, b.SiteId, b.Nom }).IsUnique();
+            batiment.HasIndex(b => new { b.OrganisationId, b.SiteId, b.Nom }).IsUnique().HasDatabaseName(ContraintesNom.Batiment);
+            // Renommages concurrents détectés (xmin) : le journal garde la vraie valeur « avant ».
+            batiment.Property<uint>("xmin").IsRowVersion();
         });
 
         modelBuilder.Entity<Niveau>(niveau =>
         {
-            niveau.ToTable("niveaux");
             niveau.HasKey(n => n.Id);
             niveau.Property(n => n.Id).ValueGeneratedNever();
             niveau.Property(n => n.Nom).HasMaxLength(Nom.Max);
             niveau.HasAlternateKey(n => new { n.Id, n.OrganisationId });
-            niveau.HasIndex(n => new { n.BatimentId, n.OrganisationId, n.Nom }).IsUnique();
+            niveau.HasIndex(n => new { n.BatimentId, n.OrganisationId, n.Nom }).IsUnique().HasDatabaseName(ContraintesNom.Niveau);
+            niveau.ToTable("niveaux", table => table.HasCheckConstraint("ck_niveaux_ordre", "ordre BETWEEN -10 AND 100"));
+            niveau.Property<uint>("xmin").IsRowVersion();
             niveau.HasOne<Batiment>().WithMany()
                 .HasForeignKey(n => new { n.BatimentId, n.OrganisationId })
                 .HasPrincipalKey(b => new { b.Id, b.OrganisationId })
@@ -74,7 +77,10 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             zone.Property(z => z.Id).ValueGeneratedNever();
             zone.Property(z => z.Nom).HasMaxLength(Nom.Max);
             zone.HasAlternateKey(z => new { z.Id, z.OrganisationId });
-            zone.HasIndex(z => new { z.BatimentId, z.OrganisationId, z.Nom }).IsUnique();
+            // Même nom permis sur deux niveaux (« Sanitaires » au rez-de-chaussée et à l'étage), pas sur le même.
+            zone.HasIndex(z => new { z.BatimentId, z.OrganisationId, z.NiveauId, z.Nom }).IsUnique().AreNullsDistinct(false)
+                .HasDatabaseName(ContraintesNom.Zone);
+            zone.Property<uint>("xmin").IsRowVersion();
             // Une seule zone « Parties communes » par bâtiment.
             zone.HasIndex(z => new { z.BatimentId, z.OrganisationId }).IsUnique().HasFilter("parties_communes")
                 .HasDatabaseName("ix_zones_parties_communes_par_batiment");
@@ -128,4 +134,14 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             }
         }
     }
+}
+
+/// <summary>Index d'unicité des noms : seule leur violation se traduit en 409 « nom_existant ».</summary>
+internal static class ContraintesNom
+{
+    internal const string Batiment = "ix_batiments_nom_par_site";
+    internal const string Niveau = "ix_niveaux_nom_par_batiment";
+    internal const string Zone = "ix_zones_nom_par_niveau";
+
+    internal static bool Contient(string? contrainte) => contrainte is Batiment or Niveau or Zone;
 }

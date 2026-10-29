@@ -117,6 +117,36 @@ public sealed class InventaireStructureTests(InfrastructureFixture infrastructur
         Assert.Equal(HttpStatusCode.NotFound, inconnu.StatusCode);
     }
 
+    [Fact]
+    public async Task TheSameRoomNameMayExistOnEachLevelButNotTwiceOnOne()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var eglise = await CreerAsync($"{_base}/buildings", new { nom = "Église" }, technicien);
+        var rdc = await CreerAsync($"{_base}/buildings/{eglise}/levels", new { nom = "Rez-de-chaussée", ordre = 0 }, technicien);
+        var etage = await CreerAsync($"{_base}/buildings/{eglise}/levels", new { nom = "1er étage", ordre = 1 }, technicien);
+
+        await CreerAsync($"{_base}/zones", new { nom = "Sanitaires", batimentId = eglise, niveauId = rdc }, technicien);
+        await CreerAsync($"{_base}/zones", new { nom = "Sanitaires", batimentId = eglise, niveauId = etage }, technicien);
+        using var memeNiveau = await EnvoyerAsync(HttpMethod.Post, $"{_base}/zones", technicien, new { nom = "SANITAIRES", batimentId = eglise, niveauId = rdc });
+        using var casse = await EnvoyerAsync(HttpMethod.Post, $"{_base}/buildings", technicien, new { nom = "église" });
+
+        Assert.Equal(HttpStatusCode.Conflict, memeNiveau.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, casse.StatusCode);
+    }
+
+    [Fact]
+    public async Task MissingRequiredFieldsAreInputErrors()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var eglise = await CreerAsync($"{_base}/buildings", new { nom = "Église" }, technicien);
+
+        using var sansOrdre = await EnvoyerAsync(HttpMethod.Post, $"{_base}/buildings/{eglise}/levels", technicien, new { nom = "Sous-sol" });
+        using var sansBatiment = await EnvoyerAsync(HttpMethod.Post, $"{_base}/zones", technicien, new { nom = "Sacristie" });
+
+        Assert.Equal("ordre", await ChampAsync(sansOrdre));
+        Assert.Equal("batimentId", await ChampAsync(sansBatiment));
+    }
+
     private async Task<JsonElement> LireAsync(string jeton)
     {
         using var reponse = await EnvoyerAsync(HttpMethod.Get, $"{_base}/structure", jeton);

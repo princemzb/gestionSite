@@ -55,7 +55,7 @@ Inventaire — structure (US-07, S07-01) : `/organizations/{orgId}/sites/{siteId
 | POST zones | Idem | `nom`, `batimentId`, `niveauId` facultatif (du même bâtiment) → `{id}` |
 | PUT buildings/{id}, levels/{id}, zones/{id} | Idem | `nom` → 204 ; « Parties communes » ne se renomme pas (422) ; sans changement, rien n'est écrit |
 
-Erreurs : 422 `donnee_invalide` + `champ` ; 409 `nom_existant` (même nom dans le site pour un bâtiment, dans le bâtiment pour un niveau ou une zone) ; 404 hors périmètre ou élément absent ; 403 sans rôle de terrain (administrateur seul, pasteur, coordination). Chaque création et modification est tracée dans `patrimoine.journal_inventaire` (ajout seul : auteur, date, valeurs avant et après).
+Erreurs : 422 `donnee_invalide` + `champ` (champ absent compris) ; 409 `nom_existant` (casse ignorée : même nom dans le site pour un bâtiment, dans le bâtiment pour un niveau, sur le même niveau pour une zone — « Sanitaires » peut exister à chaque étage) ; 409 `modifie_entre_temps` (renommage concurrent) ; 404 hors périmètre ou élément absent ; 403 sans rôle de terrain (administrateur seul, pasteur, coordination). Chaque création et modification est tracée dans `patrimoine.journal_inventaire` (ajout seul : auteur, date, valeurs avant et après).
 
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |
