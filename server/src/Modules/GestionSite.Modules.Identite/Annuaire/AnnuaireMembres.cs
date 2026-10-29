@@ -21,4 +21,19 @@ internal sealed class AnnuaireMembres(IdentiteDbContext context) : IAnnuaireMemb
                 select new { c.Id, c.NomAffiche })
             .Distinct().ToDictionaryAsync(x => x.Id, x => x.NomAffiche, cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<MembreSite>> MembresDuSiteAsync(Guid siteId, CancellationToken cancellationToken)
+    {
+        var membres = await context.Membres.AsNoTracking().Include(m => m.Roles)
+            .Where(m => m.RevoqueLe == null && m.AccepteLe != null && m.Roles.Any(r => r.SiteId == siteId))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var ids = membres.Select(m => m.CompteId).ToList();
+        var noms = await context.Users.AsNoTracking().Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.NomAffiche, cancellationToken).ConfigureAwait(false);
+        return [.. membres
+            .Select(m => new MembreSite(
+                m.CompteId, noms.GetValueOrDefault(m.CompteId) ?? string.Empty,
+                [.. m.Roles.Where(r => r.SiteId == siteId).Select(r => r.Role.ToString()).Order(StringComparer.Ordinal)]))
+            .OrderBy(m => m.Nom, StringComparer.CurrentCulture)];
+    }
 }

@@ -16,6 +16,12 @@ internal sealed record DemandeClassement(string? Motif, string? Commentaire, uin
 
 internal sealed record DossierCree(Guid Id);
 
+internal sealed record DemandeAffectation(string? Titre, Guid? IntervenantCompteId, string? Prestataire, Guid? ReferentCompteId, uint? Version);
+
+internal sealed record DemandeVersion(uint? Version);
+
+internal sealed record InterventionCreee(int Numero);
+
 /// <summary>Dossiers d'un site (CONTRATS : dossiers, S09-01).</summary>
 internal static class DossiersEndpoints
 {
@@ -25,6 +31,18 @@ internal static class DossiersEndpoints
             .RequireAuthorization().AddEndpointFilter(RefusCommuns.Traduire).AddEndpointFilter(TraduireRefus);
         dossiers.MapGet("/", async (Guid orgId, Guid siteId, bool? clos, ServiceDossiers service, CancellationToken ct) =>
             Results.Ok(await service.ListerAsync(orgId, siteId, clos ?? false, ct).ConfigureAwait(false)));
+        dossiers.MapGet("/assignees", async (Guid orgId, Guid siteId, ServiceInterventions service, CancellationToken ct) =>
+            Results.Ok(await service.IntervenantsAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        dossiers.MapGet("/mine", async (Guid orgId, Guid siteId, ServiceInterventions service, CancellationToken ct) =>
+            Results.Ok(await service.MesInterventionsAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        dossiers.MapPost("/{id:guid}/interventions", async (Guid orgId, Guid siteId, Guid id, DemandeAffectation demande, ServiceInterventions service, CancellationToken ct) =>
+            Results.Ok(new InterventionCreee(await service.AffecterAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false))));
+        dossiers.MapPost("/{id:guid}/interventions/{numero:int}/start", async (
+            Guid orgId, Guid siteId, Guid id, int numero, DemandeVersion demande, ServiceInterventions service, CancellationToken ct) =>
+        {
+            await service.DemarrerAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
         dossiers.MapGet("/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceDossiers service, CancellationToken ct) =>
             Results.Ok(await service.LireAsync(orgId, siteId, id, ct).ConfigureAwait(false)));
         dossiers.MapPost("/", async (Guid orgId, Guid siteId, DemandeDeclaration demande, ServiceDossiers service, CancellationToken ct) =>
@@ -54,9 +72,17 @@ internal static class DossiersEndpoints
         {
             return await next(context).ConfigureAwait(false);
         }
-        catch (DossierIntrouvableException)
+        catch (Exception introuvable) when (introuvable is DossierIntrouvableException or InterventionIntrouvableException)
         {
             return Results.NotFound();
+        }
+        catch (Domain.InterventionIncompatibleException incompatible)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, incompatible.Message, "statut_incompatible");
+        }
+        catch (Domain.DossierNonQualifieException nonQualifie)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, nonQualifie.Message, "non_qualifie");
         }
         catch (Domain.StatutIncompatibleException incompatible)
         {

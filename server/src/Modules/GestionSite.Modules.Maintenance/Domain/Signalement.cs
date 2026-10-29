@@ -50,6 +50,29 @@ internal enum OrigineDossier
 /// <summary>Dossier principal qui a déjà des doublons rattachés : ni rattachement ailleurs ni classement (409 « doublons_rattaches »).</summary>
 internal sealed class DoublonsRattachesException() : Exception("Ce dossier porte des doublons rattachés : traitez-le comme dossier principal.");
 
+/// <summary>Affectation d'un dossier sans priorité ni zone (409 « non_qualifie ») : qualifier d'abord.</summary>
+internal sealed class DossierNonQualifieException() : Exception("Qualifiez le dossier (priorité et zone) avant de l'affecter.");
+
+/// <summary>Délais cibles par priorité (DEC-05), en temps calendaire : prise en charge et résolution.</summary>
+internal static class Delais
+{
+    internal static TimeSpan PriseEnCharge(PrioriteDossier priorite) => priorite switch
+    {
+        PrioriteDossier.Urgente => TimeSpan.FromHours(4),
+        PrioriteDossier.Haute => TimeSpan.FromDays(1),
+        PrioriteDossier.Normale => TimeSpan.FromDays(3),
+        _ => TimeSpan.FromDays(7),
+    };
+
+    internal static TimeSpan Resolution(PrioriteDossier priorite) => priorite switch
+    {
+        PrioriteDossier.Urgente => TimeSpan.FromDays(2),
+        PrioriteDossier.Haute => TimeSpan.FromDays(7),
+        PrioriteDossier.Normale => TimeSpan.FromDays(30),
+        _ => TimeSpan.FromDays(90),
+    };
+}
+
 /// <summary>Dossier dans un statut qui n'admet pas cette action (409 « statut_incompatible »).</summary>
 internal sealed class StatutIncompatibleException(StatutDossier statut) : Exception($"Action impossible pour un dossier « {statut} ».")
 {
@@ -160,6 +183,12 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     public DateTimeOffset? QualifieLe { get; private set; }
 
+    /// <summary>Première affectation : point de départ du délai de prise en charge (DEC-05).</summary>
+    public DateTimeOffset? AffecteLe { get; private set; }
+
+    /// <summary>Premier démarrage d'une intervention : fin de la prise en charge.</summary>
+    public DateTimeOffset? PrisEnChargeLe { get; private set; }
+
     /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
     public Guid? DoublonDe { get; private set; }
 
@@ -195,6 +224,39 @@ internal sealed class Signalement : IAppartientAOrganisation
         ComposantId = composantId;
         QualifieLe ??= maintenant;
         return true;
+    }
+
+    /// <summary>Une intervention est affectée (R/D) : le dossier qualifié passe « Affecté » à la première (DEC-03).</summary>
+    internal void Affecter(DateTimeOffset maintenant)
+    {
+        if (!Ouvert)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        if (Priorite is null || ZoneId is null)
+        {
+            throw new DossierNonQualifieException();
+        }
+
+        if (Statut == StatutDossier.AQualifier)
+        {
+            Statut = StatutDossier.Affecte;
+        }
+
+        AffecteLe ??= maintenant;
+    }
+
+    /// <summary>Une intervention démarre : le dossier passe « En cours » ; la première fixe la prise en charge.</summary>
+    internal void Demarrer(DateTimeOffset maintenant)
+    {
+        if (Statut is not (StatutDossier.Affecte or StatutDossier.EnCours))
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        Statut = StatutDossier.EnCours;
+        PrisEnChargeLe ??= maintenant;
     }
 
     /// <summary>
@@ -339,6 +401,8 @@ internal enum NatureEvenementDossier
     Qualification = 2,
     RattachementDoublon = 3,
     ClassementSansSuite = 4,
+    Affectation = 5,
+    Demarrage = 6,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

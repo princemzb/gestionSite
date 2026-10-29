@@ -15,12 +15,17 @@ internal sealed record DossierResume(
     Guid Id, string Titre, string Statut, string? Priorite, Guid? ZoneId, string? Zone, bool Danger, bool ActiviteBloquee, string Origine,
     DateTimeOffset RecuLe);
 
+internal sealed record InterventionLue(
+    int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
+    string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe);
+
 internal sealed record EvenementDossierLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
 internal sealed record DossierLu(
     Guid Id, string Titre, string Statut, string Nature, string Description, string Emplacement, bool Danger, bool ActiviteBloquee,
     string Origine, DateTimeOffset RecuLe, string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos, string? Priorite,
     LieuInventaire? Lieu, DateTimeOffset? QualifieLe, Guid? DoublonDe, string? MotifClassement, string? CommentaireClassement,
+    DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, IReadOnlyList<InterventionLue> Interventions,
     IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version);
 
 /// <summary>Dossier absent du site (404).</summary>
@@ -68,8 +73,11 @@ internal sealed class ServiceDossiers(
             : [];
         var journal = await context.Journal.AsNoTracking().Where(e => e.DossierId == id).OrderByDescending(e => e.Id)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var auteurs = await annuaire.NomsAsync([.. journal.Where(e => e.AuteurCompteId is not null).Select(e => e.AuteurCompteId!.Value).Distinct()], cancellationToken)
-            .ConfigureAwait(false);
+        var interventions = await context.Interventions.AsNoTracking().Where(i => i.DossierId == id).OrderBy(i => i.Numero)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var comptes = journal.Select(e => e.AuteurCompteId).Concat(interventions.SelectMany(i => new[] { i.IntervenantCompteId, i.ReferentCompteId }))
+            .Where(c => c is not null).Select(c => c!.Value).Distinct().ToList();
+        var auteurs = await annuaire.NomsAsync(comptes, cancellationToken).ConfigureAwait(false);
         var lieu = dossier.ZoneId is { } zone
             ? await inventaire.LieuAsync(siteId, zone, dossier.ComposantId, composantActif: false, cancellationToken).ConfigureAwait(false)
             : null;
@@ -85,6 +93,10 @@ internal sealed class ServiceDossiers(
             dossier.Id, Titre(dossier), dossier.Statut.ToString(), dossier.Nature.ToString(), dossier.Description, dossier.Emplacement, dossier.Danger,
             dossier.ActiviteBloquee, dossier.Origine.ToString(), dossier.RecuLe, dossier.NomDeclarant, dossier.ContactDeclarant, photos,
             dossier.Priorite?.ToString(), lieu, dossier.QualifieLe, dossier.DoublonDe, dossier.MotifClassement?.ToString(), dossier.CommentaireClassement,
+            dossier.AffecteLe, Echeances.PriseEnCharge(dossier), Echeances.Resolution(dossier),
+            [.. interventions.Select(i => new InterventionLue(
+                i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
+                i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,
@@ -257,7 +269,7 @@ internal sealed class ServiceDossiers(
     }
 
     // Titre d'affichage : première ligne de la description, raccourcie.
-    private static string Titre(Signalement dossier)
+    internal static string Titre(Signalement dossier)
     {
         var ligne = dossier.Description.Split('\n', 2)[0].Trim();
         return ligne.Length <= TitreMax ? ligne : string.Concat(ligne.AsSpan(0, TitreMax - 1), "…");
