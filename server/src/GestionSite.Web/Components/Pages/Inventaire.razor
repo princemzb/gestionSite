@@ -284,7 +284,14 @@ else
             {
                 <table>
                     <thead>
-                        <tr><th scope="col">Composant</th><th scope="col">Corps d'état</th><th scope="col">Zone</th><th scope="col">Quantité et état</th></tr>
+                        <tr>
+                            <th scope="col">Composant</th><th scope="col">Corps d'état</th>
+                            @if (ZoneDemandee is null)
+                            {
+                                <th scope="col">Zone</th>
+                            }
+                            <th scope="col">Quantité et état</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @foreach (var c in Composants)
@@ -307,7 +314,11 @@ else
                                     }
                                 </td>
                                 <td>@Libelles.CorpsEtat(c.CorpsEtat)</td>
-                                <td>@(Zones.TryGetValue(c.ZoneId, out var lieu) ? lieu : "—")</td>
+                                @if (ZoneDemandee is null)
+                                {
+                                    @* Zone sélectionnée dans l'arborescence : colonne inutile. *@
+                                    <td>@(Zones.TryGetValue(c.ZoneId, out var lieu) ? lieu : "—")</td>
+                                }
                                 <td>@QuantiteEtEtat(c)</td>
                             </tr>
                         }

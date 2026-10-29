@@ -5,7 +5,7 @@
 <PageTitle>Activer mon compte · gestionSite</PageTitle>
 
 <h2>Activer mon compte</h2>
-<EditForm Model="Saisie" FormName="activation" OnSubmit="ActiverAsync" class="formulaire" style="max-width: none; margin: 0">
+<EditForm Model="Saisie" FormName="activation" OnSubmit="ActiverAsync" class="formulaire pleine-largeur">
     <input type="hidden" name="Saisie.Jeton" value="@(Saisie.Jeton ?? Jeton)" />
     <label class="champ">Nouveau mot de passe
         <InputText type="password" @bind-Value="Saisie.MotDePasse" autocomplete="new-password" aria-describedby="regle" required />

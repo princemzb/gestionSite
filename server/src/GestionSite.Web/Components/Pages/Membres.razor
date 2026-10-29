@@ -27,7 +27,7 @@ else
         </div>
         @if (Etape == 0)
         {
-            <a class="bouton-principal" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres?inviter=1")">Inviter un membre</a>
+            <a class="bouton-principal lien-bouton" href="@($"/organisations/{OrganisationId}/membres?inviter=1")">Inviter un membre</a>
         }
     </div>
 
@@ -47,7 +47,7 @@ else
                 @foreach (var membre in Liste)
                 {
                     <tr>
-                        <td><strong>@membre.Nom</strong><br /><span class="vide" style="font-size: 14px">@membre.Email</span></td>
+                        <td><strong>@membre.Nom</strong><br /><span class="vide petit">@membre.Email</span></td>
                         @if (membre.Roles.Any(r => r.Role == "Administrateur"))
                         {
                             <td colspan="@Math.Max(Sites.Count, 1)">Administrateur · toute l'organisation</td>
@@ -83,19 +83,19 @@ else
 
             @if (Etape == 3 && Lien is not null)
             {
-                <h2 style="margin: 0; font-size: 20px">Invitation créée pour @Saisie.Nom</h2>
+                <h2 class="titre-etape">Invitation créée pour @Saisie.Nom</h2>
                 <p class="note">Copiez ce lien et transmettez-le vous-même. Il ne sera plus affiché et reste valable 72 heures.</p>
                 <code class="lien-activation">@Lien</code>
-                <div class="actions"><a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
+                <div class="actions"><a class="bouton-secondaire lien-bouton" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
             }
             else if (Etape == 3)
             {
                 <p class="alerte succes">@Saisie.Nom est invité. Son compte existe déjà : l'invitation l'attend dans son espace, à accepter.</p>
-                <div class="actions"><a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
+                <div class="actions"><a class="bouton-secondaire lien-bouton" href="@($"/organisations/{OrganisationId}/membres")">Terminer</a></div>
             }
             else
             {
-                <EditForm Model="Saisie" FormName="invitation" OnSubmit="SuivantAsync" style="display: flex; flex-direction: column; gap: 16px">
+                <EditForm Model="Saisie" FormName="invitation" OnSubmit="SuivantAsync" class="formulaire-etapes">
                     <input type="hidden" name="Saisie.Etape" value="@Etape" />
                     @if (Etape == 1)
                     {
@@ -132,8 +132,8 @@ else
                         </fieldset>
                     }
                     <div class="actions">
-                        <a class="bouton-secondaire" style="display: inline-flex; align-items: center; text-decoration: none" href="@($"/organisations/{OrganisationId}/membres")">Annuler</a>
-                        <button type="submit" class="bouton-principal" style="height: 48px">@(Etape == 1 ? "Continuer" : "Créer l'invitation")</button>
+                        <a class="bouton-secondaire lien-bouton" href="@($"/organisations/{OrganisationId}/membres")">Annuler</a>
+                        <button type="submit" class="bouton-principal hauteur-48">@(Etape == 1 ? "Continuer" : "Créer l'invitation")</button>
                     </div>
                 </EditForm>
             }

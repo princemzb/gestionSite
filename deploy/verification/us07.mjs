@@ -30,7 +30,7 @@ ok("invitation du technicien créée", invitation.startsWith(`${base}/activation
 const contexte = await b.newContext({ viewport: { width: 1440, height: 900 } });
 const tech = await contexte.newPage();
 const violations = [];
-tech.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(m.text()); });
+tech.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${tech.url()} → ${m.text()}`); });
 await tech.goto(invitation);
 await tech.fill("input[type=password] >> nth=0", mdp); await tech.fill("input[type=password] >> nth=1", mdp);
 await tech.click("button:has-text('Activer')"); await tech.waitForLoadState();
@@ -86,5 +86,6 @@ await tech.click("form.formulaire-inventaire button[type=submit]"); await tech.w
 ok("répartition incohérente expliquée, saisie conservée",
   (await tech.textContent("[role=alert]")).includes("La somme des quantités par état doit égaler la quantité totale")
   && await tech.inputValue("input[name='ComposantSaisi.Nom']") === "Bancs");
-ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
+violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
+ok("aucune violation de la politique de sécurité du contenu (activation comprise)", violations.length === 0);
 await b.close();
