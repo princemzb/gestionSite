@@ -339,3 +339,14 @@ form.formulaire-inventaire { padding: 0; }
 .repere { flex: 0 0 8px; height: 44px; border-radius: 999px; background: var(--encre-3); }
 .repere.danger, .repere.priorite-urgente { background: var(--danger); }
 .repere.priorite-haute { background: var(--alerte); }
+
+/* Téléphone (US-09 : « Mes interventions » du technicien) : navigation compacte en haut, le contenu reste au premier écran. */
+@media (max-width: 640px) {
+  .admin-nav { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px; padding: 10px 12px; }
+  .admin-nav .marque { padding: 0 8px 0 4px; font-size: 16px; }
+  .admin-nav .organisation { display: none; }
+  .admin-nav a { padding: 8px 10px; font-size: 14px; }
+  .admin-nav form { margin: 0 0 0 auto; }
+  .admin-nav button { padding: 8px 10px; font-size: 14px; }
+  .admin-contenu { padding: 16px 12px; }
+}

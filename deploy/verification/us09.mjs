@@ -40,6 +40,10 @@ const lienResponsable = await inviter("Rose Responsable", "Responsable");
 const lienTechnicien = await inviter("Marc Technicien", "Technicien");
 ok("invitations créées (responsable, technicien)", lienResponsable.startsWith(`${base}/activation?jeton=`) && lienTechnicien.startsWith(`${base}/activation?jeton=`));
 
+// Le technicien active son compte d'abord : seul un membre actif peut recevoir une intervention.
+const tech = await page(390, 844);
+await activer(tech, lienTechnicien);
+
 // 2. Responsable : un bâtiment, puis une déclaration interne
 const resp = await page();
 await activer(resp, lienResponsable);
@@ -66,10 +70,8 @@ await envoyer(resp, "form:has(button:has-text('Affecter'))");
 ok("intervention affectée, échéance de prise en charge affichée", (await resp.textContent("main")).includes("Reprendre le solin") && (await resp.textContent(".delai-dossier")).includes("Prise en charge"));
 
 // 4. Technicien sur téléphone : Mes interventions, démarrage, clôture
-const tech = await page(390, 844);
-await activer(tech, lienTechnicien);
 await tech.goto(`${base}/organisations/${org}/interventions`);
-ok("« Mes interventions » sur téléphone", (await tech.textContent(".liste-interventions")).includes("Fuite au plafond"));
+ok("« Mes interventions » sur téléphone", (await tech.textContent(".liste-interventions")).includes("Reprendre le solin"));
 await tech.screenshot({ path: "us09-mes-interventions-tel.png", fullPage: true });
 await tech.click(".ligne-intervention"); await tech.waitForLoadState();
 await Promise.all([tech.waitForNavigation(), tech.click("button:has-text('Démarrer')")]);
