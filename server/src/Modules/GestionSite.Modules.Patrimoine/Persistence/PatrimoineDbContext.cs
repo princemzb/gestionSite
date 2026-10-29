@@ -27,6 +27,10 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<VersionGrille> Grilles => Set<VersionGrille>();
 
+    public DbSet<Evaluation> Evaluations => Set<Evaluation>();
+
+    public DbSet<PhotoEvaluation> PhotosEvaluation => Set<PhotoEvaluation>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -109,6 +113,7 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             composant.Property(c => c.Remarques).HasMaxLength(Composant.RemarquesMax);
             composant.Property(c => c.MotifRetrait).HasMaxLength(Composant.MotifMax);
             composant.Property<uint>("xmin").IsRowVersion();
+            composant.HasAlternateKey(c => new { c.Id, c.OrganisationId });
             composant.HasIndex(c => new { c.OrganisationId, c.SiteId, c.ZoneId });
             composant.HasOne<Zone>().WithMany()
                 .HasForeignKey(c => new { c.ZoneId, c.OrganisationId })
@@ -126,6 +131,47 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             grille.Property(g => g.Mesures).HasColumnType("jsonb");
             // Une version par site et corps d'état : deux modifications simultanées ne créent pas deux « v3 ».
             grille.HasIndex(g => new { g.OrganisationId, g.SiteId, g.CorpsEtat, g.Version }).IsUnique().HasDatabaseName(VersionGrille.ContrainteVersion);
+        });
+
+        modelBuilder.Entity<Evaluation>(evaluation =>
+        {
+            evaluation.ToTable("evaluations", table =>
+            {
+                // Composant individuel : un état de l'échelle ; lot : une répartition complète, jamais les deux.
+                table.HasCheckConstraint(
+                    "ck_evaluations_etat",
+                    "(etat IS NOT NULL AND bon IS NULL AND satisfaisant IS NULL AND degrade IS NULL AND mauvais IS NULL AND critique IS NULL) " +
+                    "OR (etat IS NULL AND bon >= 0 AND satisfaisant >= 0 AND degrade >= 0 AND mauvais >= 0 AND critique >= 0 " +
+                    "AND bon + satisfaisant + degrade + mauvais + critique >= 1)");
+                table.HasCheckConstraint("ck_evaluations_grille", "grille_version >= 1");
+            });
+            evaluation.HasKey(e => e.Id);
+            evaluation.Property(e => e.Id).ValueGeneratedNever();
+            evaluation.Property(e => e.CorpsEtat).HasConversion<string>().HasMaxLength(32);
+            evaluation.Property(e => e.Etat).HasConversion<string>().HasMaxLength(16);
+            evaluation.Property(e => e.Points).HasColumnType("jsonb");
+            evaluation.Property(e => e.Mesures).HasColumnType("jsonb");
+            evaluation.Property(e => e.Remarque).HasMaxLength(Evaluation.RemarqueMax);
+            evaluation.HasAlternateKey(e => new { e.Id, e.OrganisationId });
+            evaluation.HasIndex(e => new { e.OrganisationId, e.CommandeId }).IsUnique().HasDatabaseName(Evaluation.ContrainteCommande);
+            evaluation.HasIndex(e => new { e.OrganisationId, e.SiteId, e.ComposantId, e.EvalueLe });
+            evaluation.HasOne<Composant>().WithMany()
+                .HasForeignKey(e => new { e.ComposantId, e.OrganisationId })
+                .HasPrincipalKey(c => new { c.Id, c.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PhotoEvaluation>(photo =>
+        {
+            photo.ToTable("photos_evaluations", table => table.HasCheckConstraint("ck_photos_evaluations_rang", "rang BETWEEN 1 AND 3"));
+            photo.HasKey(p => p.Id);
+            photo.Property(p => p.Id).ValueGeneratedNever();
+            photo.Property(p => p.Cle).HasMaxLength(PhotoEvaluation.CleMax);
+            photo.HasIndex(p => new { p.EvaluationId, p.Rang }).IsUnique();
+            photo.HasOne<Evaluation>().WithMany()
+                .HasForeignKey(p => new { p.EvaluationId, p.OrganisationId })
+                .HasPrincipalKey(e => new { e.Id, e.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EvenementInventaire>(evenement =>

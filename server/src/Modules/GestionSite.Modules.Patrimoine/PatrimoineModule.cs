@@ -1,9 +1,11 @@
 using GestionSite.Modules.Patrimoine.Composants;
 using GestionSite.Modules.Patrimoine.Contracts;
+using GestionSite.Modules.Patrimoine.Evaluations;
 using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Lecture;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.Modules.Patrimoine.Structure;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,10 +17,14 @@ namespace GestionSite.Modules.Patrimoine;
 /// </summary>
 public static class PatrimoineModule
 {
-    public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
-        services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
+    public static IServiceCollection AddPatrimoineModule(this IServiceCollection services)
+    {
+        TraitementPhotos.Configurer(); // photos d'évaluation : mêmes bornes de décodage que les autres modules
+        return services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>()
-            .AddScoped<ServiceGrilles>();
+            .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>();
+    }
 
-    public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapStructure().MapComposants().MapGrilles();
+    public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) =>
+        endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations();
 }

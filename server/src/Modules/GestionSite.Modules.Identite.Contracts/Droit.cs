@@ -43,4 +43,6 @@ public enum Droit
     AfficherLienPublic,
     GererComptes,
     AutoriserSupport,
+    /// <summary>Évaluer un composant du site (US-11, décision du 29/10) : technicien, responsable, délégué.</summary>
+    EvaluerComposant,
 }

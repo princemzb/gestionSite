@@ -140,6 +140,9 @@ internal enum NatureEvenementInventaire
     Creation = 1,
     Modification = 2,
     Retrait = 3,
+
+    /// <summary>Répartition d'un lot reprise d'une évaluation (US-11).</summary>
+    Evaluation = 4,
 }
 
 /// <summary>Journal de l'inventaire, en ajout seul (REGLES « Inventaire ») : valeurs avant et après en JSON.</summary>

@@ -36,6 +36,7 @@ internal static class MatriceDroits
         [Droit.LireMontants] = [Role.Responsable, Role.Delegue, Role.Pasteur, Role.Coordination],
         [Droit.ModifierInventaire] = Terrain,
         [Droit.ModifierGrilles] = Encadrement,
+        [Droit.EvaluerComposant] = Terrain,
         [Droit.ModifierPlans] = Encadrement,
         [Droit.AfficherLienPublic] = Encadrement,
         [Droit.GererComptes] = [Role.Administrateur],
