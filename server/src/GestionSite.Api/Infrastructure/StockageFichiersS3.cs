@@ -19,6 +19,9 @@ internal sealed class StockageFichiersS3(IAmazonS3 client, IOptions<ObjectStorag
             InputStream = flux,
             ContentType = typeContenu,
             AutoCloseStream = false,
+            // R2 refuse l'envoi « aws-chunked » (STREAMING-AWS4-HMAC-SHA256-PAYLOAD not implemented) : corps signé d'un bloc,
+            // comme pour les clés de protection du web (DepotClesS3).
+            UseChunkEncoding = false,
         }, cancellationToken).ConfigureAwait(false);
     }
 

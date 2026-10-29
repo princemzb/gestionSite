@@ -16,4 +16,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="GestionSite.Api.Tests" />
+  </ItemGroup>
 </Project>
