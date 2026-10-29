@@ -2,6 +2,7 @@ using System.Text.Json;
 using GestionSite.Modules.Maintenance.Domain;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
@@ -39,6 +40,12 @@ internal static class DepotPublicEndpoints
     private static async Task<(DemandeDepot Demande, IReadOnlyList<PhotoRecue> Photos)> LireAsync(
         HttpRequest requete, CancellationToken cancellationToken)
     {
+        // Limite de Kestrel (30 Mo par défaut) relevée pour ce seul point d'entrée : 3 photos de 10 Mo et le reste.
+        if (requete.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
+        {
+            taille.MaxRequestBodySize = CorpsMax;
+        }
+
         try
         {
             if (!requete.HasFormContentType)

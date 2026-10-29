@@ -1,4 +1,5 @@
 using GestionSite.Modules.Identite.Domain;
+using GestionSite.Modules.Identite.SitesPublics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -22,6 +23,8 @@ internal sealed record EntreeJournal(
 
 internal sealed record DemandeActivation(string Jeton, string MotDePasse);
 
+internal sealed record DemandeNumeroUrgence(string? NumeroUrgence);
+
 internal sealed record ReponseActivation(string Email);
 
 /// <summary>Sites, membres et activation (CONTRATS, US-06 S06-04).</summary>
@@ -32,6 +35,14 @@ internal static class OrganisationsEndpoints
         var organisation = endpoints.MapGroup("/organizations/{orgId:guid}").RequireAuthorization().AddEndpointFilter(TraduireRefus);
         organisation.MapGet("/sites", ListerSitesAsync);
         organisation.MapPost("/sites", CreerSiteAsync);
+        organisation.MapGet("/sites/public-links", async (Guid orgId, ServiceLiensPublics service, CancellationToken ct) =>
+            Results.Ok(await service.ListerAsync(orgId, ct).ConfigureAwait(false)));
+        organisation.MapPut("/sites/{siteId:guid}/emergency-number",
+            async (Guid orgId, Guid siteId, DemandeNumeroUrgence demande, ServiceLiensPublics service, CancellationToken ct) =>
+            {
+                await service.DefinirNumeroUrgenceAsync(orgId, siteId, demande.NumeroUrgence, ct).ConfigureAwait(false);
+                return Results.NoContent();
+            });
         organisation.MapGet("/members", ListerMembresAsync);
         organisation.MapPost("/members", CreerMembreAsync);
         organisation.MapPut("/members/{memberId:guid}", ReviserMembreAsync);

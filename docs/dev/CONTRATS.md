@@ -46,6 +46,14 @@ Photos (S08-02) : même opération en `multipart/form-data` — partie `demande`
 
 Anti-abus (S08-03) : champ `verification` = jeton Turnstile produit par le navigateur, vérifié par l'API auprès de Cloudflare (clé secrète `Turnstile:CleSecrete` ; absente : 503 `depot_indisponible`, le reste de l'application fonctionne ; `Turnstile:Desactive` refusé hors développement) ; refus → 422 `champ` = `verification`. Un rejeu (même commande, même contenu) n'est pas revérifié : le jeton ne sert qu'une fois. Au plus `DepotPublic:LimiteParSite` signalements acceptés (20 par défaut) par site et par fenêtre de 10 minutes, comptés après l'anti-robot (requêtes invalides et rejeux non comptés) : au-delà, 429 `trop_de_depots` ; la limite par adresse du visiteur est appliquée par l'application web (S08-04).
 
+Liens publics des sites (S08-04) :
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET /organizations/{orgId}/sites/public-links | Administrateur (tous les sites) ; responsable et délégués (leurs sites, droit `AfficherLienPublic`) | → `[{siteId, nom, code, numeroUrgence}]` triés par nom ; 403 sans site autorisé ; 404 hors organisation |
+| PUT /organizations/{orgId}/sites/{siteId}/emergency-number | Administrateur d'organisation | `numeroUrgence` (chiffres, espaces, + . - et parenthèses, ≤ 30 ; vide = aucun) → 204 ; 422 numéro invalide ; 403 autre rôle |
+
+Application web (S08-04) : formulaire public `/s/{code}` (choix : danger, incident, demande) puis `/s/{code}/signaler?choix=…` (multipart, widget Turnstile si `Web:CleSiteTurnstile`, limite `Web:LimiteDepotsParAdresse` envois par adresse et par 10 min, adresse lue dans `Web:EnteteAdresseClient` derrière le relais), accusé sans suivi ; écran `/organisations/{org}/sites` (QR SVG, lien, affiche A4 `/affiche`, PNG `/qr.png`, numéro d'urgence pour l'administrateur).
+
 Code de site : 10 caractères de `23456789ABCDEFGHJKMNPQRSTVWXYZ` (casse et tirets ignorés), un par site, créé avec le site (sites existants : attribué par la migration `SitesPublics`) ; filtré par organisation sauf pour la recherche par code (lecture RLS ouverte, le code étant la clé), écrit seulement par l'organisation du site (garde applicative + RLS).
 
 ## Principes de contrat proposés

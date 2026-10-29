@@ -2,6 +2,8 @@
   <!-- Application web d'administration (ADR-08) : Blazor en rendu serveur statique, cliente de l'API. -->
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <!-- QR codes des sites (US-08) : MIT, sans dépendance graphique. -->
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="GestionSite.Api.Tests" />

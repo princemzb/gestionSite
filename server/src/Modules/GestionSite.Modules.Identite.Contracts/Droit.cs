@@ -39,6 +39,8 @@ public enum Droit
     ModifierGrilles,
     /// <summary>Droit nominatif attribuable par l'administrateur : à venir avec les plans (US-21).</summary>
     ModifierPlans,
+    /// <summary>Lien public et QR code du site (US-08, décision du 28/10) ; l'administrateur y accède pour tous les sites.</summary>
+    AfficherLienPublic,
     GererComptes,
     AutoriserSupport,
 }

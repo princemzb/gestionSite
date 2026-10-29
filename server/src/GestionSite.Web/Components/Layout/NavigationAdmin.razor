@@ -1,11 +1,18 @@
-@* Navigation latérale de l'administration (maquette C, UX-02). *@
+@* Navigation latérale de l'administration (maquette C, UX-02) : entrées selon les rôles dans l'organisation. *@
 <nav class="admin-nav" aria-label="Navigation principale">
     <span class="marque">gestionSite</span>
-    @if (!string.IsNullOrEmpty(Organisation))
+    @if (OrganisationId != Guid.Empty)
     {
         <span class="organisation">@Organisation</span>
+        @if (Encadrement)
+        {
+            <a href="@($"/organisations/{OrganisationId}/sites")" aria-current="@(Courant == "sites" ? "page" : null)">Sites</a>
+        }
+        @if (Administrateur)
+        {
+            <a href="@($"/organisations/{OrganisationId}/membres")" aria-current="@(Courant == "membres" ? "page" : null)">Membres</a>
+        }
     }
-    <a href="@Courant" aria-current="page">Membres</a>
     <form method="post" action="/deconnexion">
         <AntiforgeryToken />
         <button type="submit">Se déconnecter</button>
@@ -13,7 +20,18 @@
 </nav>
 
 @code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
     [Parameter] public string? Organisation { get; set; }
 
-    [Parameter] public string Courant { get; set; } = "/";
+    /// <summary>Rôles de l'appelant dans l'organisation (« Administrateur », « Responsable »…).</summary>
+    [Parameter] public IReadOnlyCollection<string> Roles { get; set; } = [];
+
+    /// <summary>Entrée courante : « sites » ou « membres ».</summary>
+    [Parameter] public string Courant { get; set; } = string.Empty;
+
+    private bool Administrateur => Roles.Contains("Administrateur");
+
+    // Lien public et QR : administrateur, responsable et délégués (décision du 28/10).
+    private bool Encadrement => Administrateur || Roles.Contains("Responsable") || Roles.Contains("Delegue");
 }

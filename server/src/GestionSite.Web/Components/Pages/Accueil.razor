@@ -43,12 +43,18 @@
             return;
         }
 
-        // L'administrateur arrive sur la gestion des membres de sa première organisation.
+        // L'administrateur arrive sur la gestion des membres de sa première organisation ; responsable et délégué
+        // sur les sites (lien public et QR).
         Invitations = moi.Invitations?.Count ?? 0;
         var administree = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
+        var encadree = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role is "Responsable" or "Delegue"));
         if (administree is not null)
         {
             Navigation.NavigateTo($"/organisations/{administree.Id}/membres");
+        }
+        else if (encadree is not null)
+        {
+            Navigation.NavigateTo($"/organisations/{encadree.Id}/sites");
         }
     }
 }

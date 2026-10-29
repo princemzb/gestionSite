@@ -22,3 +22,9 @@ internal sealed record MembreCreeApi(Guid MembreId, Guid CompteId, int Version, 
 internal sealed record ProblemeApi(string? Code, string? Title);
 
 internal sealed record ActivationReussieApi(string Email);
+
+internal sealed record LienPublicApi(Guid SiteId, string Nom, string Code, string? NumeroUrgence);
+
+internal sealed record SitePublicApi(string Site, string Organisation);
+
+internal sealed record AccuseApi(string Site, bool Danger, string? NumeroUrgence);

@@ -46,6 +46,8 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 
 - Photos (S08-02) : Magick.NET (Apache-2.0) ; l'API est publiée pour l'architecture cible (`-r linux-x64` dans `server/Dockerfile`) afin de n'embarquer que la bibliothèque native utile ; stockage via `IStockageFichiers` (noyau), implémenté en S3 par l'API (`ObjectStorage:*`).
 
+- Formulaire public et écran Sites (S08-04) : QRCoder (MIT) génère les QR (SVG à l'écran et sur l'affiche, PNG à télécharger) ; `wwwroot/sites.js` (copier le lien, imprimer) ; la politique de sécurité du contenu autorise seulement `challenges.cloudflare.com` en plus de l'application (script et cadre Turnstile) ; Kestrel accepte 34 Mo de corps (3 photos de 10 Mo).
+
 ### Authentification (S06-03)
 - `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /me` (CONTRATS). Jeton d'accès JWT HS256 15 min ; jeton de renouvellement aléatoire (32 octets), stocké en empreinte SHA-256, rotation à chaque usage, réutilisation d'un jeton remplacé = révocation de toute la lignée.
 - Clé de signature `Authentification:CleSignature` (base64, ≥ 32 octets) : valeur locale non sensible dans `appsettings.Development.json`, fournie par l'environnement ailleurs ; l'API refuse de démarrer sans clé valide.

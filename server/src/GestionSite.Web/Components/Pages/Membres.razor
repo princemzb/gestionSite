@@ -1,7 +1,7 @@
 @page "/organisations/{OrganisationId:guid}/membres"
 @layout AdminLayout
 
-<NavigationAdmin Organisation="@NomOrganisation" Courant="@($"/organisations/{OrganisationId}/membres")" />
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="membres" />
 <main class="admin-contenu">
 @attribute [Authorize]
 @inject SessionApi Session
@@ -148,7 +148,9 @@ else
 
     [Parameter] public Guid OrganisationId { get; set; }
 
-    private string? NomOrganisation { get; set; }
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant => Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
 
     [SupplyParameterFromQuery(Name = "inviter")]
     private int? Inviter { get; set; }
@@ -177,7 +179,7 @@ else
         try
         {
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
-            NomOrganisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId)?.Nom;
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             Sites = [.. await Session.LireAsync<List<SiteApi>>($"/organizations/{OrganisationId}/sites", CancellationToken.None)];
             Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);
         }

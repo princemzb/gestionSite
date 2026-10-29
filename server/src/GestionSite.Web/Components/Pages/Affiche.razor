@@ -1,0 +1,67 @@
+@page "/organisations/{OrganisationId:guid}/sites/{SiteId:guid}/affiche"
+@layout AfficheLayout
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject LiensPublics Liens
+
+<PageTitle>Affiche · @(Lien?.Nom ?? "gestionSite")</PageTitle>
+<script src="sites.js" defer></script>
+
+@if (Lien is null)
+{
+    <main class="admin-contenu"><h1>Affiche introuvable</h1><p>Ce site n'existe pas ou vous n'en affichez pas le lien public.</p></main>
+}
+else
+{
+    var adresse = Liens.Adresse(Lien.Code, Navigation.BaseUri);
+    <div class="affiche-outils">
+        <button type="button" class="bouton-principal" data-imprimer>Imprimer</button>
+        <span class="note">Format A4, portrait.</span>
+    </div>
+    <article class="affiche">
+        <header>
+            <span>@Organisation · @Lien.Nom</span>
+            <h1>Un problème ici ?<br />Dites-le-nous.</h1>
+        </header>
+        <div class="affiche-corps">
+            <div class="affiche-qr" role="img" aria-label="QR code du site">@((MarkupString)LiensPublics.Svg(adresse))</div>
+            <p class="affiche-consigne">Scannez avec l'appareil photo de votre téléphone</p>
+            <ol>
+                <li><strong>1</strong>Décrivez ce qui ne va pas</li>
+                <li><strong>2</strong>Ajoutez une photo si vous voulez</li>
+                <li><strong>3</strong>Laissez un moyen de vous joindre</li>
+            </ol>
+            <p class="affiche-pied">Sans compte. Pas de QR ? Ouvrez : @adresse</p>
+        </div>
+    </article>
+}
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [Parameter] public Guid SiteId { get; set; }
+
+    private LienPublicApi? Lien { get; set; }
+
+    private string? Organisation { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId)?.Nom;
+            Lien = (await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None))
+                .FirstOrDefault(l => l.SiteId == SiteId);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Lien = null;
+        }
+    }
+}
