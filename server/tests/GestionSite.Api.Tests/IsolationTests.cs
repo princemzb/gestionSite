@@ -18,7 +18,7 @@ namespace GestionSite.Api.Tests;
 public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyncLifetime
 {
     // Hors organisation, sans RLS d'organisation (liste explicite : toute nouvelle table doit être classée).
-    private static readonly string[] SchemasIsoles = ["identite", "maintenance"];
+    private static readonly string[] SchemasIsoles = ["identite", "maintenance", "patrimoine"];
 
     private static readonly string[] TablesGlobales =
         ["__ef_migrations", "comptes", "comptes_revendications", "comptes_connexions_externes", "comptes_jetons", "jetons_renouvellement", "activations"];
@@ -90,8 +90,9 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
             "AND EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid))", ("schemas", SchemasIsoles), ("globales", TablesGlobales));
 
         Assert.Equal(0L, sansIsolation);
-        // identite : organisations, sites, codes publics, membres, rôles, journal ; maintenance : signalements, alertes, photos.
-        Assert.Equal(9L, await _database.CountAsync(
+        // identite : organisations, sites, codes publics, membres, rôles, journal ; maintenance : signalements, alertes, photos ;
+        // patrimoine : bâtiments, niveaux, zones, journal de l'inventaire.
+        Assert.Equal(13L, await _database.CountAsync(
             "SELECT count(*) FROM pg_tables WHERE schemaname = ANY (@schemas) AND NOT tablename = ANY (@globales)",
             ("schemas", SchemasIsoles), ("globales", TablesGlobales)));
     }
