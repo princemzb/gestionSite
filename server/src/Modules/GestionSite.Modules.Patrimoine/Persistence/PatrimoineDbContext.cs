@@ -25,7 +25,7 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<EvenementInventaire> Journal => Set<EvenementInventaire>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Batiment>(batiment =>
@@ -125,8 +125,6 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             evenement.Property(e => e.Apres).HasColumnType("jsonb");
             evenement.HasIndex(e => new { e.OrganisationId, e.CibleId, e.Id });
         });
-
-        FiltrerParOrganisation(modelBuilder);
     }
 }
 

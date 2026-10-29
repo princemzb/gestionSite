@@ -8,7 +8,7 @@ namespace GestionSite.SharedKernel.Persistence;
 public static class PersistanceModule
 {
     public static IServiceCollection AjouterContexteModule<TContext>(this IServiceCollection services, string schema, string tableMigrations)
-        where TContext : DbContext =>
+        where TContext : ContexteOrganisation =>
         services.AddDbContext<TContext>((provider, options) => Configurer(
             options,
             provider.GetRequiredService<NpgsqlDataSource>(),

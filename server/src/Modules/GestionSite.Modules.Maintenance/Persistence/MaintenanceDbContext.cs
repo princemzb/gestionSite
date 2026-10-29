@@ -21,7 +21,7 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
 
     public DbSet<PhotoSignalement> Photos => Set<PhotoSignalement>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Signalement>(signalement =>
@@ -64,7 +64,5 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
-
-        FiltrerParOrganisation(modelBuilder);
     }
 }

@@ -15,7 +15,7 @@ internal static class DepotPublicEndpoints
 {
     internal static IEndpointRouteBuilder MapDepotPublic(this IEndpointRouteBuilder endpoints)
     {
-        var site = endpoints.MapGroup("/public/sites/{code}").AllowAnonymous().AddEndpointFilter(TraduireInvalide);
+        var site = endpoints.MapGroup("/public/sites/{code}").AllowAnonymous().AddEndpointFilter(RefusCommuns.Traduire).AddEndpointFilter(TraduireRefus);
         site.MapGet(string.Empty, async (string code, ServiceDepotPublic service, CancellationToken ct) =>
             await service.SiteAsync(code, ct).ConfigureAwait(false) is { } trouve
                 ? Results.Ok(new ReponseSitePublic(trouve.NomSite, trouve.NomOrganisation))
@@ -83,15 +83,12 @@ internal static class DepotPublicEndpoints
 
     private static SaisieInvalideException Illisible() => new("corps", "Corps de requête manquant ou illisible.");
 
-    private static async ValueTask<object?> TraduireInvalide(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    // Refus propres au dépôt public ; saisie invalide : RefusCommuns, placé avant.
+    private static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try
         {
             return await next(context).ConfigureAwait(false);
-        }
-        catch (SaisieInvalideException invalide)
-        {
-            return RefusCommuns.SaisieInvalide(invalide.Champ);
         }
         catch (TropDeDepotsException trop)
         {

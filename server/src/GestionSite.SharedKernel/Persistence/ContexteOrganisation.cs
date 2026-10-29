@@ -28,10 +28,18 @@ public abstract class ContexteOrganisation(DbContextOptions options, Organisatio
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
-    /// <summary>À appeler en fin d'OnModelCreating : filtre « organisation courante » sur chaque entité rattachée.</summary>
-    protected void FiltrerParOrganisation(ModelBuilder modelBuilder)
+    /// <summary>Modèle du module, puis filtre « organisation courante » sur chaque entité rattachée (imposé, jamais oublié).</summary>
+    protected sealed override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
+        ConfigurerModele(modelBuilder);
+        FiltrerParOrganisation(modelBuilder);
+    }
+
+    protected abstract void ConfigurerModele(ModelBuilder modelBuilder);
+
+    private void FiltrerParOrganisation(ModelBuilder modelBuilder)
+    {
         foreach (var type in modelBuilder.Model.GetEntityTypes()
             .Where(t => t.BaseType is null && typeof(IAppartientAOrganisation).IsAssignableFrom(t.ClrType)).ToList())
         {

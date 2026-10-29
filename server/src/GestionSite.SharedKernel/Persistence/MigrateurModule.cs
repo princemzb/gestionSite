@@ -7,7 +7,7 @@ namespace GestionSite.SharedKernel.Persistence;
 
 /// <summary>Migrations d'un module avec le rôle propriétaire ; état lu avec le rôle applicatif (sonde de disponibilité).</summary>
 public abstract class MigrateurModule<TContext>(TContext context, IServiceProvider services, ILoggerFactory loggerFactory) : IDatabaseMigrator
-    where TContext : DbContext
+    where TContext : ContexteOrganisation
 {
     public abstract string ModuleName { get; }
 
