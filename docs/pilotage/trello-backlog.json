@@ -2205,6 +2205,187 @@
       ],
       "trelloId": "6ae1fdadbc9d4249aeb2cb9f",
       "trelloShortLink": "cvEYmE6c"
+    },
+    {
+      "id": "SOC-01",
+      "name": "[SOC-01] Socle : contexte EF de base et traduction des refus communs aux modules",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae2fb64512355a1cefc776a",
+      "trelloShortLink": "YaMvcu3B",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "UX-04",
+      "name": "[UX-04] Maquettes US-07 : inventaire d'un site (structure, composants, lots)",
+      "type": "sous_carte",
+      "list": "Livré",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae2f59d34a584ac3e76939f",
+      "trelloShortLink": "mnonY139",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "UX-03",
+      "name": "[UX-03] Maquettes US-08 : formulaire public (téléphone), QR du site, dépôts reçus",
+      "type": "sous_carte",
+      "list": "Livré",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c4eaef9b574e0398df",
+      "trelloShortLink": "zdm5c1ND",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S07-02",
+      "name": "[S07-02] Composants individuels et lots, retrait et historique",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-07"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae2f59f762231f8f1e96891",
+      "trelloShortLink": "BYqIgj9b",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S07-03",
+      "name": "[S07-03] Écrans web d'inventaire et mise en préproduction",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-07"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae2f5a0ec6678eb1c76e7e6",
+      "trelloShortLink": "mbSXIvbj",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S07-01",
+      "name": "[S07-01] Structure du patrimoine : bâtiments, niveaux, zones et parties communes",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-07"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae2f59dab331f25ef34fd42",
+      "trelloShortLink": "t2kBNvF9",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S08-01",
+      "name": "[S08-01] Dépôt public : contrat, validation et persistance sans doublon",
+      "type": "sous_carte",
+      "list": "Prêt à livrer",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c461e47d54d1096d1f",
+      "trelloShortLink": "ChXKChqR",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S08-02",
+      "name": "[S08-02] Photos du dépôt public : 3 au plus, 10 Mo, métadonnées retirées",
+      "type": "sous_carte",
+      "list": "Prêt à livrer",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c506eef23e7e6b161b",
+      "trelloShortLink": "81hcIdTQ",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S08-03",
+      "name": "[S08-03] Protection anti-abus : Turnstile et limites de dépôt",
+      "type": "sous_carte",
+      "list": "Prêt à livrer",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c62ca6fe730ed31179",
+      "trelloShortLink": "i5ZVPR7l",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S08-04",
+      "name": "[S08-04] Formulaire public sur téléphone et QR code de site",
+      "type": "sous_carte",
+      "list": "Prêt à livrer",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c6937f561523e4e2eb",
+      "trelloShortLink": "JSnPxUbE",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S08-05",
+      "name": "[S08-05] Liste en lecture des dépôts reçus par site",
+      "type": "sous_carte",
+      "list": "Prêt à livrer",
+      "labels": [],
+      "sprint": "SP-003",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-08"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae277c7520fccee6a7abdea",
+      "trelloShortLink": "BYO3WCxo",
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

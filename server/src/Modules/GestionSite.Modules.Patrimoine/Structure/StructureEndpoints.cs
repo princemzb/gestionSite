@@ -46,7 +46,8 @@ internal static class StructureEndpoints
         return endpoints;
     }
 
-    private static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    // Refus de l'inventaire (structure et composants) traduits en réponses du contrat.
+    internal static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try
         {
@@ -69,6 +70,10 @@ internal static class StructureEndpoints
         catch (ModifieEntreTempsException modifie)
         {
             return Probleme(StatusCodes.Status409Conflict, modifie.Message, "modifie_entre_temps");
+        }
+        catch (ComposantRetireException retire)
+        {
+            return Probleme(StatusCodes.Status409Conflict, retire.Message, "composant_retire");
         }
         catch (SaisieInvalideException invalide)
         {
