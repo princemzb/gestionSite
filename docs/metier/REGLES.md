@@ -88,6 +88,18 @@ Décisions du 29/10 (QCM, recommandations de l'agent retenues) :
 - Écrans (maquettes UX-05) : suivi des dossiers en colonnes par statut, qualification dans un panneau (B) ; dossier avec barre d'étapes et onglets Constat / Interventions / Historique / Déclarant (B) ; « Mes interventions » du technicien en liste par priorité avec délai restant (B), web adapté au téléphone (tablette hors ligne : US-13).
 Découpage : S09-01 dossier et qualification (dont doublons et classement sans suite) ; S09-02 affectation et interventions ; S09-03 attente et reprise ; S09-04 clôture et réouverture ; S09-05 écrans web et préproduction. Hors périmètre : alertes danger, rappels et escalades (US-10), estimation et budget (US-17 à US-19), consommation de stock (US-15).
 
+## Évaluations et score — US-11, V, 29 octobre 2026 (porteur du projet)
+Acquis (V) : DEC-01 (échelle Bon 9 / Satisfaisant 7 / Dégradé 5 / Mauvais 3 / Critique 1 ; moyennes composants → zone → site ; lot pondéré par les quantités ; Parties communes comptées comme une zone ; évaluation « ancienne » au-delà de 6 mois, toujours comptée ; une décimale à l'affichage, libellé sur la valeur arrondie) ; RG-11, RG-12 ; grilles modifiées par R/D avec version (PERMISSIONS).
+Décisions du 29/10 (QCM, recommandations de l'agent retenues) :
+- Évaluateurs : technicien, responsable et délégué du site ; pasteur et coordination consultent.
+- Grilles : une grille par défaut par corps d'état, rédigée par l'agent en expert du bâtiment (critères à observer, mesures utiles avec unité) ; R/D l'adaptent pour leur organisation, chaque modification crée une version ; une évaluation garde la version utilisée.
+- Photo à l'évaluation : obligatoire pour « Mauvais » et « Critique », facultative sinon (3 au plus, mêmes règles que les dépôts).
+- « Critique » : l'application propose d'ouvrir un dossier prérempli (zone, composant, constat), sans création automatique.
+- Lot : l'évaluateur saisit la répartition par état (somme = quantité) ; la note est la moyenne pondérée (DEC-01) et la répartition du lot dans l'inventaire devient celle de la dernière évaluation.
+- Historique du score : recalculé à toute date à partir des évaluations datées (courbe mensuelle), au lieu d'un instantané stocké ; remplace l'instantané mensuel de DEC-01.
+- Écrans (maquettes UX-06, choix du porteur du 29/10) : tableau de l'état du site avec la note en tête (couverture, fraîcheur, points critiques) puis une carte par zone, la moins bien notée d'abord (A) ; évaluation sur téléphone pas à pas : points à observer et mesures, état ou répartition, puis photos et remarque (A) ; fiche composant avec dernière évaluation et historique (commune).
+Découpage : S11-01 grilles par défaut et versions ; S11-02 évaluations (état ou répartition, critères, mesures, photos, proposition de dossier) ; S11-03 score (zone, site, couverture, fraîcheur, historique) ; S11-04 écrans web et préproduction (maquettes UX-06 d'abord).
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.
