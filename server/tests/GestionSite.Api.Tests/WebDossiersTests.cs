@@ -234,6 +234,59 @@ public sealed partial class WebDossiersTests(InfrastructureFixture infrastructur
         Assert.Contains("Porte qui grince", await LirePageAsync(pasteur, $"/organisations/{_organisation}/dossiers/{identifiant}"), StringComparison.Ordinal); // lien sans site
     }
 
+    [Fact]
+    public async Task ADangerIsShownAndTheClosureFormTakesPhotos()
+    {
+        using var responsable = await ConnecterAsync("responsable@dossiers-web.test");
+        var batiment = await PosterAsync(responsable, $"/organisations/{_organisation}/inventaire?action=batiment", "structure",
+            ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église"));
+        var zone = ZoneCommunes().Match(await LirePageAsync(responsable, Chemin(batiment))).Groups[1].Value;
+        var fiche = Chemin(await PosterAsync(responsable, $"/organisations/{_organisation}/dossiers/declarer", "declaration",
+            ("Saisie.CommandeId", Guid.NewGuid().ToString()), ("Saisie.ZoneId", zone), ("Saisie.Nature", "Demande"), ("Saisie.Emplacement", "Sortie nord"),
+            ("Saisie.Description", "Bloc de secours éteint"), ("Saisie.Danger", "true"), ("Saisie.ActiviteBloquee", "true")));
+        var suivi = await LirePageAsync(responsable, $"/organisations/{_organisation}/dossiers");
+        await PosterAsync(responsable, fiche, "qualification",
+            ("Qualification.Version", Version("Qualification").Match(await LirePageAsync(responsable, fiche)).Groups[1].Value),
+            ("Qualification.Priorite", "Urgente"), ("Qualification.ZoneId", zone));
+        var interventions = $"{fiche}&onglet=interventions";
+        var page = await LirePageAsync(responsable, interventions);
+        await PosterAsync(responsable, interventions, "affectation", ("Affectation.Version", Version("Affectation").Match(page).Groups[1].Value),
+            ("Affectation.Titre", "Changer la batterie"), ("Affectation.IntervenantCompteId", Technicien().Match(page).Groups[1].Value));
+        var identifiant = Identifiant().Match(fiche).Groups[1].Value;
+        await PosterAsync(responsable, interventions, formName: null,
+            action: $"/organisations/{_organisation}/sites/{_site}/dossiers/{identifiant}/interventions/1/demarrer",
+            ("version", VersionAction().Match(await LirePageAsync(responsable, interventions)).Groups[1].Value));
+
+        // Clôture avec une photo, envoyée en multipart comme le ferait le navigateur.
+        var cloture = $"{interventions}&action=cloture&intervention=1";
+        var formulaire = await LirePageAsync(responsable, cloture);
+        using var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.OrangeRed, 64, 48) { Format = ImageMagick.MagickFormat.Jpeg };
+        using var contenu = new MultipartFormDataContent
+        {
+            { new StringContent(Antifalsification().Match(formulaire).Groups[1].Value), "__RequestVerificationToken" },
+            { new StringContent("cloture"), "_handler" },
+            { new StringContent(Version("Cloture").Match(formulaire).Groups[1].Value), "Cloture.Version" },
+            { new StringContent("1"), "Cloture.Numero" },
+            { new StringContent("Batterie remplacée"), "Cloture.Actions" },
+            { new StringContent("MesureProvisoire"), "Cloture.EtatFinal" },
+        };
+        var photo = new ByteArrayContent(image.ToByteArray());
+        photo.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+        contenu.Add(photo, "photos", "apres.jpg");
+        using var envoi = await responsable.PostAsync(new Uri(cloture, UriKind.Relative), contenu);
+        var cloturee = await LirePageAsync(responsable, Chemin(envoi));
+        using var image2 = await responsable.GetAsync(new Uri($"/organisations/{_organisation}/sites/{_site}/dossiers/{identifiant}/interventions/1/photos/1", UriKind.Relative));
+        var historique = await LirePageAsync(responsable, $"{fiche}&onglet=historique");
+
+        Assert.Contains("Danger", suivi, StringComparison.Ordinal);
+        Assert.Contains("Danger signalé", await LirePageAsync(responsable, fiche), StringComparison.Ordinal);
+        Assert.Contains("Mesure provisoire", cloturee, StringComparison.Ordinal);
+        Assert.Contains("Photo 1 après intervention", cloturee, StringComparison.Ordinal);
+        Assert.Equal("image/jpeg", image2.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("priorité urgente", historique, StringComparison.Ordinal);
+        Assert.Contains("Changer la batterie", historique, StringComparison.Ordinal);
+    }
+
     private async Task<string> DeclarerAsync(HttpClient navigateur, string zone, string description) =>
         Chemin(await PosterAsync(navigateur, $"/organisations/{_organisation}/dossiers/declarer", "declaration",
             ("Saisie.CommandeId", Guid.NewGuid().ToString()), ("Saisie.ZoneId", zone), ("Saisie.Nature", "Incident"), ("Saisie.Description", description)));
