@@ -178,9 +178,9 @@ else
         {
             Message = "Vous ne consultez pas les dépôts de ce site.";
         }
-        catch (RefusApiException refus)
+        catch (RefusApiException)
         {
-            Message = refus.Message;
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
         }
     }
 

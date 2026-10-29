@@ -375,6 +375,56 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         Assert.Equal(HttpStatusCode.Forbidden, administrateur.StatusCode); // aucun rôle de site : aucun accès implicite
     }
 
+    [Fact]
+    public async Task AReaderOfSeveralSitesBrowsesEachSiteAndOlderPages()
+    {
+        await using var web = Web(_api);
+        var site = (Guid)(await ScalarAsync("SELECT id FROM identite.sites"))!;
+        var chapelle = Guid.NewGuid();
+        await ExecuterAsync($"INSERT INTO identite.sites (id, organisation_id, nom, cree_le) VALUES ('{chapelle}', '{_ouverte.OrganisationId}', 'Chapelle nord', now())");
+        await MembreAsync("coordination@depot-web.test", Role.Coordination, site, chapelle);
+        using (var visiteur = Navigateur(web))
+        {
+            await EnvoyerAsync(visiteur, "incident", "Gouttière bouchée.", photo: false);
+        }
+
+        using var lecteur = await ConnecteAsync(web, "coordination@depot-web.test");
+        var depot = (Guid)(await ScalarAsync("SELECT id FROM maintenance.signalements"))!;
+        var page = $"/organisations/{_ouverte.OrganisationId}/depots";
+
+        var centre = await LirePageAsync(lecteur, $"{page}?site={site}&depot={depot}");
+        var nord = await LirePageAsync(lecteur, $"{page}?site={chapelle}");
+        var horsPage = await LirePageAsync(lecteur, $"{page}?site={site}&depot={Guid.NewGuid()}");
+        var anciens = await LirePageAsync(lecteur, $"{page}?site={site}&avant={depot}");
+
+        Assert.Contains("Chapelle nord", centre, StringComparison.Ordinal); // onglets des deux sites
+        Assert.Contains("Gouttière bouchée.", centre, StringComparison.Ordinal);
+        Assert.Contains("aria-current=\"true\"", centre, StringComparison.Ordinal);
+        Assert.Contains("Aucun dépôt reçu pour Chapelle nord.", nord, StringComparison.Ordinal);
+        Assert.Contains("Le dépôt demandé n'est pas dans cette page", horsPage, StringComparison.Ordinal);
+        Assert.Contains("Les plus récents", anciens, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnApiOutageIsExplainedOnTheReportsPageAndForPhotos()
+    {
+        var site = (Guid)(await ScalarAsync("SELECT id FROM identite.sites"))!;
+        await MembreAsync("panne@depot-web.test", Role.Technicien, site);
+        var panne = new Interrupteur();
+        await using var web = Web(_api, api: () => new PanneSur(_api.Server.CreateHandler(), panne, "/me", "/photos/"));
+        using var technicien = await ConnecteAsync(web, "panne@depot-web.test");
+        panne.Actif = true; // une fois connecté
+
+        var page = await LirePageAsync(technicien, $"/organisations/{_ouverte.OrganisationId}/depots");
+        using var photo = await technicien.GetAsync(new Uri(
+            $"/organisations/{_ouverte.OrganisationId}/sites/{site}/depots/{Guid.NewGuid()}/photos/1", UriKind.Relative));
+
+        Assert.Contains("Service momentanément indisponible", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Aucun site ne vous est attribué", page, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, photo.StatusCode);
+        Assert.Contains("no-store", photo.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
+    }
+
     private static WebApplicationFactory<WebOptions> Web(WebApplicationFactory<Program> api, params (string Cle, string Valeur)[] reglages) =>
         Web(api, depot: null, reglages);
 
@@ -397,7 +447,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
             });
         });
 
-    private async Task MembreAsync(string email, Role role, Guid site)
+    private async Task MembreAsync(string email, Role role, params Guid[] sites)
     {
         await using var scope = _api.Services.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(_ouverte.OrganisationId);
@@ -405,7 +455,8 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         var compte = new Compte { Id = Guid.NewGuid(), UserName = email, Email = email };
         Assert.True((await scope.ServiceProvider.GetRequiredService<UserManager<Compte>>().CreateAsync(compte, MotDePasse)).Succeeded);
         var membre = new Membre(Guid.NewGuid(), _ouverte.OrganisationId, compte.Id, DateTimeOffset.UtcNow);
-        membre.Reviser([(role, await context.Sites.SingleAsync(s => s.Id == site))]);
+        var entites = await context.Sites.Where(s => sites.Contains(s.Id)).ToListAsync();
+        membre.Reviser([.. entites.Select(s => (role, (Site?)s))]);
         membre.Accepter(DateTimeOffset.UtcNow);
         context.Add(membre);
         await context.SaveChangesAsync();
@@ -560,6 +611,20 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
     private sealed record JetonLu(string JetonAcces);
 
     private sealed record DepotLu(Guid Id, string Description);
+
+    /// <summary>Vraie API, sauf les chemins indiqués qui répondent 503 (réveil, panne).</summary>
+    private sealed class Interrupteur
+    {
+        public bool Actif { get; set; }
+    }
+
+    private sealed class PanneSur(HttpMessageHandler vraie, Interrupteur panne, params string[] chemins) : DelegatingHandler(vraie)
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            panne.Actif && chemins.Any(c => request.RequestUri!.AbsolutePath.Contains(c, StringComparison.Ordinal))
+                ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json") })
+                : base.SendAsync(request, cancellationToken);
+    }
 
     private sealed class VerificationEnregistree : IVerificationHumaine
     {
