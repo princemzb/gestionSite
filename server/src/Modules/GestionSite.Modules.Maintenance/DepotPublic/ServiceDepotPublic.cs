@@ -8,8 +8,10 @@ using Npgsql;
 namespace GestionSite.Modules.Maintenance.DepotPublic;
 
 /// <summary>Envoi du formulaire public ; la commande (identifiant choisi par le formulaire) rend le rejeu sans effet.</summary>
+/// <remarks><c>Verification</c> : jeton anti-robot du navigateur (Turnstile), à usage unique.</remarks>
 internal sealed record DemandeDepot(
-    Guid CommandeId, string? Nature, string? Description, string? Emplacement, bool Danger, bool ActiviteBloquee, string? Nom, string? Contact);
+    Guid CommandeId, string? Nature, string? Description, string? Emplacement, bool Danger, bool ActiviteBloquee, string? Nom, string? Contact,
+    string? Verification = null);
 
 /// <summary>
 /// Accusé sans aucun moyen de lire le signalement (F-01) ; en cas de danger, le numéro du site à appeler s'il est
@@ -21,7 +23,8 @@ internal sealed record AccuseDepot(string Site, bool Danger, string? NumeroUrgen
 internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant d'envoi a déjà servi pour un autre signalement.");
 
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
-internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, TimeProvider horloge)
+internal sealed class ServiceDepotPublic(
+    MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, IVerificationHumaine verification, TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
@@ -49,6 +52,13 @@ internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPub
         if (await DejaRecuAsync(signalement, cancellationToken).ConfigureAwait(false) is { } accuse)
         {
             return accuse;
+        }
+
+        // Après le contrôle de rejeu : le jeton anti-robot ne sert qu'une fois, un renvoi après coupure réseau
+        // reçoit son accusé sans nouvelle vérification. Avant tout traitement de photo.
+        if (!await verification.VerifierAsync(demande.Verification, cancellationToken).ConfigureAwait(false))
+        {
+            throw new SaisieInvalideException("verification", "Vérification anti-robot échouée : réessayez.");
         }
 
         // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant

@@ -44,6 +44,8 @@ Rôles : administrateur d'organisation (A), responsable (R), délégué (D), tec
 
 Photos (S08-02) : même opération en `multipart/form-data` — partie `demande` (le JSON ci-dessus) et jusqu'à 3 fichiers `photos` de 10 Mo (JPEG, PNG ou HEIC, reconnus par leurs octets d'en-tête) ; sinon 422 `champ` = `photos`, sans signalement créé. Chaque photo est réorientée, débarrassée de ses métadonnées (position GPS comprise), réduite à 2560 px et réencodée en JPEG, puis stockée en privé sous `organisations/{organisation}/signalements/{signalement}/photo-{rang}.jpg` (clé propre au signalement enregistré ; un rejeu ne réécrit rien). Corps trop volumineux : 422 `photos` ; envoi tronqué : 422 `corps`.
 
+Anti-abus (S08-03) : champ `verification` = jeton Turnstile produit par le navigateur, vérifié par l'API auprès de Cloudflare (clé secrète `Turnstile:CleSecrete`, obligatoire au démarrage sauf `Turnstile:Desactive` en développement et test) ; refus → 422 `champ` = `verification`. Un rejeu (même commande, même contenu) n'est pas revérifié : le jeton ne sert qu'une fois. Au plus `DepotPublic:LimiteParSite` dépôts (20 par défaut) par site et par fenêtre de 10 minutes : au-delà, 429 `trop_de_depots` ; la limite par adresse du visiteur est appliquée par l'application web (S08-04).
+
 Code de site : 10 caractères de `23456789ABCDEFGHJKMNPQRSTVWXYZ` (casse et tirets ignorés), un par site, créé avec le site (sites existants : attribué par la migration `SitesPublics`) ; filtré par organisation sauf pour la recherche par code (lecture RLS ouverte, le code étant la clé), écrit seulement par l'organisation du site (garde applicative + RLS).
 
 ## Principes de contrat proposés

@@ -2,6 +2,7 @@ using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Persistence;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace GestionSite.Modules.Maintenance;
 
@@ -14,7 +15,15 @@ public static class MaintenanceModule
     public static IServiceCollection AddMaintenanceModule(this IServiceCollection services)
     {
         TraitementPhotos.Configurer();
-        return services.AddMaintenancePersistence().AddScoped<ServiceDepotPublic>();
+        services.AddOptions<TurnstileOptions>().BindConfiguration(TurnstileOptions.Section)
+            .Validate(o => o.Desactive || !string.IsNullOrWhiteSpace(o.CleSecrete),
+                "Turnstile:CleSecrete est requise (Turnstile:Desactive seulement en développement et en test).")
+            .ValidateOnStart();
+        services.AddHttpClient<VerificationTurnstile>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddScoped<IVerificationHumaine>(p => p.GetRequiredService<IOptions<TurnstileOptions>>().Value.Desactive
+            ? new SansVerification()
+            : p.GetRequiredService<VerificationTurnstile>());
+        return services.AddMaintenancePersistence().AddLimitesDepotPublic().AddScoped<ServiceDepotPublic>();
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic();

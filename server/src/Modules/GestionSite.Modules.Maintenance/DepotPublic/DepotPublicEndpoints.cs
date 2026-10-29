@@ -26,6 +26,7 @@ internal static class DepotPublicEndpoints
                     ? Results.Ok(accuse)
                     : Results.NotFound();
             })
+            .RequireRateLimiting(LimitesDepotPublic.Politique)
             // 3 photos de 10 Mo et le reste du formulaire.
             .WithMetadata(new RequestSizeLimitAttribute(CorpsMax))
             .WithFormOptions(multipartBodyLengthLimit: CorpsMax, valueLengthLimit: 64 * 1024);
