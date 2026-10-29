@@ -6,12 +6,12 @@
 
 <PageTitle>Signaler un problème</PageTitle>
 
-@if (Indisponible && Site is null)
+@if (Indisponible && Site is null && Formulaire is null)
 {
     <h1>Service momentanément indisponible</h1>
     <p class="note">Réessayez dans un instant.</p>
 }
-else if (Site is null)
+else if (Site is null && !Indisponible)
 {
     <h1>Ce lien n'est pas valable</h1>
     <p class="note">Vérifiez l'adresse affichée sur place, ou scannez à nouveau le QR code.</p>
@@ -46,7 +46,7 @@ else
 {
     <div class="public-entete">
         <a href="@($"/s/{Code}")">← Changer de choix</a>
-        <span class="pastille">@Libelle · @Site.Site</span>
+        <span class="pastille">@Libelle@(Site is null ? null : $" · {Site.Site}")</span>
         <h1>Dites-nous en un peu plus</h1>
     </div>
     <EditForm Model="Saisie" FormName="signalement" OnSubmit="EnvoyerAsync" enctype="multipart/form-data" class="carte formulaire-public">
@@ -123,27 +123,30 @@ else
         {
             Site = await Depots.SiteAsync(Code, CancellationToken.None);
         }
-        catch (HttpRequestException)
+        catch (DepotIndisponibleException)
         {
+            // Envoi pendant un réveil de l'API : la saisie reste affichée, l'envoi est tenté (le code reste vérifié par l'API).
             Indisponible = true;
         }
     }
 
     private async Task EnvoyerAsync()
     {
-        if (Site is null || Contexte is null)
+        if (Contexte is null)
         {
-            return;
-        }
-
-        if (!Limite.Accepter(Contexte))
-        {
-            Message = "Trop d'envois depuis votre connexion : réessayez dans quelques minutes.";
             return;
         }
 
         // Un champ fichier laissé vide envoie une partie sans contenu.
         var photos = Contexte.Request.Form.Files.GetFiles("photos").Where(p => p.Length > 0).ToList();
+        // Un champ fichier ne peut pas être prérempli : à rejoindre après une erreur.
+        var conservee = photos.Count > 0 ? "Votre saisie est conservée ; joignez à nouveau vos photos." : "Votre saisie est conservée.";
+        if (!Limite.Permis(Contexte))
+        {
+            Message = "Trop d'envois depuis votre connexion : réessayez dans quelques minutes.";
+            return;
+        }
+
         var demande = new DemandeDepotWeb(
             Saisie.CommandeId, Saisie.Choix == "demande" ? "Demande" : "Incident", Saisie.Description, Saisie.Emplacement,
             Saisie.Choix == "danger", Saisie.ActiviteBloquee, Saisie.Nom, Saisie.Contact, Contexte.Request.Form["cf-turnstile-response"].ToString());
@@ -152,18 +155,24 @@ else
         {
             issue = await Depots.DeposerAsync(Code, demande, photos, CancellationToken.None);
         }
-        catch (HttpRequestException)
+        catch (DepotIndisponibleException)
         {
-            Message = "Service momentanément indisponible : réessayez dans un instant. Votre saisie est conservée.";
+            Message = $"Service momentanément indisponible : réessayez dans un instant. {conservee}";
             return;
         }
 
         Accuse = issue.Accuse;
+        if (Accuse is not null)
+        {
+            Limite.Compter(Contexte);
+            Site ??= new SitePublicApi(Accuse.Site, string.Empty);
+        }
+
         Message = issue switch
         {
             { Accuse: not null } => null,
-            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "photos" } => "Photos : 3 au plus, de 10 Mo chacune, au format JPEG, PNG ou HEIC.",
-            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "verification" } => "La vérification anti-robot n'a pas abouti : réessayez.",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "photos" } => $"Photos : 3 au plus, de 10 Mo chacune, au format JPEG, PNG ou HEIC. {conservee}",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "verification" } => $"La vérification anti-robot n'a pas abouti : réessayez. {conservee}",
             { Statut: HttpStatusCode.UnprocessableEntity, Champ: "description" } => "Décrivez ce qui se passe (2000 caractères au plus).",
             { Statut: HttpStatusCode.UnprocessableEntity, Champ: "emplacement" } => "Indiquez où se trouve le problème (une ligne, 200 caractères au plus).",
             { Statut: HttpStatusCode.UnprocessableEntity, Champ: "nom" } => "Indiquez votre nom (une ligne, 200 caractères au plus).",
@@ -171,7 +180,8 @@ else
             { Statut: HttpStatusCode.Conflict } => "Ce formulaire a déjà été envoyé avec un autre contenu : rechargez la page pour un nouveau signalement.",
             { Statut: HttpStatusCode.TooManyRequests } => "Ce site reçoit beaucoup de signalements : réessayez dans quelques minutes.",
             { Statut: HttpStatusCode.NotFound } => "Ce lien n'est plus valable.",
-            _ => "Service momentanément indisponible : réessayez dans un instant. Votre saisie est conservée.",
+            { Statut: HttpStatusCode.UnprocessableEntity } => "Le formulaire a expiré ou est incomplet : rechargez la page.",
+            _ => $"Service momentanément indisponible : réessayez dans un instant. {conservee}",
         };
     }
 

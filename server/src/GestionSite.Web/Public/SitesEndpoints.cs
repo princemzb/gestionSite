@@ -23,7 +23,7 @@ internal static class SitesEndpoints
                 .ConfigureAwait(false)).FirstOrDefault(l => l.SiteId == siteId);
             return lien is null
                 ? Results.NotFound()
-                : Results.File(LiensPublics.Png(liens.Adresse(lien.Code, $"{contexte.Request.Scheme}://{contexte.Request.Host}")),
+                : Results.File(LiensPublics.Png(liens.Adresse(lien.Code, $"{contexte.Request.Scheme}://{contexte.Request.Host}{contexte.Request.PathBase}")),
                     "image/png", $"qr-{lien.Code}.png");
         }
         catch (SessionExpireeException)
@@ -59,7 +59,13 @@ internal static class SitesEndpoints
         }
         catch (RefusApiException refus)
         {
-            issue = refus.Statut == System.Net.HttpStatusCode.UnprocessableEntity ? "invalide" : "refuse";
+            issue = refus.Statut switch
+            {
+                System.Net.HttpStatusCode.UnprocessableEntity => "invalide",
+                System.Net.HttpStatusCode.Forbidden => "refuse",
+                System.Net.HttpStatusCode.NotFound => "introuvable",
+                _ => "indisponible",
+            };
         }
 
         return Results.LocalRedirect($"/organisations/{organisationId}/sites?numero={issue}&site={siteId}");

@@ -26,18 +26,6 @@ else
     {
         <p role="alert" class="alerte danger">@Message</p>
     }
-    @if (Numero is "enregistre")
-    {
-        <p role="status" class="alerte succes">Numéro enregistré.</p>
-    }
-    else if (Numero is "invalide")
-    {
-        <p role="alert" class="alerte danger">Numéro de téléphone attendu (chiffres, espaces, + . - et parenthèses).</p>
-    }
-    else if (Numero is "refuse")
-    {
-        <p role="alert" class="alerte danger">Seul l'administrateur modifie le numéro à appeler en cas de danger.</p>
-    }
 
     <div class="grille-sites">
         @foreach (var lien in LiensSites)
@@ -54,6 +42,10 @@ else
                         <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/sites/{lien.SiteId}/qr.png")" download>Télécharger le QR</a>
                         <button type="button" class="bouton-secondaire" data-copier="@adresse">Copier le lien</button>
                     </div>
+                    @if (SiteNumero == lien.SiteId && MessageNumero is { } message)
+                    {
+                        <p role="@(Numero == "enregistre" ? "status" : "alert")" class="@(Numero == "enregistre" ? "alerte succes" : "alerte danger")">@message</p>
+                    }
                     @if (Administrateur)
                     {
                         <form method="post" action="@($"/organisations/{OrganisationId}/sites/{lien.SiteId}/numero-urgence")" class="champ numero-urgence">
@@ -92,6 +84,19 @@ else
     [SupplyParameterFromQuery(Name = "numero")]
     private string? Numero { get; set; }
 
+    [SupplyParameterFromQuery(Name = "site")]
+    private Guid? SiteNumero { get; set; }
+
+    private string? MessageNumero => Numero switch
+    {
+        "enregistre" => "Numéro enregistré.",
+        "invalide" => "Numéro de téléphone attendu (chiffres, espaces, + . - et parenthèses).",
+        "refuse" => "Seul l'administrateur modifie le numéro à appeler en cas de danger.",
+        "introuvable" => "Ce site n'existe plus.",
+        "indisponible" => "Service momentanément indisponible : réessayez dans un instant.",
+        _ => null,
+    };
+
     private OrganisationApi? Organisation { get; set; }
 
     private string[] RolesAppelant => Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
@@ -108,9 +113,11 @@ else
     {
         try
         {
+            // Lectures successives : un renouvellement de session ne doit pas écrire deux fois le cookie de la même réponse.
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            var liens = await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
-            LiensSites = await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None);
+            LiensSites = liens;
         }
         catch (SessionExpireeException)
         {

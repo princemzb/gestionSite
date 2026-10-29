@@ -231,7 +231,7 @@ else
         {
             var cree = await Session.EcrireAsync<MembreCreeApi>(
                 $"/organizations/{OrganisationId}/members", new { nom = Saisie.Nom, email = Saisie.Email, roles }, CancellationToken.None);
-            var racine = Options.Value.UrlPublique is { Length: > 0 } publique ? publique.TrimEnd('/') + "/" : Navigation.BaseUri;
+            var racine = AdressePublique.Racine(Options.Value, Navigation.BaseUri);
             Lien = cree.Activation is null ? null : $"{racine}activation?jeton={Uri.EscapeDataString(cree.Activation.Jeton)}";
             Etape = 3;
             Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);

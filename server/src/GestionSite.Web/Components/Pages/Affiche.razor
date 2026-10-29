@@ -50,10 +50,11 @@ else
     {
         try
         {
+            // Lectures successives : un renouvellement de session ne doit pas écrire deux fois le cookie de la même réponse.
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            var liens = await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId)?.Nom;
-            Lien = (await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None))
-                .FirstOrDefault(l => l.SiteId == SiteId);
+            Lien = liens.FirstOrDefault(l => l.SiteId == SiteId);
         }
         catch (SessionExpireeException)
         {

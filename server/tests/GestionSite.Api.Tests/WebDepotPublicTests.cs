@@ -122,9 +122,11 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         await using var web = Web(_api, ("Web:LimiteDepotsParAdresse", "1"));
         using var visiteur = Navigateur(web);
 
+        var refuse = await EnvoyerAsync(visiteur, "incident", "  ", photo: false); // une erreur de saisie ne compte pas
         var premier = await EnvoyerAsync(visiteur, "incident", "Premier.", photo: false);
         var second = await EnvoyerAsync(visiteur, "incident", "Second.", photo: false);
 
+        Assert.Contains("Décrivez ce qui se passe", refuse, StringComparison.Ordinal);
         Assert.Contains("Merci, c'est transmis.", premier, StringComparison.Ordinal);
         Assert.Contains("Trop d'envois depuis votre connexion", second, StringComparison.Ordinal);
         Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements"));
@@ -184,7 +186,10 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         using var invalide = await PosterAsync(admin, page, formName: null, $"{page}/{site}/numero-urgence", ("numero", "appelez Paul"));
         var apres = await LirePageAsync(admin, page);
 
+        var message = await LirePageAsync(admin, enregistre.Headers.Location!.OriginalString);
+
         Assert.Equal(HttpStatusCode.Redirect, enregistre.StatusCode);
+        Assert.Contains("Numéro enregistré.", message, StringComparison.Ordinal);
         Assert.EndsWith("numero=enregistre&site=" + site, enregistre.Headers.Location!.OriginalString, StringComparison.Ordinal);
         Assert.EndsWith("numero=invalide&site=" + site, invalide.Headers.Location!.OriginalString, StringComparison.Ordinal);
         Assert.Contains("value=\"01 23 45 67 89\"", apres, StringComparison.Ordinal);
@@ -199,7 +204,11 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
                 builder.UseSetting(cle, valeur);
             }
 
-            builder.ConfigureServices(services => services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler()));
+            builder.ConfigureServices(services =>
+            {
+                services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler());
+                services.AddHttpClient("api-depot").ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler());
+            });
         });
 
     private static HttpClient Navigateur(WebApplicationFactory<WebOptions> web) =>

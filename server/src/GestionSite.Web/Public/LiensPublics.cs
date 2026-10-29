@@ -7,11 +7,7 @@ namespace GestionSite.Web.Public;
 internal sealed class LiensPublics(IOptions<WebOptions> options)
 {
     /// <summary>Adresse publique du formulaire du site ; <paramref name="baseRequete"/> si aucune adresse publique n'est configurée.</summary>
-    internal string Adresse(string code, string baseRequete)
-    {
-        var racine = options.Value.UrlPublique is { Length: > 0 } publique ? publique : baseRequete;
-        return $"{racine.TrimEnd('/')}/s/{code}";
-    }
+    internal string Adresse(string code, string baseRequete) => $"{AdressePublique.Racine(options.Value, baseRequete)}s/{code}";
 
     /// <summary>QR en SVG (affichage, affiche) : contenu généré par l'application, sans saisie de l'utilisateur.</summary>
     internal static string Svg(string adresse)

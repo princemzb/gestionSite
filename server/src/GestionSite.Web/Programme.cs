@@ -38,10 +38,14 @@ internal static class Programme
         builder.Services.AddSingleton<RenouvellementsPartages>();
         builder.Services.AddScoped<SessionApi>();
         builder.Services.AddScoped<DepotPublicClient>();
+        builder.Services.AddHttpClient(DepotPublicClient.ClientDepot, (provider, client) =>
+        {
+            client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
         builder.Services.AddSingleton<LimiteParAdresse>();
         builder.Services.AddSingleton<LiensPublics>();
-        // Formulaire public : 3 photos de 10 Mo et le reste (défaut de Kestrel : 30 Mo).
-        builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 34 * 1024 * 1024);
+
         // Clés de chiffrement des cookies : à conserver entre redémarrages (sinon déconnexion de tous).
         var cles = builder.Services.AddDataProtection().SetApplicationName("gestionsite-web");
         var stockage = builder.Configuration.GetSection("Web:Cles").Get<StockageCles>();
@@ -121,6 +125,17 @@ internal static class Programme
                 "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'self'";
             entetes.XContentTypeOptions = "nosniff";
             entetes["Referrer-Policy"] = "no-referrer"; // le jeton d'activation ne fuit pas par l'en-tête Referer
+            await suite(contexte).ConfigureAwait(false);
+        });
+        // Formulaire public seulement : 3 photos de 10 Mo et le reste ; ailleurs, la limite de Kestrel (30 Mo).
+        app.Use(async (contexte, suite) =>
+        {
+            if (HttpMethods.IsPost(contexte.Request.Method) && contexte.Request.Path.StartsWithSegments("/s")
+                && contexte.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
+            {
+                taille.MaxRequestBodySize = 34 * 1024 * 1024;
+            }
+
             await suite(contexte).ConfigureAwait(false);
         });
         app.UseStaticFiles();
