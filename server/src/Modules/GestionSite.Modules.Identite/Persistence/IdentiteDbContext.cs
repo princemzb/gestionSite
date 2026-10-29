@@ -1,9 +1,9 @@
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Identite.Persistence;
 
