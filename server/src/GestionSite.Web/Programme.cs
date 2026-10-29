@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using GestionSite.Web.Components;
 using GestionSite.Web.Dossiers;
+using GestionSite.Web.Inventaire;
 using GestionSite.Web.Public;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -128,13 +129,14 @@ internal static class Programme
             entetes["Referrer-Policy"] = "no-referrer"; // le jeton d'activation ne fuit pas par l'en-tête Referer
             await suite(contexte).ConfigureAwait(false);
         });
-        // Formulaires avec photos (public, déclaration interne, clôture d'intervention) : 3 photos de 10 Mo et le reste ;
+        // Formulaires avec photos (public, déclaration interne, clôture d'intervention, évaluation) : 3 photos de 10 Mo et le reste ;
         // ailleurs, la limite de Kestrel (30 Mo).
         app.Use(async (contexte, suite) =>
         {
             var chemin = contexte.Request.Path;
             var avecPhotos = chemin.StartsWithSegments("/s")
-                || (chemin.StartsWithSegments("/organisations") && chemin.Value!.Contains("/dossiers/", StringComparison.Ordinal));
+                || (chemin.StartsWithSegments("/organisations") && (chemin.Value!.Contains("/dossiers/", StringComparison.Ordinal)
+                    || chemin.Value.EndsWith("/inventaire/evaluer", StringComparison.Ordinal)));
             if (HttpMethods.IsPost(contexte.Request.Method) && avecPhotos
                 && contexte.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
             {
@@ -150,6 +152,7 @@ internal static class Programme
         app.MapPost("/deconnexion", SessionApi.DeconnecterAsync).RequireAuthorization();
         app.MapSitesAdministration();
         app.MapActionsDossier();
+        app.MapPhotosEvaluation();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
         {

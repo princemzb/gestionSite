@@ -337,9 +337,34 @@ else
             <aside class="carte fiche-composant" aria-label="Fiche du composant">
                 <span class="note">@Libelles.CorpsEtat(c.CorpsEtat)@(c.Lot is null ? "" : " · lot") · @(Zones.TryGetValue(c.ZoneId, out var lieu) ? lieu : "")</span>
                 <h2>@c.Nom</h2>
+                @if (Evaluations.FirstOrDefault() is { } derniere)
+                {
+                    <p class="@($"note-composant {Libelles.ClasseEtat(derniere.Libelle)}")"><strong>@Libelles.Note(derniere.Note)</strong> @Libelles.Etat(derniere.Libelle)
+                        <span class="vide">· évalué le @Date(derniere.EvalueLe)@(derniere.Evaluateur is { } par ? $" par {par}" : "")</span></p>
+                }
+                else
+                {
+                    <p class="note-composant vide">Non évalué</p>
+                }
+                @if (EvalueeAnnoncee && Evaluations.FirstOrDefault() is { } enregistree)
+                {
+                    <p role="status" class="alerte succes">Évaluation enregistrée : @Libelles.Note(enregistree.Note) · @Libelles.Etat(enregistree.Libelle).</p>
+                    @if (Critique(enregistree))
+                    {
+                        <p class="alerte danger">« Critique » constaté : ouvrir un dossier pour ce composant ?
+                            <a class="bouton-lien" href="@Declaration(c, enregistree)">Ouvrir un dossier prérempli</a></p>
+                    }
+                }
                 @if (c.RetireLe is { } retireLe)
                 {
                     <p class="alerte avertissement">Retiré le @Date(retireLe) : @c.MotifRetrait</p>
+                }
+                @if (PeutModifier && c.RetireLe is null)
+                {
+                    <div class="actions debut">
+                        <a class="bouton-principal bouton-lien" href="@($"/organisations/{OrganisationId}/inventaire/evaluer?site={SiteCourant!.Id}&composant={c.Id}")">Évaluer</a>
+                        <a class="bouton-secondaire bouton-lien" href="@Declaration(c, Evaluations.FirstOrDefault())">Ouvrir un dossier</a>
+                    </div>
                 }
                 <dl>
                     @if (c.Lot is { } lot)
@@ -388,6 +413,53 @@ else
                         </EditForm>
                     }
                 }
+                @if (Evaluations.FirstOrDefault() is { } evaluation)
+                {
+                    <h3>Dernière évaluation · grille v@(evaluation.GrilleVersion)</h3>
+                    <ul class="points-evalues">
+                        @foreach (var p in evaluation.Points)
+                        {
+                            <li class="@(p.Conforme switch { true => "conforme", false => "defaut", null => "non-verifie" })"><span aria-hidden="true">@(p.Conforme switch { true => "✓", false => "✗", null => "–" })</span>
+                                <span class="sr-only">@(p.Conforme switch { true => "Conforme : ", false => "Défaut : ", null => "Non vérifié : " })</span>@p.Texte</li>
+                        }
+                        @foreach (var m in evaluation.Mesures.Where(m => m.Valeur is not null))
+                        {
+                            <li class="mesure">@m.Libelle : @m.Valeur!.Value.ToString("0.###", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")) @m.Unite</li>
+                        }
+                    </ul>
+                    @if (evaluation.Repartition is { } r)
+                    {
+                        <p class="note">Répartition : @string.Join(", ", Libelles.Etats.Where(e => Nombre(r, e.Cle) > 0).Select(e => $"{Nombre(r, e.Cle)} {e.Libelle.ToLowerInvariant()}"))</p>
+                    }
+                    @if (evaluation.Remarque is not null)
+                    {
+                        <p class="texte-libre">@evaluation.Remarque</p>
+                    }
+                    @if (evaluation.Photos > 0)
+                    {
+                        <div class="photos">
+                            @for (var rang = 1; rang <= evaluation.Photos; rang++)
+                            {
+                                <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant!.Id}/composants/{c.Id}/evaluations/{evaluation.Id}/photos/{rang}")" alt="@($"Photo {rang} de l'évaluation")" loading="lazy" />
+                            }
+                        </div>
+                    }
+                    <h3>Évaluations</h3>
+                    @if (Evaluations.Count > 1)
+                    {
+                        @* Courbe des notes, de la plus ancienne à la plus récente (0 à 10 de bas en haut). *@
+                        <svg class="courbe-notes" viewBox="0 0 100 20" preserveAspectRatio="none" role="img" aria-label="Évolution des notes">
+                            <polyline points="@Courbe()" />
+                        </svg>
+                    }
+                    <ol class="historique">
+                        @foreach (var e in Evaluations)
+                        {
+                            <li><strong>@Date(e.EvalueLe) · @(e.Evaluateur ?? "Compte inconnu")</strong><br />
+                                <span class="@Libelles.ClasseEtat(e.Libelle)">@Libelles.Etat(e.Libelle) (@Libelles.Note(e.Note))</span><span class="vide"> · grille v@(e.GrilleVersion)</span></li>
+                        }
+                    </ol>
+                }
                 <h3>Historique</h3>
                 <ol class="historique">
                     @foreach (var e in fiche.Historique)
@@ -423,6 +495,9 @@ else
     [SupplyParameterFromQuery(Name = "action")] private string? Action { get; set; }
 
     [SupplyParameterFromQuery(Name = "pour")] private Guid? BatimentCible { get; set; }
+
+    // Retour de l'évaluation (US-11) : confirmation et, si « Critique », proposition d'ouvrir un dossier.
+    [SupplyParameterFromQuery(Name = "evaluee")] private bool? Evaluee { get; set; }
 
     [SupplyParameterFromForm(Name = "StructureSaisie", FormName = "structure")] private SaisieStructure? FormulaireStructure { get; set; }
 
@@ -460,6 +535,11 @@ else
     private Dictionary<Guid, int> ComptesParZone { get; set; } = [];
 
     private FicheComposantApi? Fiche { get; set; }
+
+    // Évaluations du composant de la fiche, la plus récente d'abord.
+    private IReadOnlyList<EvaluationApi> Evaluations { get; set; } = [];
+
+    private bool EvalueeAnnoncee => Evaluee == true;
 
     private string? Message { get; set; }
 
@@ -540,6 +620,7 @@ else
             try
             {
                 Fiche = await Session.LireAsync<FicheComposantApi>($"{Base}/components/{id}", CancellationToken.None);
+                Evaluations = await Session.LireAsync<List<EvaluationApi>>($"{Base}/components/{id}/evaluations", CancellationToken.None);
             }
             catch (RefusApiException refus) when (refus.Statut == HttpStatusCode.NotFound)
             {
@@ -800,6 +881,28 @@ else
     };
 
     private static string Date(DateTimeOffset date) => Perimetre.Date(date);
+
+    private static bool Critique(EvaluationApi e) => e.Etat == "Critique" || e.Repartition?.Critique > 0;
+
+    // Déclaration interne préremplie (zone, emplacement, constat) : proposée, jamais créée automatiquement.
+    private string Declaration(ComposantApi c, EvaluationApi? e)
+    {
+        var defauts = e?.Points.Where(p => p.Conforme == false).Select(p => p.Texte).ToList() ?? [];
+        var constat = e is null
+            ? $"{c.Nom} : "
+            : $"{c.Nom} : évalué « {Libelles.Etat(e.Libelle)} » le {Date(e.EvalueLe)}.{(defauts.Count > 0 ? $" Défauts : {string.Join(" ; ", defauts)}." : "")}{(e.Remarque is { } r ? $" {r}" : "")}";
+        var emplacement = c.Emplacement is null ? c.Nom : $"{c.Nom} · {c.Emplacement}";
+        return $"/organisations/{OrganisationId}/dossiers/declarer?site={SiteCourant?.Id}&zone={c.ZoneId}" +
+            $"&emplacement={Uri.EscapeDataString(emplacement)}&description={Uri.EscapeDataString(constat)}";
+    }
+
+    // Points de la courbe : x de 0 à 100 de la plus ancienne à la plus récente, y = 20 − 2 × note.
+    private string Courbe()
+    {
+        var notes = Evaluations.Reverse().Select(e => e.Note).ToList();
+        return string.Join(' ', notes.Select((note, i) => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{(notes.Count == 1 ? 0 : 100m * i / (notes.Count - 1)):0.##},{20 - (2 * note):0.##}")));
+    }
 
     private sealed class SaisieStructure
     {

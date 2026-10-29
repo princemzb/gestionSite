@@ -1,0 +1,434 @@
+@page "/organisations/{OrganisationId:guid}/inventaire/evaluer"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Globalization
+@using GestionSite.Web.Inventaire
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="inventaire" />
+<main class="admin-contenu evaluation">
+<PageTitle>Évaluer · gestionSite</PageTitle>
+
+@if (Composant is null || Grille is null)
+{
+    <div class="entete"><div><h1>Évaluer</h1><p>@(Message ?? "Composant introuvable sur ce site.")</p></div></div>
+}
+else
+{
+    var c = Composant;
+    <a class="retour" href="@Fiche()">← @c.Nom</a>
+    <div class="entete-evaluation">
+        <span class="note">@Libelles.CorpsEtat(c.CorpsEtat) · @Lieu@(c.Lot is { } l ? $" · lot de {l.Quantite} {Libelles.Unite(l.Unite, l.Quantite)}" : "")</span>
+        <h1>Évaluer · étape @Saisie.Etape sur 3</h1>
+    </div>
+    <ol class="progression" aria-label="Étapes">
+        @foreach (var (numero, titre) in Etapes)
+        {
+            <li class="@(numero < Saisie.Etape ? "faite" : numero == Saisie.Etape ? "courante" : null)" aria-current="@(numero == Saisie.Etape ? "step" : null)"><span>@titre</span></li>
+        }
+    </ol>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <EditForm Model="Saisie" FormName="evaluation" OnSubmit="AvancerAsync" enctype="multipart/form-data" class="formulaire-evaluation">
+        <input type="hidden" name="Saisie.CommandeId" value="@Saisie.CommandeId" />
+        <input type="hidden" name="Saisie.GrilleVersion" value="@Saisie.GrilleVersion" />
+        <input type="hidden" name="Saisie.Etape" value="@Saisie.Etape" />
+
+        @* Étape 1 : points à observer et mesures ; aux autres étapes, conservés en champs cachés. *@
+        @if (Saisie.Etape == 1)
+        {
+            <section class="carte etape-evaluation" aria-label="Points à observer">
+                <h2>Points à observer <span class="aide">· grille v@(Grille.Version)</span></h2>
+                @for (var i = 0; i < Grille.Criteres.Count; i++)
+                {
+                    var rang = i;
+                    var valeur = Saisie.Constat(rang);
+                    <fieldset class="@($"point-observe {(valeur == "non" ? "defaut" : null)}")">
+                        <legend>@Grille.Criteres[rang]</legend>
+                        @foreach (var (choix, libelle) in Constats)
+                        {
+                            <label class="choix-constat"><input type="radio" name="@($"Saisie.Constats[{rang}]")" value="@choix" checked="@(valeur == choix)" /> @libelle</label>
+                        }
+                    </fieldset>
+                }
+                @for (var i = 0; i < Grille.Mesures.Count; i++)
+                {
+                    var rang = i;
+                    <label class="champ">@Grille.Mesures[rang].Libelle <span class="aide">(mesure facultative, @Grille.Mesures[rang].Unite)</span>
+                        <input inputmode="decimal" name="@($"Saisie.Mesures[{rang}]")" value="@Saisie.Mesure(rang)" maxlength="20" />
+                    </label>
+                }
+            </section>
+        }
+        else
+        {
+            @for (var i = 0; i < Grille.Criteres.Count; i++)
+            {
+                <input type="hidden" name="@($"Saisie.Constats[{i}]")" value="@Saisie.Constat(i)" />
+            }
+            @for (var i = 0; i < Grille.Mesures.Count; i++)
+            {
+                <input type="hidden" name="@($"Saisie.Mesures[{i}]")" value="@Saisie.Mesure(i)" />
+            }
+        }
+
+        @* Étape 2 : état constaté (composant individuel) ou répartition par état (lot). *@
+        @if (Saisie.Etape == 2)
+        {
+            <section class="carte etape-evaluation" aria-label="État constaté">
+                @if (c.Lot is { } lot)
+                {
+                    <h2>Combien dans chaque état ?</h2>
+                    <div class="grille-etats">
+                        @foreach (var (cle, libelle, classe) in Libelles.Etats)
+                        {
+                            <label class="@($"champ {classe}")">@libelle<input type="number" inputmode="numeric" min="0" max="@lot.Quantite" name="@($"Saisie.{Propriete(cle)}")" value="@Saisie.Nombre(cle)" /></label>
+                        }
+                    </div>
+                    <p class="note">Total attendu : @lot.Quantite @Libelles.Unite(lot.Unite, lot.Quantite). La note du lot est la moyenne pondérée des états.</p>
+                }
+                else
+                {
+                    <h2>État constaté</h2>
+                    <div class="choix-etats">
+                        @foreach (var (etat, libelle, note, classe) in Libelles.Echelle)
+                        {
+                            <label class="@($"choix-etat {classe}")"><input type="radio" name="Saisie.Etat" value="@etat" checked="@(Saisie.Etat == etat)" required /><span>@libelle</span><span>@note</span></label>
+                        }
+                    </div>
+                }
+                <p class="note">Les points observés guident votre choix ; la note n'est pas calculée automatiquement (DEC-01).</p>
+            </section>
+        }
+        else
+        {
+            <input type="hidden" name="Saisie.Etat" value="@Saisie.Etat" />
+            @foreach (var (cle, _, _) in Libelles.Etats)
+            {
+                <input type="hidden" name="@($"Saisie.{Propriete(cle)}")" value="@Saisie.Nombre(cle)" />
+            }
+        }
+
+        @* Étape 3 : photos (obligatoires pour Mauvais et Critique) et remarque, puis enregistrement. *@
+        @if (Saisie.Etape == 3)
+        {
+            <section class="carte etape-evaluation" aria-label="Photos et remarque">
+                <h2>Photos et remarque</h2>
+                <p class="note">@Constat</p>
+                <label class="champ">Photos
+                    @if (Saisie.PhotoExigee)
+                    {
+                        <span class="etiquette verification">obligatoire : état mauvais ou critique</span>
+                    }
+                    else
+                    {
+                        <span class="aide">(facultatives, 3 au plus, 10 Mo chacune)</span>
+                    }
+                    <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" capture="environment" multiple />
+                </label>
+                <label class="champ">Remarque <span class="aide">(facultative)</span>
+                    <textarea name="Saisie.Remarque" rows="3" maxlength="2000">@Saisie.Remarque</textarea>
+                </label>
+                @if (Saisie.CritiqueConstate)
+                {
+                    <p class="note encadre">« Critique » : après l'enregistrement, l'application vous proposera d'ouvrir un dossier prérempli.</p>
+                }
+            </section>
+        }
+        else
+        {
+            <input type="hidden" name="Saisie.Remarque" value="@Saisie.Remarque" />
+        }
+
+        <div class="actions-evaluation">
+            @if (Saisie.Etape > 1)
+            {
+                <button type="submit" name="Saisie.Action" value="retour" class="bouton-secondaire" formnovalidate>Retour</button>
+            }
+            else
+            {
+                <a class="bouton-secondaire bouton-lien" href="@Fiche()">Annuler</a>
+            }
+            @if (Saisie.Etape < 3)
+            {
+                <button type="submit" name="Saisie.Action" value="suivant" class="bouton-principal">Suivant : @Etapes[Saisie.Etape].Titre.ToLowerInvariant()</button>
+            }
+            else
+            {
+                <button type="submit" name="Saisie.Action" value="enregistrer" class="bouton-principal">Enregistrer l'évaluation</button>
+            }
+        </div>
+    </EditForm>
+}
+</main>
+
+@code {
+    private static readonly (int Numero, string Titre)[] Etapes = [(1, "Points à observer"), (2, "État"), (3, "Photos et remarque")];
+
+    private static readonly (string Code, string Libelle)[] Constats = [("oui", "Conforme"), ("non", "Défaut"), ("", "Non vérifié")];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "composant")] private Guid? ComposantDemande { get; set; }
+
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "evaluation")] private SaisieEvaluation? Formulaire { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    private SaisieEvaluation Saisie => Formulaire ??= new() { CommandeId = Guid.NewGuid(), GrilleVersion = Grille?.Version };
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private ComposantApi? Composant { get; set; }
+
+    private GrilleApi? Grille { get; set; }
+
+    private string Lieu { get; set; } = string.Empty;
+
+    private string? Message { get; set; }
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/inventory";
+
+    // Résumé de l'étape 2 rappelé avant l'enregistrement.
+    private string Constat => Composant?.Lot is { } lot
+        ? $"Répartition : {string.Join(", ", Libelles.Etats.Where(e => Saisie.Nombre(e.Cle) > 0).Select(e => $"{Saisie.Nombre(e.Cle)} {e.Libelle.ToLowerInvariant()}"))} sur {lot.Quantite}."
+        : $"État constaté : {Libelles.Etat(Saisie.Etat)}.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            SiteCourant = Perimetre.SitesInternes(Organisation).FirstOrDefault(s => s.Id == SiteDemande);
+            // Évaluateurs : technicien, responsable, délégué du site (décision du 29/10) ; l'API reste juge (403 sinon).
+            if (SiteCourant is null || ComposantDemande is not { } id
+                || !Organisation!.Roles.Any(r => r.SiteId == SiteCourant.Id && r.Role is "Technicien" or "Responsable" or "Delegue"))
+            {
+                Message = "Vous n'évaluez pas les composants de ce site.";
+                return;
+            }
+
+            var fiche = await Session.LireAsync<FicheComposantApi>($"{Base}/components/{id}", CancellationToken.None);
+            if (fiche.Composant.RetireLe is not null)
+            {
+                Message = "Ce composant est retiré de l'inventaire : il ne s'évalue plus.";
+                return;
+            }
+
+            var structure = await Session.LireAsync<List<BatimentApi>>($"{Base}/structure", CancellationToken.None);
+            Lieu = structure.SelectMany(b => b.Zones.Select(z => (z.Id, Libelle: $"{b.Nom} · {z.Nom}"))).FirstOrDefault(z => z.Id == fiche.Composant.ZoneId).Libelle ?? "";
+            Grille = await Session.LireAsync<GrilleApi>($"{Base}/grids/{fiche.Composant.CorpsEtat}", CancellationToken.None);
+            Composant = fiche.Composant;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Composant introuvable sur ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task AvancerAsync()
+    {
+        if (Composant is null || Grille is null)
+        {
+            return;
+        }
+
+        var saisie = Saisie;
+        Message = null;
+        switch (saisie.Action)
+        {
+            case "retour":
+                saisie.Etape = Math.Max(1, saisie.Etape - 1);
+                return;
+            case "suivant" when saisie.Etape == 1:
+                if (saisie.MesuresLues(Grille.Mesures.Count) is null)
+                {
+                    Message = "Mesure : un nombre (virgule ou point), trois décimales au plus.";
+                    return;
+                }
+
+                saisie.Etape = 2;
+                return;
+            case "suivant":
+                Message = Composant.Lot is { } lot ? saisie.ErreurRepartition(lot.Quantite) : saisie.Etat is null ? "Choisissez l'état constaté." : null;
+                if (Message is null)
+                {
+                    saisie.Etape = 3;
+                }
+
+                return;
+            default:
+                await EnregistrerAsync(saisie);
+                return;
+        }
+    }
+
+    private async Task EnregistrerAsync(SaisieEvaluation saisie)
+    {
+        try
+        {
+            await Session.EnvoyerFormulaireAsync<EvaluationCreeeApi>($"{Base}/components/{Composant!.Id}/evaluations", new
+            {
+                commandeId = saisie.CommandeId,
+                grilleVersion = saisie.GrilleVersion,
+                constats = Enumerable.Range(0, Grille!.Criteres.Count).Select(i => saisie.Constat(i) switch { "oui" => true, "non" => (bool?)false, _ => null }),
+                mesures = saisie.MesuresLues(Grille.Mesures.Count),
+                etat = Composant.Lot is null ? saisie.Etat : null,
+                repartition = Composant.Lot is null
+                    ? null
+                    : new { bon = saisie.Bon ?? 0, satisfaisant = saisie.Satisfaisant ?? 0, degrade = saisie.Degrade ?? 0, mauvais = saisie.Mauvais ?? 0, critique = saisie.Critique ?? 0 },
+                remarque = saisie.Remarque,
+            }, Contexte?.Request.Form.Files.GetFiles("photos") ?? [], CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            (Message, saisie.Etape) = refus.Code switch
+            {
+                "grille_modifiee" => ("La grille de ce corps d'état vient d'être modifiée : relisez les points à observer.", 1),
+                "commande_reutilisee" => ("Cet envoi a déjà servi : recommencez l'enregistrement.", 3),
+                "composant_retire" => ("Ce composant vient d'être retiré de l'inventaire.", 3),
+                "modifie_entre_temps" => ("Ce lot vient d'être modifié par quelqu'un d'autre : vérifiez la répartition.", 2),
+                _ => refus.Champ switch
+                {
+                    "photos" => ("Photo obligatoire pour un état mauvais ou critique (3 au plus, 10 Mo chacune, JPEG, PNG ou HEIC).", 3),
+                    "repartition" => ("La somme des quantités par état doit égaler la quantité du lot.", 2),
+                    "etat" => ("Choisissez l'état constaté.", 2),
+                    "remarque" => ("Remarque : texte visible de 2000 caractères au plus.", 3),
+                    "mesures" or "constats" => ("Vérifiez les points et les mesures.", 1),
+                    _ => (refus.Statut == HttpStatusCode.Forbidden ? "Vous n'évaluez pas les composants de ce site." : "Service momentanément indisponible : réessayez dans un instant.", saisie.Etape),
+                },
+            };
+            if (refus.Code is "grille_modifiee" or "commande_reutilisee")
+            {
+                saisie.CommandeId = Guid.NewGuid();
+            }
+
+            if (refus.Code == "grille_modifiee")
+            {
+                Grille = await Session.LireAsync<GrilleApi>($"{Base}/grids/{Composant!.CorpsEtat}", CancellationToken.None);
+                saisie.GrilleVersion = Grille.Version;
+                saisie.Constats = [];
+                saisie.Mesures = [];
+            }
+
+            return;
+        }
+
+        Navigation.NavigateTo($"{Fiche()}&evaluee=true");
+    }
+
+    private string Fiche() => $"/organisations/{OrganisationId}/inventaire?site={SiteCourant?.Id}&composant={ComposantDemande}";
+
+    private static string Propriete(string cle) => string.Concat(char.ToUpperInvariant(cle[0]), cle[1..]);
+
+    private sealed class SaisieEvaluation
+    {
+        public Guid CommandeId { get; set; }
+
+        public int? GrilleVersion { get; set; }
+
+        public int Etape { get; set; } = 1;
+
+        public string? Action { get; set; }
+
+        // « oui » conforme, « non » défaut, vide non vérifié : une valeur par point, dans l'ordre de la grille.
+        public List<string?>? Constats { get; set; } = [];
+
+        // Texte saisi (virgule ou point), une valeur par mesure de la grille.
+        public List<string?>? Mesures { get; set; } = [];
+
+        public string? Etat { get; set; }
+
+        public int? Bon { get; set; }
+
+        public int? Satisfaisant { get; set; }
+
+        public int? Degrade { get; set; }
+
+        public int? Mauvais { get; set; }
+
+        public int? Critique { get; set; }
+
+        public string? Remarque { get; set; }
+
+        internal bool PhotoExigee => Etat is "Mauvais" or "Critique" || Mauvais > 0 || Critique > 0;
+
+        internal bool CritiqueConstate => Etat == "Critique" || Critique > 0;
+
+        // Listes absentes du formulaire (étape envoyée sans elles) : lues comme vides.
+        internal string? Constat(int rang) => Constats is { } constats && rang < constats.Count ? constats[rang] ?? "" : "";
+
+        internal string? Mesure(int rang) => Mesures is { } mesures && rang < mesures.Count ? mesures[rang] : null;
+
+        internal int? Nombre(string cle) => cle switch
+        {
+            "bon" => Bon,
+            "satisfaisant" => Satisfaisant,
+            "degrade" => Degrade,
+            "mauvais" => Mauvais,
+            _ => Critique,
+        };
+
+        // Mesures lues (vide : non relevée) ; null si l'une n'est pas un nombre.
+        internal List<decimal?>? MesuresLues(int nombre)
+        {
+            var lues = new List<decimal?>(nombre);
+            for (var i = 0; i < nombre; i++)
+            {
+                var texte = Mesure(i)?.Trim().Replace(',', '.');
+                if (string.IsNullOrEmpty(texte))
+                {
+                    lues.Add(null);
+                }
+                else if (decimal.TryParse(texte, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var valeur)
+                    && Math.Round(valeur, 3) == valeur)
+                {
+                    lues.Add(valeur);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            return lues;
+        }
+
+        internal string? ErreurRepartition(int quantite)
+        {
+            var nombres = new[] { Bon, Satisfaisant, Degrade, Mauvais, Critique };
+            if (nombres.Any(n => n < 0))
+            {
+                return "Des quantités positives ou nulles.";
+            }
+
+            var total = nombres.Sum(n => n ?? 0);
+            return total == quantite ? null : $"Répartition : {total} pour une quantité de {quantite}.";
+        }
+    }
+}

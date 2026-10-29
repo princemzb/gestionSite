@@ -91,6 +91,22 @@ internal static class Libelles
 
     internal static string Champ(string? champ) => champ is not null && Champs.TryGetValue(champ, out var libelle) ? libelle : champ ?? "Saisie";
 
+    /// <summary>Échelle commune (DEC-01) : code de l'API, libellé, note, classe de couleur ; du meilleur au pire.</summary>
+    internal static readonly (string Code, string Libelle, int Note, string Classe)[] Echelle =
+    [
+        ("Bon", "Bon", 9, "etat-bon"), ("Satisfaisant", "Satisfaisant", 7, "etat-satisfaisant"), ("Degrade", "Dégradé", 5, "etat-degrade"),
+        ("Mauvais", "Mauvais", 3, "etat-mauvais"), ("Critique", "Critique", 1, "etat-critique"),
+    ];
+
+    internal static string Etat(string? code) => Echelle.FirstOrDefault(e => e.Code == code).Libelle ?? code ?? "Non évalué";
+
+    internal static string ClasseEtat(string? code) => Echelle.FirstOrDefault(e => e.Code == code).Classe ?? "etat-aucun";
+
+    /// <summary>Note affichée à une décimale, virgule française (« 6,8 ») ; l'API l'a déjà arrondie.</summary>
+    internal static string Note(decimal note) => note.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
+
+    internal static string Pourcentage(int part, int total) => total == 0 ? "—" : $"{Math.Round(100m * part / total, MidpointRounding.AwayFromZero)} %";
+
     internal static string MiseEnService(int? annee, int? mois) =>
         annee is null ? "—" : mois is { } m and >= 1 and <= 12 ? $"{Mois[m - 1]} {annee}" : $"{annee}";
 }
