@@ -52,6 +52,8 @@ internal sealed record ComposantApi(
 
 internal sealed record ListeComposantsApi(IReadOnlyList<ComposantApi> Composants, bool Tronquee);
 
+internal sealed record CompteZoneApi(Guid ZoneId, int Actifs);
+
 internal sealed record EvenementApi(
     DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, System.Text.Json.JsonElement? Avant, System.Text.Json.JsonElement? Apres);
 

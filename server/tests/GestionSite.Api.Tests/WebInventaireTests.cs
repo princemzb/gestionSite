@@ -100,6 +100,84 @@ public sealed partial class WebInventaireTests(InfrastructureFixture infrastruct
     }
 
     [Fact]
+    public async Task LevelsAndRoomsAreAddedFromTheirBuilding()
+    {
+        using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
+        var batiment = await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église"));
+        var id = Batiment().Match(await LirePageAsync(technicien, Chemin(batiment))).Groups[1].Value;
+
+        var niveau = await PosterAsync(technicien, $"{_page}?action=niveau&pour={id}", "structure",
+            ("StructureSaisie.Type", "niveau"), ("StructureSaisie.BatimentId", id), ("StructureSaisie.Nom", "1er étage"), ("StructureSaisie.Ordre", "1"));
+        var formulaireZone = await LirePageAsync(technicien, $"{Chemin(niveau)}&action=zone&pour={id}");
+        var niveauId = Niveau().Match(formulaireZone).Groups[1].Value;
+        var zone = await PosterAsync(technicien, $"{_page}?action=zone&pour={id}", "structure",
+            ("StructureSaisie.Type", "zone"), ("StructureSaisie.BatimentId", id), ("StructureSaisie.Nom", "Salle des jeunes"), ("StructureSaisie.NiveauId", niveauId));
+        var arbre = await LirePageAsync(technicien, Chemin(zone));
+
+        Assert.Contains("Nouvelle zone · Église", formulaireZone, StringComparison.Ordinal);
+        Assert.Matches("arbre-niveau\">1er étage</span>\\s*<a class=\"arbre-zone retrait-2\"[^>]*>Salle des jeunes", arbre);
+        Assert.Contains("aria-current=\"page\">Salle des jeunes", arbre, StringComparison.Ordinal); // la nouvelle zone est sélectionnée
+    }
+
+    [Fact]
+    public async Task EveryFieldChangeIsReadableAndConflictsAreExplained()
+    {
+        using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
+        var batiment = await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église"));
+        var communes = ZoneCommunes().Match(await LirePageAsync(technicien, Chemin(batiment))).Groups[1].Value;
+        var cree = await PosterAsync(technicien, $"{_page}?action=composant", "composant",
+            ("ComposantSaisi.Nom", "Extincteur"), ("ComposantSaisi.CorpsEtat", "Mobilier"), ("ComposantSaisi.ZoneId", communes),
+            ("ComposantSaisi.Verification", "non"), ("ComposantSaisi.Mode", "individuel"), ("ComposantSaisi.Unite", "Unite"));
+        var fiche = Chemin(cree);
+        var version = Version().Match(await LirePageAsync(technicien, $"{fiche}&action=modifier")).Groups[1].Value;
+        (string, string)[] modification =
+        [
+            ("ComposantSaisi.Id", Identifiant().Match(fiche).Groups[1].Value), ("ComposantSaisi.Version", version),
+            ("ComposantSaisi.Nom", "Extincteur CO2 2 kg"), ("ComposantSaisi.CorpsEtat", "SecuriteIncendie"), ("ComposantSaisi.ZoneId", communes),
+            ("ComposantSaisi.Marque", "Sicli"), ("ComposantSaisi.Annee", "2021"), ("ComposantSaisi.Mois", "3"), ("ComposantSaisi.Verification", "oui"),
+            ("ComposantSaisi.Mode", "lot"), ("ComposantSaisi.Quantite", "2"), ("ComposantSaisi.Unite", "Ensemble"),
+        ];
+
+        var modifie = await PosterAsync(technicien, $"{fiche}&action=modifier", "composant", modification);
+        var historique = await LirePageAsync(technicien, Chemin(modifie));
+        var perime = await LireAsync(await PosterAsync(technicien, $"{fiche}&action=modifier", "composant",
+            [.. modification.Where(c => c.Item1 != "ComposantSaisi.Marque"), ("ComposantSaisi.Marque", "Desautel")])); // version déjà dépassée
+        var inconnu = await LirePageAsync(technicien, $"{_page}?composant={Guid.NewGuid()}&action=modifier");
+        var filtres = await LirePageAsync(technicien, $"{_page}?corpsEtat=SecuriteIncendie&batiment={Batiment().Match(historique).Groups[1].Value}&retires=true");
+        var filtreInvalide = await LirePageAsync(technicien, $"{_page}?corpsEtat=Inconnu");
+
+        Assert.Contains(
+            "Modification : nom « Extincteur » → « Extincteur CO2 2 kg », corps d'état Mobilier → Sécurité incendie, marque — → « Sicli », " +
+            "année de mise en service — → 2021, mois de mise en service — → mars, soumis à vérification non → oui, unité — → ensemble, quantité — → 2",
+            historique, StringComparison.Ordinal);
+        Assert.Contains("mars 2021", historique, StringComparison.Ordinal);
+        Assert.Contains("Quelqu'un d'autre vient de modifier ce composant", perime, StringComparison.Ordinal);
+        Assert.Contains("Ce composant n'existe pas sur ce site.", inconnu, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nouveau composant", inconnu, StringComparison.Ordinal); // pas de création à la place d'une modification
+        Assert.Contains("Extincteur CO2 2 kg", filtres, StringComparison.Ordinal);
+        Assert.Contains("Effacer", filtres, StringComparison.Ordinal);
+        Assert.Contains("Filtre refusé : Corps d'état.", filtreInvalide, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadersGetNoFormAndOtherOrganisationsShowNothing()
+    {
+        await MembreAsync("coordination@inventaire-web.test", "Anne C.", Role.Coordination);
+        using var coordination = await ConnecterAsync("coordination@inventaire-web.test");
+
+        var lecture = await LirePageAsync(coordination, $"{_page}?action=batiment");
+        using var ecriture = await PosterAsync(coordination, $"{_page}?action=batiment", "structure",
+            ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église"));
+        using var autre = await coordination.GetAsync(new Uri($"/organisations/{Guid.NewGuid()}/inventaire", UriKind.Relative));
+
+        Assert.Contains("Décrivez le site", lecture, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nouveau bâtiment", lecture, StringComparison.Ordinal);
+        Assert.Contains("Aucun site ne vous est attribué", await LireAsync(autre), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, ecriture.StatusCode); // formulaire absent de la page d'un lecteur
+        Assert.Equal(0, await _database.CountAsync("SELECT count(*) FROM patrimoine.batiments"));
+    }
+
+    [Fact]
     public async Task FiltersNarrowTheListAndReadersCannotChangeAnything()
     {
         using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
@@ -140,7 +218,7 @@ public sealed partial class WebInventaireTests(InfrastructureFixture infrastruct
     private static string AlerteDe(HttpResponseMessage reponse)
     {
         var corps = WebUtility.HtmlDecode(reponse.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-        var alerte = Regex.Match(corps, "role=\"alert\"[^>]*>([^<]+)<");
+        var alerte = Alerte().Match(corps);
         return $"{reponse.StatusCode} : {(alerte.Success ? alerte.Groups[1].Value : corps[..Math.Min(corps.Length, 500)])}";
     }
 
@@ -196,6 +274,15 @@ public sealed partial class WebInventaireTests(InfrastructureFixture infrastruct
 
     [GeneratedRegex("class=\"arbre-zone retrait-1 communes\" href=\"[^\"]*zone=([0-9a-f-]{36})")]
     private static partial Regex ZoneCommunes();
+
+    [GeneratedRegex("role=\"alert\"[^>]*>([^<]+)<")]
+    private static partial Regex Alerte();
+
+    [GeneratedRegex("class=\"arbre-batiment\" href=\"[^\"]*batiment=([0-9a-f-]{36})")]
+    private static partial Regex Batiment();
+
+    [GeneratedRegex("<option value=\"([0-9a-f-]{36})\">1er étage</option>")]
+    private static partial Regex Niveau();
 
     [GeneratedRegex("name=\"ComposantSaisi.Version\" value=\"(\\d+)\"")]
     private static partial Regex Version();

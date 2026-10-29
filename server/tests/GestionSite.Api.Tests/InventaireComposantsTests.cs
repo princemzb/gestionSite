@@ -44,6 +44,10 @@ public sealed class InventaireComposantsTests(InfrastructureFixture infrastructu
         Assert.Equal(["Extincteurs eau 6 L"], Noms(await ListerAsync("?recherche=sicli", pasteur)));
         Assert.Empty(await ListerAsync("?recherche=%25", pasteur)); // « % » littéral, pas un joker
         Assert.Equal(3, (await ListerAsync("?recherche=%20&corpsEtat=", pasteur)).Length); // filtres vides : aucun filtre
+        using var comptes = await EnvoyerAsync(HttpMethod.Get, $"{Base}/components/counts", pasteur);
+        var parZone = (await comptes.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray()
+            .ToDictionary(c => c.GetProperty("zoneId").GetGuid(), c => c.GetProperty("actifs").GetInt32());
+        Assert.Equal(new Dictionary<Guid, int> { [communes] = 1, [sacristie] = 1, [parking] = 1 }, parZone);
         Assert.Equal(3, await Database.CountAsync(
             "SELECT count(*) FROM patrimoine.journal_inventaire WHERE cible = 'Composant' AND nature = 'Creation' AND auteur_compte_id IS NOT NULL"));
     }

@@ -75,6 +75,15 @@ internal static class Libelles
         ["version"] = "Version",
     };
 
+    // Ordre des champs de la fiche : l'historique les présente ainsi (jsonb ne garde pas l'ordre d'écriture).
+    private static readonly string[] OrdreChamps =
+    [
+        "nom", "corpsEtat", "zone", "emplacement", "marque", "modele", "numeroSerie", "anneeMiseEnService", "moisMiseEnService",
+        "remarques", "soumisAVerification", "unite", "quantite", "bon", "satisfaisant", "degrade", "mauvais", "critique",
+    ];
+
+    internal static int Rang(string champ) => Array.IndexOf(OrdreChamps, champ) is var rang and >= 0 ? rang : OrdreChamps.Length;
+
     internal static string CorpsEtat(string code) => CorpsEtats.FirstOrDefault(c => c.Code == code).Libelle ?? code;
 
     internal static string Unite(string code, int quantite) =>

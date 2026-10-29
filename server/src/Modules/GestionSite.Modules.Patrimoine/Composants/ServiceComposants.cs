@@ -19,6 +19,8 @@ internal sealed record ComposantLu(
 
 internal sealed record ListeComposants(IReadOnlyList<ComposantLu> Composants, bool Tronquee);
 
+internal sealed record CompteZone(Guid ZoneId, int Actifs);
+
 internal sealed record EvenementLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Avant, JsonElement? Apres);
 
 internal sealed record FicheLue(ComposantLu Composant, IReadOnlyList<EvenementLu> Historique);
@@ -77,6 +79,14 @@ internal sealed class ServiceComposants(
             .Select(c => new { Composant = c, Version = EF.Property<uint>(c, "xmin") })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new ListeComposants([.. lus.Take(Limite).Select(l => Lire(l.Composant, l.Version))], lus.Count > Limite);
+    }
+
+    /// <summary>Composants actifs par zone (arborescence de l'écran), sans limite de liste.</summary>
+    internal async Task<IReadOnlyList<CompteZone>> CompterAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        return await context.Composants.AsNoTracking().Where(c => c.SiteId == siteId && c.RetireLe == null).GroupBy(c => c.ZoneId)
+            .Select(g => new CompteZone(g.Key, g.Count())).ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<FicheLue> LireAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)

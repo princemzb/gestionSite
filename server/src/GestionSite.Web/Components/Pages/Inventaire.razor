@@ -88,7 +88,7 @@ else
         }
     </form>
 
-    @if (Action is "batiment" or "niveau" or "zone" && PeutModifier)
+    @if ((Action == "batiment" || (Action is "niveau" or "zone" && BatimentDuFormulaire is not null)) && PeutModifier)
     {
         <section class="carte formulaire-inventaire" aria-label="Structure du site">
             <EditForm Model="StructureSaisie" FormName="structure" OnSubmit="EnregistrerStructureAsync" class="formulaire-inventaire">
@@ -98,17 +98,10 @@ else
                     <h2>Nouveau bâtiment</h2>
                     <p class="note">Les extérieurs se décrivent comme un bâtiment « Extérieurs » (parvis, parking, jardin…). Une zone « Parties communes » est créée avec chaque bâtiment.</p>
                 }
-                else
+                else if (BatimentDuFormulaire is { } cible)
                 {
-                    <h2>@(Action == "niveau" ? "Nouveau niveau" : "Nouvelle zone")</h2>
-                    <label class="champ">Bâtiment
-                        <InputSelect @bind-Value="StructureSaisie.BatimentId" required>
-                            @foreach (var b in Structure)
-                            {
-                                <option value="@b.Id">@b.Nom</option>
-                            }
-                        </InputSelect>
-                    </label>
+                    <h2>@(Action == "niveau" ? "Nouveau niveau" : "Nouvelle zone") · @cible.Nom</h2>
+                    <input type="hidden" name="StructureSaisie.BatimentId" value="@cible.Id" />
                 }
                 <label class="champ">Nom
                     <InputText @bind-Value="StructureSaisie.Nom" required maxlength="120" placeholder="@(Action switch { "batiment" => "Église, Salles annexes, Extérieurs…", "niveau" => "Sous-sol, Rez-de-chaussée, 1er étage…", _ => "Sacristie, Grande salle, Sanitaires…" })" />
@@ -124,14 +117,9 @@ else
                     <label class="champ">Niveau <span class="aide">(facultatif)</span>
                         <InputSelect @bind-Value="StructureSaisie.NiveauId">
                             <option value="">Sans niveau</option>
-                            @foreach (var b in Structure)
+                            @foreach (var n in BatimentDuFormulaire?.Niveaux ?? [])
                             {
-                                <optgroup label="@b.Nom">
-                                    @foreach (var n in b.Niveaux)
-                                    {
-                                        <option value="@n.Id">@n.Nom</option>
-                                    }
-                                </optgroup>
+                                <option value="@n.Id">@n.Nom</option>
                             }
                         </InputSelect>
                     </label>
@@ -144,7 +132,7 @@ else
         </section>
     }
 
-    @if (Action is "composant" or "modifier" && PeutModifier && Structure.Count > 0)
+    @if ((Action == "composant" || (Action == "modifier" && Fiche is { Composant.RetireLe: null })) && PeutModifier && Structure.Count > 0)
     {
         <section class="carte formulaire-inventaire" aria-label="Fiche du composant">
             <EditForm Model="ComposantSaisi" FormName="composant" OnSubmit="EnregistrerComposantAsync" class="formulaire-inventaire">
@@ -266,21 +254,16 @@ else
             @foreach (var b in Structure)
             {
                 <a class="arbre-batiment" href="@Url(("batiment", b.Id.ToString()), ("zone", null))" aria-current="@(BatimentDemande == b.Id && ZoneDemandee is null ? "page" : null)">@b.Nom</a>
-                @foreach (var z in b.Zones.Where(z => z.NiveauId is null && !z.PartiesCommunes))
+                @foreach (var (niveau, zone) in Arborescence(b))
                 {
-                    @LienZone(b, z, retrait: 1)
-                }
-                @foreach (var n in b.Niveaux)
-                {
-                    <span class="arbre-niveau">@n.Nom</span>
-                    @foreach (var z in b.Zones.Where(z => z.NiveauId == n.Id))
+                    if (zone is null)
                     {
-                        @LienZone(b, z, retrait: 2)
+                        <span class="arbre-niveau">@niveau!.Nom</span>
                     }
-                }
-                @foreach (var z in b.Zones.Where(z => z.PartiesCommunes))
-                {
-                    @LienZone(b, z, retrait: 1)
+                    else
+                    {
+                        @LienZone(zone, retrait: zone.NiveauId is null ? 1 : 2)
+                    }
                 }
                 @if (PeutModifier)
                 {
@@ -398,7 +381,7 @@ else
                 <ol class="historique">
                     @foreach (var e in fiche.Historique)
                     {
-                        <li><strong>@Date(e.Le) · @(e.Auteur ?? "Compte inconnu")</strong><br /><span>@Evenement(e)</span></li>
+                        <li><strong>@Date(e.Le) · @(e.AuteurCompteId is null ? "Opération automatique" : e.Auteur ?? "Compte inconnu")</strong><br /><span>@Evenement(e)</span></li>
                     }
                 </ol>
             </aside>
@@ -408,12 +391,6 @@ else
 </main>
 
 @code {
-    // Repli sur UTC (fuseau absent de l'hôte) affiché comme tel : jamais une heure locale fausse.
-    private static readonly TimeZoneInfo? Paris =
-        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : null;
-
-    private static readonly System.Globalization.CultureInfo Francais = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
-
     [Parameter] public Guid OrganisationId { get; set; }
 
     [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
@@ -444,7 +421,7 @@ else
 
     private SaisieStructure StructureSaisie => FormulaireStructure ??= new() { BatimentId = BatimentCible };
 
-    private SaisieComposant ComposantSaisi => FormulaireComposant ??= Action == "modifier" && Fiche is { } fiche
+    private SaisieComposant ComposantSaisi => FormulaireComposant ??= Action == "modifier" && Fiche is { Composant.RetireLe: null } fiche
         ? SaisieComposant.Depuis(fiche.Composant)
         : new() { ZoneId = ZoneDemandee };
 
@@ -475,6 +452,9 @@ else
 
     private string? Message { get; set; }
 
+    // Bâtiment des formulaires « + Zone » et « + Niveau » : celui de l'arborescence, ses niveaux seulement.
+    private BatimentApi? BatimentDuFormulaire => Structure.FirstOrDefault(b => b.Id == (StructureSaisie.BatimentId ?? BatimentCible));
+
     private bool Filtre => BatimentDemande is not null || !string.IsNullOrEmpty(CorpsEtatDemande) || VerificationDemandee == true
         || !string.IsNullOrWhiteSpace(RechercheDemandee) || RetiresDemandes == true;
 
@@ -499,15 +479,13 @@ else
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
-            // Sites où l'appelant a un rôle interne : l'administrateur seul n'a pas d'accès implicite à l'inventaire.
-            Sites = Organisation is null
-                ? []
-                : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+            Sites = Perimetre.SitesInternes(Organisation);
             SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
             if (SiteCourant is { } site)
             {
                 // Technicien, responsable et délégué modifient l'inventaire ; l'API reste juge (403 sinon).
                 PeutModifier = Organisation!.Roles.Any(r => r.SiteId == site.Id && r.Role is "Technicien" or "Responsable" or "Delegue");
+                // Aussi lors d'un envoi : Blazor n'accepte un formulaire que s'il figure dans la page rendue.
                 await ChargerAsync();
             }
         }
@@ -543,9 +521,9 @@ else
         var liste = await Session.LireAsync<ListeComposantsApi>($"{Base}/components{(requete.Count == 0 ? "" : "?" + string.Join('&', requete))}", CancellationToken.None);
         Composants = liste.Composants;
         Tronquee = liste.Tronquee;
-        // Comptes de l'arborescence : composants actifs de chaque zone, quels que soient les filtres.
-        var actifs = requete.Count == 0 ? liste.Composants : (await Session.LireAsync<ListeComposantsApi>($"{Base}/components", CancellationToken.None)).Composants;
-        ComptesParZone = actifs.Where(c => c.RetireLe is null).GroupBy(c => c.ZoneId).ToDictionary(g => g.Key, g => g.Count());
+        // Comptes de l'arborescence : composants actifs de chaque zone, quels que soient les filtres et la limite de liste.
+        ComptesParZone = (await Session.LireAsync<List<CompteZoneApi>>($"{Base}/components/counts", CancellationToken.None))
+            .ToDictionary(c => c.ZoneId, c => c.Actifs);
         if (ComposantDemande is { } id)
         {
             try
@@ -657,7 +635,14 @@ else
         "zoneId" => "Choisissez une zone du site.",
         "soumisAVerification" => "Indiquez oui ou non.",
         "corpsEtat" => "Choisissez un corps d'état.",
-        _ => "Une ligne de texte visible, dans la longueur indiquée.",
+        "lot.quantite" => "Pour un lot, une quantité entière entre 1 et 100 000.",
+        "lot.unite" => "Choisissez une unité.",
+        "niveauId" => "Choisissez un niveau de ce bâtiment.",
+        "batimentId" => "Choisissez un bâtiment du site.",
+        "version" => "Rechargez la fiche puis recommencez.",
+        "nom" or "emplacement" or "marque" or "modele" or "numeroSerie" or "remarques" or "motif" =>
+            "Un texte visible, dans la longueur indiquée.",
+        _ => "Vérifiez cette valeur.",
     };
 
     private string Url(params (string Cle, string? Valeur)[] changements)
@@ -691,15 +676,34 @@ else
         }
     }
 
-    private RenderFragment LienZone(BatimentApi batiment, ZoneApi zone, int retrait) =>
+    private RenderFragment LienZone(ZoneApi zone, int retrait) =>
         @<a class="@($"arbre-zone retrait-{retrait}{(zone.PartiesCommunes ? " communes" : "")}")" href="@Url(("zone", zone.Id.ToString()), ("batiment", null))"
             aria-current="@(ZoneDemandee == zone.Id ? "page" : null)">@zone.Nom <span>@ComptesParZone.GetValueOrDefault(zone.Id)</span></a>;
 
-    // Zones d'un bâtiment dans l'ordre de l'arborescence : sans niveau, par niveau, puis parties communes.
-    private static IEnumerable<ZoneApi> ZonesRangees(BatimentApi batiment) =>
-        batiment.Zones.Where(z => z.NiveauId is null && !z.PartiesCommunes)
-            .Concat(batiment.Niveaux.SelectMany(n => batiment.Zones.Where(z => z.NiveauId == n.Id)))
-            .Concat(batiment.Zones.Where(z => z.PartiesCommunes));
+    // Ordre unique de l'arborescence : zones sans niveau, chaque niveau (en-tête puis ses zones), parties communes.
+    private static IEnumerable<(NiveauApi? Niveau, ZoneApi? Zone)> Arborescence(BatimentApi batiment)
+    {
+        foreach (var zone in batiment.Zones.Where(z => z.NiveauId is null && !z.PartiesCommunes))
+        {
+            yield return (null, zone);
+        }
+
+        foreach (var niveau in batiment.Niveaux)
+        {
+            yield return (niveau, null);
+            foreach (var zone in batiment.Zones.Where(z => z.NiveauId == niveau.Id))
+            {
+                yield return (niveau, zone);
+            }
+        }
+
+        foreach (var zone in batiment.Zones.Where(z => z.PartiesCommunes))
+        {
+            yield return (null, zone);
+        }
+    }
+
+    private static IEnumerable<ZoneApi> ZonesRangees(BatimentApi batiment) => Arborescence(batiment).Where(e => e.Zone is not null).Select(e => e.Zone!);
 
     private static string NomZone(BatimentApi batiment, ZoneApi zone) =>
         batiment.Niveaux.FirstOrDefault(n => n.Id == zone.NiveauId) is { } niveau ? $"{zone.Nom} ({niveau.Nom})" : zone.Nom;
@@ -761,7 +765,7 @@ else
                     return "Modification";
                 }
 
-                var changes = apresModif.EnumerateObject().Where(p => p.Name != "zoneId")
+                var changes = apresModif.EnumerateObject().Where(p => p.Name != "zoneId").OrderBy(p => Libelles.Rang(p.Name))
                     .Select(p => $"{Libelles.Champ(p.Name).ToLowerInvariant()} {Valeur(p.Name, avant.TryGetProperty(p.Name, out var v) ? v : default)} → {Valeur(p.Name, p.Value)}");
                 return $"Modification : {string.Join(", ", changes)}";
         }
@@ -775,15 +779,14 @@ else
         JsonValueKind.String when champ == "corpsEtat" => Libelles.CorpsEtat(valeur.GetString()!),
         JsonValueKind.String when champ == "unite" => Libelles.Unite(valeur.GetString()!, 1),
         JsonValueKind.String => $"« {valeur.GetString()} »",
+        JsonValueKind.Number when champ == "moisMiseEnService" && valeur.GetInt32() is >= 1 and <= 12 => Libelles.Mois[valeur.GetInt32() - 1],
         JsonValueKind.Number => valeur.GetRawText(),
         JsonValueKind.True => "oui",
         JsonValueKind.False => "non",
         _ => "—",
     };
 
-    private static string Date(DateTimeOffset date) => Paris is null
-        ? date.ToUniversalTime().ToString("dd/MM/yyyy 'UTC'", Francais)
-        : TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy", Francais);
+    private static string Date(DateTimeOffset date) => Perimetre.Date(date);
 
     private sealed class SaisieStructure
     {

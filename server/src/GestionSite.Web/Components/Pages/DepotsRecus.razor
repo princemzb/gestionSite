@@ -121,10 +121,6 @@ else
 @code {
     private const int TaillePage = 50;
 
-    // Repli sur UTC (fuseau absent de l'hôte) affiché comme tel : jamais une heure locale fausse.
-    private static readonly TimeZoneInfo? Paris =
-        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : null;
-
     [Parameter] public Guid OrganisationId { get; set; }
 
     [SupplyParameterFromQuery(Name = "site")]
@@ -157,10 +153,7 @@ else
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
-            // Sites où l'appelant a un rôle interne : l'administrateur seul n'a aucun accès implicite aux dépôts.
-            Sites = Organisation is null
-                ? []
-                : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+            Sites = Perimetre.SitesInternes(Organisation);
             SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
             if (SiteCourant is { } site)
             {
@@ -187,9 +180,7 @@ else
     private string Lien(DepotRecuApi depot) =>
         $"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}&depot={depot.Id}{(Avant is { } avant ? $"&avant={avant}" : null)}";
 
-    private static string Date(DateTimeOffset date) => Paris is null
-        ? date.ToUniversalTime().ToString("dd/MM/yyyy · HH:mm 'UTC'", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))
-        : TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy · HH:mm", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
+    private static string Date(DateTimeOffset date) => Perimetre.Date(date, avecHeure: true);
 
     private static string Nature(string nature) => nature == "Demande" ? "Demande" : "Incident";
 }
