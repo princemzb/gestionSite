@@ -21,6 +21,8 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<Zone> Zones => Set<Zone>();
 
+    public DbSet<Composant> Composants => Set<Composant>();
+
     public DbSet<EvenementInventaire> Journal => Set<EvenementInventaire>();
 
     private Guid? OrganisationId => organisationCourante.Id;
@@ -94,6 +96,41 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Composant>(composant =>
+        {
+            composant.ToTable("composants", table =>
+            {
+                // Mêmes règles que le domaine, tenues aussi en base : lot complet ou absent, répartition complète égale à la quantité.
+                table.HasCheckConstraint("ck_composants_lot", $"(unite IS NULL) = (quantite IS NULL) AND (quantite IS NULL OR quantite BETWEEN 1 AND {Composant.QuantiteMax})");
+                table.HasCheckConstraint(
+                    "ck_composants_repartition",
+                    "(quantite_bon IS NULL AND quantite_satisfaisant IS NULL AND quantite_degrade IS NULL AND quantite_mauvais IS NULL AND quantite_critique IS NULL) " +
+                    "OR (quantite IS NOT NULL AND quantite_bon >= 0 AND quantite_satisfaisant >= 0 AND quantite_degrade >= 0 AND quantite_mauvais >= 0 " +
+                    "AND quantite_critique >= 0 AND quantite_bon + quantite_satisfaisant + quantite_degrade + quantite_mauvais + quantite_critique = quantite)");
+                table.HasCheckConstraint(
+                    "ck_composants_mise_en_service",
+                    "(mois_mise_en_service IS NULL OR (annee_mise_en_service IS NOT NULL AND mois_mise_en_service BETWEEN 1 AND 12))");
+                table.HasCheckConstraint("ck_composants_retrait", "(retire_le IS NULL) = (motif_retrait IS NULL)");
+            });
+            composant.HasKey(c => c.Id);
+            composant.Property(c => c.Id).ValueGeneratedNever();
+            composant.Property(c => c.Nom).HasMaxLength(Nom.Max);
+            composant.Property(c => c.CorpsEtat).HasConversion<string>().HasMaxLength(32);
+            composant.Property(c => c.Unite).HasConversion<string>().HasMaxLength(16);
+            composant.Property(c => c.Emplacement).HasMaxLength(Composant.EmplacementMax);
+            composant.Property(c => c.Marque).HasMaxLength(Composant.TexteCourtMax);
+            composant.Property(c => c.Modele).HasMaxLength(Composant.TexteCourtMax);
+            composant.Property(c => c.NumeroSerie).HasMaxLength(Composant.TexteCourtMax);
+            composant.Property(c => c.Remarques).HasMaxLength(Composant.RemarquesMax);
+            composant.Property(c => c.MotifRetrait).HasMaxLength(Composant.MotifMax);
+            composant.Property<uint>("xmin").IsRowVersion();
+            composant.HasIndex(c => new { c.OrganisationId, c.SiteId, c.ZoneId });
+            composant.HasOne<Zone>().WithMany()
+                .HasForeignKey(c => new { c.ZoneId, c.OrganisationId })
+                .HasPrincipalKey(z => new { z.Id, z.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<EvenementInventaire>(evenement =>
         {
             evenement.ToTable("journal_inventaire");
@@ -109,6 +146,7 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
         modelBuilder.Entity<Batiment>().HasQueryFilter(b => b.OrganisationId == OrganisationId);
         modelBuilder.Entity<Niveau>().HasQueryFilter(n => n.OrganisationId == OrganisationId);
         modelBuilder.Entity<Zone>().HasQueryFilter(z => z.OrganisationId == OrganisationId);
+        modelBuilder.Entity<Composant>().HasQueryFilter(c => c.OrganisationId == OrganisationId);
         modelBuilder.Entity<EvenementInventaire>().HasQueryFilter(e => e.OrganisationId == OrganisationId);
     }
 

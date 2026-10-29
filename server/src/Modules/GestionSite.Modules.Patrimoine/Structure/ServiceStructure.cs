@@ -1,10 +1,8 @@
-using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace GestionSite.Modules.Patrimoine.Structure;
 
@@ -37,7 +35,7 @@ internal sealed class ServiceStructure(PatrimoineDbContext context, IAutorisatio
 {
     internal async Task<IReadOnlyList<BatimentLu>> LireAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
-        await ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var batiments = await context.Batiments.AsNoTracking().Where(b => b.SiteId == siteId).OrderBy(b => b.Nom)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var niveaux = await context.Niveaux.AsNoTracking().Where(n => n.SiteId == siteId).OrderBy(n => n.Ordre).ThenBy(n => n.Nom)
@@ -55,7 +53,7 @@ internal sealed class ServiceStructure(PatrimoineDbContext context, IAutorisatio
     /// <summary>Bâtiment et sa zone « Parties communes » (DEC-01), dans la même transaction.</summary>
     internal async Task<Guid> CreerBatimentAsync(Guid organisationId, Guid siteId, string? nom, CancellationToken cancellationToken)
     {
-        await ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var batiment = new Batiment(Guid.CreateVersion7(maintenant), organisationId, siteId, nom, maintenant);
         await ExigerNomLibreAsync(context.Batiments.Where(b => b.SiteId == siteId).Select(b => b.Nom), batiment.Nom, cancellationToken).ConfigureAwait(false);
@@ -64,26 +62,26 @@ internal sealed class ServiceStructure(PatrimoineDbContext context, IAutorisatio
         context.Zones.Add(communes);
         Tracer(siteId, CibleInventaire.Batiment, batiment.Id, NatureEvenementInventaire.Creation, avant: null, new { nom = batiment.Nom });
         Tracer(siteId, CibleInventaire.Zone, communes.Id, NatureEvenementInventaire.Creation, avant: null, new { nom = communes.Nom, batiment = batiment.Nom });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         return batiment.Id;
     }
 
     internal async Task<Guid> CreerNiveauAsync(Guid organisationId, Guid siteId, Guid batimentId, string? nom, int ordre, CancellationToken cancellationToken)
     {
-        await ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
         var batiment = await BatimentAsync(siteId, batimentId, cancellationToken).ConfigureAwait(false);
         var niveau = new Niveau(Guid.CreateVersion7(horloge.GetUtcNow()), batiment, nom, ordre);
         await ExigerNomLibreAsync(context.Niveaux.Where(n => n.BatimentId == batiment.Id).Select(n => n.Nom), niveau.Nom, cancellationToken).ConfigureAwait(false);
         context.Niveaux.Add(niveau);
         Tracer(siteId, CibleInventaire.Niveau, niveau.Id, NatureEvenementInventaire.Creation, avant: null, new { nom = niveau.Nom, ordre, batiment = batiment.Nom });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         return niveau.Id;
     }
 
     internal async Task<Guid> CreerZoneAsync(
         Guid organisationId, Guid siteId, Guid batimentId, Guid? niveauId, string? nom, CancellationToken cancellationToken)
     {
-        await ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
         var batiment = await BatimentAsync(siteId, batimentId, cancellationToken).ConfigureAwait(false);
         var niveau = niveauId is { } id
             ? await context.Niveaux.SingleOrDefaultAsync(n => n.Id == id && n.SiteId == siteId, cancellationToken).ConfigureAwait(false)
@@ -94,13 +92,13 @@ internal sealed class ServiceStructure(PatrimoineDbContext context, IAutorisatio
             context.Zones.Where(z => z.BatimentId == batiment.Id && z.NiveauId == zone.NiveauId).Select(z => z.Nom), zone.Nom, cancellationToken).ConfigureAwait(false);
         context.Zones.Add(zone);
         Tracer(siteId, CibleInventaire.Zone, zone.Id, NatureEvenementInventaire.Creation, avant: null, new { nom = zone.Nom, batiment = batiment.Nom, niveau = niveau?.Nom });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         return zone.Id;
     }
 
     internal async Task RenommerAsync(Guid organisationId, Guid siteId, CibleInventaire cible, Guid id, string? nom, CancellationToken cancellationToken)
     {
-        await ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
         string avant;
         string apres;
         switch (cible)
@@ -141,57 +139,23 @@ internal sealed class ServiceStructure(PatrimoineDbContext context, IAutorisatio
         }
 
         Tracer(siteId, cible, id, NatureEvenementInventaire.Modification, new { nom = avant }, new { nom = apres });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
     }
 
     // Casse ignorée : « Église » et « église » désignent le même bâtiment. Les index en base couvrent l'écriture parallèle exacte.
     private static async Task ExigerNomLibreAsync(IQueryable<string> nomsVoisins, string nom, CancellationToken cancellationToken)
     {
-        // ILIKE sans joker : % et _ du nom saisi sont échappés.
-        var motif = nom.Replace(@"\", @"\\", StringComparison.Ordinal).Replace("%", @"\%", StringComparison.Ordinal)
-            .Replace("_", @"\_", StringComparison.Ordinal);
-        if (await nomsVoisins.AnyAsync(n => EF.Functions.ILike(n, motif, @"\"), cancellationToken).ConfigureAwait(false))
+        var motif = Motifs.Exact(nom);
+        if (await nomsVoisins.AnyAsync(n => EF.Functions.ILike(n, motif, Motifs.Echappement), cancellationToken).ConfigureAwait(false))
         {
             throw new NomExistantException();
         }
     }
 
+    private void Tracer(Guid siteId, CibleInventaire cible, Guid cibleId, NatureEvenementInventaire nature, object? avant, object? apres) =>
+        context.Tracer(compte.Id, horloge.GetUtcNow(), siteId, cible, cibleId, nature, avant, apres);
+
     private async Task<Batiment> BatimentAsync(Guid siteId, Guid batimentId, CancellationToken cancellationToken) =>
         await context.Batiments.SingleOrDefaultAsync(b => b.Id == batimentId && b.SiteId == siteId, cancellationToken).ConfigureAwait(false)
             ?? throw new ElementIntrouvableException();
-
-    private void Tracer(Guid siteId, CibleInventaire cible, Guid cibleId, NatureEvenementInventaire nature, object? avant, object? apres)
-    {
-        var maintenant = horloge.GetUtcNow();
-        context.Journal.Add(new EvenementInventaire(
-            Guid.CreateVersion7(maintenant), context.OrganisationCourante, siteId, cible, cibleId, nature, compte.Id, maintenant,
-            avant is null ? null : JsonSerializer.Serialize(avant), apres is null ? null : JsonSerializer.Serialize(apres)));
-    }
-
-    private async Task EnregistrerAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            throw new ModifieEntreTempsException();
-        }
-        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation
-            && ContraintesNom.Contient(violation.ConstraintName))
-        {
-            throw new NomExistantException(); // même nom à la casse près, enregistré en parallèle
-        }
-    }
-
-    // Avant toute lecture : une décision favorable fixe l'organisation courante (filtres et RLS).
-    private async Task ExigerAsync(Guid organisationId, Guid siteId, Droit droit, CancellationToken cancellationToken)
-    {
-        var decision = await autorisations.VerifierAsync(organisationId, droit, siteId, cancellationToken).ConfigureAwait(false);
-        if (decision != DecisionAutorisation.Autorise)
-        {
-            throw new AccesInventaireRefuseException(decision);
-        }
-    }
 }

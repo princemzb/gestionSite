@@ -67,6 +67,7 @@ Choix faits en expert du bâtiment (corps d'état, pratique des contrôleurs pou
 - Vérifications périodiques : l'inventaire ne fait que les signaler ; leur calendrier, les rapports et organismes relèvent d'US-12 (préventif et inspections).
 - Écrans : application web (ordinateur) en premier ; la tablette viendra avec US-13.
 - Droits (PERMISSIONS, déjà V) : lecture pour les comptes internes du site ; création et correction (structure et composants) pour technicien, responsable et délégué du site (`ModifierInventaire`), tracées.
+- Précisions S07-02 (agent, révisables) : mise en service saisie en année, mois facultatif (plaque signalétique ; extincteurs et BAES se suivent à l'année), jamais future, dès l'an 1000 (cloches, charpentes) ; « soumis à vérification » proposé pour courants forts, éclairage de sécurité, sécurité incendie, chauffage (chaudières), gaz, ascenseurs, paratonnerre et campanaire ; une modification part de la version lue (deux personnes ne s'écrasent pas) ; le retrait exige un motif (déposé, remplacé, cédé…) et est définitif ; un composant retiré ne se modifie plus. Pas d'unicité des noms de composants (deux « Extincteur CO2 2 kg » dans une même zone sont possibles, le n° de série les distingue).
 - Reporté : type et catégorie d'ERP du site (utile aux obligations réglementaires), à décider avec US-12.
 
 ## Dépôt public — décisions US-08, V, 28 octobre 2026 (porteur du projet)

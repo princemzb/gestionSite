@@ -91,8 +91,8 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
 
         Assert.Equal(0L, sansIsolation);
         // identite : organisations, sites, codes publics, membres, rôles, journal ; maintenance : signalements, alertes, photos ;
-        // patrimoine : bâtiments, niveaux, zones, journal de l'inventaire.
-        Assert.Equal(13L, await _database.CountAsync(
+        // patrimoine : bâtiments, niveaux, zones, composants, journal de l'inventaire.
+        Assert.Equal(14L, await _database.CountAsync(
             "SELECT count(*) FROM pg_tables WHERE schemaname = ANY (@schemas) AND NOT tablename = ANY (@globales)",
             ("schemas", SchemasIsoles), ("globales", TablesGlobales)));
     }

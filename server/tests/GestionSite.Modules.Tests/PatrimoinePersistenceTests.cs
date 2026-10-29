@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GestionSite.Modules.Tests;
 
-/// <summary>Modèle du module Patrimoine et règles de la structure de l'inventaire (US-07, S07-01).</summary>
+/// <summary>Modèle du module Patrimoine et règles de l'inventaire : structure (S07-01), composants et lots (S07-02).</summary>
 public sealed class PatrimoinePersistenceTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 10, 29, 8, 0, 0, TimeSpan.Zero);
@@ -27,7 +27,7 @@ public sealed class PatrimoinePersistenceTests
         using var module = new RuntimeContext();
         var entites = module.Context.Model.GetEntityTypes().ToList();
 
-        Assert.Equal(4, entites.Count); // bâtiments, niveaux, zones, journal
+        Assert.Equal(5, entites.Count); // bâtiments, niveaux, zones, composants, journal
         Assert.All(entites, t => Assert.True(typeof(IAppartientAOrganisation).IsAssignableFrom(t.ClrType)));
         Assert.All(entites, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
         Assert.All(entites, t => Assert.Equal("patrimoine", t.GetSchema()));
@@ -84,6 +84,78 @@ public sealed class PatrimoinePersistenceTests
     {
         Assert.Throws<SaisieInvalideException>(() => new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), nom, Instant));
     }
+
+    [Theory]
+    [InlineData("SecuriteIncendie", true)]
+    [InlineData("Campanaire", true)]
+    [InlineData("Mobilier", false)]
+    [InlineData("RevetementsFinitions", false)]
+    public void PeriodicCheckIsProposedForRegulatedTrades(string corpsEtat, bool proposee)
+    {
+        Assert.Equal(proposee, CorpsEtats.VerificationProposee(Enum.Parse<CorpsEtat>(corpsEtat)));
+    }
+
+    [Fact]
+    public void ALotKeepsItsDistributionAndAWithdrawnComponentIsFrozen()
+    {
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant));
+        var lot = new Lot(UniteLot.Unite, 40, new Repartition(30, 0, 8, 0, 2));
+        var chaises = new Composant(Guid.NewGuid(), zone, Fiche(lot), Instant);
+
+        chaises.Retirer("Cédées à la paroisse voisine", Instant);
+
+        Assert.Equal(lot, chaises.Lot);
+        Assert.Throws<ComposantRetireException>(() => chaises.Modifier(zone, Fiche(lot: null), Instant));
+        Assert.Throws<ComposantRetireException>(() => chaises.Retirer("Encore", Instant));
+    }
+
+    [Fact]
+    public void ADistributionIsNeverNegativeAndAZoneOfAnotherSiteIsRefused()
+    {
+        var eglise = new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant);
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), eglise);
+        var ailleurs = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), eglise.OrganisationId, Guid.NewGuid(), "Presbytère", Instant));
+        var composant = new Composant(Guid.NewGuid(), zone, Fiche(lot: null), Instant);
+
+        var negative = Assert.Throws<SaisieInvalideException>(() => new Composant(
+            Guid.NewGuid(), zone, Fiche(new Lot(UniteLot.Unite, 2, new Repartition(4, 0, 0, -2, 0))), Instant));
+        var autreSite = Assert.Throws<SaisieInvalideException>(() => composant.Modifier(ailleurs, Fiche(lot: null), Instant));
+
+        Assert.Equal("lot.repartition", negative.Champ);
+        Assert.Equal("zoneId", autreSite.Champ);
+    }
+
+    [Fact]
+    public void ARefusedChangeLeavesTheComponentIntactAndTheCheckFlagIsThenRequired()
+    {
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant));
+        var composant = new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { SoumisAVerification = null, CorpsEtat = CorpsEtat.Gaz }, Instant);
+
+        var marque = Assert.Throws<SaisieInvalideException>(() => composant.Modifier(zone, Fiche(lot: null) with { Nom = "Autre", Marque = new string('m', 121) }, Instant));
+        var verification = Assert.Throws<SaisieInvalideException>(() => composant.Modifier(zone, Fiche(lot: null) with { SoumisAVerification = null }, Instant));
+
+        Assert.True(composant.SoumisAVerification); // proposé pour le gaz
+        Assert.Equal(("marque", "Chaises"), (marque.Champ, composant.Nom));
+        Assert.Equal("soumisAVerification", verification.Champ);
+    }
+
+    [Fact]
+    public void AMonthAlreadyStartedSomewhereIsNotInTheFuture()
+    {
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant));
+        var veilleUtc = new DateTimeOffset(2026, 10, 31, 23, 30, 0, TimeSpan.Zero); // déjà le 1er novembre à Paris
+
+        var novembre = new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { AnneeMiseEnService = 2026, MoisMiseEnService = 11 }, veilleUtc);
+        var futur = Assert.Throws<SaisieInvalideException>(() =>
+            new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { AnneeMiseEnService = 2026, MoisMiseEnService = 12 }, veilleUtc));
+
+        Assert.Equal(11, novembre.MoisMiseEnService);
+        Assert.Equal("moisMiseEnService", futur.Champ);
+    }
+
+    private static FicheComposant Fiche(Lot? lot) => new(
+        "Chaises", CorpsEtat.Mobilier, Emplacement: null, Marque: null, Modele: null, NumeroSerie: null,
+        AnneeMiseEnService: 2019, MoisMiseEnService: null, Remarques: "Empilables\nhêtre", SoumisAVerification: false, lot);
 
     private sealed class RuntimeContext : IDisposable
     {

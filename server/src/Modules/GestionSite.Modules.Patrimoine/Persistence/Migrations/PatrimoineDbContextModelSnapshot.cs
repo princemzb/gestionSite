@@ -66,6 +66,142 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.ToTable("batiments", "patrimoine");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Composant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("AnneeMiseEnService")
+                        .HasColumnType("integer")
+                        .HasColumnName("annee_mise_en_service");
+
+                    b.Property<string>("CorpsEtat")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("corps_etat");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<string>("Emplacement")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("emplacement");
+
+                    b.Property<string>("Marque")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("marque");
+
+                    b.Property<string>("Modele")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("modele");
+
+                    b.Property<int?>("MoisMiseEnService")
+                        .HasColumnType("integer")
+                        .HasColumnName("mois_mise_en_service");
+
+                    b.Property<string>("MotifRetrait")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motif_retrait");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nom");
+
+                    b.Property<string>("NumeroSerie")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("numero_serie");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int?>("Quantite")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite");
+
+                    b.Property<int?>("QuantiteBon")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite_bon");
+
+                    b.Property<int?>("QuantiteCritique")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite_critique");
+
+                    b.Property<int?>("QuantiteDegrade")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite_degrade");
+
+                    b.Property<int?>("QuantiteMauvais")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite_mauvais");
+
+                    b.Property<int?>("QuantiteSatisfaisant")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantite_satisfaisant");
+
+                    b.Property<string>("Remarques")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("remarques");
+
+                    b.Property<DateTimeOffset?>("RetireLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retire_le");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<bool>("SoumisAVerification")
+                        .HasColumnType("boolean")
+                        .HasColumnName("soumis_a_verification");
+
+                    b.Property<string>("Unite")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unite");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("zone_id");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_composants");
+
+                    b.HasIndex("ZoneId", "OrganisationId")
+                        .HasDatabaseName("ix_composants_zone_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "SiteId", "ZoneId")
+                        .HasDatabaseName("ix_composants_organisation_id_site_id_zone_id");
+
+                    b.ToTable("composants", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_composants_lot", "(unite IS NULL) = (quantite IS NULL) AND (quantite IS NULL OR quantite BETWEEN 1 AND 100000)");
+
+                            t.HasCheckConstraint("ck_composants_mise_en_service", "(mois_mise_en_service IS NULL OR (annee_mise_en_service IS NOT NULL AND mois_mise_en_service BETWEEN 1 AND 12))");
+
+                            t.HasCheckConstraint("ck_composants_repartition", "(quantite_bon IS NULL AND quantite_satisfaisant IS NULL AND quantite_degrade IS NULL AND quantite_mauvais IS NULL AND quantite_critique IS NULL) OR (quantite IS NOT NULL AND quantite_bon >= 0 AND quantite_satisfaisant >= 0 AND quantite_degrade >= 0 AND quantite_mauvais >= 0 AND quantite_critique >= 0 AND quantite_bon + quantite_satisfaisant + quantite_degrade + quantite_mauvais + quantite_critique = quantite)");
+
+                            t.HasCheckConstraint("ck_composants_retrait", "(retire_le IS NULL) = (motif_retrait IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.EvenementInventaire", b =>
                 {
                     b.Property<Guid>("Id")
@@ -230,6 +366,17 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("BatimentId", "OrganisationId", "NiveauId", "Nom"), false);
 
                     b.ToTable("zones", "patrimoine");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Composant", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.Zone", null)
+                        .WithMany()
+                        .HasForeignKey("ZoneId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_composants_zones_zone_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Niveau", b =>
