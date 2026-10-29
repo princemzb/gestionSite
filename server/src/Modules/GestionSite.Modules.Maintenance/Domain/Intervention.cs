@@ -14,6 +14,15 @@ internal enum MotifAttente
     Autre = 6,
 }
 
+/// <summary>État final à la clôture (décision du 29/10) ; l'évaluation de l'état du composant reste celle d'US-11.</summary>
+internal enum EtatFinal
+{
+    Resolu = 1,
+    /// <summary>Mis en sécurité, à reprendre.</summary>
+    MesureProvisoire = 2,
+    NonResolu = 3,
+}
+
 internal enum StatutIntervention
 {
     Affectee = 1,
@@ -31,6 +40,7 @@ internal sealed class Intervention : IAppartientAOrganisation
 {
     internal const int TitreMax = 120;
     internal const int PrestataireMax = 120;
+    internal const int ActionsMax = 2000;
 
     private Intervention()
     {
@@ -96,6 +106,13 @@ internal sealed class Intervention : IAppartientAOrganisation
     /// <summary>Date de réexamen de l'attente en cours (DEC-03 : obligatoire).</summary>
     public DateOnly? ReexamenLe { get; private set; }
 
+    /// <summary>Compte rendu : actions réalisées (RG-06).</summary>
+    public string? Actions { get; private set; }
+
+    public EtatFinal? EtatFinal { get; private set; }
+
+    public DateTimeOffset? ClotureeLe { get; private set; }
+
     /// <summary>Compte qui en répond : l'intervenant interne, ou le référent d'un prestataire.</summary>
     internal Guid EnCharge => IntervenantCompteId ?? ReferentCompteId!.Value;
 
@@ -140,6 +157,34 @@ internal sealed class Intervention : IAppartientAOrganisation
         ReexamenLe = reexamen;
     }
 
+    /// <summary>
+    /// Clôture d'une intervention démarrée (RG-06) : actions réalisées, état final, et au moins une photo quand le corps
+    /// d'état l'exige (décision du 29/10).
+    /// </summary>
+    internal void Cloturer(string? actions, EtatFinal etatFinal, int photos, bool photoExigee, DateTimeOffset maintenant)
+    {
+        if (Statut != StatutIntervention.EnCours)
+        {
+            throw new InterventionIncompatibleException(Statut);
+        }
+
+        if (photoExigee && photos == 0)
+        {
+            throw new SaisieInvalideException("photos", "Photo après intervention obligatoire pour ce corps d'état.");
+        }
+
+        if (!Enum.IsDefined(etatFinal))
+        {
+            throw new SaisieInvalideException("etatFinal", "État final inconnu.");
+        }
+
+        Actions = TexteAffichable.Nettoyer(actions, ActionsMax, multiligne: true)
+            ?? throw new SaisieInvalideException("actions", $"Actions réalisées : texte visible de {ActionsMax} caractères au plus.");
+        EtatFinal = etatFinal;
+        Statut = StatutIntervention.Cloturee;
+        ClotureeLe = maintenant;
+    }
+
     internal void Reprendre()
     {
         if (Statut != StatutIntervention.EnAttente)
@@ -156,3 +201,48 @@ internal sealed class Intervention : IAppartientAOrganisation
 
 /// <summary>Intervention dans un statut qui n'admet pas cette action (409 « statut_incompatible »).</summary>
 internal sealed class InterventionIncompatibleException(StatutIntervention statut) : Exception($"Action impossible pour une intervention « {statut} ».");
+
+/// <summary>Photo après intervention, réencodée sans métadonnées, stockée en privé sous une clé propre à l'intervention.</summary>
+internal sealed class PhotoIntervention : IAppartientAOrganisation
+{
+    internal const int CleMax = 200;
+
+    private PhotoIntervention()
+    {
+    }
+
+    internal PhotoIntervention(Guid id, Intervention intervention, int rang, int taille, DateTimeOffset le)
+    {
+        Id = id;
+        OrganisationId = intervention.OrganisationId;
+        InterventionId = intervention.Id;
+        Rang = rang;
+        Cle = $"organisations/{intervention.OrganisationId:D}/dossiers/{intervention.DossierId:D}/interventions/{intervention.Numero}/photo-{rang}.jpg";
+        Taille = taille;
+        CreeLe = le;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid OrganisationId { get; private set; }
+
+    public Guid InterventionId { get; private set; }
+
+    /// <summary>1 à 3, dans l'ordre d'envoi.</summary>
+    public int Rang { get; private set; }
+
+    public string Cle { get; private set; } = string.Empty;
+
+    public int Taille { get; private set; }
+
+    public DateTimeOffset CreeLe { get; private set; }
+}
+
+/// <summary>Corps d'état dont la clôture exige une photo après intervention (décision du 29/10) : travaux à risque ou à contrôler.</summary>
+internal static class PhotoExigee
+{
+    private static readonly string[] CorpsEtats =
+        ["CourantsForts", "EclairageSecurite", "SecuriteIncendie", "Gaz", "CouvertureEtancheite", "StructureGrosOeuvre"];
+
+    internal static bool Pour(string? corpsEtat) => corpsEtat is not null && CorpsEtats.Contains(corpsEtat, StringComparer.Ordinal);
+}

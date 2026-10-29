@@ -153,6 +153,87 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task ClosingTheLastInterventionClosesTheCaseAndARiskTradeNeedsAPhoto()
+    {
+        var (dossier, communes, responsable) = await DossierAsync();
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var baes = await CreerAsync($"{Base}/components", new { nom = "BAES sortie nord", corpsEtat = "EclairageSecurite", zoneId = communes }, technicien);
+        using (await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/qualify", responsable,
+            new { priorite = "Urgente", zoneId = communes, composantId = baes, version = await VersionAsync(dossier, responsable) }))
+        {
+        }
+
+        using (await AffecterAsync(dossier, responsable, new { titre = "Remplacer la batterie", intervenantCompteId = await IdentifiantAsync("technicien@inventaire.test") }))
+        {
+        }
+
+        using var nonDemarree = await CloturerAsync(dossier, technicien, responsable, photo: false);
+        using (await DemarrerAsync(dossier, 1, technicien, responsable))
+        {
+        }
+
+        using var sansPhoto = await CloturerAsync(dossier, technicien, responsable, photo: false);
+        var avant = await LireAsync(dossier, responsable);
+        using var cloture = await CloturerAsync(dossier, technicien, responsable, photo: true);
+        var lu = await LireAsync(dossier, responsable);
+        using var photo = await EnvoyerAsync(HttpMethod.Get, $"{Dossiers}/{dossier}/interventions/1/photos/1", responsable);
+
+        Assert.Equal("statut_incompatible", await CodeAsync(nonDemarree));
+        Assert.True(avant.GetProperty("interventions")[0].GetProperty("photoExigee").GetBoolean());
+        Assert.Equal("photos", await ChampAsync(sansPhoto));
+        Assert.Equal(HttpStatusCode.NoContent, cloture.StatusCode);
+        Assert.Equal("Cloture", lu.GetProperty("statut").GetString());
+        Assert.Equal(JsonValueKind.String, lu.GetProperty("clotureLe").ValueKind);
+        var intervention = lu.GetProperty("interventions")[0];
+        Assert.Equal(("Cloturee", "Resolu", "Batterie remplacée, essai de 1 h"),
+            (intervention.GetProperty("statut").GetString(), intervention.GetProperty("etatFinal").GetString(), intervention.GetProperty("actions").GetString()));
+        Assert.Equal([1], intervention.GetProperty("photos").EnumerateArray().Select(r => r.GetInt32()));
+        Assert.Equal("image/jpeg", photo.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("Cloture", lu.GetProperty("historique").EnumerateArray().Select(e => e.GetProperty("nature").GetString()));
+    }
+
+    [Fact]
+    public async Task OnlyManagersReopenAClosedOrDismissedCaseWithAReason()
+    {
+        var (dossier, communes, responsable) = await DossierAsync();
+        using (await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/dismiss", responsable, new { motif = "DejaTraite", version = await VersionAsync(dossier, responsable) }))
+        {
+        }
+
+        using var parTechnicien = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/reopen", await JetonAsync("technicien@inventaire.test"),
+            new { motif = "Revu sur place", version = await VersionAsync(dossier, responsable) });
+        using var sansMotif = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/reopen", responsable, new { version = await VersionAsync(dossier, responsable) });
+        using var rouvert = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/reopen", responsable,
+            new { motif = "La fuite est revenue", version = await VersionAsync(dossier, responsable) });
+        using var encore = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/reopen", responsable,
+            new { motif = "Encore", version = await VersionAsync(dossier, responsable) });
+        var lu = await LireAsync(dossier, responsable);
+
+        Assert.Equal(HttpStatusCode.Forbidden, parTechnicien.StatusCode);
+        Assert.Equal("motif", await ChampAsync(sansMotif));
+        Assert.Equal(HttpStatusCode.NoContent, rouvert.StatusCode);
+        Assert.Equal("statut_incompatible", await CodeAsync(encore));
+        Assert.Equal("AQualifier", lu.GetProperty("statut").GetString());
+        Assert.Equal(JsonValueKind.Null, lu.GetProperty("motifClassement").ValueKind);
+        Assert.Equal("Reouverture", lu.GetProperty("historique")[0].GetProperty("nature").GetString());
+    }
+
+    private async Task<HttpResponseMessage> CloturerAsync(Guid dossier, string jeton, string lecteur, bool photo)
+    {
+        var demande = JsonSerializer.Serialize(new { actions = "Batterie remplacée, essai de 1 h", etatFinal = "Resolu", version = await VersionAsync(dossier, lecteur) });
+        using var formulaire = new MultipartFormDataContent { { new StringContent(demande), "demande" } };
+        if (photo)
+        {
+            using var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.OrangeRed, 64, 48) { Format = ImageMagick.MagickFormat.Jpeg };
+            var contenu = new ByteArrayContent(image.ToByteArray());
+            contenu.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+            formulaire.Add(contenu, "photos", "apres.jpg");
+        }
+
+        return await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/close", jeton, formulaire);
+    }
+
+    [Fact]
     public async Task OnlyManagersListAssigneesAndPastorsAreNotAmongThem()
     {
         var (_, _, responsable) = await DossierAsync();

@@ -17,7 +17,8 @@ internal sealed record DossierResume(
 
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
-    string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe, string? MotifAttente, string? CommentaireAttente, DateOnly? ReexamenLe);
+    string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe, string? MotifAttente, string? CommentaireAttente, DateOnly? ReexamenLe,
+    string? Actions, string? EtatFinal, DateTimeOffset? ClotureeLe, IReadOnlyList<int> Photos, bool PhotoExigee);
 
 internal sealed record EvenementDossierLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
@@ -26,7 +27,7 @@ internal sealed record DossierLu(
     string Origine, DateTimeOffset RecuLe, string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos, string? Priorite,
     LieuInventaire? Lieu, DateTimeOffset? QualifieLe, Guid? DoublonDe, string? MotifClassement, string? CommentaireClassement,
     DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, DateTimeOffset? AttenteDepuis,
-    DateOnly? ReexamenLe, long DureeAttenteSecondes, IReadOnlyList<InterventionLue> Interventions,
+    DateOnly? ReexamenLe, long DureeAttenteSecondes, DateTimeOffset? ClotureLe, IReadOnlyList<InterventionLue> Interventions,
     IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version);
 
 /// <summary>Dossier absent du site (404).</summary>
@@ -76,6 +77,10 @@ internal sealed class ServiceDossiers(
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var interventions = await context.Interventions.AsNoTracking().Where(i => i.DossierId == id).OrderBy(i => i.Numero)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var idsInterventions = interventions.Select(i => i.Id).ToList();
+        var photosInterventions = (await context.PhotosIntervention.AsNoTracking().Where(p => idsInterventions.Contains(p.InterventionId))
+            .OrderBy(p => p.Rang).Select(p => new { p.InterventionId, p.Rang }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToLookup(p => p.InterventionId, p => p.Rang);
         var comptes = journal.Select(e => e.AuteurCompteId).Concat(interventions.SelectMany(i => new[] { i.IntervenantCompteId, i.ReferentCompteId }))
             .Where(c => c is not null).Select(c => c!.Value).Distinct().ToList();
         var auteurs = await annuaire.NomsAsync(comptes, cancellationToken).ConfigureAwait(false);
@@ -96,11 +101,12 @@ internal sealed class ServiceDossiers(
             dossier.Priorite?.ToString(), lieu, dossier.QualifieLe, dossier.DoublonDe, dossier.MotifClassement?.ToString(), dossier.CommentaireClassement,
             dossier.AffecteLe, dossier.EcheancePriseEnCharge, dossier.EcheanceResolution, dossier.AttenteDepuis,
             // Réexamen : le plus proche des interventions en attente (déduit, jamais recopié sur le dossier).
-            interventions.Where(i => i.ReexamenLe is not null).Min(i => i.ReexamenLe), (long)dossier.DureeAttente.TotalSeconds,
+            interventions.Where(i => i.ReexamenLe is not null).Min(i => i.ReexamenLe), (long)dossier.DureeAttente.TotalSeconds, dossier.ClotureLe,
             [.. interventions.Select(i => new InterventionLue(
                 i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
                 i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe,
-                i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe))],
+                i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe, i.Actions, i.EtatFinal?.ToString(), i.ClotureeLe,
+                [.. photosInterventions[i.Id]], PhotoExigee.Pour(lieu?.CorpsEtat)))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,
@@ -210,6 +216,20 @@ internal sealed class ServiceDossiers(
         dossier.ClasserSansSuite(Saisie.Valeur<MotifClassement>(demande.Motif, "motif"), demande.Commentaire, await ADesDoublonsAsync(id, cancellationToken).ConfigureAwait(false));
         Tracer(dossier, NatureEvenementDossier.ClassementSansSuite, horloge.GetUtcNow(),
             new { motif = dossier.MotifClassement.ToString(), commentaire = dossier.CommentaireClassement });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Réouverture motivée par R/D d'un dossier clôturé ou classé (RG-06, DEC-03) : retour « À qualifier ».</summary>
+    internal async Task RouvrirAsync(Guid organisationId, Guid siteId, Guid id, DemandeReouverture demande, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.RouvrirArbitrer, cancellationToken).ConfigureAwait(false);
+        var motif = TexteAffichable.Nettoyer(demande.Motif, Signalement.CommentaireMax, multiligne: true)
+            ?? throw new SaisieInvalideException("motif", $"Motif de réouverture : texte visible de {Signalement.CommentaireMax} caractères au plus.");
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var dossier = await context.DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
+        dossier.Rouvrir();
+        Tracer(dossier, NatureEvenementDossier.Reouverture, horloge.GetUtcNow(), new { motif });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }

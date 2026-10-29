@@ -156,6 +156,35 @@ public sealed class DossierTests
         Assert.Null(dossier.AttenteDepuis);
     }
 
+    [Fact]
+    public void TheCaseClosesWithItsLastOpenInterventionAndReopensForANewQualification()
+    {
+        var (dossier, pompe, purge) = DeuxInterventions();
+        pompe.Demarrer(Instant);
+        purge.Demarrer(Instant);
+        dossier.Synchroniser([pompe, purge], Instant);
+
+        var sansPhoto = Assert.Throws<SaisieInvalideException>(() => pompe.Cloturer("Pompe changée", EtatFinal.Resolu, photos: 0, photoExigee: true, Instant));
+        pompe.Cloturer("Pompe changée", EtatFinal.Resolu, photos: 1, photoExigee: true, Instant.AddDays(1));
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(1));
+        var encoreOuvert = dossier.Statut;
+        purge.Cloturer("Radiateurs purgés", EtatFinal.MesureProvisoire, photos: 0, photoExigee: false, Instant.AddDays(2));
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(2));
+
+        Assert.Equal("photos", sansPhoto.Champ);
+        Assert.Equal(StatutDossier.EnCours, encoreOuvert);
+        Assert.Equal((StatutDossier.Cloture, Instant.AddDays(2)), (dossier.Statut, dossier.ClotureLe!.Value));
+        Assert.Null(dossier.EcheanceResolution);
+        Assert.Throws<InterventionIncompatibleException>(() => purge.Cloturer("Encore", EtatFinal.Resolu, 0, false, Instant));
+
+        dossier.Rouvrir();
+        Assert.Equal((StatutDossier.AQualifier, (PrioriteDossier?)null, (DateTimeOffset?)null), (dossier.Statut, dossier.Priorite, dossier.ClotureLe));
+        Assert.Throws<StatutIncompatibleException>(() => dossier.Rouvrir());
+        Assert.True(PhotoExigee.Pour("SecuriteIncendie"));
+        Assert.False(PhotoExigee.Pour("Mobilier"));
+        Assert.False(PhotoExigee.Pour(null));
+    }
+
     private static (Signalement Dossier, Intervention Pompe, Intervention Purge) DeuxInterventions()
     {
         var dossier = Public();

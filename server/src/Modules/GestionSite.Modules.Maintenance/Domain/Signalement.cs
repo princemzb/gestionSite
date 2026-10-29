@@ -208,6 +208,9 @@ internal sealed class Signalement : IAppartientAOrganisation
     /// <summary>Durée cumulée des attentes terminées, ajoutée au délai de résolution (RG-07).</summary>
     public TimeSpan DureeAttente { get; private set; }
 
+    /// <summary>Clôture du dossier : celle de sa dernière intervention ouverte (DEC-03).</summary>
+    public DateTimeOffset? ClotureLe { get; private set; }
+
     /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
     public Guid? DoublonDe { get; private set; }
 
@@ -291,12 +294,14 @@ internal sealed class Signalement : IAppartientAOrganisation
         }
 
         var actives = interventions.Where(i => i.Statut != StatutIntervention.Cloturee).ToList();
-        if (actives.Exists(i => i.DemarreeLe is not null))
+        if (interventions.Any(i => i.DemarreeLe is not null))
         {
-            PrisEnChargeLe ??= actives.Where(i => i.DemarreeLe is not null).Min(i => i.DemarreeLe);
+            PrisEnChargeLe ??= interventions.Where(i => i.DemarreeLe is not null).Min(i => i.DemarreeLe);
         }
 
-        var cible = actives.Exists(i => i.Statut == StatutIntervention.EnCours) ? StatutDossier.EnCours
+        // Dernière intervention ouverte clôturée : le dossier l'est aussi (DEC-03) ; R/D peuvent le rouvrir.
+        var cible = interventions.Count > 0 && actives.Count == 0 ? StatutDossier.Cloture
+            : actives.Exists(i => i.Statut == StatutIntervention.EnCours) ? StatutDossier.EnCours
             : actives.Exists(i => i.Statut == StatutIntervention.EnAttente) ? StatutDossier.EnAttente
             : PrisEnChargeLe is null ? StatutDossier.Affecte : StatutDossier.EnCours;
         if (cible == StatutDossier.EnAttente && AttenteDepuis is null)
@@ -310,6 +315,30 @@ internal sealed class Signalement : IAppartientAOrganisation
         }
 
         Statut = cible;
+        ClotureLe = cible == StatutDossier.Cloture ? maintenant : null;
+    }
+
+    /// <summary>
+    /// Réouverture motivée par R/D (RG-06, DEC-03) d'un dossier clôturé ou classé sans suite : retour « À qualifier », pour
+    /// une nouvelle qualification (priorité, délais repartis de zéro) ; interventions et journal restent consultables.
+    /// </summary>
+    internal void Rouvrir()
+    {
+        if (Statut is not (StatutDossier.Cloture or StatutDossier.ClasseSansSuite))
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        Statut = StatutDossier.AQualifier;
+        Priorite = null;
+        QualifieLe = null;
+        AffecteLe = null;
+        PrisEnChargeLe = null;
+        AttenteDepuis = null;
+        DureeAttente = TimeSpan.Zero;
+        ClotureLe = null;
+        MotifClassement = null;
+        CommentaireClassement = null;
     }
 
     /// <summary>
@@ -451,6 +480,9 @@ internal enum NatureEvenementDossier
     Demarrage = 6,
     MiseEnAttente = 7,
     Reprise = 8,
+    ClotureIntervention = 9,
+    Cloture = 10,
+    Reouverture = 11,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>
