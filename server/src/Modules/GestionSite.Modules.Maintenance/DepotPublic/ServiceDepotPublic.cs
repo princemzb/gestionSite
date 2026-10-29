@@ -74,6 +74,7 @@ internal sealed class ServiceDepotPublic(
         context.Photos.AddRange(enregistrees);
 
         context.Signalements.Add(signalement);
+        context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));
         if (signalement.Danger)
         {
             context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), signalement));

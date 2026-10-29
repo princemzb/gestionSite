@@ -1,4 +1,5 @@
 using GestionSite.Modules.Identite.Contracts;
+using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace GestionSite.Modules.Maintenance.DepotsRecus;
 /// <summary>Dépôt reçu, tel que lu par les comptes internes du site ; contact déclaratif, non vérifié.</summary>
 internal sealed record DepotRecu(
     Guid Id, DateTimeOffset RecuLe, string Nature, bool Danger, bool ActiviteBloquee, string Emplacement, string Description,
-    string NomDeclarant, string ContactDeclarant, IReadOnlyList<int> Photos);
+    string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos);
 
 /// <summary>
 /// Liste en lecture des dépôts reçus par site (US-08, S08-05) : comptes internes habilités sur le site (T, R/D, P/C ;
@@ -24,7 +25,8 @@ internal sealed class ServiceDepotsRecus(MaintenanceDbContext context, IAutorisa
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         await autorisations.ExigerAsync(organisationId, siteId, Droit.LireContactsDeclarant, cancellationToken).ConfigureAwait(false);
-        var signalements = context.Signalements.AsNoTracking().Where(s => s.SiteId == siteId);
+        // Dépôts publics seulement : les déclarations des comptes internes se suivent dans les dossiers (US-09).
+        var signalements = context.Signalements.AsNoTracking().Where(s => s.SiteId == siteId && s.Origine == OrigineDossier.Public);
         if (avant is { } curseur)
         {
             signalements = signalements.Where(s => s.Id.CompareTo(curseur) < 0);

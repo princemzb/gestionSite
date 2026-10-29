@@ -1,4 +1,6 @@
 using GestionSite.Modules.Patrimoine.Composants;
+using GestionSite.Modules.Patrimoine.Contracts;
+using GestionSite.Modules.Patrimoine.Lecture;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.Modules.Patrimoine.Structure;
 using Microsoft.AspNetCore.Routing;
@@ -13,7 +15,8 @@ namespace GestionSite.Modules.Patrimoine;
 public static class PatrimoineModule
 {
     public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
-        services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>();
+        services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
+            .AddScoped<IInventaireSite, InventaireSite>();
 
     public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapStructure().MapComposants();
 }

@@ -21,6 +21,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
 
     public DbSet<PhotoSignalement> Photos => Set<PhotoSignalement>();
 
+    public DbSet<EvenementDossier> Journal => Set<EvenementDossier>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -33,6 +35,18 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             signalement.Property(s => s.Emplacement).HasMaxLength(Signalement.EmplacementMax);
             signalement.Property(s => s.NomDeclarant).HasMaxLength(Signalement.NomMax);
             signalement.Property(s => s.ContactDeclarant).HasMaxLength(Signalement.ContactMax);
+            // Dossier (US-09) : statut, priorité, lieu dans l'inventaire, doublon, classement ; version (xmin) pour les écritures concurrentes.
+            signalement.Property(s => s.Origine).HasConversion<string>().HasMaxLength(16).HasDefaultValue(OrigineDossier.Public).HasSentinel((OrigineDossier)0);
+            signalement.Property(s => s.Statut).HasConversion<string>().HasMaxLength(24).HasDefaultValue(StatutDossier.AQualifier).HasSentinel((StatutDossier)0);
+            signalement.Property(s => s.Priorite).HasConversion<string>().HasMaxLength(16);
+            signalement.Property(s => s.MotifClassement).HasConversion<string>().HasMaxLength(24);
+            signalement.Property(s => s.CommentaireClassement).HasMaxLength(Signalement.CommentaireMax);
+            signalement.Property<uint>("xmin").IsRowVersion();
+            signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.Statut });
+            signalement.HasOne<Signalement>().WithMany()
+                .HasForeignKey(s => new { s.DoublonDe, s.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
             signalement.HasAlternateKey(s => new { s.Id, s.OrganisationId });
             // Un envoi = un signalement, même rejoué ou envoyé deux fois en parallèle (F-01).
             signalement.HasIndex(s => new { s.OrganisationId, s.CommandeId }).IsUnique();
@@ -48,6 +62,20 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique();
             alerte.HasOne<Signalement>().WithMany()
                 .HasForeignKey(a => new { a.SignalementId, a.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvenementDossier>(evenement =>
+        {
+            evenement.ToTable("journal_dossiers");
+            evenement.HasKey(e => e.Id);
+            evenement.Property(e => e.Id).ValueGeneratedNever();
+            evenement.Property(e => e.Nature).HasConversion<string>().HasMaxLength(32);
+            evenement.Property(e => e.Detail).HasColumnType("jsonb");
+            evenement.HasIndex(e => new { e.OrganisationId, e.DossierId, e.Id });
+            evenement.HasOne<Signalement>().WithMany()
+                .HasForeignKey(e => new { e.DossierId, e.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });

@@ -87,7 +87,7 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
         return (await reponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("jetonAcces").GetString()!;
     }
 
-    private async Task MembreAsync(string email, Role role)
+    private protected async Task MembreAsync(string email, Role role)
     {
         await using var scope = _api.Services.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(Organisation);

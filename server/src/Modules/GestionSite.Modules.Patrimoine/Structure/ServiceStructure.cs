@@ -2,6 +2,7 @@ using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Patrimoine.Structure;

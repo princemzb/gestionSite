@@ -72,6 +72,19 @@ Fiche : `nom` (≤ 120), `corpsEtat` (nom exact : StructureGrosOeuvre, Couvertur
 
 Erreurs (403/404 d'accès toujours avant les erreurs de saisie) : 422 `donnee_invalide` + `champ` (`lot.repartition`, `lot.quantite`, `lot.unite`, `zoneId` absente ou d'un autre site, `version` absente…) ; 409 `modifie_entre_temps` (version dépassée : relire puis refaire), 409 `composant_retire` ; 404 composant absent ou hors périmètre ; 403 sans rôle de terrain. Journal : création (valeurs saisies), modification (champs changés seulement, avant et après), retrait (motif).
 
+
+Dossiers (US-09, S09-01) : `/organizations/{orgId}/sites/{siteId}/cases…` — un dossier par dépôt (public ou interne), statut initial `AQualifier`.
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET cases | `ConsulterSite` | `clos` (false par défaut : statuts ouverts AQualifier, Affecte, EnCours, EnAttente ; true : Cloture, ClasseSansSuite, RattacheDoublon) → `[{id, titre, statut, priorite, zoneId, zone, danger, activiteBloquee, origine, recuLe}]`, plus récents d'abord, 500 au plus |
+| GET cases/{id} | `ConsulterSite` + `LireContactsDeclarant` | → dossier : `titre` (1re ligne de la description), `statut`, `nature`, `description`, `emplacement`, `danger`, `activiteBloquee`, `origine` (Public/Interne), `recuLe`, `nomDeclarant`, `contactDeclarant` (null si interne), `photos` (rangs), `priorite`, `lieu` `{zoneId, zone, batiment, composantId, composant, corpsEtat}`, `qualifieLe`, `doublonDe`, `motifClassement`, `commentaireClassement`, `doublons` (rattachés), `suggestions` (doublons possibles si à qualifier : ouverts du même site, même zone ou même emplacement), `historique` `[{le, nature, auteurCompteId, auteur, detail}]`, `version` |
+| POST cases | `DeposerSignalement` (comptes internes) | `commandeId`, `zoneId` (zone du site), `description` (≤ 2000), `emplacement` facultatif (≤ 200, sinon libellé de la zone), `nature` (Incident par défaut), `danger`, `activiteBloquee` → `{id}` ; même commande rejouée par le même compte : même dossier ; sinon 409 `commande_reutilisee` ; danger : alerte enregistrée |
+| POST cases/{id}/qualify | `QualifierAffecter` (R/D) | `priorite` (Urgente, Haute, Normale, Basse — DEC-05), `zoneId` obligatoire, `composantId` facultatif (composant actif de cette zone), `version` → 204 ; possible tant que le dossier est ouvert |
+| POST cases/{id}/duplicate-of | `QualifierAffecter` | `principalId` (autre dossier ouvert du même site, non doublon), `version` → 204 ; statut `RattacheDoublon` |
+| POST cases/{id}/dismiss | `QualifierAffecter` | `motif` (AucunProbleme, HorsPerimetre, DejaTraite, SpamAbusif, Autre), `commentaire` (≤ 500, obligatoire pour Autre), `version` → 204 ; statut `ClasseSansSuite` |
+
+Erreurs : 422 `donnee_invalide` + `champ` ; 409 `statut_incompatible` (action impossible dans ce statut), 409 `doublons_rattaches` (un dossier qui porte des doublons ne se rattache ni ne se classe), 409 `modifie_entre_temps` (version dépassée), 409 `commande_reutilisee` (même commande, autre contenu, autre compte ou autre site) ; 404 dossier absent ou hors périmètre ; 403 sans le droit. Journal `maintenance.journal_dossiers` en ajout seul (Declaration, Qualification, RattachementDoublon, ClassementSansSuite). Inventaire lu par le contrat `IInventaireSite` (Patrimoine.Contracts) : un composant retiré ou déplacé depuis la qualification reste nommé. Les dépôts antérieurs au journal affichent leur déclaration reconstituée (date de réception). « Dépôts reçus » (S08-05) ne liste que les dépôts publics.
+
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |

@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\GestionSite.SharedKernel\GestionSite.SharedKernel.csproj" />
     <ProjectReference Include="..\GestionSite.Modules.Identite.Contracts\GestionSite.Modules.Identite.Contracts.csproj" />
+    <ProjectReference Include="..\GestionSite.Modules.Patrimoine.Contracts\GestionSite.Modules.Patrimoine.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="GestionSite.Modules.Tests" />
