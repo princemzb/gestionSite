@@ -46,6 +46,17 @@ Photos (S08-02) : même opération en `multipart/form-data` — partie `demande`
 
 Anti-abus (S08-03) : champ `verification` = jeton Turnstile produit par le navigateur, vérifié par l'API auprès de Cloudflare (clé secrète `Turnstile:CleSecrete` ; absente : 503 `depot_indisponible`, le reste de l'application fonctionne ; `Turnstile:Desactive` refusé hors développement) ; refus → 422 `champ` = `verification`. Un rejeu (même commande, même contenu) n'est pas revérifié : le jeton ne sert qu'une fois. Au plus `DepotPublic:LimiteParSite` signalements acceptés (20 par défaut) par site et par fenêtre de 10 minutes, comptés après l'anti-robot (requêtes invalides et rejeux non comptés) : au-delà, 429 `trop_de_depots` ; la limite par adresse du visiteur est appliquée par l'application web (S08-04).
 
+Inventaire — structure (US-07, S07-01) : `/organizations/{orgId}/sites/{siteId}/inventory/…`
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET structure | Comptes internes du site (`ConsulterSite`) | → `[{id, nom, niveaux: [{id, nom, ordre}], zones: [{id, nom, niveauId, partiesCommunes}]}]` (bâtiments par nom, niveaux par ordre, « Parties communes » en dernier) |
+| POST buildings | T, R/D du site (`ModifierInventaire`) | `nom` → `{id}` ; crée aussi la zone « Parties communes » du bâtiment |
+| POST buildings/{batimentId}/levels | Idem | `nom`, `ordre` (−10 à 100, sous-sols négatifs) → `{id}` |
+| POST zones | Idem | `nom`, `batimentId`, `niveauId` facultatif (du même bâtiment) → `{id}` |
+| PUT buildings/{id}, levels/{id}, zones/{id} | Idem | `nom` → 204 ; « Parties communes » ne se renomme pas (422) ; sans changement, rien n'est écrit |
+
+Erreurs : 422 `donnee_invalide` + `champ` ; 409 `nom_existant` (même nom dans le site pour un bâtiment, dans le bâtiment pour un niveau ou une zone) ; 404 hors périmètre ou élément absent ; 403 sans rôle de terrain (administrateur seul, pasteur, coordination). Chaque création et modification est tracée dans `patrimoine.journal_inventaire` (ajout seul : auteur, date, valeurs avant et après).
+
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |
