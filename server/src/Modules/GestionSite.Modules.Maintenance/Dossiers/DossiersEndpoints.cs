@@ -81,8 +81,11 @@ internal static class DossiersEndpoints
         });
         dossiers.MapGet("/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceDossiers service, CancellationToken ct) =>
             Results.Ok(await service.LireAsync(orgId, siteId, id, ct).ConfigureAwait(false)));
-        dossiers.MapPost("/", async (Guid orgId, Guid siteId, DemandeDeclaration demande, ServiceDossiers service, CancellationToken ct) =>
-            Results.Ok(new DossierCree(await service.DeclarerAsync(orgId, siteId, demande, ct).ConfigureAwait(false))));
+        dossiers.MapPost("/", async (Guid orgId, Guid siteId, HttpRequest requete, ServiceDossiers service, CancellationToken ct) =>
+        {
+            var (demande, photos) = await FormulaireAvecPhotos.LireAsync<DemandeDeclaration>(requete, ct).ConfigureAwait(false);
+            return Results.Ok(new DossierCree(await service.DeclarerAsync(orgId, siteId, demande, photos, ct).ConfigureAwait(false)));
+        }).AvecPhotos();
         dossiers.MapPost("/{id:guid}/qualify", async (Guid orgId, Guid siteId, Guid id, DemandeQualification demande, ServiceDossiers service, CancellationToken ct) =>
         {
             await service.QualifierAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false);

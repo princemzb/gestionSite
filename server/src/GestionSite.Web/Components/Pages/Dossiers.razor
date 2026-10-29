@@ -1,0 +1,170 @@
+@page "/organisations/{OrganisationId:guid}/dossiers"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Dossiers
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject TimeProvider Horloge
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
+<main class="admin-contenu">
+<PageTitle>Dossiers · gestionSite</PageTitle>
+
+@if (Message is not null && Organisation is null)
+{
+    <div class="entete"><div><h1>Dossiers</h1></div></div>
+    <p role="alert" class="alerte danger">@Message</p>
+}
+else if (Organisation is null || Sites.Count == 0)
+{
+    <div class="entete"><div><h1>Dossiers</h1><p>Aucun site ne vous est attribué dans cette organisation.</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Dossiers · @SiteCourant!.Nom</h1>
+            <p>@(Archives ? "Dossiers clôturés, classés sans suite ou rattachés à un doublon." : "Chaque colonne est un statut ; un délai dépassé est signalé en rouge.")</p>
+        </div>
+        <div class="actions">
+            @if (Sites.Count > 1)
+            {
+                <nav class="onglets" aria-label="Site">
+                    @foreach (var site in Sites)
+                    {
+                        <a href="@($"/organisations/{OrganisationId}/dossiers?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                    }
+                </nav>
+            }
+            <nav class="onglets" aria-label="Vue">
+                <a href="@($"/organisations/{OrganisationId}/dossiers?site={SiteCourant.Id}")" aria-current="@(Archives ? null : "page")">En cours</a>
+                <a href="@($"/organisations/{OrganisationId}/dossiers?site={SiteCourant.Id}&archives=true")" aria-current="@(Archives ? "page" : null)">Archives</a>
+            </nav>
+            <a class="bouton-principal bouton-lien" href="@($"/organisations/{OrganisationId}/dossiers/declarer?site={SiteCourant.Id}")">Déclarer un problème</a>
+        </div>
+    </div>
+
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+    else if (Archives)
+    {
+        <section class="carte tableau-conteneur" aria-label="Archives">
+            @if (Liste.Count == 0)
+            {
+                <p class="vide-carte">Aucun dossier archivé.</p>
+            }
+            else
+            {
+                <table>
+                    <thead><tr><th scope="col">Dossier</th><th scope="col">Statut</th><th scope="col">Zone</th><th scope="col">Reçu le</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Liste)
+                        {
+                            <tr>
+                                <td><a class="nom-composant" href="@Lien(d)">@d.Titre</a></td>
+                                <td>@LibellesDossiers.Statut(d.Statut)</td>
+                                <td>@(d.Zone ?? "—")</td>
+                                <td>@Perimetre.Date(d.RecuLe)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+    else
+    {
+        <div class="suivi">
+            @foreach (var (valeur, libelle) in LibellesDossiers.ColonnesOuvertes)
+            {
+                var colonne = Liste.Where(d => d.Statut == valeur).ToList();
+                <section class="colonne-statut" aria-label="@libelle">
+                    <h2>@libelle <span>@colonne.Count</span></h2>
+                    @foreach (var d in colonne)
+                    {
+                        var echeance = d.EcheancePriseEnCharge ?? d.EcheanceResolution;
+                        var depasse = echeance is { } e && e < Maintenant;
+                        <a class="@($"carte-dossier{(d.Danger ? " danger" : "")}{(depasse ? " en-retard" : "")}")" href="@Lien(d)">
+                            @if (d.Danger)
+                            {
+                                <span class="etiquette danger">Danger</span>
+                            }
+                            else if (d.Priorite is not null)
+                            {
+                                <span class="@($"etiquette {LibellesDossiers.ClassePriorite(d.Priorite)}")">@LibellesDossiers.Priorite(d.Priorite)</span>
+                            }
+                            <strong>@d.Titre</strong>
+                            <span class="vide">@(d.Zone ?? "Zone à préciser") · reçu le @Perimetre.Date(d.RecuLe)@(d.ActiviteBloquee ? " · activité bloquée" : "")</span>
+                            @if (echeance is { } limite)
+                            {
+                                <span class="@(depasse ? "delai depasse" : "delai")">@(d.EcheancePriseEnCharge is not null ? "Prise en charge" : "Résolution") @LibellesDossiers.Restant(limite, Maintenant)</span>
+                            }
+                            else if (d.Statut == "EnAttente")
+                            {
+                                <span class="delai">Délai suspendu</span>
+                            }
+                        </a>
+                    }
+                </section>
+            }
+        </div>
+    }
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "archives")] private bool? ArchivesDemandees { get; set; }
+
+    private bool Archives => ArchivesDemandees == true;
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<DossierResumeApi> Liste { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    private DateTimeOffset Maintenant => Horloge.GetUtcNow();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                Liste = await Session.LireAsync<List<DossierResumeApi>>(
+                    $"/organizations/{OrganisationId}/sites/{site.Id}/cases{(Archives ? "?clos=true" : "")}", CancellationToken.None);
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas les dossiers de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private string Lien(DossierResumeApi dossier) => $"/organisations/{OrganisationId}/dossiers/{dossier.Id}?site={SiteCourant!.Id}";
+}

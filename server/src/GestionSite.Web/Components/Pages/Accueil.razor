@@ -43,13 +43,13 @@
             return;
         }
 
-        // Les comptes internes d'un site arrivent sur les dépôts reçus ; l'administrateur sans rôle de site, sur les membres.
+        // Les comptes internes d'un site arrivent sur les dossiers ; l'administrateur sans rôle de site, sur les membres.
         Invitations = moi.Invitations?.Count ?? 0;
         var interne = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role != "Administrateur"));
         var administree = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
         if (interne is not null)
         {
-            Navigation.NavigateTo($"/organisations/{interne.Id}/depots");
+            Navigation.NavigateTo($"/organisations/{interne.Id}/dossiers");
         }
         else if (administree is not null)
         {

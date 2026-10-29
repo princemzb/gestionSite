@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using GestionSite.Web.Session;
 
 namespace GestionSite.Web.Public;
@@ -67,13 +66,7 @@ internal sealed class DepotPublicClient(IHttpClientFactory clients)
     {
         using var reponse = await SessionApi.AvecReessaisAsync(async () =>
         {
-            using var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };
-            foreach (var photo in photos)
-            {
-                var contenu = new StreamContent(photo.OpenReadStream());
-                contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(photo.ContentType, out var type) ? type : null;
-                formulaire.Add(contenu, "photos", "photo");
-            }
+            using var formulaire = new ContenuFormulaire(demande, photos).Creer();
 
             return await ClientEnvoi.PostAsync(new Uri($"/public/sites/{Uri.EscapeDataString(code)}/reports", UriKind.Relative), formulaire, annulation)
                 .ConfigureAwait(false);

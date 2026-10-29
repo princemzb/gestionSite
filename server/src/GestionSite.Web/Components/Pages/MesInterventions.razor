@@ -1,0 +1,109 @@
+@page "/organisations/{OrganisationId:guid}/interventions"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Dossiers
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject TimeProvider Horloge
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="interventions" />
+<main class="admin-contenu mes-interventions">
+<PageTitle>Mes interventions · gestionSite</PageTitle>
+<h1>Mes interventions</h1>
+@if (Message is not null)
+{
+    <p role="alert" class="alerte danger">@Message</p>
+}
+else if (Sites.Count == 0)
+{
+    <p>Aucun site ne vous confie d'intervention.</p>
+}
+else
+{
+    <nav class="onglets filtre-interventions" aria-label="Filtre">
+        @foreach (var (valeur, libelle) in Filtres)
+        {
+            <a href="@($"/organisations/{OrganisationId}/interventions?filtre={valeur}")" aria-current="@(valeur == Filtre ? "page" : null)">@libelle @Liste.Count(l => l.Intervention.Statut == valeur)</a>
+        }
+    </nav>
+    var visibles = Liste.Where(l => l.Intervention.Statut == Filtre).ToList();
+    @if (visibles.Count == 0)
+    {
+        <p class="vide">Rien ici pour l'instant.</p>
+    }
+    else
+    {
+        <section class="carte liste-interventions" aria-label="Interventions">
+            @foreach (var (site, i) in visibles)
+            {
+                var echeance = i.Statut == "Affectee" ? i.EcheancePriseEnCharge ?? i.EcheanceResolution : i.EcheanceResolution;
+                <a class="ligne-intervention" href="@($"/organisations/{OrganisationId}/dossiers/{i.DossierId}?site={site.Id}&onglet=interventions")">
+                    <span class="@($"repere {(i.Danger ? "danger" : LibellesDossiers.ClassePriorite(i.Priorite))}")"></span>
+                    <span class="texte">
+                        <strong>@i.Titre</strong>
+                        <span class="vide">@i.Emplacement · @LibellesDossiers.Priorite(i.Priorite)@(Sites.Count > 1 ? $" · {site.Nom}" : "")@(i.Prestataire ? " · prestataire" : "")</span>
+                    </span>
+                    @if (echeance is { } limite)
+                    {
+                        <span class="@(limite < Maintenant ? "delai depasse" : "delai")">@LibellesDossiers.Restant(limite, Maintenant)</span>
+                    }
+                </a>
+            }
+        </section>
+        <p class="note">Le délai affiché est celui de la prise en charge tant que l'intervention n'a pas démarré, puis celui de la résolution (DEC-05).</p>
+    }
+}
+</main>
+
+@code {
+    private static readonly (string Code, string Libelle)[] Filtres = [("Affectee", "À faire"), ("EnCours", "En cours"), ("EnAttente", "Attente")];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "filtre")] private string? FiltreDemande { get; set; }
+
+    private string Filtre => Filtres.Any(f => f.Code == FiltreDemande) ? FiltreDemande! : "Affectee";
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private List<(SiteApi Site, MonInterventionApi Intervention)> Liste { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    private DateTimeOffset Maintenant => Horloge.GetUtcNow();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            // Sites où l'appelant intervient (technicien, responsable, délégué) ; ordre de l'API conservé par site (priorité puis échéance).
+            Sites = Organisation is null
+                ? []
+                : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role is "Technicien" or "Responsable" or "Delegue"))];
+            foreach (var site in Sites)
+            {
+                var miennes = await Session.LireAsync<List<MonInterventionApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/cases/mine", CancellationToken.None);
+                Liste.AddRange(miennes.Select(m => (site, m)));
+            }
+
+            // Tous sites confondus : par priorité puis par échéance, comme l'API le fait pour chaque site.
+            Liste = [.. Liste.OrderBy(l => Array.FindIndex(LibellesDossiers.Priorites, p => p.Code == l.Intervention.Priorite) is var rang and >= 0 ? rang : 9)
+                .ThenBy(l => (l.Intervention.Statut == "Affectee" ? l.Intervention.EcheancePriseEnCharge : null) ?? l.Intervention.EcheanceResolution ?? DateTimeOffset.MaxValue)];
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+}

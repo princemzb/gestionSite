@@ -16,6 +16,10 @@ internal static class Perimetre
         ? []
         : [.. organisation.Sites.Where(s => organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
 
+    /// <summary>Jour calendaire à Paris (repli : UTC), pour proposer une date dans un formulaire.</summary>
+    internal static DateOnly Jour(DateTimeOffset maintenant) =>
+        DateOnly.FromDateTime(Paris is null ? maintenant.UtcDateTime : TimeZoneInfo.ConvertTime(maintenant, Paris).DateTime);
+
     /// <summary>Date à l'heure de Paris (« dd/MM/yyyy » ou avec l'heure), ou en UTC signalé comme tel.</summary>
     internal static string Date(DateTimeOffset date, bool avecHeure = false)
     {

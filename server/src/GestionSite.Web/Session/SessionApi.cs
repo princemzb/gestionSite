@@ -145,6 +145,18 @@ internal sealed class SessionApi(
         using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Formulaire multipart (partie « demande » en JSON et photos), réponse lue en <typeparamref name="T"/> ou ignorée (204).
+    /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.
+    /// </summary>
+    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, photos), annulation).ConfigureAwait(false);
+        return reponse.StatusCode == HttpStatusCode.NoContent
+            ? default
+            : await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false);
+    }
+
     /// <summary>Action sans contenu en retour (204), par exemple un retrait.</summary>
     internal async Task ExecuterAsync(string chemin, object corps, CancellationToken annulation)
     {
@@ -235,10 +247,12 @@ internal sealed class SessionApi(
         {
             using var demande = new HttpRequestMessage(methode, new Uri(chemin, UriKind.Relative));
             demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", acces);
-            if (corps is not null)
+            demande.Content = corps switch
             {
-                demande.Content = JsonContent.Create(corps);
-            }
+                null => null,
+                ContenuFormulaire formulaire => formulaire.Creer(),
+                _ => JsonContent.Create(corps),
+            };
 
             return await Client.SendAsync(demande, annulation).ConfigureAwait(false);
         }).ConfigureAwait(false);
@@ -333,5 +347,22 @@ internal sealed class SessionApi(
         {
             return null; // API injoignable : message « service indisponible »
         }
+    }
+}
+
+/// <summary>Formulaire avec photos, recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
+internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> photos)
+{
+    internal MultipartFormDataContent Creer()
+    {
+        var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };
+        foreach (var photo in photos)
+        {
+            var contenu = new StreamContent(photo.OpenReadStream());
+            contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(photo.ContentType, out var type) ? type : null;
+            formulaire.Add(contenu, "photos", "photo");
+        }
+
+        return formulaire;
     }
 }
