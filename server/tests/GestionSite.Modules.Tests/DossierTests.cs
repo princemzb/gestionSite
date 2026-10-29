@@ -109,6 +109,30 @@ public sealed class DossierTests
         Assert.Equal(TimeSpan.FromDays(90), Delais.Resolution(PrioriteDossier.Basse));
     }
 
+    [Fact]
+    public void WaitingTimeIsAddedToTheResolutionDeadlineButNotToTheAge()
+    {
+        var dossier = Public();
+        dossier.Qualifier(PrioriteDossier.Haute, Guid.NewGuid(), composantId: null, Instant);
+        dossier.Affecter(Instant);
+        dossier.Demarrer(Instant);
+        var intervention = new Intervention(Guid.NewGuid(), dossier, 1, "Pompe", Guid.NewGuid(), null, null, Instant);
+        intervention.Demarrer(Instant);
+
+        Assert.Throws<SaisieInvalideException>(() => intervention.MettreEnAttente(MotifAttente.Livraison, null, DateOnly.FromDateTime(Instant.UtcDateTime.AddYears(2)), Instant));
+        intervention.MettreEnAttente(MotifAttente.Livraison, null, DateOnly.FromDateTime(Instant.UtcDateTime.AddDays(3)), Instant);
+        dossier.Attendre(intervention.ReexamenLe!.Value, Instant.AddDays(1));
+        var suspendue = dossier.EcheanceResolution;
+        intervention.Reprendre();
+        dossier.Reprendre(Instant.AddDays(4));
+
+        Assert.Null(suspendue);
+        Assert.Equal(TimeSpan.FromDays(3), dossier.DureeAttente);
+        Assert.Equal(Instant.AddDays(7 + 3), dossier.EcheanceResolution);
+        Assert.Equal(Instant, dossier.RecuLe); // ancienneté conservée
+        Assert.Throws<InterventionIncompatibleException>(() => intervention.Reprendre());
+    }
+
     private static Signalement Public() =>
         new(Guid.NewGuid(), Organisation, Site, Guid.NewGuid(), NatureSignalement.Incident, "Fuite au plafond", "Sacristie", false, false, "Anne", "06 12", Instant);
 }

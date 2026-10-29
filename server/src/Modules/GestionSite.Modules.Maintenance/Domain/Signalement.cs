@@ -189,6 +189,15 @@ internal sealed class Signalement : IAppartientAOrganisation
     /// <summary>Premier démarrage d'une intervention : fin de la prise en charge.</summary>
     public DateTimeOffset? PrisEnChargeLe { get; private set; }
 
+    /// <summary>Début de l'attente en cours : le délai de résolution est suspendu (RG-07).</summary>
+    public DateTimeOffset? AttenteDepuis { get; private set; }
+
+    /// <summary>Durée cumulée des attentes terminées, ajoutée au délai de résolution (RG-07).</summary>
+    public TimeSpan DureeAttente { get; private set; }
+
+    /// <summary>Réexamen de l'attente en cours (date choisie à la mise en attente).</summary>
+    public DateOnly? ReexamenLe { get; private set; }
+
     /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
     public Guid? DoublonDe { get; private set; }
 
@@ -202,9 +211,12 @@ internal sealed class Signalement : IAppartientAOrganisation
     internal DateTimeOffset? EcheancePriseEnCharge =>
         Ouvert && Priorite is { } priorite && AffecteLe is { } affecte && PrisEnChargeLe is null ? affecte + Delais.PriseEnCharge(priorite) : null;
 
-    /// <summary>Échéance de résolution (DEC-05) : qualification + délai, tant que le dossier est ouvert (attentes : S09-03).</summary>
+    /// <summary>
+    /// Échéance de résolution (DEC-05) : qualification + délai + durée des attentes terminées, tant que le dossier est ouvert ;
+    /// suspendue (null) pendant une attente (RG-07). L'ancienneté (date de réception) n'est jamais suspendue.
+    /// </summary>
     internal DateTimeOffset? EcheanceResolution =>
-        Ouvert && Priorite is { } priorite && QualifieLe is { } qualifie ? qualifie + Delais.Resolution(priorite) : null;
+        Ouvert && AttenteDepuis is null && Priorite is { } priorite && QualifieLe is { } qualifie ? qualifie + Delais.Resolution(priorite) + DureeAttente : null;
 
     /// <summary>
     /// Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04). Faux si rien ne change
@@ -265,6 +277,33 @@ internal sealed class Signalement : IAppartientAOrganisation
 
         Statut = StatutDossier.EnCours;
         PrisEnChargeLe ??= maintenant;
+    }
+
+    /// <summary>Plus aucune intervention en cours : le dossier attend, le délai de résolution est suspendu (RG-07).</summary>
+    internal void Attendre(DateOnly reexamenLe, DateTimeOffset maintenant)
+    {
+        if (Statut != StatutDossier.EnCours)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        Statut = StatutDossier.EnAttente;
+        AttenteDepuis = maintenant;
+        ReexamenLe = reexamenLe;
+    }
+
+    /// <summary>Reprise : le temps d'attente s'ajoute au délai de résolution ; le dossier repasse « En cours ».</summary>
+    internal void Reprendre(DateTimeOffset maintenant)
+    {
+        if (Statut != StatutDossier.EnAttente || AttenteDepuis is not { } debut)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        DureeAttente += maintenant - debut;
+        AttenteDepuis = null;
+        ReexamenLe = null;
+        Statut = StatutDossier.EnCours;
     }
 
     /// <summary>
@@ -411,6 +450,8 @@ internal enum NatureEvenementDossier
     ClassementSansSuite = 4,
     Affectation = 5,
     Demarrage = 6,
+    MiseEnAttente = 7,
+    Reprise = 8,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

@@ -109,6 +109,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("CommentaireAttente")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("commentaire_attente");
+
                     b.Property<DateTimeOffset>("CreeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");
@@ -125,6 +130,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("intervenant_compte_id");
 
+                    b.Property<string>("MotifAttente")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("motif_attente");
+
                     b.Property<int>("Numero")
                         .HasColumnType("integer")
                         .HasColumnName("numero");
@@ -137,6 +147,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("prestataire");
+
+                    b.Property<DateOnly?>("ReexamenLe")
+                        .HasColumnType("date")
+                        .HasColumnName("reexamen_le");
 
                     b.Property<Guid?>("ReferentCompteId")
                         .HasColumnType("uuid")
@@ -236,6 +250,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("affecte_le");
 
+                    b.Property<DateTimeOffset?>("AttenteDepuis")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("attente_depuis");
+
                     b.Property<Guid>("CommandeId")
                         .HasColumnType("uuid")
                         .HasColumnName("commande_id");
@@ -271,6 +289,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<Guid?>("DoublonDe")
                         .HasColumnType("uuid")
                         .HasColumnName("doublon_de");
+
+                    b.Property<TimeSpan>("DureeAttente")
+                        .HasColumnType("interval")
+                        .HasColumnName("duree_attente");
 
                     b.Property<string>("Emplacement")
                         .IsRequired()
@@ -323,6 +345,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<DateTimeOffset>("RecuLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recu_le");
+
+                    b.Property<DateOnly?>("ReexamenLe")
+                        .HasColumnType("date")
+                        .HasColumnName("reexamen_le");
 
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")

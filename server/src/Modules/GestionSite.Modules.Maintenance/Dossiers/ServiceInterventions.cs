@@ -76,21 +76,80 @@ internal sealed class ServiceInterventions(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var dossier = await context.DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
-        var intervention = await context.Interventions.SingleOrDefaultAsync(i => i.DossierId == dossierId && i.Numero == numero, cancellationToken)
-            .ConfigureAwait(false) ?? throw new InterventionIntrouvableException();
-        if (intervention.EnCharge != compte.Id)
-        {
-            // Pas en charge : seul R/D agit à la place de l'intervenant (RG-04, RG-06).
-            await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        }
-
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+            .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.Demarrer(maintenant);
         dossier.Demarrer(maintenant);
         context.Tracer(dossier, NatureEvenementDossier.Demarrage, compte.Id, maintenant, new { numero, titre = intervention.Titre });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Mise en attente par la personne en charge ou R/D (DEC-03) : motif, date de réexamen ; le dossier attend quand plus
+    /// aucune de ses interventions n'est en cours, et son délai de résolution est suspendu (RG-07).
+    /// </summary>
+    internal async Task MettreEnAttenteAsync(
+        Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeAttente demande, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
+        var motif = Saisie.Valeur<MotifAttente>(demande.Motif, "motif");
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+            .ConfigureAwait(false);
+        var maintenant = horloge.GetUtcNow();
+        intervention.MettreEnAttente(motif, demande.Commentaire, demande.ReexamenLe, maintenant);
+        var autreEnCours = await context.Interventions
+            .AnyAsync(i => i.DossierId == dossierId && i.Id != intervention.Id && i.Statut == StatutIntervention.EnCours, cancellationToken).ConfigureAwait(false);
+        if (!autreEnCours)
+        {
+            dossier.Attendre(intervention.ReexamenLe!.Value, maintenant);
+        }
+
+        context.Tracer(dossier, NatureEvenementDossier.MiseEnAttente, compte.Id, maintenant, new
+        {
+            numero,
+            motif = motif.ToString(),
+            commentaire = intervention.CommentaireAttente,
+            reexamenLe = intervention.ReexamenLe,
+        });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Reprise datée (DEC-03) : le temps d'attente du dossier s'ajoute à son délai de résolution.</summary>
+    internal async Task ReprendreAsync(Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeVersion demande, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+            .ConfigureAwait(false);
+        var maintenant = horloge.GetUtcNow();
+        intervention.Reprendre();
+        if (dossier.Statut == StatutDossier.EnAttente)
+        {
+            dossier.Reprendre(maintenant);
+        }
+
+        context.Tracer(dossier, NatureEvenementDossier.Reprise, compte.Id, maintenant, new { numero, titre = intervention.Titre });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // Dossier verrouillé à la version lue et intervention dont l'appelant est en charge, sinon R/D (RG-04, RG-06).
+    private async Task<(Signalement Dossier, Intervention Intervention)> InterventionEnChargeAsync(
+        Guid organisationId, Guid siteId, Guid dossierId, int numero, uint? version, CancellationToken cancellationToken)
+    {
+        var dossier = await context.DossierAVersionAsync(siteId, dossierId, version, cancellationToken).ConfigureAwait(false);
+        var intervention = await context.Interventions.SingleOrDefaultAsync(i => i.DossierId == dossierId && i.Numero == numero, cancellationToken)
+            .ConfigureAwait(false) ?? throw new InterventionIntrouvableException();
+        if (intervention.EnCharge != compte.Id)
+        {
+            await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
+        }
+
+        return (dossier, intervention);
     }
 
     /// <summary>

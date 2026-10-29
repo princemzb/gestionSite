@@ -97,6 +97,61 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task OnHoldSuspendsTheResolutionDeadlineUntilTheWorkResumes()
+    {
+        var (dossier, communes, responsable) = await DossierAsync();
+        await QualifierAsync(dossier, communes, responsable, "Normale");
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var idTechnicien = await IdentifiantAsync("technicien@inventaire.test");
+        using (await AffecterAsync(dossier, responsable, new { titre = "Pompe de la chaudière", intervenantCompteId = idTechnicien }))
+        {
+        }
+
+        using (await AffecterAsync(dossier, responsable, new { titre = "Purge des radiateurs", intervenantCompteId = idTechnicien }))
+        {
+        }
+
+        using (await DemarrerAsync(dossier, 1, technicien, responsable))
+        {
+        }
+
+        using (await DemarrerAsync(dossier, 2, technicien, responsable))
+        {
+        }
+
+        var reexamen = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        using var sansDate = await AttendreAsync(dossier, 1, technicien, responsable, new { motif = "Livraison" });
+        using var autreSansCommentaire = await AttendreAsync(dossier, 1, technicien, responsable, new { motif = "Autre", reexamenLe = reexamen });
+        using var premiere = await AttendreAsync(dossier, 1, technicien, responsable, new { motif = "Livraison", reexamenLe = reexamen });
+        var uneEnCours = await LireAsync(dossier, responsable);
+        using var seconde = await AttendreAsync(dossier, 2, technicien, responsable, new { motif = "Prestataire", reexamenLe = reexamen });
+        var enAttente = await LireAsync(dossier, responsable);
+        using var reprise = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/resume", technicien, new { version = await VersionAsync(dossier, responsable) });
+        var repris = await LireAsync(dossier, responsable);
+
+        Assert.Equal("reexamenLe", await ChampAsync(sansDate));
+        Assert.Equal("commentaire", await ChampAsync(autreSansCommentaire));
+        Assert.Equal(HttpStatusCode.NoContent, premiere.StatusCode);
+        Assert.Equal("EnCours", uneEnCours.GetProperty("statut").GetString()); // l'intervention 2 avance encore
+        Assert.Equal(HttpStatusCode.NoContent, seconde.StatusCode);
+        Assert.Equal("EnAttente", enAttente.GetProperty("statut").GetString());
+        Assert.Equal(JsonValueKind.Null, enAttente.GetProperty("echeanceResolution").ValueKind); // délai suspendu (RG-07)
+        Assert.Equal(reexamen, enAttente.GetProperty("reexamenLe").GetString());
+        Assert.Equal("Livraison", enAttente.GetProperty("interventions")[0].GetProperty("motifAttente").GetString());
+        Assert.Equal(HttpStatusCode.NoContent, reprise.StatusCode);
+        Assert.Equal("EnCours", repris.GetProperty("statut").GetString());
+        var base30 = repris.GetProperty("qualifieLe").GetDateTimeOffset().AddDays(30);
+        Assert.True(repris.GetProperty("echeanceResolution").GetDateTimeOffset() > base30); // la durée d'attente s'ajoute
+    }
+
+    private async Task<HttpResponseMessage> AttendreAsync(Guid dossier, int numero, string jeton, string lecteur, object attente)
+    {
+        var corps = JsonSerializer.SerializeToNode(attente)!.AsObject();
+        corps["version"] = await VersionAsync(dossier, lecteur);
+        return await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/{numero}/hold", jeton, corps);
+    }
+
+    [Fact]
     public async Task OnlyManagersListAssigneesAndPastorsAreNotAmongThem()
     {
         var (_, _, responsable) = await DossierAsync();

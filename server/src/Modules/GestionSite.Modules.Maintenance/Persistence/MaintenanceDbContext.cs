@@ -76,6 +76,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             intervention.Property(i => i.Titre).HasMaxLength(Intervention.TitreMax);
             intervention.Property(i => i.Prestataire).HasMaxLength(Intervention.PrestataireMax);
             intervention.Property(i => i.Statut).HasConversion<string>().HasMaxLength(16);
+            intervention.Property(i => i.MotifAttente).HasConversion<string>().HasMaxLength(24);
+            intervention.Property(i => i.CommentaireAttente).HasMaxLength(Signalement.CommentaireMax);
             intervention.Property<uint>("xmin").IsRowVersion();
             intervention.HasIndex(i => new { i.DossierId, i.OrganisationId, i.Numero }).IsUnique();
             intervention.HasIndex(i => new { i.OrganisationId, i.SiteId, i.Statut });
