@@ -128,7 +128,7 @@ else
                     {
                         <span class="aide">(facultatives, 3 au plus, 10 Mo chacune)</span>
                     }
-                    <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" capture="environment" multiple />
+                    <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" multiple />
                 </label>
                 <label class="champ">Remarque <span class="aide">(facultative)</span>
                     <textarea name="Saisie.Remarque" rows="3" maxlength="2000">@Saisie.Remarque</textarea>
@@ -144,15 +144,8 @@ else
             <input type="hidden" name="Saisie.Remarque" value="@Saisie.Remarque" />
         }
 
+        @* Bouton principal en premier dans le code (Entrée avance d'une étape) ; affiché à droite (row-reverse). *@
         <div class="actions-evaluation">
-            @if (Saisie.Etape > 1)
-            {
-                <button type="submit" name="Saisie.Action" value="retour" class="bouton-secondaire" formnovalidate>Retour</button>
-            }
-            else
-            {
-                <a class="bouton-secondaire bouton-lien" href="@Fiche()">Annuler</a>
-            }
             @if (Saisie.Etape < 3)
             {
                 <button type="submit" name="Saisie.Action" value="suivant" class="bouton-principal">Suivant : @Etapes[Saisie.Etape].Titre.ToLowerInvariant()</button>
@@ -160,6 +153,14 @@ else
             else
             {
                 <button type="submit" name="Saisie.Action" value="enregistrer" class="bouton-principal">Enregistrer l'évaluation</button>
+            }
+            @if (Saisie.Etape > 1)
+            {
+                <button type="submit" name="Saisie.Action" value="retour" class="bouton-secondaire" formnovalidate>Retour</button>
+            }
+            else
+            {
+                <a class="bouton-secondaire bouton-lien" href="@Fiche()">Annuler</a>
             }
         </div>
     </EditForm>
@@ -201,7 +202,7 @@ else
 
     // Résumé de l'étape 2 rappelé avant l'enregistrement.
     private string Constat => Composant?.Lot is { } lot
-        ? $"Répartition : {string.Join(", ", Libelles.Etats.Where(e => Saisie.Nombre(e.Cle) > 0).Select(e => $"{Saisie.Nombre(e.Cle)} {e.Libelle.ToLowerInvariant()}"))} sur {lot.Quantite}."
+        ? $"Répartition : {Libelles.Repartition(cle => Saisie.Nombre(cle) ?? 0)} sur {lot.Quantite}."
         : $"État constaté : {Libelles.Etat(Saisie.Etat)}.";
 
     protected override async Task OnInitializedAsync()
@@ -285,9 +286,10 @@ else
 
     private async Task EnregistrerAsync(SaisieEvaluation saisie)
     {
+        EvaluationCreeeApi? creee;
         try
         {
-            await Session.EnvoyerFormulaireAsync<EvaluationCreeeApi>($"{Base}/components/{Composant!.Id}/evaluations", new
+            creee = await Session.EnvoyerFormulaireAsync<EvaluationCreeeApi>($"{Base}/components/{Composant!.Id}/evaluations", new
             {
                 commandeId = saisie.CommandeId,
                 grilleVersion = saisie.GrilleVersion,
@@ -330,16 +332,33 @@ else
 
             if (refus.Code == "grille_modifiee")
             {
-                Grille = await Session.LireAsync<GrilleApi>($"{Base}/grids/{Composant!.CorpsEtat}", CancellationToken.None);
-                saisie.GrilleVersion = Grille.Version;
-                saisie.Constats = [];
-                saisie.Mesures = [];
+                await RechargerGrilleAsync(saisie);
             }
 
             return;
         }
 
-        Navigation.NavigateTo($"{Fiche()}&evaluee=true");
+        Navigation.NavigateTo(creee is null ? Fiche() : $"{Fiche()}&evaluee={creee.Id}");
+    }
+
+    // Grille modifiée pendant l'évaluation : nouvelle version relue, points et mesures à refaire ; échec de lecture signalé.
+    private async Task RechargerGrilleAsync(SaisieEvaluation saisie)
+    {
+        try
+        {
+            Grille = await Session.LireAsync<GrilleApi>($"{Base}/grids/{Composant!.CorpsEtat}", CancellationToken.None);
+            saisie.GrilleVersion = Grille.Version;
+            saisie.Constats = [];
+            saisie.Mesures = [];
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Message = "La grille a changé et ne peut pas être relue pour l'instant : réessayez dans un instant.";
+        }
     }
 
     private string Fiche() => $"/organisations/{OrganisationId}/inventaire?site={SiteCourant?.Id}&composant={ComposantDemande}";

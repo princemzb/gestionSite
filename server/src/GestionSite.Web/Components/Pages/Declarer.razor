@@ -96,10 +96,9 @@ else
 
     private SaisieDeclaration Saisie => Formulaire ??= new()
     {
-        CommandeId = Guid.NewGuid(), ZoneId = ZoneProposee, Emplacement = Tronquer(EmplacementPropose, 200), Description = Tronquer(DescriptionProposee, 2000),
+        CommandeId = Guid.NewGuid(), ZoneId = ZoneProposee, Emplacement = GestionSite.Web.Inventaire.Libelles.Tronquer(EmplacementPropose, 200),
+        Description = GestionSite.Web.Inventaire.Libelles.Tronquer(DescriptionProposee, 2000),
     };
-
-    private static string? Tronquer(string? texte, int longueur) => texte is { Length: > 0 } t && t.Length > longueur ? t[..longueur] : texte;
 
     private OrganisationApi? Organisation { get; set; }
 

@@ -20,24 +20,8 @@ internal static class ActionsDossierEndpoints
         dossier.MapPost("/rattacher", (Guid organisationId, Guid siteId, Guid dossierId, SessionApi session, HttpContext contexte, IAntiforgery antifalsification) =>
             ExecuterAsync(organisationId, siteId, dossierId, "duplicate-of", "constat", "principalId", session, contexte, antifalsification));
         // Photos après intervention : droits vérifiés par l'API, jamais mises en cache partagé.
-        dossier.MapGet("/interventions/{numero:int}/photos/{rang:int}", async (Guid organisationId, Guid siteId, Guid dossierId, int numero, int rang, SessionApi session, HttpContext contexte) =>
-        {
-            contexte.Response.Headers.CacheControl = "private, no-store";
-            try
-            {
-                var photo = await session.LireOctetsAsync(
-                    $"/organizations/{organisationId}/sites/{siteId}/cases/{dossierId}/interventions/{numero}/photos/{rang}", CancellationToken.None).ConfigureAwait(false);
-                return photo is null ? Results.NotFound() : Results.File(photo, "image/jpeg");
-            }
-            catch (SessionExpireeException)
-            {
-                return Results.LocalRedirect("/connexion");
-            }
-            catch (RefusApiException)
-            {
-                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            }
-        });
+        dossier.MapGet("/interventions/{numero:int}/photos/{rang:int}", (Guid organisationId, Guid siteId, Guid dossierId, int numero, int rang, SessionApi session, HttpContext contexte) =>
+            RelaisPhoto.RelayerAsync(session, contexte, $"/organizations/{organisationId}/sites/{siteId}/cases/{dossierId}/interventions/{numero}/photos/{rang}"));
         return endpoints;
     }
 

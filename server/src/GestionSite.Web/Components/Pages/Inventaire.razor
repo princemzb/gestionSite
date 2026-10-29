@@ -346,7 +346,7 @@ else
                 {
                     <p class="note-composant vide">Non évalué</p>
                 }
-                @if (EvalueeAnnoncee && Evaluations.FirstOrDefault() is { } enregistree)
+                @if (Evaluations.FirstOrDefault(e => e.Id == Evaluee) is { } enregistree)
                 {
                     <p role="status" class="alerte succes">Évaluation enregistrée : @Libelles.Note(enregistree.Note) · @Libelles.Etat(enregistree.Libelle).</p>
                     @if (Critique(enregistree))
@@ -374,7 +374,7 @@ else
                         {
                             @foreach (var (cle, libelle, _) in Libelles.Etats)
                             {
-                                var nombre = Nombre(r, cle);
+                                var nombre = Libelles.Nombre(r, cle);
                                 if (nombre > 0)
                                 {
                                     <dt>@libelle</dt><dd>@nombre</dd>
@@ -420,7 +420,7 @@ else
                         @foreach (var p in evaluation.Points)
                         {
                             <li class="@(p.Conforme switch { true => "conforme", false => "defaut", null => "non-verifie" })"><span aria-hidden="true">@(p.Conforme switch { true => "✓", false => "✗", null => "–" })</span>
-                                <span class="sr-only">@(p.Conforme switch { true => "Conforme : ", false => "Défaut : ", null => "Non vérifié : " })</span>@p.Texte</li>
+                                <span class="visuellement-masque">@(p.Conforme switch { true => "Conforme : ", false => "Défaut : ", null => "Non vérifié : " })</span>@p.Texte</li>
                         }
                         @foreach (var m in evaluation.Mesures.Where(m => m.Valeur is not null))
                         {
@@ -429,7 +429,7 @@ else
                     </ul>
                     @if (evaluation.Repartition is { } r)
                     {
-                        <p class="note">Répartition : @string.Join(", ", Libelles.Etats.Where(e => Nombre(r, e.Cle) > 0).Select(e => $"{Nombre(r, e.Cle)} {e.Libelle.ToLowerInvariant()}"))</p>
+                        <p class="note">Répartition : @Libelles.Repartition(cle => Libelles.Nombre(r, cle))</p>
                     }
                     @if (evaluation.Remarque is not null)
                     {
@@ -496,8 +496,8 @@ else
 
     [SupplyParameterFromQuery(Name = "pour")] private Guid? BatimentCible { get; set; }
 
-    // Retour de l'évaluation (US-11) : confirmation et, si « Critique », proposition d'ouvrir un dossier.
-    [SupplyParameterFromQuery(Name = "evaluee")] private bool? Evaluee { get; set; }
+    // Retour de l'évaluation (US-11) : l'évaluation enregistrée, confirmée et, si « Critique », proposition d'ouvrir un dossier.
+    [SupplyParameterFromQuery(Name = "evaluee")] private Guid? Evaluee { get; set; }
 
     [SupplyParameterFromForm(Name = "StructureSaisie", FormName = "structure")] private SaisieStructure? FormulaireStructure { get; set; }
 
@@ -538,8 +538,6 @@ else
 
     // Évaluations du composant de la fiche, la plus récente d'abord.
     private IReadOnlyList<EvaluationApi> Evaluations { get; set; } = [];
-
-    private bool EvalueeAnnoncee => Evaluee == true;
 
     private string? Message { get; set; }
 
@@ -807,7 +805,7 @@ else
         { Repartition: { } r } lot => @<span class="quantite-etat">
             @* SVG : la politique de sécurité interdit les styles en ligne ; les proportions passent par la géométrie. *@
             <svg class="barre-etats" viewBox="0 0 @lot.Quantite 1" preserveAspectRatio="none" role="img"
-                aria-label="@string.Join(", ", Libelles.Etats.Where(e => Nombre(r, e.Cle) > 0).Select(e => $"{Nombre(r, e.Cle)} {e.Libelle.ToLowerInvariant()}"))">
+                aria-label="@Libelles.Repartition(cle => Libelles.Nombre(r, cle))">
                 @foreach (var (x, nombre, classe) in Segments(r))
                 {
                     <rect class="@classe" x="@x" y="0" width="@nombre" height="1" />
@@ -822,7 +820,7 @@ else
         var x = 0;
         foreach (var (cle, _, classe) in Libelles.Etats)
         {
-            var nombre = Nombre(r, cle);
+            var nombre = Libelles.Nombre(r, cle);
             if (nombre > 0)
             {
                 yield return (x, nombre, classe);
@@ -830,15 +828,6 @@ else
             }
         }
     }
-
-    private static int Nombre(RepartitionApi r, string cle) => cle switch
-    {
-        "bon" => r.Bon,
-        "satisfaisant" => r.Satisfaisant,
-        "degrade" => r.Degrade,
-        "mauvais" => r.Mauvais,
-        _ => r.Critique,
-    };
 
     // « Modification : bon 40 → 32, dégradé 0 → 8 » (ou « Évaluation : … ») ; création et retrait résumés.
     private static string Evenement(EvenementApi e)
@@ -884,17 +873,23 @@ else
 
     private static bool Critique(EvaluationApi e) => e.Etat == "Critique" || e.Repartition?.Critique > 0;
 
-    // Déclaration interne préremplie (zone, emplacement, constat) : proposée, jamais créée automatiquement.
+    // Déclaration interne préremplie (zone, emplacement, constat) : proposée, jamais créée automatiquement. Le constat est
+    // borné pour que le lien reste court (l'utilisateur le complète avant d'envoyer).
     private string Declaration(ComposantApi c, EvaluationApi? e)
     {
         var defauts = e?.Points.Where(p => p.Conforme == false).Select(p => p.Texte).ToList() ?? [];
+        var etat = e?.Repartition is { } r
+            ? $"{Libelles.Repartition(cle => Libelles.Nombre(r, cle))} (note {Libelles.Note(e.Note)})"
+            : e is null ? "" : $"« {Libelles.Etat(e.Libelle)} »";
         var constat = e is null
             ? $"{c.Nom} : "
-            : $"{c.Nom} : évalué « {Libelles.Etat(e.Libelle)} » le {Date(e.EvalueLe)}.{(defauts.Count > 0 ? $" Défauts : {string.Join(" ; ", defauts)}." : "")}{(e.Remarque is { } r ? $" {r}" : "")}";
+            : $"{c.Nom} : évalué {etat} le {Date(e.EvalueLe)}.{(defauts.Count > 0 ? $" Défauts : {string.Join(" ; ", defauts)}." : "")}{(e.Remarque is { } remarque ? $" {remarque}" : "")}";
         var emplacement = c.Emplacement is null ? c.Nom : $"{c.Nom} · {c.Emplacement}";
         return $"/organisations/{OrganisationId}/dossiers/declarer?site={SiteCourant?.Id}&zone={c.ZoneId}" +
-            $"&emplacement={Uri.EscapeDataString(emplacement)}&description={Uri.EscapeDataString(constat)}";
+            $"&emplacement={Uri.EscapeDataString(Libelles.Tronquer(emplacement, 200)!)}&description={Uri.EscapeDataString(Libelles.Tronquer(constat, ConstatMax)!)}";
     }
+
+    private const int ConstatMax = 600;
 
     // Points de la courbe : x de 0 à 100 de la plus ancienne à la plus récente, y = 20 − 2 × note.
     private string Courbe()

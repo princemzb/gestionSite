@@ -341,7 +341,6 @@ form.formulaire-inventaire { padding: 0; }
 .repere.priorite-haute { background: var(--alerte); }
 
 /* État du site (US-11, maquette A) : note en tête, indicateurs, une carte par zone, la moins bien notée d'abord. */
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .etat-bon { color: var(--etat-bon); }
 .etat-satisfaisant { color: var(--etat-satisfaisant); }
 .etat-degrade { color: var(--etat-degrade); }
@@ -402,7 +401,7 @@ form.formulaire-inventaire { padding: 0; }
 .choix-etat { min-height: 64px; border: 1px solid var(--bordure-forte); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 2px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; padding: 6px 2px; }
 .choix-etat:has(input:checked) { border-width: 2px; border-color: currentColor; background: var(--selection); }
-.actions-evaluation { display: flex; gap: 8px; }
+.actions-evaluation { display: flex; flex-direction: row-reverse; gap: 8px; } /* bouton principal premier dans le code : Entrée avance */
 .actions-evaluation > * { flex: 1; }
 .actions-evaluation .bouton-principal { flex: 2; }
 

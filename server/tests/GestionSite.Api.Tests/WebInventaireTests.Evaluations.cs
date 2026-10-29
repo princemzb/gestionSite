@@ -38,6 +38,7 @@ public sealed partial class WebInventaireTests
         Assert.Contains("Évaluation enregistrée : 1,0 · Critique.", fiche, StringComparison.Ordinal);
         Assert.Contains("Ouvrir un dossier prérempli", fiche, StringComparison.Ordinal);
         Assert.Contains("Défaut : </span>Pas de trace d'échauffement", fiche, StringComparison.Ordinal); // libellé pour lecteur d'écran
+        Assert.True(etape1.IndexOf("value=\"suivant\"", StringComparison.Ordinal) < etape1.IndexOf("Annuler", StringComparison.Ordinal)); // Entrée avance
         Assert.Contains("Température au point chaud : 48,5 °C", fiche, StringComparison.Ordinal);
         Assert.Contains("Photo 1 de l'évaluation", fiche, StringComparison.Ordinal);
 
