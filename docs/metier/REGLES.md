@@ -97,6 +97,7 @@ Décisions du 29/10 (QCM, recommandations de l'agent retenues) :
 - « Critique » : l'application propose d'ouvrir un dossier prérempli (zone, composant, constat), sans création automatique.
 - Lot : l'évaluateur saisit la répartition par état (somme = quantité) ; la note est la moyenne pondérée (DEC-01) et la répartition du lot dans l'inventaire devient celle de la dernière évaluation.
 - Historique du score : recalculé à toute date à partir des évaluations datées (courbe mensuelle), au lieu d'un instantané stocké ; remplace l'instantané mensuel de DEC-01.
+- Écrans (maquettes UX-06, choix du porteur du 29/10) : tableau de l'état du site avec la note en tête (couverture, fraîcheur, points critiques) puis une carte par zone, la moins bien notée d'abord (A) ; évaluation sur téléphone pas à pas : points à observer et mesures, état ou répartition, puis photos et remarque (A) ; fiche composant avec dernière évaluation et historique (commune).
 Découpage : S11-01 grilles par défaut et versions ; S11-02 évaluations (état ou répartition, critères, mesures, photos, proposition de dossier) ; S11-03 score (zone, site, couverture, fraîcheur, historique) ; S11-04 écrans web et préproduction (maquettes UX-06 d'abord).
 
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
