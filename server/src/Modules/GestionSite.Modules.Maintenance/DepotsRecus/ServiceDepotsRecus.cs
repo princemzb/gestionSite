@@ -8,7 +8,7 @@ namespace GestionSite.Modules.Maintenance.DepotsRecus;
 /// <summary>Dépôt reçu, tel que lu par les comptes internes du site ; contact déclaratif, non vérifié.</summary>
 internal sealed record DepotRecu(
     Guid Id, DateTimeOffset RecuLe, string Nature, bool Danger, bool ActiviteBloquee, string Emplacement, string Description,
-    string NomDeclarant, string ContactDeclarant, IReadOnlyList<int> Photos);
+    string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos);
 
 /// <summary>
 /// Liste en lecture des dépôts reçus par site (US-08, S08-05) : comptes internes habilités sur le site (T, R/D, P/C ;

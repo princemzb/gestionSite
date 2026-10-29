@@ -54,6 +54,10 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
             "SELECT count(*) FROM maintenance.signalements s JOIN identite.sites si ON si.id = s.site_id " +
             "WHERE si.nom = 'Site centre' AND s.organisation_id = @org AND s.nature = 'Incident' AND NOT s.danger",
             ("org", _ouverte.OrganisationId)));
+        // Chaque dépôt ouvre un dossier « À qualifier », tracé sans auteur (US-09).
+        Assert.Equal(1, await _database.CountAsync(
+            "SELECT count(*) FROM maintenance.signalements s JOIN maintenance.journal_dossiers j ON j.dossier_id = s.id " +
+            "WHERE s.statut = 'AQualifier' AND s.origine = 'Public' AND j.nature = 'Declaration' AND j.auteur_compte_id IS NULL"));
     }
 
     [Fact]

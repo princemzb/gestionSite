@@ -10,13 +10,57 @@ internal enum NatureSignalement
     Demande = 2,
 }
 
+/// <summary>Cycle d'un dossier (DEC-03, PROCESSUS : 7 statuts).</summary>
+internal enum StatutDossier
+{
+    AQualifier = 1,
+    Affecte = 2,
+    EnCours = 3,
+    EnAttente = 4,
+    Cloture = 5,
+    ClasseSansSuite = 6,
+    RattacheDoublon = 7,
+}
+
+/// <summary>Priorité fixée par R/D à la qualification (DEC-05), indépendante du danger déclaré.</summary>
+internal enum PrioriteDossier
+{
+    Urgente = 1,
+    Haute = 2,
+    Normale = 3,
+    Basse = 4,
+}
+
+/// <summary>Motifs de classement sans suite (DEC-03) ; « Autre » exige un commentaire.</summary>
+internal enum MotifClassement
+{
+    AucunProbleme = 1,
+    HorsPerimetre = 2,
+    DejaTraite = 3,
+    SpamAbusif = 4,
+    Autre = 5,
+}
+
+internal enum OrigineDossier
+{
+    Public = 1,
+    Interne = 2,
+}
+
+/// <summary>Dossier dans un statut qui n'admet pas cette action (409 « statut_incompatible »).</summary>
+internal sealed class StatutIncompatibleException(StatutDossier statut) : Exception($"Action impossible pour un dossier « {statut} ».")
+{
+    internal StatutDossier Statut { get; } = statut;
+}
+
 /// <summary>
-/// Signalement reçu sur un site (dépôt public, RG-02) : déclarant sans compte, contact non vérifié, aucun suivi
-/// public. La commande identifie l'envoi : un rejeu ne crée pas de second signalement (F-01). Son traitement
-/// (qualification, affectation) relève d'US-09.
+/// Dossier d'un site : la déclaration reçue (dépôt public RG-02, ou déclaration d'un compte interne) et son traitement
+/// (US-09 : qualification, doublons, classement ; affectation et interventions ensuite). Déclarant public sans compte,
+/// contact non vérifié, aucun suivi public. La commande identifie l'envoi : un rejeu ne crée pas de second dossier (F-01).
 /// </summary>
 internal sealed class Signalement : IAppartientAOrganisation
 {
+    internal const int CommentaireMax = 500;
     internal const int DescriptionMax = 2000;
     internal const int EmplacementMax = 200;
     internal const int NomMax = 200;
@@ -42,6 +86,28 @@ internal sealed class Signalement : IAppartientAOrganisation
         NomDeclarant = Texte.Exiger(nomDeclarant, NomMax, "nom");
         ContactDeclarant = Texte.Exiger(contactDeclarant, ContactMax, "contact");
         RecuLe = recuLe;
+        Statut = StatutDossier.AQualifier;
+        Origine = OrigineDossier.Public;
+    }
+
+    /// <summary>
+    /// Déclaration d'un compte interne du site (US-09) : la zone est connue d'emblée ; l'emplacement précis est facultatif
+    /// (à défaut, le libellé de la zone) ; le déclarant est le compte, joignable dans l'application.
+    /// </summary>
+    internal static Signalement Interne(
+        Guid id, Guid organisationId, Guid siteId, Guid commandeId, NatureSignalement nature, string? description, string? emplacement,
+        string libelleZone, Guid zoneId, bool danger, bool activiteBloquee, Guid compteId, string nomCompte, DateTimeOffset recuLe)
+    {
+        var precis = string.IsNullOrWhiteSpace(emplacement) ? libelleZone : emplacement;
+        var signalement = new Signalement(
+            id, organisationId, siteId, commandeId, nature, description, precis, danger, activiteBloquee, nomCompte, contactDeclarant: "—", recuLe)
+        {
+            Origine = OrigineDossier.Interne,
+            DeclarantCompteId = Exiger(compteId, nameof(compteId)),
+            ContactDeclarant = null,
+            ZoneId = zoneId,
+        };
+        return signalement;
     }
 
     public Guid Id { get; private set; }
@@ -64,10 +130,90 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     public string NomDeclarant { get; private set; } = string.Empty;
 
-    /// <summary>Déclaratif, non vérifié : jamais une identité authentifiée (GLOSSAIRE-DONNEES).</summary>
-    public string ContactDeclarant { get; private set; } = string.Empty;
+    /// <summary>Déclaratif, non vérifié : jamais une identité authentifiée (GLOSSAIRE-DONNEES). Absent pour un compte interne.</summary>
+    public string? ContactDeclarant { get; private set; } = string.Empty;
 
     public DateTimeOffset RecuLe { get; private set; }
+
+    public OrigineDossier Origine { get; private set; }
+
+    /// <summary>Compte interne déclarant (déclaration depuis l'application) ; null pour un dépôt public.</summary>
+    public Guid? DeclarantCompteId { get; private set; }
+
+    public StatutDossier Statut { get; private set; }
+
+    public PrioriteDossier? Priorite { get; private set; }
+
+    /// <summary>Zone de l'inventaire (obligatoire à la qualification, décision du 29/10) ; composant facultatif.</summary>
+    public Guid? ZoneId { get; private set; }
+
+    public Guid? ComposantId { get; private set; }
+
+    public DateTimeOffset? QualifieLe { get; private set; }
+
+    /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
+    public Guid? DoublonDe { get; private set; }
+
+    public MotifClassement? MotifClassement { get; private set; }
+
+    public string? CommentaireClassement { get; private set; }
+
+    internal bool Ouvert => Statut is StatutDossier.AQualifier or StatutDossier.Affecte or StatutDossier.EnCours or StatutDossier.EnAttente;
+
+    /// <summary>Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04).</summary>
+    internal void Qualifier(PrioriteDossier priorite, Guid zoneId, Guid? composantId, DateTimeOffset maintenant)
+    {
+        if (!Ouvert)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        Priorite = Enum.IsDefined(priorite) ? priorite : throw new SaisieInvalideException("priorite", "Priorité inconnue.");
+        ZoneId = zoneId;
+        ComposantId = composantId;
+        QualifieLe ??= maintenant;
+    }
+
+    /// <summary>Rattachement à un dossier ouvert du même site, confirmé par R/D (DEC-03).</summary>
+    internal void RattacherA(Signalement principal)
+    {
+        if (Statut != StatutDossier.AQualifier)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        if (principal.Id == Id || principal.SiteId != SiteId || !principal.Ouvert || principal.DoublonDe is not null)
+        {
+            throw new SaisieInvalideException("principalId", "Dossier principal : un autre dossier ouvert du même site.");
+        }
+
+        DoublonDe = principal.Id;
+        Statut = StatutDossier.RattacheDoublon;
+    }
+
+    internal void ClasserSansSuite(MotifClassement motif, string? commentaire)
+    {
+        if (Statut != StatutDossier.AQualifier)
+        {
+            throw new StatutIncompatibleException(Statut);
+        }
+
+        if (!Enum.IsDefined(motif))
+        {
+            throw new SaisieInvalideException("motif", "Motif inconnu.");
+        }
+
+        var texte = string.IsNullOrWhiteSpace(commentaire) ? null : TexteAffichable.Nettoyer(commentaire, CommentaireMax, multiligne: true)
+            ?? throw new SaisieInvalideException("commentaire", $"Commentaire visible de {CommentaireMax} caractères au plus.");
+        if (motif == Domain.MotifClassement.Autre && texte is null)
+        {
+            throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour le motif « Autre ».");
+        }
+
+        MotifClassement = motif;
+        CommentaireClassement = texte;
+        Statut = StatutDossier.ClasseSansSuite;
+    }
 
     /// <summary>Même envoi (rejeu) : même site et même contenu, sinon la commande est réutilisée à tort.</summary>
     internal bool MemeEnvoi(Signalement autre) =>
@@ -148,4 +294,48 @@ internal sealed class PhotoSignalement : IAppartientAOrganisation
 
     internal static string CleDe(Guid organisationId, Guid signalementId, int rang) =>
         $"organisations/{organisationId:D}/signalements/{signalementId:D}/photo-{rang}.jpg";
+}
+
+internal enum NatureEvenementDossier
+{
+    Declaration = 1,
+    Qualification = 2,
+    RattachementDoublon = 3,
+    ClassementSansSuite = 4,
+}
+
+/// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>
+internal sealed class EvenementDossier : IAppartientAOrganisation
+{
+    private EvenementDossier()
+    {
+    }
+
+    internal EvenementDossier(Guid id, Signalement dossier, NatureEvenementDossier nature, Guid? auteurCompteId, DateTimeOffset le, string? detail)
+    {
+        Id = id;
+        OrganisationId = dossier.OrganisationId;
+        SiteId = dossier.SiteId;
+        DossierId = dossier.Id;
+        Nature = nature;
+        AuteurCompteId = auteurCompteId;
+        Le = le;
+        Detail = detail;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid OrganisationId { get; private set; }
+
+    public Guid SiteId { get; private set; }
+
+    public Guid DossierId { get; private set; }
+
+    public NatureEvenementDossier Nature { get; private set; }
+
+    public Guid? AuteurCompteId { get; private set; }
+
+    public DateTimeOffset Le { get; private set; }
+
+    public string? Detail { get; private set; }
 }

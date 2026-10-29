@@ -31,7 +31,7 @@ internal sealed record AccuseApi(string Site, bool Danger, string? NumeroUrgence
 
 internal sealed record DepotRecuApi(
     Guid Id, DateTimeOffset RecuLe, string Nature, bool Danger, bool ActiviteBloquee, string Emplacement, string Description,
-    string NomDeclarant, string ContactDeclarant, IReadOnlyList<int> Photos);
+    string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos);
 
 internal sealed record CreeApi(Guid Id);
 
