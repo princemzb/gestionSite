@@ -334,7 +334,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
     {
         await using var web = Web(_api);
         using var visiteur = Navigateur(web);
-        await EnvoyerAsync(visiteur, "incident", "Vitre fêlée.", photo: false);
+        await EnvoyerAsync(visiteur, "incident", "Vitre fêlée.", photo: true); // la photo existe : le 404 vient du refus
         using var admin = await AdministrateurConnecteAsync(web);
         var site = (Guid)(await ScalarAsync("SELECT id FROM identite.sites"))!;
         var depot = (Guid)(await ScalarAsync("SELECT id FROM maintenance.signalements"))!;

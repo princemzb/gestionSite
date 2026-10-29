@@ -12,24 +12,7 @@ internal static class SitesEndpoints
         site.MapGet("/qr.png", TelechargerQrAsync);
         site.MapPost("/numero-urgence", EnregistrerNumeroAsync);
         // Photos des dépôts reçus (S08-05) : droits vérifiés par l'API, jamais mises en cache partagé.
-        site.MapGet("/depots/{depotId:guid}/photos/{rang:int}", async (Guid organisationId, Guid siteId, Guid depotId, int rang, SessionApi session, HttpContext contexte) =>
-        {
-            try
-            {
-                var photo = await session.LireOctetsAsync($"/organizations/{organisationId}/sites/{siteId}/reports/{depotId}/photos/{rang}", CancellationToken.None)
-                    .ConfigureAwait(false);
-                contexte.Response.Headers.CacheControl = "private, no-store";
-                return photo is null ? Results.NotFound() : Results.File(photo, "image/jpeg");
-            }
-            catch (SessionExpireeException)
-            {
-                return Results.LocalRedirect("/connexion");
-            }
-            catch (RefusApiException)
-            {
-                return Results.NotFound();
-            }
-        });
+        site.MapGet("/depots/{depotId:guid}/photos/{rang:int}", TelechargerPhotoAsync);
         return endpoints;
     }
 
@@ -52,6 +35,26 @@ internal static class SitesEndpoints
         catch (RefusApiException)
         {
             return Results.NotFound();
+        }
+    }
+
+    private static async Task<IResult> TelechargerPhotoAsync(
+        Guid organisationId, Guid siteId, Guid depotId, int rang, SessionApi session, HttpContext contexte)
+    {
+        contexte.Response.Headers.CacheControl = "private, no-store"; // données personnelles, quelle que soit l'issue
+        try
+        {
+            var photo = await session.LireOctetsAsync($"/organizations/{organisationId}/sites/{siteId}/reports/{depotId}/photos/{rang}", CancellationToken.None)
+                .ConfigureAwait(false);
+            return photo is null ? Results.NotFound() : Results.File(photo, "image/jpeg");
+        }
+        catch (SessionExpireeException)
+        {
+            return Results.LocalRedirect("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); // 404 et 403 rendent déjà null
         }
     }
 

@@ -8,7 +8,12 @@
 <main class="admin-contenu">
 <PageTitle>Dépôts reçus · gestionSite</PageTitle>
 
-@if (Organisation is null || Sites.Count == 0)
+@if (Message is not null && Organisation is null)
+{
+    <div class="entete"><div><h1>Dépôts reçus</h1></div></div>
+    <p role="alert" class="alerte danger">@Message</p>
+}
+else if (Organisation is null || Sites.Count == 0)
 {
     <div class="entete"><div><h1>Dépôts reçus</h1><p>Aucun site ne vous est attribué dans cette organisation.</p></div></div>
 }
@@ -33,12 +38,16 @@ else
     {
         <p role="alert" class="alerte danger">@Message</p>
     }
-    else if (Depots.Count == 0)
+    else if (Depots.Count == 0 && Avant is null)
     {
         <section class="carte vide-carte"><p>Aucun dépôt reçu pour @SiteCourant!.Nom.</p><p class="note">Affichez le QR code du site pour recevoir les signalements.</p></section>
     }
     else
     {
+        @if (DepotDemande is { } demande && Depots.All(d => d.Id != demande))
+        {
+            <p role="status" class="alerte avertissement">Le dépôt demandé n'est pas dans cette page de la liste.</p>
+        }
         <div class="depots">
             <section aria-label="Liste des dépôts" class="carte tableau-conteneur">
                 <table>
@@ -49,8 +58,8 @@ else
                         @foreach (var depot in Depots)
                         {
                             var choisi = depot.Id == DepotCourant?.Id;
-                            <tr class="@(choisi ? "choisi" : null)" aria-selected="@(choisi ? "true" : "false")">
-                                <td class="date"><a href="@Lien(depot)">@Date(depot.RecuLe)</a></td>
+                            <tr class="@(choisi ? "choisi" : null)">
+                                <td class="date"><a href="@Lien(depot)" aria-current="@(choisi ? "true" : null)">@Date(depot.RecuLe)</a></td>
                                 <td>
                                     @if (depot.Danger)
                                     {
@@ -69,6 +78,19 @@ else
                         }
                     </tbody>
                 </table>
+                @if (Avant is not null || Depots.Count == TaillePage)
+                {
+                    <div class="actions pagination">
+                        @if (Avant is not null)
+                        {
+                            <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}")">Les plus récents</a>
+                        }
+                        @if (Depots.Count == TaillePage)
+                        {
+                            <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}&avant={Depots[^1].Id}")">Plus anciens</a>
+                        }
+                    </div>
+                }
             </section>
             @if (DepotCourant is { } d)
             {
@@ -81,7 +103,7 @@ else
                     <p class="texte-libre">@d.Description</p>
                     @foreach (var rang in d.Photos)
                     {
-                        <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant!.Id}/depots/{d.Id}/photos/{rang}")" alt="Photo @rang du dépôt" loading="lazy" />
+                        <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant!.Id}/depots/{d.Id}/photos/{rang}")" alt="@($"Photo {rang} du dépôt")" loading="lazy" />
                     }
                     <dl>
                         <dt>Déclarant</dt><dd>@d.NomDeclarant</dd>
@@ -97,8 +119,11 @@ else
 </main>
 
 @code {
-    private static readonly TimeZoneInfo Paris =
-        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : TimeZoneInfo.Utc;
+    private const int TaillePage = 50;
+
+    // Repli sur UTC (fuseau absent de l'hôte) affiché comme tel : jamais une heure locale fausse.
+    private static readonly TimeZoneInfo? Paris =
+        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : null;
 
     [Parameter] public Guid OrganisationId { get; set; }
 
@@ -108,20 +133,20 @@ else
     [SupplyParameterFromQuery(Name = "depot")]
     private Guid? DepotDemande { get; set; }
 
+    [SupplyParameterFromQuery(Name = "avant")]
+    private Guid? Avant { get; set; }
+
     private OrganisationApi? Organisation { get; set; }
 
-    private string[] RolesAppelant => Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+    private string[] RolesAppelant { get; set; } = [];
 
-    // Sites où l'appelant a un rôle interne : l'administrateur seul n'a aucun accès implicite aux dépôts.
-    private IReadOnlyList<SiteApi> Sites => Organisation is null
-        ? []
-        : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
 
-    private SiteApi? SiteCourant => Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+    private SiteApi? SiteCourant { get; set; }
 
     private IReadOnlyList<DepotRecuApi> Depots { get; set; } = [];
 
-    private DepotRecuApi? DepotCourant => Depots.FirstOrDefault(d => d.Id == DepotDemande) ?? Depots.FirstOrDefault();
+    private DepotRecuApi? DepotCourant { get; set; }
 
     private string? Message { get; set; }
 
@@ -131,9 +156,18 @@ else
         {
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            // Sites où l'appelant a un rôle interne : l'administrateur seul n'a aucun accès implicite aux dépôts.
+            Sites = Organisation is null
+                ? []
+                : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
             if (SiteCourant is { } site)
             {
-                Depots = await Session.LireAsync<List<DepotRecuApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/reports", CancellationToken.None);
+                var curseur = Avant is { } avant ? $"&avant={avant}" : string.Empty;
+                Depots = await Session.LireAsync<List<DepotRecuApi>>(
+                    $"/organizations/{OrganisationId}/sites/{site.Id}/reports?limite={TaillePage}{curseur}", CancellationToken.None);
+                DepotCourant = DepotDemande is { } demande ? Depots.FirstOrDefault(d => d.Id == demande) : Depots.FirstOrDefault();
             }
         }
         catch (SessionExpireeException)
@@ -150,10 +184,12 @@ else
         }
     }
 
-    private string Lien(DepotRecuApi depot) => $"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}&depot={depot.Id}";
+    private string Lien(DepotRecuApi depot) =>
+        $"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}&depot={depot.Id}{(Avant is { } avant ? $"&avant={avant}" : null)}";
 
-    private static string Date(DateTimeOffset date) =>
-        TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy · HH:mm", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
+    private static string Date(DateTimeOffset date) => Paris is null
+        ? date.ToUniversalTime().ToString("dd/MM/yyyy · HH:mm 'UTC'", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))
+        : TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy · HH:mm", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
 
     private static string Nature(string nature) => nature == "Demande" ? "Demande" : "Incident";
 }
