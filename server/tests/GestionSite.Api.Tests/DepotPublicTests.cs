@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using GestionSite.Modules.Identite;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.SharedKernel;
 using ImageMagick;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -314,6 +315,86 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
         return (string)(await commande.ExecuteScalarAsync())!;
     }
 
+    [Fact]
+    public async Task AFailedHumanCheckRefusesTheReportButAReplayIsNotCheckedAgain()
+    {
+        var verification = new VerificationSimulee();
+        await using var api = _api.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddScoped<IVerificationHumaine>(_ => verification)));
+        using var client = api.CreateClient();
+        var demande = Demande() with { Verification = "jeton" };
+
+        verification.Reponse = false;
+        using var refuse = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), demande);
+        var probleme = await refuse.Content.ReadFromJsonAsync<JsonElement>();
+        verification.Reponse = true;
+        using var accepte = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), demande);
+        verification.Reponse = false; // jeton déjà consommé chez Cloudflare : le renvoi ne doit pas le redemander
+        using var rejeu = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), demande);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refuse.StatusCode);
+        Assert.Equal("verification", probleme.GetProperty("champ").GetString());
+        Assert.Equal(HttpStatusCode.OK, accepte.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rejeu.StatusCode);
+        Assert.Equal(["jeton", "jeton"], verification.Jetons);
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements"));
+    }
+
+    [Fact]
+    public async Task ASiteFloodedWithReportsIsThrottledWithoutBlockingOtherSites()
+    {
+        await using var api = _api.WithWebHostBuilder(b => b.UseSetting("DepotPublic:LimiteParSite", "2"));
+        using var client = api.CreateClient();
+        var (_, autreCode) = await OuvrirAsync("Autre église", "admin@limite.test");
+        for (var i = 0; i < 5; i++)
+        {
+            // Requêtes invalides : ne consomment rien (sinon n'importe qui bloquerait un site sans passer l'anti-robot).
+            using var invalide = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Demande() with { Nom = "" });
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, invalide.StatusCode);
+        }
+
+        var reponses = new List<HttpResponseMessage>();
+        for (var i = 0; i < 3; i++)
+        {
+            reponses.Add(await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Demande()));
+        }
+
+        using var autreSite = await client.PostAsJsonAsync(new Uri($"/public/sites/{autreCode}/reports", UriKind.Relative), Demande());
+        var probleme = await reponses[2].Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], reponses.Select(r => r.StatusCode));
+        Assert.Equal("trop_de_depots", probleme.GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.OK, autreSite.StatusCode);
+        reponses.ForEach(r => r.Dispose());
+    }
+
+    [Fact]
+    public async Task WithoutTheTurnstileSecretOnlyThePublicFormIsUnavailable()
+    {
+        await using var api = _api.WithWebHostBuilder(b => b.UseSetting("Turnstile:Desactive", "false"));
+        using var client = api.CreateClient();
+
+        using var depot = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Demande() with { Verification = "x" });
+        using var sante = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
+        var probleme = await depot.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, depot.StatusCode);
+        Assert.Equal("depot_indisponible", probleme.GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.OK, sante.StatusCode);
+    }
+
+    private sealed class VerificationSimulee : IVerificationHumaine
+    {
+        public bool Reponse { get; set; } = true;
+
+        public List<string?> Jetons { get; } = [];
+
+        public Task<bool> VerifierAsync(string? jeton, CancellationToken cancellationToken)
+        {
+            Jetons.Add(jeton);
+            return Task.FromResult(Reponse);
+        }
+    }
+
     private static async Task MigrerIdentiteAsync(TestDatabase base_, string? cible)
     {
         await using var proprietaire = NpgsqlDataSource.Create(base_.MigrationsConnectionString);
@@ -373,5 +454,6 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
     }
 
     private sealed record DemandeTest(
-        Guid CommandeId, string? Nature, string? Description, string? Emplacement, bool Danger, bool ActiviteBloquee, string? Nom, string? Contact);
+        Guid CommandeId, string? Nature, string? Description, string? Emplacement, bool Danger, bool ActiviteBloquee, string? Nom, string? Contact,
+        string? Verification = null);
 }

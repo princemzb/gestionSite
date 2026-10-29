@@ -19,9 +19,13 @@ interface Env {
   // Jeton distinct pour le compartiment des clés de chiffrement des cookies (moindre privilège).
   R2_CLES_ACCES: string;
   R2_CLES_SECRET: string;
+  // Anti-robot du formulaire public (S08-03) : facultatif ici ; absent, seul le dépôt public répond 503.
+  TURNSTILE_SECRET?: string;
 }
 
-const SECRETS_REQUIS = ["BASE_APPLICATIVE", "CLE_SIGNATURE", "R2_URL", "R2_ACCES", "R2_SECRET", "R2_CLES_ACCES", "R2_CLES_SECRET"] as const;
+const SECRETS_REQUIS = [
+  "BASE_APPLICATIVE", "CLE_SIGNATURE", "R2_URL", "R2_ACCES", "R2_SECRET", "R2_CLES_ACCES", "R2_CLES_SECRET",
+] as const;
 const PORT_WEB = 8080;
 const VEILLE_MS = 15 * 60 * 1000; // mise en veille après 15 min sans requête (ADR-08 : démarrage à froid accepté)
 const ATTENTE_MAX_MS = 60_000;
@@ -110,6 +114,7 @@ export class GestionSite extends DurableObject<Env> {
         Web__Cles__SecretKey: env.R2_CLES_SECRET,
         Web__Cles__Compartiment: env.R2_CLES_COMPARTIMENT,
         Web__Cles__Region: "auto",
+        Turnstile__CleSecrete: env.TURNSTILE_SECRET ?? "",
       },
     });
     await conteneur.setInactivityTimeout(VEILLE_MS);
