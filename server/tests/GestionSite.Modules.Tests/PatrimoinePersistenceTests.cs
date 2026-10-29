@@ -78,7 +78,7 @@ public sealed class PatrimoinePersistenceTests
 
     [Theory]
     [InlineData("")]
-    [InlineData("Salle‮etuoc")]
+    [InlineData("Salle\u202Eetuoc")]
     [InlineData("Ligne\nsuivante")]
     public void NamesFollowTheSharedDisplayRules(string nom)
     {
