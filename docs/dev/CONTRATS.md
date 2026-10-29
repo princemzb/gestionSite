@@ -73,6 +73,15 @@ Fiche : `nom` (≤ 120), `corpsEtat` (nom exact : StructureGrosOeuvre, Couvertur
 Erreurs (403/404 d'accès toujours avant les erreurs de saisie) : 422 `donnee_invalide` + `champ` (`lot.repartition`, `lot.quantite`, `lot.unite`, `zoneId` absente ou d'un autre site, `version` absente…) ; 409 `modifie_entre_temps` (version dépassée : relire puis refaire), 409 `composant_retire` ; 404 composant absent ou hors périmètre ; 403 sans rôle de terrain. Journal : création (valeurs saisies), modification (champs changés seulement, avant et après), retrait (motif).
 
 
+Grilles d'évaluation (US-11, S11-01) : `/organizations/{orgId}/sites/{siteId}/inventory/grids…` — une grille par corps d'état et par site (droits du site, PERMISSIONS).
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET grids | `ConsulterSite` | → `[grille]` pour les 20 corps d'état, version courante |
+| GET grids/{corpsEtat} | `ConsulterSite` | → `grille` |
+| PUT grids/{corpsEtat} | `ModifierGrilles` (responsable, délégué) | `criteres` (1 à 15, ≤ 160 chacun, distincts casse ignorée, lignes sans caractère visible ignorées), `mesures` facultatives (≤ 8, libellés distincts : `{libelle ≤ 80, unite ≤ 16}`, unité sans libellé refusée), `version` lue → `{version}` : nouvelle version, ou la version lue si rien ne change |
+
+Grille lue : `{corpsEtat, version, adaptee, criteres: [texte], mesures: [{libelle, unite}]}`. La version 1 est la grille par défaut de l'application (`adaptee` false), dont les textes peuvent s'améliorer avec l'application ; chaque adaptation crée la version suivante du site, jamais modifiée ensuite (table `patrimoine.grilles`, ajout seul, auteur et date). Chaque évaluation (S11-02) enregistre le numéro de version et le texte des points et mesures présentés : son historique ne dépend d'aucune version ultérieure. Erreurs : 422 `donnee_invalide` + `champ` (`criteres`, `mesures`, `version`) ; 409 `modifie_entre_temps` (version dépassée) ; 404 corps d'état inconnu ou site hors périmètre ; 403 sans le droit.
+
 Dossiers (US-09, S09-01) : `/organizations/{orgId}/sites/{siteId}/cases…` — un dossier par dépôt (public ou interne), statut initial `AQualifier`.
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |

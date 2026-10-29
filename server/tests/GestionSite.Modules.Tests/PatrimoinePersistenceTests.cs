@@ -27,7 +27,7 @@ public sealed class PatrimoinePersistenceTests
         using var module = new RuntimeContext();
         var entites = module.Context.Model.GetEntityTypes().ToList();
 
-        Assert.Equal(5, entites.Count); // bâtiments, niveaux, zones, composants, journal
+        Assert.Equal(6, entites.Count); // bâtiments, niveaux, zones, composants, journal, grilles
         Assert.All(entites, t => Assert.True(typeof(IAppartientAOrganisation).IsAssignableFrom(t.ClrType)));
         Assert.All(entites, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
         Assert.All(entites, t => Assert.Equal("patrimoine", t.GetSchema()));
@@ -156,6 +156,26 @@ public sealed class PatrimoinePersistenceTests
     private static FicheComposant Fiche(Lot? lot) => new(
         "Chaises", CorpsEtat.Mobilier, Emplacement: null, Marque: null, Modele: null, NumeroSerie: null,
         AnneeMiseEnService: 2019, MoisMiseEnService: null, Remarques: "Empilables\nhêtre", SoumisAVerification: false, lot);
+
+    [Fact]
+    public void EveryTradeHasADefaultGridWithObservablePoints()
+    {
+        Assert.Equal(Enum.GetValues<CorpsEtat>().Order(), GrillesParDefaut.CorpsEtats.Order());
+        Assert.All(GrillesParDefaut.CorpsEtats, c => Assert.InRange(GrillesParDefaut.Pour(c).Criteres.Count, 1, VersionGrille.CriteresMax));
+    }
+
+    [Fact]
+    public void AnAdaptedGridIsCleanedAndKeepsItsContent()
+    {
+        var contenu = VersionGrille.Valider(["  Assise intacte ", "", "\u200B", "Pieds stables"], [("Hauteur", "cm"), (" ", null)]);
+        var version = new VersionGrille(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CorpsEtat.Mobilier, 2, contenu, null, Instant);
+
+        Assert.Equal(["Assise intacte", "Pieds stables"], version.Contenu.Criteres);
+        Assert.Equal([new MesureGrille("Hauteur", "cm")], version.Contenu.Mesures);
+        Assert.Throws<SaisieInvalideException>(() => VersionGrille.Valider([.. Enumerable.Range(1, 16).Select(i => $"Point {i}")], null));
+        Assert.Throws<SaisieInvalideException>(() => VersionGrille.Valider(["Fuite"], [(" ", "bar")]));
+        Assert.Throws<SaisieInvalideException>(() => VersionGrille.Valider(["Fuite"], [("Pression", "bar"), ("PRESSION", "bar")]));
+    }
 
     private sealed class RuntimeContext : IDisposable
     {

@@ -25,6 +25,8 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<EvenementInventaire> Journal => Set<EvenementInventaire>();
 
+    public DbSet<VersionGrille> Grilles => Set<VersionGrille>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -112,6 +114,18 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
                 .HasForeignKey(c => new { c.ZoneId, c.OrganisationId })
                 .HasPrincipalKey(z => new { z.Id, z.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VersionGrille>(grille =>
+        {
+            grille.ToTable("grilles", table => table.HasCheckConstraint("ck_grilles_version", "version >= 2"));
+            grille.HasKey(g => g.Id);
+            grille.Property(g => g.Id).ValueGeneratedNever();
+            grille.Property(g => g.CorpsEtat).HasConversion<string>().HasMaxLength(32);
+            grille.Property(g => g.Criteres).HasColumnType("jsonb");
+            grille.Property(g => g.Mesures).HasColumnType("jsonb");
+            // Une version par site et corps d'état : deux modifications simultanées ne créent pas deux « v3 ».
+            grille.HasIndex(g => new { g.OrganisationId, g.SiteId, g.CorpsEtat, g.Version }).IsUnique().HasDatabaseName(VersionGrille.ContrainteVersion);
         });
 
         modelBuilder.Entity<EvenementInventaire>(evenement =>

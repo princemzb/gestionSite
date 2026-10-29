@@ -27,6 +27,11 @@ internal static class Inventaire
             throw new ModifieEntreTempsException();
         }
         catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation
+            && violation.ConstraintName == VersionGrille.ContrainteVersion)
+        {
+            throw new ModifieEntreTempsException(); // même version de grille créée en parallèle
+        }
+        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation
             && ContraintesNom.Contient(violation.ConstraintName))
         {
             throw new NomExistantException(); // même nom à la casse près, enregistré en parallèle

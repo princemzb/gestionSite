@@ -307,6 +307,61 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.VersionGrille", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<string>("CorpsEtat")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("corps_etat");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<string>("Criteres")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("criteres");
+
+                    b.Property<string>("Mesures")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mesures");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_grilles");
+
+                    b.HasIndex("OrganisationId", "SiteId", "CorpsEtat", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_grilles_version");
+
+                    b.ToTable("grilles", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_grilles_version", "version >= 2");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Zone", b =>
                 {
                     b.Property<Guid>("Id")
