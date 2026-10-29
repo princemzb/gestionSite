@@ -66,6 +66,13 @@ h1, h2 { letter-spacing: -0.02em; }
   display: flex; flex-direction: column; justify-content: center; }
 .formulaire { width: 100%; max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 .formulaire h2 { margin: 0; font-size: 28px; font-weight: 700; }
+/* Classes plutôt que styles en ligne : la politique de sécurité du contenu refuse les attributs style. */
+.formulaire.pleine-largeur { max-width: none; margin: 0; }
+.lien-bouton { display: inline-flex; align-items: center; text-decoration: none; }
+.vide.petit { font-size: 14px; }
+.titre-etape { margin: 0; font-size: 20px; }
+.formulaire-etapes { display: flex; flex-direction: column; gap: 16px; }
+.hauteur-48 { height: 48px; }
 .note { margin: 0; font-size: 14px; color: var(--encre-2); }
 
 .champ { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
@@ -231,13 +238,14 @@ a.tuile:hover { color: inherit; }
 .arbre-ajouts { display: flex; gap: 12px; padding: 4px 10px 8px 18px; font-size: 14px; }
 .arbre .arbre-ajouts a { padding: 4px 0; color: var(--lien); }
 .liste-composants { flex: 1 1 420px; min-width: 0; }
-.liste-composants table { min-width: 560px; }
+.liste-composants table { min-width: 520px; }
+.liste-composants td, .liste-composants th { padding-left: 14px; padding-right: 14px; }
 .liste-composants tr.choisi { background: var(--selection); }
 .nom-composant { color: var(--encre); font-weight: 600; text-decoration: none; }
 .badge.verification { background: var(--verif-fond); color: var(--verif); font-size: 12px; padding: 2px 8px; margin-left: 4px; }
 .badge.retire { background: var(--etape-fond); color: var(--encre-2); font-size: 12px; padding: 2px 8px; margin-left: 4px; }
 .quantite-etat { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.barre-etats { width: 160px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--etape-fond); display: block; }
+.barre-etats { width: 120px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--etape-fond); display: block; }
 .barre-etats .etat-bon { fill: var(--etat-bon); }
 .barre-etats .etat-satisfaisant { fill: var(--etat-satisfaisant); }
 .barre-etats .etat-degrade { fill: var(--etat-degrade); }
