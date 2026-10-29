@@ -1,3 +1,4 @@
+using GestionSite.Modules.Identite.Annuaire;
 using GestionSite.Modules.Identite.Authentification;
 using GestionSite.Modules.Identite.Autorisation;
 using GestionSite.Modules.Identite.Contracts;
@@ -18,7 +19,7 @@ public static class IdentiteModule
     public static IServiceCollection AddIdentiteModule(this IServiceCollection services) =>
         services.AddIdentitePersistence().AddAuthentificationIdentite()
             .AddScoped<Autorisations>().AddScoped<IAutorisations>(p => p.GetRequiredService<Autorisations>())
-            .AddScoped<ISitesPublics, RechercheSitesPublics>().AddScoped<ServiceLiensPublics>()
+            .AddScoped<ISitesPublics, RechercheSitesPublics>().AddScoped<IAnnuaireMembres, AnnuaireMembres>().AddScoped<ServiceLiensPublics>()
             .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>().AddScoped<ServiceInvitations>();
 
     public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) =>

@@ -24,11 +24,14 @@ internal enum IssueConnexion
 internal sealed class SessionExpireeException() : Exception("Session expirée.");
 
 /// <summary>Échec métier renvoyé par l'API (code stable des ProblemDetails).</summary>
-internal sealed class RefusApiException(HttpStatusCode statut, string? code, string? message) : Exception(message ?? code)
+internal sealed class RefusApiException(HttpStatusCode statut, string? code, string? message, string? champ = null) : Exception(message ?? code)
 {
     internal HttpStatusCode Statut { get; } = statut;
 
     internal string? Code { get; } = code;
+
+    /// <summary>Champ refusé d'une saisie invalide (422 « donnee_invalide »).</summary>
+    internal string? Champ { get; } = champ;
 }
 
 /// <summary>
@@ -142,6 +145,12 @@ internal sealed class SessionApi(
         using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
     }
 
+    /// <summary>Action sans contenu en retour (204), par exemple un retrait.</summary>
+    internal async Task ExecuterAsync(string chemin, object corps, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, corps, annulation).ConfigureAwait(false);
+    }
+
     internal static async Task<IResult> DeconnecterAsync(HttpContext contexte, IHttpClientFactory clients, IAntiforgery antifalsification)
     {
         // Point d'accès sans formulaire lié : le jeton anti-falsification n'y serait pas vérifié d'office.
@@ -203,7 +212,7 @@ internal sealed class SessionApi(
             var probleme = await LireProblemeAsync(reponse, annulation).ConfigureAwait(false);
             throw reponse.StatusCode == HttpStatusCode.Unauthorized
                 ? new SessionExpireeException()
-                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title);
+                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title, probleme?.Champ);
         }
     }
 

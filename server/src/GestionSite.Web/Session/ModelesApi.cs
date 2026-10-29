@@ -19,7 +19,7 @@ internal sealed record ActivationApi(string Jeton, DateTimeOffset ExpireLe);
 
 internal sealed record MembreCreeApi(Guid MembreId, Guid CompteId, int Version, ActivationApi? Activation);
 
-internal sealed record ProblemeApi(string? Code, string? Title);
+internal sealed record ProblemeApi(string? Code, string? Title, string? Champ);
 
 internal sealed record ActivationReussieApi(string Email);
 
@@ -32,3 +32,29 @@ internal sealed record AccuseApi(string Site, bool Danger, string? NumeroUrgence
 internal sealed record DepotRecuApi(
     Guid Id, DateTimeOffset RecuLe, string Nature, bool Danger, bool ActiviteBloquee, string Emplacement, string Description,
     string NomDeclarant, string ContactDeclarant, IReadOnlyList<int> Photos);
+
+internal sealed record CreeApi(Guid Id);
+
+internal sealed record ZoneApi(Guid Id, string Nom, Guid? NiveauId, bool PartiesCommunes);
+
+internal sealed record NiveauApi(Guid Id, string Nom, int Ordre);
+
+internal sealed record BatimentApi(Guid Id, string Nom, IReadOnlyList<NiveauApi> Niveaux, IReadOnlyList<ZoneApi> Zones);
+
+internal sealed record RepartitionApi(int Bon, int Satisfaisant, int Degrade, int Mauvais, int Critique);
+
+internal sealed record LotApi(string Unite, int Quantite, RepartitionApi? Repartition);
+
+internal sealed record ComposantApi(
+    Guid Id, Guid ZoneId, string Nom, string CorpsEtat, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
+    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool SoumisAVerification, LotApi? Lot,
+    DateTimeOffset? RetireLe, string? MotifRetrait, uint Version);
+
+internal sealed record ListeComposantsApi(IReadOnlyList<ComposantApi> Composants, bool Tronquee);
+
+internal sealed record CompteZoneApi(Guid ZoneId, int Actifs);
+
+internal sealed record EvenementApi(
+    DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, System.Text.Json.JsonElement? Avant, System.Text.Json.JsonElement? Apres);
+
+internal sealed record FicheComposantApi(ComposantApi Composant, IReadOnlyList<EvenementApi> Historique);

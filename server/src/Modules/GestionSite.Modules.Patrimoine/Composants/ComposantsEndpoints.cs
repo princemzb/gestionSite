@@ -32,6 +32,8 @@ internal static class ComposantsEndpoints
             ServiceComposants service, CancellationToken ct) =>
             Results.Ok(await service.ListerAsync(orgId, siteId, new DemandeFiltre(zoneId, batimentId, corpsEtat, verification, recherche, retires), ct)
                 .ConfigureAwait(false)));
+        composants.MapGet("/counts", async (Guid orgId, Guid siteId, ServiceComposants service, CancellationToken ct) =>
+            Results.Ok(await service.CompterAsync(orgId, siteId, ct).ConfigureAwait(false)));
         composants.MapGet("/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceComposants service, CancellationToken ct) =>
             Results.Ok(await service.LireAsync(orgId, siteId, id, ct).ConfigureAwait(false)));
         composants.MapPost("/", async (Guid orgId, Guid siteId, DemandeComposant demande, ServiceComposants service, CancellationToken ct) =>

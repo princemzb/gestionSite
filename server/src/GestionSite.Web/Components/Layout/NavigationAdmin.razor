@@ -7,6 +7,7 @@
         @if (Interne)
         {
             <a href="@($"/organisations/{OrganisationId}/depots")" aria-current="@(Courant == "depots" ? "page" : null)">Dépôts reçus</a>
+            <a href="@($"/organisations/{OrganisationId}/inventaire")" aria-current="@(Courant == "inventaire" ? "page" : null)">Inventaire</a>
         }
         @if (Encadrement)
         {
@@ -31,12 +32,12 @@
     /// <summary>Rôles de l'appelant dans l'organisation (« Administrateur », « Responsable »…).</summary>
     [Parameter] public IReadOnlyCollection<string> Roles { get; set; } = [];
 
-    /// <summary>Entrée courante : « depots », « sites » ou « membres ».</summary>
+    /// <summary>Entrée courante : « depots », « inventaire », « sites » ou « membres ».</summary>
     [Parameter] public string Courant { get; set; } = string.Empty;
 
     private bool Administrateur => Roles.Contains("Administrateur");
 
-    // Dépôts reçus : comptes internes d'un site (DEC-04), pas l'administrateur seul.
+    // Dépôts reçus et inventaire : comptes internes d'un site (DEC-04), pas l'administrateur seul.
     private bool Interne => Roles.Any(r => r is "Technicien" or "Responsable" or "Delegue" or "Pasteur" or "Coordination");
 
     // Lien public et QR : administrateur, responsable et délégués (décision du 28/10).
