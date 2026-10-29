@@ -53,6 +53,10 @@ internal enum UniteLot
 /// <summary>Quantités d'un lot par état de l'échelle commune ; leur somme égale la quantité du lot (RG-10).</summary>
 internal sealed record Repartition(int Bon, int Satisfaisant, int Degrade, int Mauvais, int Critique)
 {
+    /// <summary>Répartition lue de colonnes facultatives : « bon » absent, pas de répartition ; autre état absent, zéro.</summary>
+    internal static Repartition? Depuis(int? bon, int? satisfaisant, int? degrade, int? mauvais, int? critique) =>
+        bon is { } b ? new Repartition(b, satisfaisant ?? 0, degrade ?? 0, mauvais ?? 0, critique ?? 0) : null;
+
     internal long Total => (long)Bon + Satisfaisant + Degrade + Mauvais + Critique;
 
     internal bool Positive => Bon >= 0 && Satisfaisant >= 0 && Degrade >= 0 && Mauvais >= 0 && Critique >= 0;
@@ -145,9 +149,7 @@ internal sealed class Composant : IAppartientAOrganisation
     internal bool Retire => RetireLe is not null;
 
     internal Lot? Lot => Unite is { } unite && Quantite is { } quantite
-        ? new Lot(unite, quantite, QuantiteBon is { } bon
-            ? new Repartition(bon, QuantiteSatisfaisant ?? 0, QuantiteDegrade ?? 0, QuantiteMauvais ?? 0, QuantiteCritique ?? 0)
-            : null)
+        ? new Lot(unite, quantite, Repartition.Depuis(QuantiteBon, QuantiteSatisfaisant, QuantiteDegrade, QuantiteMauvais, QuantiteCritique))
         : null;
 
     internal void Modifier(Zone zone, FicheComposant fiche, DateTimeOffset maintenant)

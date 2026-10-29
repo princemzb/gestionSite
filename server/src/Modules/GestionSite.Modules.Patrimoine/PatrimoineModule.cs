@@ -4,6 +4,7 @@ using GestionSite.Modules.Patrimoine.Evaluations;
 using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Lecture;
 using GestionSite.Modules.Patrimoine.Persistence;
+using GestionSite.Modules.Patrimoine.Score;
 using GestionSite.Modules.Patrimoine.Structure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +20,8 @@ public static class PatrimoineModule
     public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
         services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>()
-            .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>();
+            .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>();
 
     public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations();
+        endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations().MapScore();
 }

@@ -143,10 +143,82 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.Equal(0, await Database.CountAsync("SELECT count(*) FROM patrimoine.evaluations"));
     }
 
+    [Fact]
+    public async Task TheSiteScoreIsRecomputedFromEvaluationsWithTheWorstZoneFirst()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var pasteur = await JetonAsync("pasteur@inventaire.test");
+        var (tableau, chaises) = await ComposantsAsync(technicien);
+        var sacristie = await CreerAsync($"{Base}/zones", new { batimentId = await BatimentAsync(technicien), nom = "Sacristie" }, technicien);
+        var armoire = await CreerAsync($"{Base}/components", new { nom = "Armoire", corpsEtat = "Mobilier", zoneId = sacristie }, technicien);
+        var vide = await LireAsync($"{Base}/score", pasteur);
+
+        using var lot = await EvaluerAsync(chaises, Lot(new { bon = 30, degrade = 8, critique = 2 }), technicien, photo: true);
+        using var individuel = await EvaluerAsync(tableau, Individuel("Degrade"), technicien);
+        var score = await LireAsync($"{Base}/score", pasteur);
+        var zones = score.GetProperty("zones").EnumerateArray().ToList();
+        using var autreSite = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/sites/{Guid.NewGuid()}/inventory/score", pasteur);
+
+        Assert.Equal(JsonValueKind.Null, vide.GetProperty("note").ValueKind);
+        Assert.Equal(3, vide.GetProperty("couverture").GetProperty("actifs").GetInt32());
+        Assert.Equal(6.4m, score.GetProperty("note").GetDecimal()); // seule zone évaluée : (7,8 + 5) / 2
+        Assert.Equal("Satisfaisant", score.GetProperty("libelle").GetString());
+        Assert.Equal((2, 3), (score.GetProperty("couverture").GetProperty("evalues").GetInt32(), score.GetProperty("couverture").GetProperty("actifs").GetInt32()));
+        Assert.Equal("Chaises", score.GetProperty("critiques").EnumerateArray().Single().GetProperty("nom").GetString());
+        Assert.Equal(1, zones[0].GetProperty("critiques").GetInt32());
+        Assert.Equal("Parties communes", zones[0].GetProperty("nom").GetString()); // notée d'abord, puis non évaluées
+        Assert.Equal(0, zones[0].GetProperty("aEvaluer").GetInt32());
+        Assert.Equal("Sacristie", zones[1].GetProperty("nom").GetString());
+        Assert.Equal(1, zones[1].GetProperty("aEvaluer").GetInt32());
+        Assert.Equal(12, score.GetProperty("historique").GetArrayLength());
+        Assert.Equal(6.4m, score.GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(12, zones[0].GetProperty("historique").GetArrayLength());
+        Assert.Equal(6.4m, zones[0].GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, zones[1].GetProperty("historique")[11].GetProperty("note").ValueKind);
+        Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
+
+        using var mauvaise = await EvaluerAsync(armoire, Individuel("Mauvais"), technicien, photo: true);
+        var apres = (await LireAsync($"{Base}/score", pasteur)).GetProperty("zones");
+        Assert.Equal(["Sacristie", "Parties communes"], apres.EnumerateArray().Select(z => z.GetProperty("nom").GetString())); // 3 avant 6,4
+    }
+
+    [Fact]
+    public async Task TheLatestEvaluationBeforeTheHistoryWindowStillCountsAsOld()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var (tableau, _) = await ComposantsAsync(technicien);
+        var zone = (await LireAsync($"{Base}/components/{tableau}", technicien)).GetProperty("composant").GetProperty("zoneId").GetGuid();
+        foreach (var (etat, ans) in new[] { ("Bon", 3), ("Mauvais", 2) })
+        {
+            Assert.Equal(1, await Database.CountAsync(
+                """
+                WITH ajout AS (
+                    INSERT INTO patrimoine.evaluations (id, organisation_id, site_id, composant_id, zone_id, corps_etat, commande_id, grille_version,
+                        points, mesures, etat, evaluateur_compte_id, evalue_le)
+                    VALUES (gen_random_uuid(), @organisation, @site, @composant, @zone, 'CourantsForts', gen_random_uuid(), 1,
+                        '[]', '[]', @etat, gen_random_uuid(), now() - make_interval(years => @ans)) RETURNING 1)
+                SELECT count(*) FROM ajout
+                """,
+                ("organisation", Organisation), ("site", Site), ("composant", tableau), ("zone", zone), ("etat", etat), ("ans", ans)));
+        }
+
+        var score = await LireAsync($"{Base}/score", technicien);
+        var communes = score.GetProperty("zones")[0];
+
+        Assert.Equal(3m, score.GetProperty("note").GetDecimal()); // la plus récente (Mauvais), il y a 2 ans
+        Assert.Equal(1, communes.GetProperty("anciennes").GetInt32());
+        Assert.Equal(1m, score.GetProperty("partAncienne").GetDecimal());
+        Assert.Equal(3m, score.GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, score.GetProperty("historique")[10].GetProperty("note").ValueKind); // composant créé ce mois-ci
+    }
+
     private static object Individuel(string etat, Guid? commande = null, int version = 1, bool?[]? constats = null, decimal?[]? mesures = null) =>
         new { commandeId = commande ?? Guid.NewGuid(), grilleVersion = version, etat, constats, mesures, remarque = "Relevé sur place" };
 
     private static object Lot(object repartition) => new { commandeId = Guid.NewGuid(), grilleVersion = 1, repartition };
+
+    private async Task<Guid> BatimentAsync(string jeton) =>
+        (await LireAsync($"{Base}/structure", jeton)).EnumerateArray().Single().GetProperty("id").GetGuid();
 
     // Tableau divisionnaire (individuel) et 40 chaises (lot, toutes « bon »), dans les parties communes d'un bâtiment.
     private async Task<(Guid Tableau, Guid Chaises)> ComposantsAsync(string jeton)
