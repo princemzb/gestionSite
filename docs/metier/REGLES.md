@@ -36,6 +36,16 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 | RG-31 | P | Toute correction sensible conserve l’auteur, le motif et la valeur précédente dans un journal approprié, hors trajets de position. |
 | RG-32 | P | Une modification matérielle d’estimation invalide sa validation antérieure ; nouvelle autorisation si montant ou périmètre autorisé change. |
 
+## Inventaire — décisions US-07, prises par l'agent le 29/10 (délégation du porteur jusqu'à la fin du sprint, révisables)
+- Structure : site → bâtiment → niveau (facultatif) → pièce ou zone. Chaque bâtiment reçoit automatiquement une zone « Parties communes » (DEC-01). Les espaces extérieurs se décrivent comme un bâtiment (ex. « Extérieurs ») avec ses zones.
+- Composant : nom, catégorie, zone (une seule), mode individuel ou lot, caractéristiques libres (marque, modèle, numéro, dimensions…), état actif ou retiré. Un composant retiré sort du calcul et reste consultable (DEC-01).
+- Catégories initiales (liste fermée, à valider avec le terrain) : Bâti (murs, sols, plafonds, toiture, menuiseries) ; Électricité et éclairage ; Plomberie et sanitaires ; Chauffage, ventilation et climatisation ; Sécurité incendie et sûreté ; Son, vidéo et informatique ; Mobilier ; Équipements de culte ; Autre.
+- Lot : unité (pièce, m², mètre linéaire…), quantité totale entière positive, répartition facultative par état de l'échelle commune (Bon, Satisfaisant, Dégradé, Mauvais, Critique). Si une répartition est saisie, la somme des quantités par état doit égaler la quantité totale (RG-10) ; sans répartition, le lot est « non évalué ». Les évaluations versionnées viendront avec US-11.
+- Historique : journal en ajout seul de chaque création, modification (valeurs avant et après) et retrait, avec auteur et date.
+- Photos des composants : reportées aux évaluations (US-11), qui portent les photos de constat.
+- Écrans : application web (ordinateur) en premier ; la tablette viendra avec US-13.
+- Droits (PERMISSIONS, déjà V) : lecture pour les comptes internes du site ; création et correction (structure et composants) pour technicien, responsable et délégué du site (`ModifierInventaire`), tracées.
+
 ## Dépôt public — décisions US-08, V, 28 octobre 2026 (porteur du projet)
 - Photos : jusqu’à 3 par dépôt, JPEG, PNG ou HEIC, 10 Mo au plus chacune ; métadonnées (dont la position GPS) retirées à la réception.
 - Anti-abus : Turnstile (Cloudflare, ADR-08) vérifié côté serveur, derrière une interface remplaçable, plus une limite de dépôts par adresse ; aucune vérification d’identité.
