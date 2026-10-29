@@ -177,12 +177,32 @@ public sealed class DossierTests
         Assert.Null(dossier.EcheanceResolution);
         Assert.Throws<InterventionIncompatibleException>(() => purge.Cloturer("Encore", EtatFinal.Resolu, 0, false, Instant));
 
-        dossier.Rouvrir();
+        dossier.Rouvrir(Instant.AddDays(3));
         Assert.Equal((StatutDossier.AQualifier, (PrioriteDossier?)null, (DateTimeOffset?)null), (dossier.Statut, dossier.Priorite, dossier.ClotureLe));
-        Assert.Throws<StatutIncompatibleException>(() => dossier.Rouvrir());
-        Assert.True(PhotoExigee.Pour("SecuriteIncendie"));
-        Assert.False(PhotoExigee.Pour("Mobilier"));
-        Assert.False(PhotoExigee.Pour(null));
+        Assert.Throws<StatutIncompatibleException>(() => dossier.Rouvrir(Instant));
+
+        // Nouveau cycle : les interventions d'avant la réouverture ne fixent ni prise en charge ni clôture.
+        dossier.Qualifier(PrioriteDossier.Normale, Guid.NewGuid(), composantId: null, Instant.AddDays(3));
+        dossier.Affecter(Instant.AddDays(3));
+        var nouvelle = new Intervention(Guid.NewGuid(), dossier, 3, "Reprise", Guid.NewGuid(), null, null, Instant.AddDays(3));
+        dossier.Synchroniser([pompe, purge, nouvelle], Instant.AddDays(3));
+        Assert.Equal((StatutDossier.Affecte, (DateTimeOffset?)null), (dossier.Statut, dossier.PrisEnChargeLe));
+        Assert.Equal(Instant.AddDays(3 + 3), dossier.EcheancePriseEnCharge);
+    }
+
+    [Fact]
+    public void ARiskTradeOrAnUnresolvableComponentRequiresAPhoto()
+    {
+        var sansComposant = Public();
+        var avecComposant = Public();
+        var zone = Guid.NewGuid();
+        var composant = Guid.NewGuid();
+        avecComposant.Qualifier(PrioriteDossier.Haute, zone, composant, Instant);
+
+        Assert.True(PhotoExigee.Pour(avecComposant, new(zone, "Nef", "Église", composant, "BAES", "EclairageSecurite", PhotoApresIntervention: true)));
+        Assert.False(PhotoExigee.Pour(avecComposant, new(zone, "Nef", "Église", composant, "Chaises", "Mobilier")));
+        Assert.True(PhotoExigee.Pour(avecComposant, new(zone, "Nef", "Église", null, null, null))); // composant introuvable : par prudence
+        Assert.False(PhotoExigee.Pour(sansComposant, lieu: null));
     }
 
     private static (Signalement Dossier, Intervention Pompe, Intervention Purge) DeuxInterventions()

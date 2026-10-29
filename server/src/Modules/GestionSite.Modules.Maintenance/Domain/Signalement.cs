@@ -211,6 +211,9 @@ internal sealed class Signalement : IAppartientAOrganisation
     /// <summary>Clôture du dossier : celle de sa dernière intervention ouverte (DEC-03).</summary>
     public DateTimeOffset? ClotureLe { get; private set; }
 
+    /// <summary>Dernière réouverture : les interventions antérieures appartiennent au cycle précédent et ne comptent plus.</summary>
+    public DateTimeOffset? RouvertLe { get; private set; }
+
     /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
     public Guid? DoublonDe { get; private set; }
 
@@ -293,14 +296,16 @@ internal sealed class Signalement : IAppartientAOrganisation
             throw new StatutIncompatibleException(Statut);
         }
 
-        var actives = interventions.Where(i => i.Statut != StatutIntervention.Cloturee).ToList();
-        if (interventions.Any(i => i.DemarreeLe is not null))
+        // Cycle courant seulement : après une réouverture, les interventions d'avant ne fixent ni prise en charge ni clôture.
+        var cycle = interventions.Where(i => RouvertLe is null || i.CreeLe >= RouvertLe).ToList();
+        var actives = cycle.Where(i => i.Statut != StatutIntervention.Cloturee).ToList();
+        if (cycle.Exists(i => i.DemarreeLe is not null))
         {
-            PrisEnChargeLe ??= interventions.Where(i => i.DemarreeLe is not null).Min(i => i.DemarreeLe);
+            PrisEnChargeLe ??= cycle.Where(i => i.DemarreeLe is not null).Min(i => i.DemarreeLe);
         }
 
         // Dernière intervention ouverte clôturée : le dossier l'est aussi (DEC-03) ; R/D peuvent le rouvrir.
-        var cible = interventions.Count > 0 && actives.Count == 0 ? StatutDossier.Cloture
+        var cible = cycle.Count > 0 && actives.Count == 0 ? StatutDossier.Cloture
             : actives.Exists(i => i.Statut == StatutIntervention.EnCours) ? StatutDossier.EnCours
             : actives.Exists(i => i.Statut == StatutIntervention.EnAttente) ? StatutDossier.EnAttente
             : PrisEnChargeLe is null ? StatutDossier.Affecte : StatutDossier.EnCours;
@@ -322,7 +327,7 @@ internal sealed class Signalement : IAppartientAOrganisation
     /// Réouverture motivée par R/D (RG-06, DEC-03) d'un dossier clôturé ou classé sans suite : retour « À qualifier », pour
     /// une nouvelle qualification (priorité, délais repartis de zéro) ; interventions et journal restent consultables.
     /// </summary>
-    internal void Rouvrir()
+    internal void Rouvrir(DateTimeOffset maintenant)
     {
         if (Statut is not (StatutDossier.Cloture or StatutDossier.ClasseSansSuite))
         {
@@ -330,6 +335,7 @@ internal sealed class Signalement : IAppartientAOrganisation
         }
 
         Statut = StatutDossier.AQualifier;
+        RouvertLe = maintenant;
         Priorite = null;
         QualifieLe = null;
         AffecteLe = null;

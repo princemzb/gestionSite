@@ -1,7 +1,7 @@
 using GestionSite.SharedKernel;
 using ImageMagick;
 
-namespace GestionSite.Modules.Maintenance.DepotPublic;
+namespace GestionSite.Modules.Maintenance.Photos;
 
 /// <summary>Photo reçue du formulaire public, avant traitement.</summary>
 internal sealed record PhotoRecue(byte[] Contenu);

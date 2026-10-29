@@ -113,7 +113,7 @@ Clôture et réouverture (US-09, S09-04) : `/organizations/{orgId}/sites/{siteId
 | GET interventions/{numero}/photos/{rang} | `ConsulterSite` | → `image/jpeg` ; 404 si absente |
 | POST reopen | `RouvrirArbitrer` (R/D) | `motif` (≤ 500, obligatoire), `version` → 204 ; dossier clôturé ou classé sans suite → « AQualifier » : priorité et délais à refaire, interventions et journal conservés |
 
-Fiche : `clotureLe` ; par intervention `actions`, `etatFinal`, `clotureeLe`, `photos` (rangs), `photoExigee`. Journal : ClotureIntervention, Cloture, Reouverture. Photos stockées en privé sous `organisations/{organisation}/dossiers/{dossier}/interventions/{numero}/photo-{rang}.jpg`.
+Fiche : `clotureLe` ; par intervention `actions`, `etatFinal`, `clotureeLe`, `photos` (rangs), `photoExigee`. Journal : ClotureIntervention, Cloture, Reouverture. Photos stockées en privé sous `organisations/{organisation}/dossiers/{dossier}/interventions/{numero}/{photo}.jpg` (clé propre à chaque envoi). Contrôles (droits, statut, version, photo exigée) avant tout décodage d'image ; `photoExigee` est figé à la clôture ; composant rattaché mais introuvable : photo exigée par prudence. Après une réouverture, seules les interventions du nouveau cycle comptent (prise en charge, clôture).
 
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |

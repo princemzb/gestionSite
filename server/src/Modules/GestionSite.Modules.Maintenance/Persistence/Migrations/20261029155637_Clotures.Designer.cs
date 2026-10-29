@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 {
     [DbContext(typeof(MaintenanceDbContext))]
-    [Migration("20261029154127_Clotures")]
+    [Migration("20261029155637_Clotures")]
     partial class Clotures
     {
         /// <inheritdoc />
@@ -159,6 +159,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
+
+                    b.Property<bool?>("PhotoExigee")
+                        .HasColumnType("boolean")
+                        .HasColumnName("photo_exigee");
 
                     b.Property<string>("Prestataire")
                         .HasMaxLength(120)
@@ -414,6 +418,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<DateTimeOffset>("RecuLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recu_le");
+
+                    b.Property<DateTimeOffset?>("RouvertLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rouvert_le");
 
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")

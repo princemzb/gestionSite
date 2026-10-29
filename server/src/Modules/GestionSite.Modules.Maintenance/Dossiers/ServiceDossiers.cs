@@ -106,7 +106,7 @@ internal sealed class ServiceDossiers(
                 i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
                 i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe,
                 i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe, i.Actions, i.EtatFinal?.ToString(), i.ClotureeLe,
-                [.. photosInterventions[i.Id]], PhotoExigee.Pour(lieu?.CorpsEtat)))],
+                [.. photosInterventions[i.Id]], i.PhotoExigee ?? PhotoExigee.Pour(dossier, lieu)))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,
@@ -228,8 +228,9 @@ internal sealed class ServiceDossiers(
             ?? throw new SaisieInvalideException("motif", $"Motif de réouverture : texte visible de {Signalement.CommentaireMax} caractères au plus.");
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var dossier = await context.DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
-        dossier.Rouvrir();
-        Tracer(dossier, NatureEvenementDossier.Reouverture, horloge.GetUtcNow(), new { motif });
+        var maintenant = horloge.GetUtcNow();
+        dossier.Rouvrir(maintenant);
+        Tracer(dossier, NatureEvenementDossier.Reouverture, maintenant, new { motif });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }

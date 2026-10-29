@@ -1,7 +1,7 @@
 using GestionSite.Modules.Identite.Contracts;
-using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.Modules.Maintenance.Photos;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
@@ -80,7 +80,7 @@ internal sealed class ServiceInterventions(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.Demarrer(maintenant);
@@ -100,7 +100,7 @@ internal sealed class ServiceInterventions(
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
         var motif = Saisie.Valeur<MotifAttente>(demande.Motif, "motif");
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.MettreEnAttente(motif, demande.Commentaire, demande.ReexamenLe, maintenant);
@@ -122,7 +122,7 @@ internal sealed class ServiceInterventions(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.Reprendre();
@@ -143,25 +143,32 @@ internal sealed class ServiceInterventions(
         CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.CloturerIntervention, cancellationToken).ConfigureAwait(false);
-        if (photos.Count > TraitementPhotos.NombreMax)
-        {
-            throw new SaisieInvalideException("photos", "Trois photos au plus.");
-        }
-
         var etatFinal = Saisie.Valeur<EtatFinal>(demande.EtatFinal, "etatFinal");
-        // Photos préparées avant toute écriture : une photo refusée n'écrit rien.
-        var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, cancellationToken)
+
+        // 1. Contrôles d'abord (droits, statut, version, photo exigée), sans verrou : aucune image n'est décodée pour une
+        //    demande qui serait refusée.
+        var (lu, interventionLue) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: false, cancellationToken)
             .ConfigureAwait(false);
-        var lieu = dossier.ZoneId is { } zone
-            ? await inventaire.LieuAsync(siteId, zone, dossier.ComposantId, composantActif: false, cancellationToken).ConfigureAwait(false)
+        var lieu = lu.ZoneId is { } zone
+            ? await inventaire.LieuAsync(siteId, zone, lu.ComposantId, composantActif: false, cancellationToken).ConfigureAwait(false)
             : null;
+        var photoExigee = PhotoExigee.Pour(lu, lieu);
+        interventionLue.VerifierCloture(photos.Count, photoExigee);
+
+        // 2. Photos préparées puis écrites hors transaction, sous des clés propres à cet envoi : le verrou du dossier n'est pas
+        //    tenu pendant le téléversement ; un échec ensuite laisse au pire des fichiers orphelins, jamais ceux d'un autre envoi.
+        var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         var maintenant = horloge.GetUtcNow();
-        intervention.Cloturer(demande.Actions, etatFinal, jpegs.Count, PhotoExigee.Pour(lieu?.CorpsEtat), maintenant);
-        var enregistrees = jpegs.Select((jpeg, i) => new PhotoIntervention(Guid.CreateVersion7(maintenant), intervention, i + 1, jpeg.Length, maintenant)).ToList();
+        var enregistrees = jpegs.Select((jpeg, i) => new PhotoIntervention(Guid.CreateVersion7(maintenant), interventionLue, i + 1, jpeg.Length, maintenant)).ToList();
         await Task.WhenAll(enregistrees.Select((photo, i) =>
             stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
+
+        // 3. Écriture sous verrou, à la version lue : statut et version revérifiés.
+        context.ChangeTracker.Clear();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
+            .ConfigureAwait(false);
+        intervention.Cloturer(demande.Actions, etatFinal, jpegs.Count, photoExigee, maintenant);
         context.PhotosIntervention.AddRange(enregistrees);
         await SynchroniserAsync(dossier, maintenant, ajoutee: null, cancellationToken).ConfigureAwait(false);
         context.Tracer(dossier, NatureEvenementDossier.ClotureIntervention, compte.Id, maintenant,
@@ -200,11 +207,13 @@ internal sealed class ServiceInterventions(
         dossier.Synchroniser(interventions, maintenant);
     }
 
-    // Dossier verrouillé à la version lue et intervention dont l'appelant est en charge, sinon R/D (RG-04, RG-06).
+    // Dossier à la version lue (verrouillé pour écrire) et intervention dont l'appelant est en charge, sinon R/D (RG-04, RG-06).
     private async Task<(Signalement Dossier, Intervention Intervention)> InterventionEnChargeAsync(
-        Guid organisationId, Guid siteId, Guid dossierId, int numero, uint? version, CancellationToken cancellationToken)
+        Guid organisationId, Guid siteId, Guid dossierId, int numero, uint? version, bool verrouiller, CancellationToken cancellationToken)
     {
-        var dossier = await context.DossierAVersionAsync(siteId, dossierId, version, cancellationToken).ConfigureAwait(false);
+        var dossier = verrouiller
+            ? await context.DossierAVersionAsync(siteId, dossierId, version, cancellationToken).ConfigureAwait(false)
+            : await context.DossierLuAVersionAsync(siteId, dossierId, version, cancellationToken).ConfigureAwait(false);
         var intervention = await context.Interventions.SingleOrDefaultAsync(i => i.DossierId == dossierId && i.Numero == numero, cancellationToken)
             .ConfigureAwait(false) ?? throw new InterventionIntrouvableException();
         if (intervention.EnCharge != compte.Id)

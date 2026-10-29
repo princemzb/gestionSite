@@ -19,6 +19,13 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "rouvert_le",
+                schema: "maintenance",
+                table: "signalements",
+                type: "timestamp with time zone",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "actions",
                 schema: "maintenance",
@@ -40,6 +47,13 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 table: "interventions",
                 type: "character varying(24)",
                 maxLength: 24,
+                nullable: true);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "photo_exigee",
+                schema: "maintenance",
+                table: "interventions",
+                type: "boolean",
                 nullable: true);
 
             migrationBuilder.AddUniqueConstraint(
@@ -105,6 +119,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 table: "signalements");
 
             migrationBuilder.DropColumn(
+                name: "rouvert_le",
+                schema: "maintenance",
+                table: "signalements");
+
+            migrationBuilder.DropColumn(
                 name: "actions",
                 schema: "maintenance",
                 table: "interventions");
@@ -116,6 +135,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "etat_final",
+                schema: "maintenance",
+                table: "interventions");
+
+            migrationBuilder.DropColumn(
+                name: "photo_exigee",
                 schema: "maintenance",
                 table: "interventions");
         }

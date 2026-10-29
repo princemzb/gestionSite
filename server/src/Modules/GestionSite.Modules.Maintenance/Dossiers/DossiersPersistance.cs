@@ -31,6 +31,16 @@ internal static class DossiersPersistance
         return dossier;
     }
 
+    /// <summary>Dossier lu à la version donnée, sans verrou (contrôles préalables) ; une version dépassée est refusée.</summary>
+    internal static async Task<Signalement> DossierLuAVersionAsync(
+        this MaintenanceDbContext context, Guid siteId, Guid id, uint? version, CancellationToken cancellationToken)
+    {
+        var attendue = version ?? throw new SaisieInvalideException("version", "Version du dossier lue obligatoire.");
+        var dossier = await context.Signalements.SingleOrDefaultAsync(s => s.Id == id && s.SiteId == siteId, cancellationToken).ConfigureAwait(false)
+            ?? throw new DossierIntrouvableException();
+        return context.Entry(dossier).Property<uint>("xmin").CurrentValue == attendue ? dossier : throw new DossierModifieException();
+    }
+
     /// <summary>Verrous de ligne dans un ordre fixe (pas d'interblocage entre deux opérations croisées).</summary>
     internal static async Task VerrouillerAsync(this MaintenanceDbContext context, Guid[] ids, CancellationToken cancellationToken)
     {

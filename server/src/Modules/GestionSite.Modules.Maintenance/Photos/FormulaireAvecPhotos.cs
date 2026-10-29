@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 
-namespace GestionSite.Modules.Maintenance.DepotPublic;
+namespace GestionSite.Modules.Maintenance.Photos;
 
 /// <summary>
 /// Formulaire avec photos (dépôt public, clôture d'intervention) : JSON seul, ou multipart avec une partie « demande »

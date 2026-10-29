@@ -32,6 +32,10 @@ internal static class CorpsEtats
 {
     // Vérifications périodiques habituelles d'un ERP (installations électriques, éclairage de sécurité, moyens de
     // secours, chaudières, gaz, ascenseurs, paratonnerre, cloches) : proposition seulement, modifiable composant par composant.
+    // Travaux à risque ou à contrôler : la clôture d'une intervention exige une photo après intervention (US-09, 29/10).
+    internal static bool PhotoApresIntervention(CorpsEtat corpsEtat) => corpsEtat is CorpsEtat.CourantsForts or CorpsEtat.EclairageSecurite
+        or CorpsEtat.SecuriteIncendie or CorpsEtat.Gaz or CorpsEtat.CouvertureEtancheite or CorpsEtat.StructureGrosOeuvre;
+
     internal static bool VerificationProposee(CorpsEtat corpsEtat) => corpsEtat is CorpsEtat.CourantsForts or CorpsEtat.EclairageSecurite
         or CorpsEtat.SecuriteIncendie or CorpsEtat.ChauffageVentilation or CorpsEtat.Gaz or CorpsEtat.Ascenseurs
         or CorpsEtat.Paratonnerre or CorpsEtat.Campanaire;

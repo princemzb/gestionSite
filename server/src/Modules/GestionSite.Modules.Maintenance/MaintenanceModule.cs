@@ -2,6 +2,7 @@ using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.DepotsRecus;
 using GestionSite.Modules.Maintenance.Dossiers;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.Modules.Maintenance.Photos;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

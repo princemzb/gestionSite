@@ -1,4 +1,4 @@
-using GestionSite.Modules.Maintenance.DepotPublic;
+using GestionSite.Modules.Maintenance.Photos;
 using GestionSite.SharedKernel;
 using ImageMagick;
 
