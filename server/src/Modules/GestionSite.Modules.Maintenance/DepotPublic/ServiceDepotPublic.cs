@@ -1,8 +1,8 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
-using GestionSite.SharedKernel.Photos;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

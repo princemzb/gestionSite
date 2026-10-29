@@ -1,5 +1,5 @@
-using GestionSite.SharedKernel.Photos;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
