@@ -2403,6 +2403,114 @@
       "trelloId": "6ae34c29269c755710116085",
       "trelloShortLink": "ICBTFv3H",
       "note": "Créée directement dans Trello (SP-004) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "S09-01",
+      "name": "[S09-01] Dossier et qualification : priorité, zone et composant, doublons, sans suite",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Chaque dépôt (public ou interne) ouvre un dossier « À qualifier » ; R/D fixe la priorité (DEC-05), rattache le dossier à une zone (et à un composant si possible), confirme ou écarte les doublons suggérés (même site, même emplacement), ou classe sans suite (motif DEC-03). Journal de chaque décision ; droits RG-04 testés ; isolation organisation/site."
+      ],
+      "trelloId": "6ae34c9108a83aee108e166b",
+      "trelloShortLink": "vO5CIKrk"
+    },
+    {
+      "id": "S09-02",
+      "name": "[S09-02] Affectation et interventions : 1 à N interventions, intervenant, démarrage",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "R/D affecte : une ou plusieurs interventions par dossier, chacune avec son intervenant (interne ou prestataire suivi par un référent, selon décision) ; démarrage déclaré par l'intervenant ou R/D (« En cours ») ; journal ; modification concurrente refusée (409)."
+      ],
+      "trelloId": "6ae34c91cdd8066c419a6ebc",
+      "trelloShortLink": "zCPeZJxZ"
+    },
+    {
+      "id": "S09-03",
+      "name": "[S09-03] Attente et reprise : motif, date de réexamen, délai suspendu",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Mise en attente par le technicien affecté ou R/D avec motif de la liste DEC-03 et date de réexamen obligatoire ; reprise datée ; délai de résolution suspendu pendant l'attente, ancienneté totale conservée (RG-07)."
+      ],
+      "trelloId": "6ae34c92ea8fff0e76ac6d32",
+      "trelloShortLink": "DeNRFlYl"
+    },
+    {
+      "id": "S09-04",
+      "name": "[S09-04] Clôture et réouverture : compte rendu, état final, photo selon corps d'état",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Clôture d'intervention par l'intervenant ou R/D : actions réalisées, état final, photo obligatoire selon le corps d'état (décision) ; dossier clôturé à la clôture de sa dernière intervention ouverte ; réouverture motivée par R/D (retour « À qualifier »)."
+      ],
+      "trelloId": "6ae34c92b3d2abe23a4bbf43",
+      "trelloShortLink": "50RkaQNc"
+    },
+    {
+      "id": "S09-05",
+      "name": "[S09-05] Écrans web : file de qualification, dossier, mes interventions",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Écrans selon la maquette retenue (UX-05) : file de qualification (UI-03), dossier (UI-04), « Mes interventions » du technicien (web adapté au téléphone) ; Jour et Nuit ; préproduction et vérification navigateur."
+      ],
+      "trelloId": "6ae34c93efbcc4a5b8b7e3bf",
+      "trelloShortLink": "SwBGLsAe"
+    },
+    {
+      "id": "UX-05",
+      "name": "[UX-05] Maquettes US-09 : file de qualification, dossier, mes interventions",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-004",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-09"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Plusieurs propositions par écran (file de qualification, dossier, mes interventions sur téléphone), puis choix du porteur avant tout code d'écran."
+      ],
+      "trelloId": "6ae34c94a5efde31e8339031",
+      "trelloShortLink": "rdF3DjYp"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
