@@ -72,6 +72,31 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task AManagerIsOnlyAContractorsReferentAndAStaleVersionIsRefusedEvenWithoutChangingTheCase()
+    {
+        var (dossier, communes, responsable) = await DossierAsync();
+        await QualifierAsync(dossier, communes, responsable, "Normale");
+        var idResponsable = await IdentifiantAsync("responsable@inventaire.test");
+        var technicien = await IdentifiantAsync("technicien@inventaire.test");
+        var lu = await LireAsync(dossier, responsable);
+
+        using var responsableIntervenant = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions", responsable,
+            new { titre = "Réparer", intervenantCompteId = idResponsable, version = lu.GetProperty("version").GetUInt32() });
+        using var responsableReferent = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions", responsable,
+            new { titre = "Couverture", prestataire = "Couverture Martin", referentCompteId = idResponsable, version = lu.GetProperty("version").GetUInt32() });
+        using var perimee = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions", responsable,
+            new { titre = "Seconde", intervenantCompteId = technicien, version = lu.GetProperty("version").GetUInt32() }); // version d'avant la 1re affectation
+        var apres = await LireAsync(dossier, responsable);
+
+        Assert.Equal("intervenantCompteId", await ChampAsync(responsableIntervenant));
+        Assert.Equal(HttpStatusCode.OK, responsableReferent.StatusCode);
+        Assert.Equal("modifie_entre_temps", await CodeAsync(perimee));
+        Assert.Single(apres.GetProperty("interventions").EnumerateArray());
+        Assert.Equal(1, await Database.CountAsync(
+            "SELECT count(*) FROM maintenance.journal_dossiers WHERE nature = 'Affectation' AND detail ? 'referentCompteId' AND NOT detail ? 'referent'"));
+    }
+
+    [Fact]
     public async Task OnlyManagersListAssigneesAndPastorsAreNotAmongThem()
     {
         var (_, _, responsable) = await DossierAsync();

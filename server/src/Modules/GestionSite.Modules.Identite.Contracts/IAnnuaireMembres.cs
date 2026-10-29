@@ -11,6 +11,10 @@ public interface IAnnuaireMembres
 {
     Task<IReadOnlyDictionary<Guid, string>> NomsAsync(IReadOnlyCollection<Guid> compteIds, CancellationToken cancellationToken);
 
-    /// <summary>Membres actifs (invitation acceptée, non révoqués) ayant au moins un rôle sur le site, par nom.</summary>
-    Task<IReadOnlyList<MembreSite>> MembresDuSiteAsync(Guid siteId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Membres actifs (invitation acceptée, non révoqués) qui ont le droit sur le site selon la matrice des droits, par nom,
+    /// avec leurs rôles sur ce site ; restreint aux comptes demandés si <paramref name="compteIds"/> est donné.
+    /// </summary>
+    Task<IReadOnlyList<MembreSite>> MembresAyantDroitAsync(
+        Guid siteId, Droit droit, IReadOnlyCollection<Guid>? compteIds, CancellationToken cancellationToken);
 }

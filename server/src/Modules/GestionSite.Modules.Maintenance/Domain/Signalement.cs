@@ -198,6 +198,14 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     internal bool Ouvert => StatutsOuverts.Contains(Statut);
 
+    /// <summary>Échéance de prise en charge (DEC-05) : affectation + délai, tant qu'aucune intervention n'a démarré.</summary>
+    internal DateTimeOffset? EcheancePriseEnCharge =>
+        Ouvert && Priorite is { } priorite && AffecteLe is { } affecte && PrisEnChargeLe is null ? affecte + Delais.PriseEnCharge(priorite) : null;
+
+    /// <summary>Échéance de résolution (DEC-05) : qualification + délai, tant que le dossier est ouvert (attentes : S09-03).</summary>
+    internal DateTimeOffset? EcheanceResolution =>
+        Ouvert && Priorite is { } priorite && QualifieLe is { } qualifie ? qualifie + Delais.Resolution(priorite) : null;
+
     /// <summary>
     /// Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04). Faux si rien ne change
     /// (aucune écriture, aucune trace).

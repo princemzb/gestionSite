@@ -1,4 +1,3 @@
-using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
@@ -23,46 +22,52 @@ internal sealed class InterventionIntrouvableException() : Exception("Interventi
 internal sealed class ServiceInterventions(
     MaintenanceDbContext context, IAutorisations autorisations, IAnnuaireMembres annuaire, CompteCourant compte, TimeProvider horloge)
 {
-    private static readonly string[] RolesTerrain = ["Technicien", "Responsable", "Delegue"];
+    // Intervenant interne : un technicien du site (décision du 29/10) ; référent d'un prestataire : tout membre de terrain.
+    private const string Technicien = "Technicien";
 
-    /// <summary>Membres du site qui peuvent recevoir ou suivre une intervention (technicien, responsable, délégué).</summary>
+    /// <summary>Membres du site qui peuvent recevoir ou suivre une intervention (droit de documenter une intervention).</summary>
     internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        return [.. (await annuaire.MembresDuSiteAsync(siteId, cancellationToken).ConfigureAwait(false))
-            .Where(m => m.Roles.Any(RolesTerrain.Contains))
+        return [.. (await annuaire.MembresAyantDroitAsync(siteId, Droit.DocumenterIntervention, compteIds: null, cancellationToken).ConfigureAwait(false))
             .Select(m => new IntervenantPossible(m.CompteId, m.Nom, m.Roles))];
     }
 
     internal async Task<int> AffecterAsync(Guid organisationId, Guid siteId, Guid dossierId, DemandeAffectation demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        var dossier = await DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
-        var terrain = (await annuaire.MembresDuSiteAsync(siteId, cancellationToken).ConfigureAwait(false))
-            .Where(m => m.Roles.Any(RolesTerrain.Contains)).ToDictionary(m => m.CompteId, m => m.Nom);
-        foreach (var (champ, id) in new[] { ("intervenantCompteId", demande.IntervenantCompteId), ("referentCompteId", demande.ReferentCompteId) })
+        var demandes = new[] { demande.IntervenantCompteId, demande.ReferentCompteId }.Where(c => c is not null).Select(c => c!.Value).ToList();
+        var terrain = (await annuaire.MembresAyantDroitAsync(siteId, Droit.DocumenterIntervention, demandes, cancellationToken).ConfigureAwait(false))
+            .ToDictionary(m => m.CompteId);
+        if (demande.IntervenantCompteId is { } intervenant && !(terrain.TryGetValue(intervenant, out var membre) && membre.Roles.Contains(Technicien)))
         {
-            if (id is { } compteId && !terrain.ContainsKey(compteId))
-            {
-                throw new SaisieInvalideException(champ, "Technicien, responsable ou délégué de ce site.");
-            }
+            throw new SaisieInvalideException("intervenantCompteId", "Un technicien de ce site.");
         }
 
+        if (demande.ReferentCompteId is { } referent && !terrain.ContainsKey(referent))
+        {
+            throw new SaisieInvalideException("referentCompteId", "Technicien, responsable ou délégué de ce site.");
+        }
+
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var dossier = await context.DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var numero = await context.Interventions.CountAsync(i => i.DossierId == dossierId, cancellationToken).ConfigureAwait(false) + 1;
         var intervention = new Intervention(
             Guid.CreateVersion7(maintenant), dossier, numero, demande.Titre, demande.IntervenantCompteId, demande.Prestataire, demande.ReferentCompteId, maintenant);
         dossier.Affecter(maintenant);
         context.Interventions.Add(intervention);
-        Tracer(dossier, NatureEvenementDossier.Affectation, maintenant, new
+        // Comptes par identifiant (noms résolus à la lecture) : le journal en ajout seul ne fige aucun nom de personne.
+        context.Tracer(dossier, NatureEvenementDossier.Affectation, compte.Id, maintenant, new
         {
             numero,
             titre = intervention.Titre,
-            intervenant = intervention.IntervenantCompteId is { } i ? terrain[i] : null,
+            intervenantCompteId = intervention.IntervenantCompteId,
             prestataire = intervention.Prestataire,
-            referent = intervention.ReferentCompteId is { } r ? terrain[r] : null,
+            referentCompteId = intervention.ReferentCompteId,
         });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return numero;
     }
 
@@ -70,7 +75,8 @@ internal sealed class ServiceInterventions(
     internal async Task DemarrerAsync(Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeVersion demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
-        var dossier = await DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var dossier = await context.DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
         var intervention = await context.Interventions.SingleOrDefaultAsync(i => i.DossierId == dossierId && i.Numero == numero, cancellationToken)
             .ConfigureAwait(false) ?? throw new InterventionIntrouvableException();
         if (intervention.EnCharge != compte.Id)
@@ -82,11 +88,15 @@ internal sealed class ServiceInterventions(
         var maintenant = horloge.GetUtcNow();
         intervention.Demarrer(maintenant);
         dossier.Demarrer(maintenant);
-        Tracer(dossier, NatureEvenementDossier.Demarrage, maintenant, new { numero, titre = intervention.Titre });
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        context.Tracer(dossier, NatureEvenementDossier.Demarrage, compte.Id, maintenant, new { numero, titre = intervention.Titre });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Interventions non clôturées dont l'appelant est en charge sur ce site, la plus urgente d'abord.</summary>
+    /// <summary>
+    /// Interventions non clôturées dont l'appelant est en charge sur ce site : par priorité du dossier, puis par échéance
+    /// (prise en charge si l'intervention n'a pas démarré et que le dossier l'attend encore, sinon résolution).
+    /// </summary>
     internal async Task<IReadOnlyList<MonIntervention>> MesInterventionsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
@@ -98,46 +108,12 @@ internal sealed class ServiceInterventions(
                 select new { Intervention = i, Dossier = d })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return [.. lignes
+            .OrderBy(l => l.Dossier.Priorite ?? PrioriteDossier.Basse)
+            .ThenBy(l => (l.Intervention.Statut == StatutIntervention.Affectee ? l.Dossier.EcheancePriseEnCharge : null)
+                ?? l.Dossier.EcheanceResolution ?? DateTimeOffset.MaxValue)
             .Select(l => new MonIntervention(
                 l.Dossier.Id, l.Intervention.Numero, l.Intervention.Titre, l.Intervention.Statut.ToString(), ServiceDossiers.Titre(l.Dossier),
-                l.Dossier.Priorite?.ToString(), l.Dossier.Emplacement, l.Dossier.Danger, Echeances.PriseEnCharge(l.Dossier), Echeances.Resolution(l.Dossier),
-                l.Intervention.Prestataire is not null))
-            .OrderBy(m => m.EcheancePriseEnCharge ?? m.EcheanceResolution ?? DateTimeOffset.MaxValue)];
+                l.Dossier.Priorite?.ToString(), l.Dossier.Emplacement, l.Dossier.Danger, l.Dossier.EcheancePriseEnCharge, l.Dossier.EcheanceResolution,
+                l.Intervention.Prestataire is not null))];
     }
-
-    private async Task<Signalement> DossierAVersionAsync(Guid siteId, Guid id, uint? version, CancellationToken cancellationToken)
-    {
-        var dossier = await context.Signalements.SingleOrDefaultAsync(s => s.Id == id && s.SiteId == siteId, cancellationToken).ConfigureAwait(false)
-            ?? throw new DossierIntrouvableException();
-        context.Entry(dossier).Property<uint>("xmin").OriginalValue = version ?? throw new SaisieInvalideException("version", "Version du dossier lue obligatoire.");
-        return dossier;
-    }
-
-    private void Tracer(Signalement dossier, NatureEvenementDossier nature, DateTimeOffset le, object detail) =>
-        context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(le), dossier, nature, compte.Id, le, JsonSerializer.Serialize(detail)));
-
-    private async Task EnregistrerAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException conflit) when (conflit is DbUpdateConcurrencyException
-            || conflit.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
-        {
-            // Version dépassée, ou deux affectations simultanées (même numéro) : relire puis refaire.
-            throw new DossierModifieException();
-        }
-    }
-}
-
-/// <summary>Échéances cibles du dossier (DEC-05) : prise en charge tant qu'aucune intervention n'a démarré, résolution tant qu'il est ouvert.</summary>
-internal static class Echeances
-{
-    internal static DateTimeOffset? PriseEnCharge(Signalement dossier) =>
-        dossier is { Priorite: { } priorite, AffecteLe: { } affecte, PrisEnChargeLe: null } && dossier.Ouvert ? affecte + Delais.PriseEnCharge(priorite) : null;
-
-    // Les périodes « En attente » suspendront ce délai (S09-03).
-    internal static DateTimeOffset? Resolution(Signalement dossier) =>
-        dossier is { Priorite: { } priorite, QualifieLe: { } qualifie } && dossier.Ouvert ? qualifie + Delais.Resolution(priorite) : null;
 }
