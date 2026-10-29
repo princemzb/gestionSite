@@ -1,5 +1,5 @@
 using System.Text.Json;
-using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -15,7 +15,7 @@ internal static class DepotPublicEndpoints
 {
     internal static IEndpointRouteBuilder MapDepotPublic(this IEndpointRouteBuilder endpoints)
     {
-        var site = endpoints.MapGroup("/public/sites/{code}").AllowAnonymous().AddEndpointFilter(TraduireInvalide);
+        var site = endpoints.MapGroup("/public/sites/{code}").AllowAnonymous().AddEndpointFilter(RefusCommuns.Traduire).AddEndpointFilter(TraduireRefus);
         site.MapGet(string.Empty, async (string code, ServiceDepotPublic service, CancellationToken ct) =>
             await service.SiteAsync(code, ct).ConfigureAwait(false) is { } trouve
                 ? Results.Ok(new ReponseSitePublic(trouve.NomSite, trouve.NomOrganisation))
@@ -83,31 +83,24 @@ internal static class DepotPublicEndpoints
 
     private static SaisieInvalideException Illisible() => new("corps", "Corps de requête manquant ou illisible.");
 
-    private static async ValueTask<object?> TraduireInvalide(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    // Refus propres au dépôt public ; saisie invalide : RefusCommuns, placé avant.
+    private static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try
         {
             return await next(context).ConfigureAwait(false);
         }
-        catch (SaisieInvalideException invalide)
-        {
-            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "Donnée invalide.",
-                extensions: new Dictionary<string, object?> { ["code"] = "donnee_invalide", ["champ"] = invalide.Champ });
-        }
         catch (TropDeDepotsException trop)
         {
-            return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: trop.Message,
-                extensions: new Dictionary<string, object?> { ["code"] = "trop_de_depots" });
+            return RefusCommuns.Probleme(StatusCodes.Status429TooManyRequests, trop.Message, "trop_de_depots");
         }
         catch (DepotIndisponibleException indisponible)
         {
-            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: indisponible.Message,
-                extensions: new Dictionary<string, object?> { ["code"] = "depot_indisponible" });
+            return RefusCommuns.Probleme(StatusCodes.Status503ServiceUnavailable, indisponible.Message, "depot_indisponible");
         }
         catch (CommandeReutiliseeException reutilisee)
         {
-            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: reutilisee.Message,
-                extensions: new Dictionary<string, object?> { ["code"] = "commande_reutilisee" });
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilisee.Message, "commande_reutilisee");
         }
     }
 }

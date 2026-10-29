@@ -1,4 +1,5 @@
 ﻿using System;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -45,12 +46,7 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 unique: true);
 
             // Mêmes barrières que les signalements (ADR-10).
-            migrationBuilder.Sql("ALTER TABLE maintenance.photos_signalement ENABLE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql("ALTER TABLE maintenance.photos_signalement FORCE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql(
-                "CREATE POLICY isolation_organisation ON maintenance.photos_signalement " +
-                "USING (organisation_id = NULLIF(current_setting('app.organisation_id', true), '')::uuid) " +
-                "WITH CHECK (organisation_id = NULLIF(current_setting('app.organisation_id', true), '')::uuid);");
+            migrationBuilder.IsolerParOrganisation("maintenance", "photos_signalement");
             migrationBuilder.Sql("GRANT SELECT, INSERT ON maintenance.photos_signalement TO gestionsite_app;");
         }
 

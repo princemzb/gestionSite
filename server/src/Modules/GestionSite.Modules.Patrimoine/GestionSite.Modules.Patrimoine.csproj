@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="EFCore.NamingConventions" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\GestionSite.SharedKernel\GestionSite.SharedKernel.csproj" />
     <ProjectReference Include="..\GestionSite.Modules.Identite.Contracts\GestionSite.Modules.Identite.Contracts.csproj" />
   </ItemGroup>

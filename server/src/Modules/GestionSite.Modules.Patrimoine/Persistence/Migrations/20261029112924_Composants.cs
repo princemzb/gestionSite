@@ -1,4 +1,5 @@
 ﻿using System;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -71,12 +72,7 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                 columns: new[] { "zone_id", "organisation_id" });
 
             // Isolation des organisations (ADR-10), comme les tables de la structure : retrait sans suppression, donc sans DELETE.
-            const string organisationDeSession = "NULLIF(current_setting('app.organisation_id', true), '')::uuid";
-            migrationBuilder.Sql("ALTER TABLE patrimoine.composants ENABLE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql("ALTER TABLE patrimoine.composants FORCE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql(
-                "CREATE POLICY isolation_organisation ON patrimoine.composants " +
-                $"USING (organisation_id = {organisationDeSession}) WITH CHECK (organisation_id = {organisationDeSession});");
+            migrationBuilder.IsolerParOrganisation("patrimoine", "composants");
             migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON patrimoine.composants TO gestionsite_app;");
         }
 

@@ -12,12 +12,6 @@ internal sealed record NiveauLu(Guid Id, string Nom, int Ordre);
 
 internal sealed record BatimentLu(Guid Id, string Nom, IReadOnlyList<NiveauLu> Niveaux, IReadOnlyList<ZoneLue> Zones);
 
-/// <summary>Refus traduit en 404 (hors périmètre de l'appelant) ou 403 (site visible, action non permise).</summary>
-internal sealed class AccesInventaireRefuseException(DecisionAutorisation decision) : Exception("Accès refusé.")
-{
-    internal DecisionAutorisation Decision { get; } = decision;
-}
-
 /// <summary>Bâtiment, niveau ou zone absent du site.</summary>
 internal sealed class ElementIntrouvableException() : Exception("Élément introuvable sur ce site.");
 

@@ -2386,6 +2386,23 @@
       "trelloId": "6ae277c7520fccee6a7abdea",
       "trelloShortLink": "BYO3WCxo",
       "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
+    },
+    {
+      "id": "SOC-02",
+      "name": "[SOC-02] Socle : Identité sur le socle commun, noyau domaine/HTTP séparé",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [
+        "SOC-01"
+      ],
+      "acceptanceCriteria": [],
+      "trelloId": "6ae34c29269c755710116085",
+      "trelloShortLink": "ICBTFv3H",
+      "note": "Créée directement dans Trello (SP-004) ; Trello fait foi pour la description."
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",

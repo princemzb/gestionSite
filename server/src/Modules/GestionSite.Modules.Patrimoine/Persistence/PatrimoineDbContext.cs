@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 namespace GestionSite.Modules.Patrimoine.Persistence;
 
 /// <summary>
-/// Données du module Patrimoine, schéma « patrimoine ». Mêmes barrières que les autres modules (ADR-10) : filtre sur
-/// l'organisation courante, refus d'écrire pour une autre, RLS forcée en base (migration).
+/// Données du module Patrimoine, schéma « patrimoine ». Barrières communes (ContexteOrganisation, ADR-10) et RLS forcée
+/// en base (migrations).
 /// </summary>
 internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> options, OrganisationCourante organisationCourante)
-    : DbContext(options)
+    : ContexteOrganisation(options, organisationCourante)
 {
     internal const string Schema = "patrimoine";
     internal const string MigrationsTable = "__ef_migrations";
@@ -25,24 +25,7 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<EvenementInventaire> Journal => Set<EvenementInventaire>();
 
-    private Guid? OrganisationId => organisationCourante.Id;
-
-    /// <summary>Organisation de la requête, fixée par l'autorisation avant toute écriture.</summary>
-    internal Guid OrganisationCourante => organisationCourante.Id ?? throw new InvalidOperationException("Organisation courante non définie.");
-
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        ExigerOrganisationCourante();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-    {
-        ExigerOrganisationCourante();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-    }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Batiment>(batiment =>
@@ -142,35 +125,6 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             evenement.Property(e => e.Apres).HasColumnType("jsonb");
             evenement.HasIndex(e => new { e.OrganisationId, e.CibleId, e.Id });
         });
-
-        modelBuilder.Entity<Batiment>().HasQueryFilter(b => b.OrganisationId == OrganisationId);
-        modelBuilder.Entity<Niveau>().HasQueryFilter(n => n.OrganisationId == OrganisationId);
-        modelBuilder.Entity<Zone>().HasQueryFilter(z => z.OrganisationId == OrganisationId);
-        modelBuilder.Entity<Composant>().HasQueryFilter(c => c.OrganisationId == OrganisationId);
-        modelBuilder.Entity<EvenementInventaire>().HasQueryFilter(e => e.OrganisationId == OrganisationId);
-    }
-
-    // Double barrière : la RLS refuserait aussi ces écritures, mais l'erreur applicative est plus claire.
-    private void ExigerOrganisationCourante()
-    {
-        Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
-        foreach (var entree in ChangeTracker.Entries())
-        {
-            if (entree.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
-            {
-                continue;
-            }
-
-            if (entree.Entity is not IAppartientAOrganisation donnee)
-            {
-                throw new InvalidOperationException($"{entree.Metadata.ClrType.Name} n'est rattachée à aucune organisation.");
-            }
-
-            if (donnee.OrganisationId != OrganisationId)
-            {
-                throw new InvalidOperationException("Écriture refusée : la donnée appartient à une autre organisation que celle de la requête.");
-            }
-        }
     }
 }
 

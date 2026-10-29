@@ -1,4 +1,5 @@
 ﻿using System;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -83,7 +84,7 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 
             foreach (var table in new[] { "signalements", "alertes_danger" })
             {
-                Isoler(migrationBuilder, table);
+                migrationBuilder.IsolerParOrganisation("maintenance", table);
             }
 
             // Rôle de l'API : lecture et ajout (le traitement, US-09, ajoutera ce qu'il faut) ; aucun droit sur
@@ -92,18 +93,6 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
             migrationBuilder.Sql("GRANT SELECT ON maintenance.__ef_migrations TO gestionsite_app;");
             migrationBuilder.Sql("GRANT SELECT, INSERT ON maintenance.signalements, maintenance.alertes_danger TO gestionsite_app;");
         }
-
-        // Seconde barrière (ADR-10), comme Identité : sans organisation de session, aucune ligne visible ni écrite.
-        private static void Isoler(MigrationBuilder migrationBuilder, string table)
-        {
-            const string organisationDeSession = "NULLIF(current_setting('app.organisation_id', true), '')::uuid";
-            migrationBuilder.Sql($"ALTER TABLE maintenance.{table} ENABLE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql($"ALTER TABLE maintenance.{table} FORCE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql(
-                $"CREATE POLICY isolation_organisation ON maintenance.{table} " +
-                $"USING (organisation_id = {organisationDeSession}) WITH CHECK (organisation_id = {organisationDeSession});");
-        }
-
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
