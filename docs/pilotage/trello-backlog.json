@@ -2511,6 +2511,96 @@
       ],
       "trelloId": "6ae34c94a5efde31e8339031",
       "trelloShortLink": "rdF3DjYp"
+    },
+    {
+      "id": "S11-01",
+      "name": "[S11-01] Grilles d'évaluation par défaut et versions",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Une grille par défaut par corps d'état (critères, mesures avec unité), rédigée en expert du bâtiment ; R/D l'adaptent pour leur organisation, chaque modification crée une version ; lecture par les comptes internes ; isolation par organisation."
+      ],
+      "trelloId": "6ae39373bc0c925cb8c4cd36",
+      "trelloShortLink": "K2bkvmPs"
+    },
+    {
+      "id": "S11-02",
+      "name": "[S11-02] Évaluations : état ou répartition, critères, mesures, photos",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Évaluation datée d'un composant par T/R/D : état (individuel) ou répartition par état (lot, somme = quantité, met à jour l'inventaire), réponses aux critères de la grille (version gardée), mesures avec unité, photos (obligatoires pour Mauvais et Critique) ; « Critique » propose un dossier prérempli ; historique."
+      ],
+      "trelloId": "6ae39373491e979c8f9be3d7",
+      "trelloShortLink": "nMcrp2D4"
+    },
+    {
+      "id": "S11-03",
+      "name": "[S11-03] Score : zone, site, couverture, fraîcheur, historique",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Score DEC-01 : moyenne des composants par zone, des zones par site, lot pondéré, une décimale et libellé ; couverture (évalués / actifs), fraîcheur (> 6 mois signalée) ; historique recalculé à toute date ; composant retiré exclu, non évalué ne compte pas."
+      ],
+      "trelloId": "6ae39374e3fff77be238f178",
+      "trelloShortLink": "FY3gDkyX"
+    },
+    {
+      "id": "S11-04",
+      "name": "[S11-04] Écrans web : tableau du site, évaluation, grille sur téléphone",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Écrans selon la maquette retenue (UX-06) : tableau du site (score, zones), fiche composant (évaluations), grille d'évaluation sur téléphone ; Jour et Nuit ; préproduction et vérification navigateur."
+      ],
+      "trelloId": "6ae393744b02e5763c46e925",
+      "trelloShortLink": "Xbdgu77w"
+    },
+    {
+      "id": "UX-06",
+      "name": "[UX-06] Maquettes US-11 : tableau du site, évaluation, grille sur téléphone",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Plusieurs propositions par écran, puis choix du porteur avant tout code d'écran."
+      ],
+      "trelloId": "6ae3937524975ba17e1a229b",
+      "trelloShortLink": "Iseo04vt"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
