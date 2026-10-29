@@ -28,3 +28,7 @@ internal sealed record LienPublicApi(Guid SiteId, string Nom, string Code, strin
 internal sealed record SitePublicApi(string Site, string Organisation);
 
 internal sealed record AccuseApi(string Site, bool Danger, string? NumeroUrgence);
+
+internal sealed record DepotRecuApi(
+    Guid Id, DateTimeOffset RecuLe, string Nature, bool Danger, bool ActiviteBloquee, string Emplacement, string Description,
+    string NomDeclarant, string ContactDeclarant, IReadOnlyList<int> Photos);

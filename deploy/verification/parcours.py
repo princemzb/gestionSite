@@ -66,7 +66,8 @@ jeton_membre = urllib.parse.unquote(lien.split("jeton=", 1)[1])
 statut, _, _ = poster(membre, lien[len(BASE):], "activation",
                       {"Saisie.Jeton": jeton_membre, "Saisie.MotDePasse": MDP, "Saisie.Confirmation": MDP})
 verifier("activation du membre (302)", statut == 302)
-verifier("le membre (technicien) voit son espace", "Votre compte est actif" in appeler(membre, "/")[1])
+statut, _, entetes = appeler(membre, "/")
+verifier("le membre (technicien) arrive sur les dépôts reçus de son site", "Dépôts reçus" in appeler(membre, entetes.get("Location", ""))[1])
 verifier("le membre apparaît « Actif » chez l'administrateur", "Actif" in appeler(admin, membres)[1])
 
 nouveau = navigateur()

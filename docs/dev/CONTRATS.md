@@ -52,6 +52,14 @@ Liens publics des sites (S08-04) :
 | GET /organizations/{orgId}/sites/public-links | Administrateur (tous les sites) ; responsable et délégués (leurs sites, droit `AfficherLienPublic`) | → `[{siteId, nom, code, numeroUrgence}]` triés par nom ; 403 sans site autorisé ; 404 hors organisation |
 | PUT /organizations/{orgId}/sites/{siteId}/emergency-number | Administrateur d'organisation | `numeroUrgence` (chiffres, espaces, + . - et parenthèses, ≤ 30 ; vide = aucun) → 204 ; 422 numéro invalide ; 403 autre rôle |
 
+Dépôts reçus (S08-05), lecture seule :
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET /organizations/{orgId}/sites/{siteId}/reports | Comptes internes du site (`ConsulterSite` et `LireContactsDeclarant` : T, R/D, P/C) | `limite` (≤ 100, 50 par défaut), `avant` (identifiant du dernier dépôt reçu) → du plus récent au plus ancien : `{id, recuLe, nature, danger, activiteBloquee, emplacement, description, nomDeclarant, contactDeclarant, photos: [rangs]}` ; 404 hors périmètre ; 403 sans rôle de site (administrateur seul) |
+| GET …/reports/{reportId}/photos/{rang} | Idem (`ConsulterSite`) | → `image/jpeg` ; 404 si absente |
+
+Application web (S08-05) : `/organisations/{org}/depots?site=…&depot=…` (onglets des sites où l'appelant a un rôle interne, tableau, fiche avec photos via `/organisations/{org}/sites/{site}/depots/{id}/photos/{rang}`, en-tête `Cache-Control: private, no-store`) ; l'accueil y mène les comptes internes.
+
 Application web (S08-04) : formulaire public `/s/{code}` (choix : danger, incident, demande) puis `/s/{code}/signaler?choix=…` (multipart, widget Turnstile si `Web:CleSiteTurnstile`, limite `Web:LimiteDepotsParAdresse` envois par adresse et par 10 min, adresse lue dans `Web:EnteteAdresseClient` derrière le relais), accusé sans suivi ; écran `/organisations/{org}/sites` (QR SVG, lien, affiche A4 `/affiche`, PNG `/qr.png`, numéro d'urgence pour l'administrateur).
 
 Code de site : 10 caractères de `23456789ABCDEFGHJKMNPQRSTVWXYZ` (casse et tirets ignorés), un par site, créé avec le site (sites existants : attribué par la migration `SitesPublics`) ; filtré par organisation sauf pour la recherche par code (lecture RLS ouverte, le code étant la clé), écrit seulement par l'organisation du site (garde applicative + RLS).

@@ -123,6 +123,20 @@ internal sealed class SessionApi(
         return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
     }
 
+    /// <summary>Contenu binaire (photo) d'une ressource de l'API, ou null si elle n'existe pas.</summary>
+    internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation)
+    {
+        try
+        {
+            using var reponse = await EnvoyerAsync(HttpMethod.Get, chemin, corps: null, annulation).ConfigureAwait(false);
+            return await reponse.Content.ReadAsByteArrayAsync(annulation).ConfigureAwait(false);
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            return null;
+        }
+    }
+
     internal async Task ModifierAsync(string chemin, object corps, CancellationToken annulation)
     {
         using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);

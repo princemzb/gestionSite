@@ -1,0 +1,159 @@
+@page "/organisations/{OrganisationId:guid}/depots"
+@layout AdminLayout
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="depots" />
+<main class="admin-contenu">
+<PageTitle>Dépôts reçus · gestionSite</PageTitle>
+
+@if (Organisation is null || Sites.Count == 0)
+{
+    <div class="entete"><div><h1>Dépôts reçus</h1><p>Aucun site ne vous est attribué dans cette organisation.</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Dépôts reçus</h1>
+            <p>Signalements envoyés depuis le lien public ou le QR code. Lecture seule pour l'instant.</p>
+        </div>
+        @if (Sites.Count > 1)
+        {
+            <nav class="onglets" aria-label="Site">
+                @foreach (var site in Sites)
+                {
+                    <a href="@($"/organisations/{OrganisationId}/depots?site={site.Id}")" aria-current="@(site.Id == SiteCourant?.Id ? "page" : null)">@site.Nom</a>
+                }
+            </nav>
+        }
+    </div>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+    else if (Depots.Count == 0)
+    {
+        <section class="carte vide-carte"><p>Aucun dépôt reçu pour @SiteCourant!.Nom.</p><p class="note">Affichez le QR code du site pour recevoir les signalements.</p></section>
+    }
+    else
+    {
+        <div class="depots">
+            <section aria-label="Liste des dépôts" class="carte tableau-conteneur">
+                <table>
+                    <thead>
+                        <tr><th scope="col">Reçu le</th><th scope="col">Type</th><th scope="col">Où</th><th scope="col">Description</th><th scope="col">Photos</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var depot in Depots)
+                        {
+                            var choisi = depot.Id == DepotCourant?.Id;
+                            <tr class="@(choisi ? "choisi" : null)" aria-selected="@(choisi ? "true" : "false")">
+                                <td class="date"><a href="@Lien(depot)">@Date(depot.RecuLe)</a></td>
+                                <td>
+                                    @if (depot.Danger)
+                                    {
+                                        <span class="badge danger">Danger</span>
+                                    }
+                                    @Nature(depot.Nature)
+                                    @if (depot.ActiviteBloquee)
+                                    {
+                                        <span class="badge alerte">Bloque une activité</span>
+                                    }
+                                </td>
+                                <td>@depot.Emplacement</td>
+                                <td class="resume">@depot.Description</td>
+                                <td>@(depot.Photos.Count == 0 ? "—" : depot.Photos.Count)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+            @if (DepotCourant is { } d)
+            {
+                <aside aria-label="Détail du dépôt" class="carte detail-depot">
+                    @if (d.Danger)
+                    {
+                        <span class="badge danger">Danger signalé</span>
+                    }
+                    <h2>@Nature(d.Nature) · @d.Emplacement</h2>
+                    <p class="texte-libre">@d.Description</p>
+                    @foreach (var rang in d.Photos)
+                    {
+                        <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant!.Id}/depots/{d.Id}/photos/{rang}")" alt="Photo @rang du dépôt" loading="lazy" />
+                    }
+                    <dl>
+                        <dt>Déclarant</dt><dd>@d.NomDeclarant</dd>
+                        <dt>Contact</dt><dd>@d.ContactDeclarant <span class="vide">(non vérifié)</span></dd>
+                        <dt>Reçu le</dt><dd>@Date(d.RecuLe)</dd>
+                    </dl>
+                    <p class="note encadre">Qualification, priorité et affectation arriveront avec le traitement des dossiers.</p>
+                </aside>
+            }
+        </div>
+    }
+}
+</main>
+
+@code {
+    private static readonly TimeZoneInfo Paris =
+        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : TimeZoneInfo.Utc;
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")]
+    private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "depot")]
+    private Guid? DepotDemande { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant => Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+
+    // Sites où l'appelant a un rôle interne : l'administrateur seul n'a aucun accès implicite aux dépôts.
+    private IReadOnlyList<SiteApi> Sites => Organisation is null
+        ? []
+        : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+
+    private SiteApi? SiteCourant => Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+
+    private IReadOnlyList<DepotRecuApi> Depots { get; set; } = [];
+
+    private DepotRecuApi? DepotCourant => Depots.FirstOrDefault(d => d.Id == DepotDemande) ?? Depots.FirstOrDefault();
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            if (SiteCourant is { } site)
+            {
+                Depots = await Session.LireAsync<List<DepotRecuApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/reports", CancellationToken.None);
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas les dépôts de ce site.";
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Message;
+        }
+    }
+
+    private string Lien(DepotRecuApi depot) => $"/organisations/{OrganisationId}/depots?site={SiteCourant!.Id}&depot={depot.Id}";
+
+    private static string Date(DateTimeOffset date) =>
+        TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy · HH:mm", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
+
+    private static string Nature(string nature) => nature == "Demande" ? "Demande" : "Incident";
+}
