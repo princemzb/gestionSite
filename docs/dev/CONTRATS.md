@@ -62,7 +62,7 @@ Inventaire — composants (US-07, S07-02) : `/organizations/{orgId}/sites/{siteI
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |
 | GET components | `ConsulterSite` | filtres facultatifs `zoneId`, `batimentId`, `corpsEtat`, `verification` (true/false), `recherche` (≤ 200 ; nom, marque, modèle, n° de série, emplacement ; casse ignorée, % et _ littéraux), `retires` (false par défaut) ; un filtre vide est ignoré → `{composants: [composant], tronquee}` par nom, 1000 au plus (`tronquee` si davantage) |
-| GET components/{id} | `ConsulterSite` | → `{composant, historique: [{le, nature, auteurCompteId, avant, apres}]}` (plus récent d'abord ; retirés compris) |
+| GET components/{id} | `ConsulterSite` | → `{composant, historique: [{le, nature, auteurCompteId, auteur, apres, avant}]}` (`auteur` : nom affiché du membre de l'organisation, null si inconnu) (plus récent d'abord ; retirés compris) |
 | POST components | `ModifierInventaire` | fiche ci-dessous → `{id}` ; `soumisAVerification` absent : proposition du corps d'état |
 | PUT components/{id} | `ModifierInventaire` | fiche complète + `version` lue + `soumisAVerification` exigé → 204 ; sans changement, rien n'est écrit |
 | POST components/{id}/withdraw | `ModifierInventaire` | `motif` (≤ 500), `version` → 204 ; définitif, le composant reste consultable |

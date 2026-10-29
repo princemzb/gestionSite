@@ -19,7 +19,7 @@ internal sealed record ComposantLu(
 
 internal sealed record ListeComposants(IReadOnlyList<ComposantLu> Composants, bool Tronquee);
 
-internal sealed record EvenementLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, JsonElement? Avant, JsonElement? Apres);
+internal sealed record EvenementLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Avant, JsonElement? Apres);
 
 internal sealed record FicheLue(ComposantLu Composant, IReadOnlyList<EvenementLu> Historique);
 
@@ -30,7 +30,8 @@ internal sealed record FiltreComposants(Guid? ZoneId, Guid? BatimentId, CorpsEta
 /// Composants de l'inventaire d'un site (US-07, S07-02) : individuels ou en lots, modifiés à version connue, retirés sans
 /// suppression. Chaque création, modification (champs changés, avant et après) et retrait est tracé au journal.
 /// </summary>
-internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisations autorisations, CompteCourant compte, TimeProvider horloge)
+internal sealed class ServiceComposants(
+    PatrimoineDbContext context, IAutorisations autorisations, IAnnuaireMembres annuaire, CompteCourant compte, TimeProvider horloge)
 {
     internal const int Limite = 1000;
 
@@ -87,9 +88,12 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
         var historique = await context.Journal.AsNoTracking()
             .Where(e => e.SiteId == siteId && e.Cible == CibleInventaire.Composant && e.CibleId == id).OrderByDescending(e => e.Id)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var auteurs = await annuaire.NomsAsync([.. historique.Where(e => e.AuteurCompteId is not null).Select(e => e.AuteurCompteId!.Value).Distinct()], cancellationToken)
+            .ConfigureAwait(false);
         return new FicheLue(
             Lire(lu.Composant, lu.Version),
-            [.. historique.Select(e => new EvenementLu(e.Le, e.Nature.ToString(), e.AuteurCompteId, Json(e.Avant), Json(e.Apres)))]);
+            [.. historique.Select(e => new EvenementLu(
+                e.Le, e.Nature.ToString(), e.AuteurCompteId, e.AuteurCompteId is { } auteur ? auteurs.GetValueOrDefault(auteur) : null, Json(e.Avant), Json(e.Apres)))]);
     }
 
     internal async Task<Guid> CreerAsync(Guid organisationId, Guid siteId, DemandeComposant demande, CancellationToken cancellationToken)

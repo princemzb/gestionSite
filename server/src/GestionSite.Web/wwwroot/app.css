@@ -205,3 +205,69 @@ a.tuile:hover { color: inherit; }
 .encadre { padding: 12px; border-radius: 12px; background: var(--etape-fond); }
 .vide-carte { padding: 24px; }
 .vide-carte p { margin: 0; }
+
+/* Inventaire (US-07, S07-03) : maquette A (arborescence, liste, fiche) + filtres de la maquette C. */
+:root, [data-theme="jour"] { --etat-bon: #0D7C3E; --etat-satisfaisant: #3D7C0D; --etat-degrade: #B45309; --etat-mauvais: #9A3412; --etat-critique: #C7202C; --verif: #005DC4; --verif-fond: #005DC414; --selection: #1E6CFF0D; }
+[data-theme="nuit"] { --etat-bon: #3DDC84; --etat-satisfaisant: #A3D977; --etat-degrade: #F5A524; --etat-mauvais: #FF9F6B; --etat-critique: #FF8A90; --verif: #A5C4FF; --verif-fond: #A5C4FF26; --selection: #FFFFFF14; }
+.filtres { padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.filtres .champ { font-size: 13px; }
+.filtres .champ select, .filtres .champ input { height: 40px; }
+.filtres .recherche { flex: 1 1 200px; }
+.filtres .case { height: 40px; font-size: 14px; }
+.filtres .bouton-secondaire { height: 40px; }
+.lien-discret { color: var(--encre-2); height: 40px; padding: 0 8px; }
+.inventaire { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.arbre { flex: 0 0 260px; padding: 16px; display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.arbre a { display: flex; justify-content: space-between; gap: 8px; padding: 10px; border-radius: 12px; text-decoration: none; color: var(--encre); }
+.arbre a span { color: var(--encre-2); font-weight: 400; }
+.arbre a[aria-current="page"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); font-weight: 600; }
+.arbre a[aria-current="page"] span { color: inherit; }
+.arbre .arbre-site { font-weight: 600; }
+.arbre .arbre-batiment { font-weight: 700; margin-top: 8px; }
+.arbre .arbre-niveau { padding: 6px 10px 6px 18px; color: var(--encre-2); font-size: 13px; font-weight: 600; }
+.arbre .retrait-1 { padding-left: 18px; }
+.arbre .retrait-2 { padding-left: 26px; }
+.arbre .communes { font-style: italic; }
+.arbre-ajouts { display: flex; gap: 12px; padding: 4px 10px 8px 18px; font-size: 14px; }
+.arbre .arbre-ajouts a { padding: 4px 0; color: var(--lien); }
+.liste-composants { flex: 1 1 420px; min-width: 0; }
+.liste-composants table { min-width: 560px; }
+.liste-composants tr.choisi { background: var(--selection); }
+.nom-composant { color: var(--encre); font-weight: 600; text-decoration: none; }
+.badge.verification { background: var(--verif-fond); color: var(--verif); font-size: 12px; padding: 2px 8px; margin-left: 4px; }
+.badge.retire { background: var(--etape-fond); color: var(--encre-2); font-size: 12px; padding: 2px 8px; margin-left: 4px; }
+.quantite-etat { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.barre-etats { width: 160px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--etape-fond); display: block; }
+.barre-etats .etat-bon { fill: var(--etat-bon); }
+.barre-etats .etat-satisfaisant { fill: var(--etat-satisfaisant); }
+.barre-etats .etat-degrade { fill: var(--etat-degrade); }
+.barre-etats .etat-mauvais { fill: var(--etat-mauvais); }
+.barre-etats .etat-critique { fill: var(--etat-critique); }
+.champ.etat-bon { color: var(--etat-bon); }
+.champ.etat-satisfaisant { color: var(--etat-satisfaisant); }
+.champ.etat-degrade { color: var(--etat-degrade); }
+.champ.etat-mauvais { color: var(--etat-mauvais); }
+.champ.etat-critique { color: var(--etat-critique); }
+.fiche-composant { flex: 0 1 320px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.fiche-composant h2 { margin: 0; font-size: 20px; }
+.fiche-composant h3 { margin: 4px 0 0; font-size: 13px; color: var(--encre-2); }
+.fiche-composant dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.fiche-composant dt { color: var(--encre-2); }
+.fiche-composant dd { margin: 0; overflow-wrap: anywhere; }
+.fiche-composant .bouton-lien { height: 44px; }
+.actions.debut { justify-content: flex-start; }
+.historique { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--encre-2); }
+.historique strong { color: var(--encre); }
+.formulaire-inventaire { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+form.formulaire-inventaire { padding: 0; }
+.formulaire-inventaire h2 { margin: 0; font-size: 22px; }
+.formulaire-inventaire textarea { border: 1px solid var(--bordure-forte); border-radius: 12px; padding: 10px 12px; font: inherit; font-weight: 400; background: var(--champ-fond); color: var(--encre); }
+.grille-champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.ligne-champs { display: flex; flex-wrap: wrap; gap: 12px; }
+.ligne-champs > * { flex: 1 1 120px; }
+.lot { border: 1px solid var(--bordure-forte); border-radius: 16px; padding: 16px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.lot legend { font-weight: 700; padding: 0 6px; }
+.grille-etats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.grille-etats input { color: var(--encre); }
+.retrait { padding: 16px 0 0; border-top: 1px solid var(--bordure); }
+.bouton-danger { height: 44px; padding: 0 18px; border: 1px solid var(--danger); border-radius: 999px; background: var(--surface); color: var(--danger); font: inherit; font-weight: 600; cursor: pointer; }

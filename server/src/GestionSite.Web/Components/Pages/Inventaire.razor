@@ -1,0 +1,877 @@
+@page "/organisations/{OrganisationId:guid}/inventaire"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Text.Json
+@using GestionSite.Web.Inventaire
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="inventaire" />
+<main class="admin-contenu">
+<PageTitle>Inventaire · gestionSite</PageTitle>
+
+@if (Message is not null && Organisation is null)
+{
+    <div class="entete"><div><h1>Inventaire</h1></div></div>
+    <p role="alert" class="alerte danger">@Message</p>
+}
+else if (Organisation is null || Sites.Count == 0)
+{
+    <div class="entete"><div><h1>Inventaire</h1><p>Aucun site ne vous est attribué dans cette organisation.</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Inventaire · @SiteCourant!.Nom</h1>
+            <p>@Resume</p>
+        </div>
+        <div class="actions">
+            @if (Sites.Count > 1)
+            {
+                <nav class="onglets" aria-label="Site">
+                    @foreach (var site in Sites)
+                    {
+                        <a href="@($"/organisations/{OrganisationId}/inventaire?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                    }
+                </nav>
+            }
+            @if (PeutModifier)
+            {
+                <a class="bouton-secondaire bouton-lien" href="@Url(("action", "batiment"))">Ajouter un bâtiment</a>
+                @if (Structure.Count > 0)
+                {
+                    <a class="bouton-principal bouton-lien" href="@Url(("action", "composant"), ("composant", null))">Ajouter un composant</a>
+                }
+            }
+        </div>
+    </div>
+
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <form method="get" class="carte filtres" aria-label="Filtres">
+        <input type="hidden" name="site" value="@SiteCourant.Id" />
+        @if (ZoneDemandee is { } zoneFiltre)
+        {
+            <input type="hidden" name="zone" value="@zoneFiltre" />
+        }
+        <label class="champ">Bâtiment
+            <select name="batiment">
+                <option value="">Tous</option>
+                @foreach (var b in Structure)
+                {
+                    <option value="@b.Id" selected="@(b.Id == BatimentDemande)">@b.Nom</option>
+                }
+            </select>
+        </label>
+        <label class="champ">Corps d'état
+            <select name="corpsEtat">
+                <option value="">Tous</option>
+                @foreach (var (valeur, libelle) in Libelles.CorpsEtats)
+                {
+                    <option value="@valeur" selected="@(valeur == CorpsEtatDemande)">@libelle</option>
+                }
+            </select>
+        </label>
+        <label class="case"><input type="checkbox" name="verification" value="true" checked="@(VerificationDemandee == true)" /> Soumis à vérification</label>
+        <label class="champ recherche">Rechercher
+            <input type="search" name="recherche" value="@RechercheDemandee" maxlength="200" placeholder="Nom, marque, modèle, n° de série…" />
+        </label>
+        <label class="case"><input type="checkbox" name="retires" value="true" checked="@(RetiresDemandes == true)" /> Retirés</label>
+        <button type="submit" class="bouton-secondaire">Filtrer</button>
+        @if (Filtre)
+        {
+            <a class="bouton-lien lien-discret" href="@($"/organisations/{OrganisationId}/inventaire?site={SiteCourant.Id}")">Effacer</a>
+        }
+    </form>
+
+    @if (Action is "batiment" or "niveau" or "zone" && PeutModifier)
+    {
+        <section class="carte formulaire-inventaire" aria-label="Structure du site">
+            <EditForm Model="StructureSaisie" FormName="structure" OnSubmit="EnregistrerStructureAsync" class="formulaire-inventaire">
+                <input type="hidden" name="StructureSaisie.Type" value="@Action" />
+                @if (Action == "batiment")
+                {
+                    <h2>Nouveau bâtiment</h2>
+                    <p class="note">Les extérieurs se décrivent comme un bâtiment « Extérieurs » (parvis, parking, jardin…). Une zone « Parties communes » est créée avec chaque bâtiment.</p>
+                }
+                else
+                {
+                    <h2>@(Action == "niveau" ? "Nouveau niveau" : "Nouvelle zone")</h2>
+                    <label class="champ">Bâtiment
+                        <InputSelect @bind-Value="StructureSaisie.BatimentId" required>
+                            @foreach (var b in Structure)
+                            {
+                                <option value="@b.Id">@b.Nom</option>
+                            }
+                        </InputSelect>
+                    </label>
+                }
+                <label class="champ">Nom
+                    <InputText @bind-Value="StructureSaisie.Nom" required maxlength="120" placeholder="@(Action switch { "batiment" => "Église, Salles annexes, Extérieurs…", "niveau" => "Sous-sol, Rez-de-chaussée, 1er étage…", _ => "Sacristie, Grande salle, Sanitaires…" })" />
+                </label>
+                @if (Action == "niveau")
+                {
+                    <label class="champ">Ordre <span class="aide">(sous-sol −1, rez-de-chaussée 0, 1er étage 1…)</span>
+                        <InputNumber @bind-Value="StructureSaisie.Ordre" required min="-10" max="100" />
+                    </label>
+                }
+                else if (Action == "zone")
+                {
+                    <label class="champ">Niveau <span class="aide">(facultatif)</span>
+                        <InputSelect @bind-Value="StructureSaisie.NiveauId">
+                            <option value="">Sans niveau</option>
+                            @foreach (var b in Structure)
+                            {
+                                <optgroup label="@b.Nom">
+                                    @foreach (var n in b.Niveaux)
+                                    {
+                                        <option value="@n.Id">@n.Nom</option>
+                                    }
+                                </optgroup>
+                            }
+                        </InputSelect>
+                    </label>
+                }
+                <div class="actions">
+                    <a class="bouton-secondaire bouton-lien" href="@Url(("action", null))">Annuler</a>
+                    <button type="submit" class="bouton-principal">Enregistrer</button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    @if (Action is "composant" or "modifier" && PeutModifier && Structure.Count > 0)
+    {
+        <section class="carte formulaire-inventaire" aria-label="Fiche du composant">
+            <EditForm Model="ComposantSaisi" FormName="composant" OnSubmit="EnregistrerComposantAsync" class="formulaire-inventaire">
+                <input type="hidden" name="ComposantSaisi.Id" value="@ComposantSaisi.Id" />
+                <input type="hidden" name="ComposantSaisi.Version" value="@ComposantSaisi.Version" />
+                <h2>@(ComposantSaisi.Id is null ? "Nouveau composant" : $"Modifier · {Fiche?.Composant.Nom}")</h2>
+                <div class="grille-champs">
+                    <label class="champ">Nom
+                        <InputText @bind-Value="ComposantSaisi.Nom" required maxlength="120" placeholder="Extincteur CO2 2 kg, Chaises, Tableau divisionnaire…" />
+                    </label>
+                    <label class="champ">Corps d'état
+                        <InputSelect @bind-Value="ComposantSaisi.CorpsEtat" required>
+                            <option value="">Choisir…</option>
+                            @foreach (var (valeur, libelle) in Libelles.CorpsEtats)
+                            {
+                                <option value="@valeur">@libelle</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label class="champ">Zone
+                        <InputSelect @bind-Value="ComposantSaisi.ZoneId" required>
+                            <option value="">Choisir…</option>
+                            @foreach (var b in Structure)
+                            {
+                                <optgroup label="@b.Nom">
+                                    @foreach (var z in ZonesRangees(b))
+                                    {
+                                        <option value="@z.Id">@NomZone(b, z)</option>
+                                    }
+                                </optgroup>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label class="champ">Emplacement précis
+                        <InputText @bind-Value="ComposantSaisi.Emplacement" maxlength="200" placeholder="Près de la sortie côté nef…" />
+                    </label>
+                    <label class="champ">Marque
+                        <InputText @bind-Value="ComposantSaisi.Marque" maxlength="120" />
+                    </label>
+                    <label class="champ">Modèle
+                        <InputText @bind-Value="ComposantSaisi.Modele" maxlength="120" />
+                    </label>
+                    <label class="champ">N° de série
+                        <InputText @bind-Value="ComposantSaisi.NumeroSerie" maxlength="120" placeholder="Facultatif pour un lot" />
+                    </label>
+                    <div class="champ">
+                        <span>Mise en service <span class="aide">(plaque signalétique)</span></span>
+                        <div class="ligne-champs">
+                            <InputNumber @bind-Value="ComposantSaisi.Annee" min="1000" max="@DateTime.UtcNow.Year" placeholder="Année" aria-label="Année de mise en service" />
+                            <InputSelect @bind-Value="ComposantSaisi.Mois" aria-label="Mois de mise en service">
+                                <option value="">Mois (facultatif)</option>
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m">@Libelles.Mois[m - 1]</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+                </div>
+                <label class="champ">Soumis à vérification périodique
+                    <InputSelect @bind-Value="ComposantSaisi.Verification">
+                        @if (ComposantSaisi.Id is null)
+                        {
+                            <option value="">Selon le corps d'état (proposé)</option>
+                        }
+                        <option value="oui">Oui</option>
+                        <option value="non">Non</option>
+                    </InputSelect>
+                    <span class="aide">Proposé pour l'électricité, l'éclairage de sécurité, la sécurité incendie, le chauffage, le gaz, les ascenseurs, le paratonnerre et les cloches.</span>
+                </label>
+                <fieldset class="lot">
+                    <legend>Quantité</legend>
+                    <div class="ligne-champs">
+                        <label class="champ">Suivi
+                            <InputSelect @bind-Value="ComposantSaisi.Mode">
+                                <option value="individuel">Composant individuel</option>
+                                <option value="lot">Lot (plusieurs identiques)</option>
+                            </InputSelect>
+                        </label>
+                        <label class="champ">Quantité totale
+                            <InputNumber @bind-Value="ComposantSaisi.Quantite" min="1" max="100000" />
+                        </label>
+                        <label class="champ">Unité
+                            <InputSelect @bind-Value="ComposantSaisi.Unite">
+                                @foreach (var (valeur, libelle, _) in Libelles.Unites)
+                                {
+                                    <option value="@valeur">@libelle</option>
+                                }
+                            </InputSelect>
+                        </label>
+                    </div>
+                    <span class="note">Répartition par état <span class="aide">(lot seulement, facultative ; la somme doit égaler la quantité)</span></span>
+                    <div class="grille-etats">
+                        <label class="champ etat-bon">Bon<InputNumber @bind-Value="ComposantSaisi.Bon" min="0" /></label>
+                        <label class="champ etat-satisfaisant">Satisfaisant<InputNumber @bind-Value="ComposantSaisi.Satisfaisant" min="0" /></label>
+                        <label class="champ etat-degrade">Dégradé<InputNumber @bind-Value="ComposantSaisi.Degrade" min="0" /></label>
+                        <label class="champ etat-mauvais">Mauvais<InputNumber @bind-Value="ComposantSaisi.Mauvais" min="0" /></label>
+                        <label class="champ etat-critique">Critique<InputNumber @bind-Value="ComposantSaisi.Critique" min="0" /></label>
+                    </div>
+                </fieldset>
+                <label class="champ">Remarques
+                    <InputTextArea @bind-Value="ComposantSaisi.Remarques" rows="2" maxlength="2000" />
+                </label>
+                <div class="actions">
+                    <a class="bouton-secondaire bouton-lien" href="@Url(("action", null))">Annuler</a>
+                    <button type="submit" class="bouton-principal">Enregistrer</button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <div class="inventaire">
+        <section class="carte arbre" aria-label="Bâtiments et zones">
+            <a href="@Url(("zone", null), ("batiment", null))" aria-current="@(ZoneDemandee is null && BatimentDemande is null ? "page" : null)" class="arbre-site">Tout le site <span>@ComptesParZone.Values.Sum()</span></a>
+            @if (Structure.Count == 0)
+            {
+                <p class="note">Commencez par ajouter un bâtiment.</p>
+            }
+            @foreach (var b in Structure)
+            {
+                <a class="arbre-batiment" href="@Url(("batiment", b.Id.ToString()), ("zone", null))" aria-current="@(BatimentDemande == b.Id && ZoneDemandee is null ? "page" : null)">@b.Nom</a>
+                @foreach (var z in b.Zones.Where(z => z.NiveauId is null && !z.PartiesCommunes))
+                {
+                    @LienZone(b, z, retrait: 1)
+                }
+                @foreach (var n in b.Niveaux)
+                {
+                    <span class="arbre-niveau">@n.Nom</span>
+                    @foreach (var z in b.Zones.Where(z => z.NiveauId == n.Id))
+                    {
+                        @LienZone(b, z, retrait: 2)
+                    }
+                }
+                @foreach (var z in b.Zones.Where(z => z.PartiesCommunes))
+                {
+                    @LienZone(b, z, retrait: 1)
+                }
+                @if (PeutModifier)
+                {
+                    <span class="arbre-ajouts">
+                        <a href="@Url(("action", "zone"), ("pour", b.Id.ToString()))">+ Zone</a>
+                        <a href="@Url(("action", "niveau"), ("pour", b.Id.ToString()))">+ Niveau</a>
+                    </span>
+                }
+            }
+        </section>
+
+        <section class="carte tableau-conteneur liste-composants" aria-label="Composants">
+            @if (Composants.Count == 0)
+            {
+                <p class="vide-carte">@(Filtre ? "Aucun composant ne correspond à ces filtres." : Structure.Count == 0 ? "L'inventaire est vide." : "Aucun composant pour l'instant.")</p>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr><th scope="col">Composant</th><th scope="col">Corps d'état</th><th scope="col">Zone</th><th scope="col">Quantité et état</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in Composants)
+                        {
+                            var choisi = c.Id == Fiche?.Composant.Id;
+                            <tr class="@(choisi ? "choisi" : null)">
+                                <td>
+                                    <a class="nom-composant" href="@Url(("composant", c.Id.ToString()), ("action", null))" aria-current="@(choisi ? "true" : null)">@c.Nom</a>
+                                    @if (c.Lot is not null)
+                                    {
+                                        <span class="vide"> · lot</span>
+                                    }
+                                    @if (c.SoumisAVerification)
+                                    {
+                                        <span class="badge verification" title="Soumis à vérification périodique">Vérif.</span>
+                                    }
+                                    @if (c.RetireLe is not null)
+                                    {
+                                        <span class="badge retire">Retiré</span>
+                                    }
+                                </td>
+                                <td>@Libelles.CorpsEtat(c.CorpsEtat)</td>
+                                <td>@(Zones.TryGetValue(c.ZoneId, out var lieu) ? lieu : "—")</td>
+                                <td>@QuantiteEtEtat(c)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (Tronquee)
+                {
+                    <p class="note encadre">Seuls les 1000 premiers composants sont affichés : affinez avec les filtres.</p>
+                }
+            }
+        </section>
+
+        @if (Fiche is { } fiche)
+        {
+            var c = fiche.Composant;
+            <aside class="carte fiche-composant" aria-label="Fiche du composant">
+                <span class="note">@Libelles.CorpsEtat(c.CorpsEtat)@(c.Lot is null ? "" : " · lot") · @(Zones.TryGetValue(c.ZoneId, out var lieu) ? lieu : "")</span>
+                <h2>@c.Nom</h2>
+                @if (c.RetireLe is { } retireLe)
+                {
+                    <p class="alerte avertissement">Retiré le @Date(retireLe) : @c.MotifRetrait</p>
+                }
+                <dl>
+                    @if (c.Lot is { } lot)
+                    {
+                        <dt>Quantité</dt><dd>@lot.Quantite @Libelles.Unite(lot.Unite, lot.Quantite)</dd>
+                        @if (lot.Repartition is { } r)
+                        {
+                            @foreach (var (cle, libelle, _) in Libelles.Etats)
+                            {
+                                var nombre = Nombre(r, cle);
+                                if (nombre > 0)
+                                {
+                                    <dt>@libelle</dt><dd>@nombre</dd>
+                                }
+                            }
+                        }
+                    }
+                    <dt>Vérification périodique</dt><dd>@(c.SoumisAVerification ? "Oui" : "Non")</dd>
+                    @if (c.Emplacement is not null) { <dt>Emplacement</dt><dd>@c.Emplacement</dd> }
+                    @if (c.Marque is not null || c.Modele is not null) { <dt>Marque · modèle</dt><dd>@string.Join(" · ", new[] { c.Marque, c.Modele }.Where(t => t is not null))</dd> }
+                    @if (c.NumeroSerie is not null) { <dt>N° de série</dt><dd>@c.NumeroSerie</dd> }
+                    <dt>Mise en service</dt><dd>@Libelles.MiseEnService(c.AnneeMiseEnService, c.MoisMiseEnService)</dd>
+                </dl>
+                @if (c.Remarques is not null)
+                {
+                    <p class="texte-libre">@c.Remarques</p>
+                }
+                @if (PeutModifier && c.RetireLe is null)
+                {
+                    <div class="actions debut">
+                        <a class="bouton-secondaire bouton-lien" href="@Url(("action", "modifier"))">Modifier</a>
+                        <a class="bouton-secondaire bouton-lien" href="@Url(("action", "retirer"))">Retirer</a>
+                    </div>
+                    @if (Action == "retirer")
+                    {
+                        <EditForm Model="RetraitSaisi" FormName="retrait" OnSubmit="RetirerAsync" class="formulaire-inventaire retrait">
+                            <input type="hidden" name="RetraitSaisi.Version" value="@c.Version" />
+                            <label class="champ">Motif du retrait
+                                <InputText @bind-Value="RetraitSaisi.Motif" required maxlength="500" placeholder="Déposé, remplacé, cédé, détruit…" />
+                            </label>
+                            <p class="note">Le composant sort de l'inventaire actif ; son historique reste consultable. Ce retrait est définitif.</p>
+                            <div class="actions debut">
+                                <button type="submit" class="bouton-danger">Retirer de l'inventaire</button>
+                                <a class="bouton-lien lien-discret" href="@Url(("action", null))">Annuler</a>
+                            </div>
+                        </EditForm>
+                    }
+                }
+                <h3>Historique</h3>
+                <ol class="historique">
+                    @foreach (var e in fiche.Historique)
+                    {
+                        <li><strong>@Date(e.Le) · @(e.Auteur ?? "Compte inconnu")</strong><br /><span>@Evenement(e)</span></li>
+                    }
+                </ol>
+            </aside>
+        }
+    </div>
+}
+</main>
+
+@code {
+    // Repli sur UTC (fuseau absent de l'hôte) affiché comme tel : jamais une heure locale fausse.
+    private static readonly TimeZoneInfo? Paris =
+        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var fuseau) ? fuseau : null;
+
+    private static readonly System.Globalization.CultureInfo Francais = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "zone")] private Guid? ZoneDemandee { get; set; }
+
+    [SupplyParameterFromQuery(Name = "batiment")] private Guid? BatimentDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "corpsEtat")] private string? CorpsEtatDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "verification")] private bool? VerificationDemandee { get; set; }
+
+    [SupplyParameterFromQuery(Name = "recherche")] private string? RechercheDemandee { get; set; }
+
+    [SupplyParameterFromQuery(Name = "retires")] private bool? RetiresDemandes { get; set; }
+
+    [SupplyParameterFromQuery(Name = "composant")] private Guid? ComposantDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "action")] private string? Action { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pour")] private Guid? BatimentCible { get; set; }
+
+    [SupplyParameterFromForm(Name = "StructureSaisie", FormName = "structure")] private SaisieStructure? FormulaireStructure { get; set; }
+
+    [SupplyParameterFromForm(Name = "ComposantSaisi", FormName = "composant")] private SaisieComposant? FormulaireComposant { get; set; }
+
+    [SupplyParameterFromForm(Name = "RetraitSaisi", FormName = "retrait")] private SaisieRetrait? FormulaireRetrait { get; set; }
+
+    private SaisieStructure StructureSaisie => FormulaireStructure ??= new() { BatimentId = BatimentCible };
+
+    private SaisieComposant ComposantSaisi => FormulaireComposant ??= Action == "modifier" && Fiche is { } fiche
+        ? SaisieComposant.Depuis(fiche.Composant)
+        : new() { ZoneId = ZoneDemandee };
+
+    private SaisieRetrait RetraitSaisi => FormulaireRetrait ??= new();
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private bool PeutModifier { get; set; }
+
+    private IReadOnlyList<BatimentApi> Structure { get; set; } = [];
+
+    // Libellé de chaque zone : « Église · Sacristie ».
+    private Dictionary<Guid, string> Zones { get; set; } = [];
+
+    private IReadOnlyList<ComposantApi> Composants { get; set; } = [];
+
+    private bool Tronquee { get; set; }
+
+    private Dictionary<Guid, int> ComptesParZone { get; set; } = [];
+
+    private FicheComposantApi? Fiche { get; set; }
+
+    private string? Message { get; set; }
+
+    private bool Filtre => BatimentDemande is not null || !string.IsNullOrEmpty(CorpsEtatDemande) || VerificationDemandee == true
+        || !string.IsNullOrWhiteSpace(RechercheDemandee) || RetiresDemandes == true;
+
+    private string Resume
+    {
+        get
+        {
+            var zones = Structure.Sum(b => b.Zones.Count);
+            var actifs = ComptesParZone.Values.Sum();
+            return Structure.Count == 0
+                ? "Décrivez le site : bâtiments, niveaux et zones, puis les composants de chaque zone."
+                : $"{actifs} composant{(actifs > 1 ? "s" : "")} actif{(actifs > 1 ? "s" : "")} dans {zones} zone{(zones > 1 ? "s" : "")}";
+        }
+    }
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/inventory";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            // Sites où l'appelant a un rôle interne : l'administrateur seul n'a pas d'accès implicite à l'inventaire.
+            Sites = Organisation is null
+                ? []
+                : [.. Organisation.Sites.Where(s => Organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                // Technicien, responsable et délégué modifient l'inventaire ; l'API reste juge (403 sinon).
+                PeutModifier = Organisation!.Roles.Any(r => r.SiteId == site.Id && r.Role is "Technicien" or "Responsable" or "Delegue");
+                await ChargerAsync();
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas l'inventaire de ce site.";
+        }
+        catch (RefusApiException refus) when (refus.Statut == HttpStatusCode.UnprocessableEntity)
+        {
+            Message = $"Filtre refusé : {Libelles.Champ(refus.Champ)}.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task ChargerAsync()
+    {
+        Structure = await Session.LireAsync<List<BatimentApi>>($"{Base}/structure", CancellationToken.None);
+        Zones = Structure.SelectMany(b => b.Zones.Select(z => (z.Id, Libelle: $"{b.Nom} · {NomZone(b, z)}"))).ToDictionary(z => z.Id, z => z.Libelle);
+        var requete = new List<string>();
+        Ajouter(requete, "zoneId", ZoneDemandee?.ToString());
+        Ajouter(requete, "batimentId", BatimentDemande?.ToString());
+        Ajouter(requete, "corpsEtat", CorpsEtatDemande);
+        Ajouter(requete, "verification", VerificationDemandee == true ? "true" : null);
+        Ajouter(requete, "recherche", RechercheDemandee);
+        Ajouter(requete, "retires", RetiresDemandes == true ? "true" : null);
+        var liste = await Session.LireAsync<ListeComposantsApi>($"{Base}/components{(requete.Count == 0 ? "" : "?" + string.Join('&', requete))}", CancellationToken.None);
+        Composants = liste.Composants;
+        Tronquee = liste.Tronquee;
+        // Comptes de l'arborescence : composants actifs de chaque zone, quels que soient les filtres.
+        var actifs = requete.Count == 0 ? liste.Composants : (await Session.LireAsync<ListeComposantsApi>($"{Base}/components", CancellationToken.None)).Composants;
+        ComptesParZone = actifs.Where(c => c.RetireLe is null).GroupBy(c => c.ZoneId).ToDictionary(g => g.Key, g => g.Count());
+        if (ComposantDemande is { } id)
+        {
+            try
+            {
+                Fiche = await Session.LireAsync<FicheComposantApi>($"{Base}/components/{id}", CancellationToken.None);
+            }
+            catch (RefusApiException refus) when (refus.Statut == HttpStatusCode.NotFound)
+            {
+                Message = "Ce composant n'existe pas sur ce site.";
+            }
+        }
+    }
+
+    private async Task EnregistrerStructureAsync()
+    {
+        var saisie = StructureSaisie;
+        await EcrireAsync(async () =>
+        {
+            switch (saisie.Type)
+            {
+                case "batiment":
+                    await Session.EcrireAsync<CreeApi>($"{Base}/buildings", new { nom = saisie.Nom }, CancellationToken.None);
+                    break;
+                case "niveau":
+                    await Session.EcrireAsync<CreeApi>($"{Base}/buildings/{saisie.BatimentId}/levels", new { nom = saisie.Nom, ordre = saisie.Ordre }, CancellationToken.None);
+                    break;
+                default:
+                    var zone = await Session.EcrireAsync<CreeApi>(
+                        $"{Base}/zones", new { nom = saisie.Nom, batimentId = saisie.BatimentId, niveauId = saisie.NiveauId }, CancellationToken.None);
+                    return Url(("action", null), ("pour", null), ("zone", zone.Id.ToString()), ("batiment", null));
+            }
+
+            return Url(("action", null), ("pour", null));
+        });
+    }
+
+    private async Task EnregistrerComposantAsync()
+    {
+        var saisie = ComposantSaisi;
+        await EcrireAsync(async () =>
+        {
+            var corps = saisie.Corps();
+            Guid id;
+            if (saisie.Id is { } existant)
+            {
+                await Session.ModifierAsync($"{Base}/components/{existant}", corps, CancellationToken.None);
+                id = existant;
+            }
+            else
+            {
+                id = (await Session.EcrireAsync<CreeApi>($"{Base}/components", corps, CancellationToken.None)).Id;
+            }
+
+            return Url(("action", null), ("composant", id.ToString()));
+        });
+    }
+
+    private async Task RetirerAsync()
+    {
+        var saisie = RetraitSaisi;
+        await EcrireAsync(async () =>
+        {
+            await Session.ExecuterAsync($"{Base}/components/{ComposantDemande}/withdraw", new { motif = saisie.Motif, version = saisie.Version }, CancellationToken.None);
+            return Url(("action", null));
+        });
+    }
+
+    // Succès : retour à la page (rechargement GET, sans renvoi du formulaire). Refus : saisie conservée, message.
+    private async Task EcrireAsync(Func<Task<string>> ecriture)
+    {
+        if (SiteCourant is null || !PeutModifier)
+        {
+            Message = "Vous ne modifiez pas l'inventaire de ce site.";
+            return;
+        }
+
+        string destination;
+        try
+        {
+            destination = await ecriture();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Code switch
+            {
+                "donnee_invalide" => $"{Libelles.Champ(refus.Champ)} : valeur refusée. {Aide(refus.Champ)}",
+                "nom_existant" => "Ce nom existe déjà à cet endroit (majuscules ignorées).",
+                "modifie_entre_temps" => "Quelqu'un d'autre vient de modifier ce composant : rechargez la fiche puis recommencez.",
+                "composant_retire" => "Ce composant est retiré : il ne se modifie plus.",
+                "interdit" => "Vous ne modifiez pas l'inventaire de ce site.",
+                _ => refus.Statut == HttpStatusCode.NotFound ? "Élément introuvable sur ce site." : "Service momentanément indisponible : réessayez dans un instant.",
+            };
+            return;
+        }
+
+        Navigation.NavigateTo(destination);
+    }
+
+    private static string Aide(string? champ) => champ switch
+    {
+        "lot.repartition" => "La somme des quantités par état doit égaler la quantité totale.",
+        "anneeMiseEnService" or "moisMiseEnService" => "Une date passée : l'année, et le mois si connu.",
+        "ordre" => "Entre −10 et 100.",
+        "zoneId" => "Choisissez une zone du site.",
+        "soumisAVerification" => "Indiquez oui ou non.",
+        "corpsEtat" => "Choisissez un corps d'état.",
+        _ => "Une ligne de texte visible, dans la longueur indiquée.",
+    };
+
+    private string Url(params (string Cle, string? Valeur)[] changements)
+    {
+        var parametres = new List<(string Cle, string? Valeur)>
+        {
+            ("site", SiteCourant?.Id.ToString()), ("zone", ZoneDemandee?.ToString()), ("batiment", BatimentDemande?.ToString()),
+            ("corpsEtat", CorpsEtatDemande), ("verification", VerificationDemandee == true ? "true" : null), ("recherche", RechercheDemandee),
+            ("retires", RetiresDemandes == true ? "true" : null), ("composant", ComposantDemande?.ToString()), ("action", null), ("pour", null),
+        };
+        foreach (var (cle, valeur) in changements)
+        {
+            var index = parametres.FindIndex(p => p.Cle == cle);
+            parametres[index] = (cle, valeur);
+        }
+
+        var requete = new List<string>();
+        foreach (var (cle, valeur) in parametres)
+        {
+            Ajouter(requete, cle, valeur);
+        }
+
+        return $"/organisations/{OrganisationId}/inventaire?{string.Join('&', requete)}";
+    }
+
+    private static void Ajouter(List<string> requete, string cle, string? valeur)
+    {
+        if (!string.IsNullOrWhiteSpace(valeur))
+        {
+            requete.Add($"{cle}={Uri.EscapeDataString(valeur)}");
+        }
+    }
+
+    private RenderFragment LienZone(BatimentApi batiment, ZoneApi zone, int retrait) =>
+        @<a class="@($"arbre-zone retrait-{retrait}{(zone.PartiesCommunes ? " communes" : "")}")" href="@Url(("zone", zone.Id.ToString()), ("batiment", null))"
+            aria-current="@(ZoneDemandee == zone.Id ? "page" : null)">@zone.Nom <span>@ComptesParZone.GetValueOrDefault(zone.Id)</span></a>;
+
+    // Zones d'un bâtiment dans l'ordre de l'arborescence : sans niveau, par niveau, puis parties communes.
+    private static IEnumerable<ZoneApi> ZonesRangees(BatimentApi batiment) =>
+        batiment.Zones.Where(z => z.NiveauId is null && !z.PartiesCommunes)
+            .Concat(batiment.Niveaux.SelectMany(n => batiment.Zones.Where(z => z.NiveauId == n.Id)))
+            .Concat(batiment.Zones.Where(z => z.PartiesCommunes));
+
+    private static string NomZone(BatimentApi batiment, ZoneApi zone) =>
+        batiment.Niveaux.FirstOrDefault(n => n.Id == zone.NiveauId) is { } niveau ? $"{zone.Nom} ({niveau.Nom})" : zone.Nom;
+
+    private static RenderFragment QuantiteEtEtat(ComposantApi c) => c.Lot switch
+    {
+        null => @<span class="vide">Non évalué</span>,
+        { Repartition: null } lot => @<span class="vide">@lot.Quantite @Libelles.Unite(lot.Unite, lot.Quantite) · non évalué</span>,
+        { Repartition: { } r } lot => @<span class="quantite-etat">
+            @* SVG : la politique de sécurité interdit les styles en ligne ; les proportions passent par la géométrie. *@
+            <svg class="barre-etats" viewBox="0 0 @lot.Quantite 1" preserveAspectRatio="none" role="img"
+                aria-label="@string.Join(", ", Libelles.Etats.Where(e => Nombre(r, e.Cle) > 0).Select(e => $"{Nombre(r, e.Cle)} {e.Libelle.ToLowerInvariant()}"))">
+                @foreach (var (x, nombre, classe) in Segments(r))
+                {
+                    <rect class="@classe" x="@x" y="0" width="@nombre" height="1" />
+                }
+            </svg>
+            <span class="vide">@lot.Quantite @Libelles.Unite(lot.Unite, lot.Quantite)</span>
+        </span>,
+    };
+
+    private static IEnumerable<(int X, int Nombre, string Classe)> Segments(RepartitionApi r)
+    {
+        var x = 0;
+        foreach (var (cle, _, classe) in Libelles.Etats)
+        {
+            var nombre = Nombre(r, cle);
+            if (nombre > 0)
+            {
+                yield return (x, nombre, classe);
+                x += nombre;
+            }
+        }
+    }
+
+    private static int Nombre(RepartitionApi r, string cle) => cle switch
+    {
+        "bon" => r.Bon,
+        "satisfaisant" => r.Satisfaisant,
+        "degrade" => r.Degrade,
+        "mauvais" => r.Mauvais,
+        _ => r.Critique,
+    };
+
+    // « Répartition : bon 40 → 32, dégradé 0 → 8 » ; création et retrait résumés.
+    private static string Evenement(EvenementApi e)
+    {
+        switch (e.Nature)
+        {
+            case "Creation":
+                return e.Apres is { } apres && apres.TryGetProperty("quantite", out var quantite) && quantite.ValueKind == JsonValueKind.Number
+                    ? $"Création : lot de {quantite.GetInt32()} {Libelles.Unite(Texte(apres, "unite"), quantite.GetInt32())}"
+                    : "Création";
+            case "Retrait":
+                return $"Retrait : {(e.Apres is { } motif ? Texte(motif, "motif") : "")}";
+            default:
+                if (e.Avant is not { ValueKind: JsonValueKind.Object } avant || e.Apres is not { ValueKind: JsonValueKind.Object } apresModif)
+                {
+                    return "Modification";
+                }
+
+                var changes = apresModif.EnumerateObject().Where(p => p.Name != "zoneId")
+                    .Select(p => $"{Libelles.Champ(p.Name).ToLowerInvariant()} {Valeur(p.Name, avant.TryGetProperty(p.Name, out var v) ? v : default)} → {Valeur(p.Name, p.Value)}");
+                return $"Modification : {string.Join(", ", changes)}";
+        }
+    }
+
+    private static string Texte(JsonElement objet, string propriete) =>
+        objet.TryGetProperty(propriete, out var valeur) && valeur.ValueKind == JsonValueKind.String ? valeur.GetString() ?? "" : "";
+
+    private static string Valeur(string champ, JsonElement valeur) => valeur.ValueKind switch
+    {
+        JsonValueKind.String when champ == "corpsEtat" => Libelles.CorpsEtat(valeur.GetString()!),
+        JsonValueKind.String when champ == "unite" => Libelles.Unite(valeur.GetString()!, 1),
+        JsonValueKind.String => $"« {valeur.GetString()} »",
+        JsonValueKind.Number => valeur.GetRawText(),
+        JsonValueKind.True => "oui",
+        JsonValueKind.False => "non",
+        _ => "—",
+    };
+
+    private static string Date(DateTimeOffset date) => Paris is null
+        ? date.ToUniversalTime().ToString("dd/MM/yyyy 'UTC'", Francais)
+        : TimeZoneInfo.ConvertTime(date, Paris).ToString("dd/MM/yyyy", Francais);
+
+    private sealed class SaisieStructure
+    {
+        public string? Type { get; set; }
+
+        public string? Nom { get; set; }
+
+        public Guid? BatimentId { get; set; }
+
+        public Guid? NiveauId { get; set; }
+
+        public int? Ordre { get; set; }
+    }
+
+    private sealed class SaisieRetrait
+    {
+        public string? Motif { get; set; }
+
+        public uint? Version { get; set; }
+    }
+
+    private sealed class SaisieComposant
+    {
+        public Guid? Id { get; set; }
+
+        public uint? Version { get; set; }
+
+        public string? Nom { get; set; }
+
+        public string? CorpsEtat { get; set; }
+
+        public Guid? ZoneId { get; set; }
+
+        public string? Emplacement { get; set; }
+
+        public string? Marque { get; set; }
+
+        public string? Modele { get; set; }
+
+        public string? NumeroSerie { get; set; }
+
+        public int? Annee { get; set; }
+
+        public int? Mois { get; set; }
+
+        public string? Remarques { get; set; }
+
+        public string? Verification { get; set; }
+
+        public string Mode { get; set; } = "individuel";
+
+        public int? Quantite { get; set; }
+
+        public string Unite { get; set; } = "Unite";
+
+        public int? Bon { get; set; }
+
+        public int? Satisfaisant { get; set; }
+
+        public int? Degrade { get; set; }
+
+        public int? Mauvais { get; set; }
+
+        public int? Critique { get; set; }
+
+        internal static SaisieComposant Depuis(ComposantApi c) => new()
+        {
+            Id = c.Id, Version = c.Version, Nom = c.Nom, CorpsEtat = c.CorpsEtat, ZoneId = c.ZoneId, Emplacement = c.Emplacement,
+            Marque = c.Marque, Modele = c.Modele, NumeroSerie = c.NumeroSerie, Annee = c.AnneeMiseEnService, Mois = c.MoisMiseEnService,
+            Remarques = c.Remarques, Verification = c.SoumisAVerification ? "oui" : "non", Mode = c.Lot is null ? "individuel" : "lot",
+            Quantite = c.Lot?.Quantite, Unite = c.Lot?.Unite ?? "Unite", Bon = c.Lot?.Repartition?.Bon, Satisfaisant = c.Lot?.Repartition?.Satisfaisant,
+            Degrade = c.Lot?.Repartition?.Degrade, Mauvais = c.Lot?.Repartition?.Mauvais, Critique = c.Lot?.Repartition?.Critique,
+        };
+
+        // Lot : répartition envoyée seulement si au moins un état est saisi ; sinon le lot est « non évalué ».
+        internal object Corps()
+        {
+            var repartition = (Bon ?? Satisfaisant ?? Degrade ?? Mauvais ?? Critique) is null
+                ? null
+                : new { bon = Bon ?? 0, satisfaisant = Satisfaisant ?? 0, degrade = Degrade ?? 0, mauvais = Mauvais ?? 0, critique = Critique ?? 0 };
+            return new
+            {
+                nom = Nom, corpsEtat = CorpsEtat, zoneId = ZoneId, emplacement = Emplacement, marque = Marque, modele = Modele,
+                numeroSerie = NumeroSerie, anneeMiseEnService = Annee, moisMiseEnService = Mois, remarques = Remarques,
+                soumisAVerification = Verification switch { "oui" => true, "non" => (bool?)false, _ => null },
+                lot = Mode == "lot" ? new { unite = Unite, quantite = Quantite, repartition } : null,
+                version = Version,
+            };
+        }
+    }
+}
