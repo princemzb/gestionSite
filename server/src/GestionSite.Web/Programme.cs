@@ -1,6 +1,7 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using GestionSite.Web.Components;
+using GestionSite.Web.Public;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -36,6 +37,15 @@ internal static class Programme
         builder.Services.AddMemoryCache();
         builder.Services.AddSingleton<RenouvellementsPartages>();
         builder.Services.AddScoped<SessionApi>();
+        builder.Services.AddScoped<DepotPublicClient>();
+        builder.Services.AddHttpClient(DepotPublicClient.ClientDepot, (provider, client) =>
+        {
+            client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
+        builder.Services.AddSingleton<LimiteParAdresse>();
+        builder.Services.AddSingleton<LiensPublics>();
+
         // Clés de chiffrement des cookies : à conserver entre redémarrages (sinon déconnexion de tous).
         var cles = builder.Services.AddDataProtection().SetApplicationName("gestionsite-web");
         var stockage = builder.Configuration.GetSection("Web:Cles").Get<StockageCles>();
@@ -108,11 +118,24 @@ internal static class Programme
         app.Use(async (contexte, suite) =>
         {
             var entetes = contexte.Response.Headers;
+            // Turnstile (formulaire public) : script et cadre de challenges.cloudflare.com seulement.
             entetes.ContentSecurityPolicy =
-                "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; " +
+                "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; " +
+                "style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; " +
                 "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'self'";
             entetes.XContentTypeOptions = "nosniff";
             entetes["Referrer-Policy"] = "no-referrer"; // le jeton d'activation ne fuit pas par l'en-tête Referer
+            await suite(contexte).ConfigureAwait(false);
+        });
+        // Formulaire public seulement : 3 photos de 10 Mo et le reste ; ailleurs, la limite de Kestrel (30 Mo).
+        app.Use(async (contexte, suite) =>
+        {
+            if (HttpMethods.IsPost(contexte.Request.Method) && contexte.Request.Path.StartsWithSegments("/s")
+                && contexte.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
+            {
+                taille.MaxRequestBodySize = 34 * 1024 * 1024;
+            }
+
             await suite(contexte).ConfigureAwait(false);
         });
         app.UseStaticFiles();
@@ -120,6 +143,7 @@ internal static class Programme
         app.UseAuthorization();
         app.UseAntiforgery();
         app.MapPost("/deconnexion", SessionApi.DeconnecterAsync).RequireAuthorization();
+        app.MapSitesAdministration();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
         {

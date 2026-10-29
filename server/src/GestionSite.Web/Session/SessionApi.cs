@@ -123,6 +123,11 @@ internal sealed class SessionApi(
         return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
     }
 
+    internal async Task ModifierAsync(string chemin, object corps, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
+    }
+
     internal static async Task<IResult> DeconnecterAsync(HttpContext contexte, IHttpClientFactory clients, IAntiforgery antifalsification)
     {
         // Point d'accès sans formulaire lié : le jeton anti-falsification n'y serait pas vérifié d'office.
@@ -277,7 +282,7 @@ internal sealed class SessionApi(
     /// Au réveil du conteneur, l'application web écoute avant l'API : une connexion refusée (requête jamais
     /// partie, donc sans effet) est réessayée quelques secondes. Toute autre erreur remonte aussitôt.
     /// </summary>
-    private static async Task<HttpResponseMessage> AvecReessaisAsync(Func<Task<HttpResponseMessage>> envoi)
+    internal static async Task<HttpResponseMessage> AvecReessaisAsync(Func<Task<HttpResponseMessage>> envoi)
     {
         for (var essai = 1; ; essai++)
         {

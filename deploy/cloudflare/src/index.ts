@@ -21,6 +21,8 @@ interface Env {
   R2_CLES_SECRET: string;
   // Anti-robot du formulaire public (S08-03) : facultatif ici ; absent, seul le dépôt public répond 503.
   TURNSTILE_SECRET?: string;
+  // Clé de site (publique) du widget, affichée par le formulaire ; hors dépôt comme le reste du compte.
+  TURNSTILE_CLE_SITE?: string;
 }
 
 const SECRETS_REQUIS = [
@@ -115,6 +117,9 @@ export class GestionSite extends DurableObject<Env> {
         Web__Cles__Compartiment: env.R2_CLES_COMPARTIMENT,
         Web__Cles__Region: "auto",
         Turnstile__CleSecrete: env.TURNSTILE_SECRET ?? "",
+        Web__CleSiteTurnstile: env.TURNSTILE_CLE_SITE ?? "",
+        // Adresse du visiteur pour la limite par adresse : réécrite par Cloudflare à chaque requête, jamais celle du client.
+        Web__EnteteAdresseClient: "CF-Connecting-IP",
       },
     });
     await conteneur.setInactivityTimeout(VEILLE_MS);

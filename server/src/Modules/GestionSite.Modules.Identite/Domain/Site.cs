@@ -31,6 +31,25 @@ internal sealed class Site : IAppartientAOrganisation
 
     public DateTimeOffset CreeLe { get; private set; }
 
+    /// <summary>Numéro de téléphone (chiffres, espaces, + . - et parenthèses) ; vide : aucune consigne affichée.</summary>
+    internal void DefinirNumeroUrgence(string? numero)
+    {
+        var saisi = numero?.Trim();
+        if (string.IsNullOrEmpty(saisi))
+        {
+            NumeroUrgence = null;
+            return;
+        }
+
+        if (saisi.Length > NumeroUrgenceMaxLength || saisi.Count(char.IsAsciiDigit) < 2
+            || !saisi.All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '.' or '-' or '(' or ')'))
+        {
+            throw new ArgumentException("Numéro de téléphone attendu (chiffres, espaces, + . - et parenthèses).", nameof(numero));
+        }
+
+        NumeroUrgence = saisi;
+    }
+
     /// <summary>Numéro affiché au déclarant public qui signale un danger (décision du 28/10) ; absent : aucune consigne.</summary>
     public string? NumeroUrgence { get; private set; }
 }

@@ -18,7 +18,7 @@ public static class IdentiteModule
     public static IServiceCollection AddIdentiteModule(this IServiceCollection services) =>
         services.AddIdentitePersistence().AddAuthentificationIdentite()
             .AddScoped<Autorisations>().AddScoped<IAutorisations>(p => p.GetRequiredService<Autorisations>())
-            .AddScoped<ISitesPublics, RechercheSitesPublics>()
+            .AddScoped<ISitesPublics, RechercheSitesPublics>().AddScoped<ServiceLiensPublics>()
             .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>().AddScoped<ServiceInvitations>();
 
     public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) =>

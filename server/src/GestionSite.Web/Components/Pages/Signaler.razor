@@ -1,0 +1,208 @@
+@page "/s/{Code}/signaler"
+@layout PublicLayout
+@inject DepotPublicClient Depots
+@inject LimiteParAdresse Limite
+@inject Microsoft.Extensions.Options.IOptions<WebOptions> Options
+
+<PageTitle>Signaler un problème</PageTitle>
+
+@if (Indisponible && Site is null && !Envoi)
+{
+    <h1>Service momentanément indisponible</h1>
+    <p class="note">Réessayez dans un instant.</p>
+}
+else if (Site is null && !Indisponible)
+{
+    <h1>Ce lien n'est pas valable</h1>
+    <p class="note">Vérifiez l'adresse affichée sur place, ou scannez à nouveau le QR code.</p>
+}
+else if (Accuse is not null)
+{
+    <div class="accuse">
+        <span class="accuse-coche" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"></path></svg>
+        </span>
+        <h1>Merci, c'est transmis.</h1>
+        <p>L'équipe d'entretien du <strong>@Accuse.Site</strong> a reçu votre signalement. Elle pourra vous recontacter au @Saisie.Contact.</p>
+        @if (Accuse.Danger)
+        {
+            <section class="alerte danger" aria-label="Consigne en cas de danger">
+                <strong>Vous avez signalé un danger.</strong>
+                @if (Accuse.NumeroUrgence is { Length: > 0 } numero)
+                {
+                    <span> Les responsables du site sont alertés. Si le danger est immédiat, appelez aussi : <a href="@($"tel:{numero.Replace(" ", string.Empty)}")">@numero</a>.</span>
+                }
+                else
+                {
+                    <span> Les responsables du site sont alertés. Si le danger est immédiat, appelez les secours (112).</span>
+                }
+            </section>
+        }
+        <p class="note">Il n'y a pas de suivi en ligne. Vous pouvez fermer cette page.</p>
+        <a class="bouton-secondaire bouton-lien" href="@($"/s/{Code}")">Faire un autre signalement</a>
+    </div>
+}
+else
+{
+    <div class="public-entete">
+        <a href="@($"/s/{Code}")">← Changer de choix</a>
+        <span class="pastille">@Libelle@(Site is null ? null : $" · {Site.Site}")</span>
+        <h1>Dites-nous en un peu plus</h1>
+    </div>
+    <EditForm Model="Saisie" FormName="signalement" OnSubmit="EnvoyerAsync" enctype="multipart/form-data" class="carte formulaire-public">
+        <input type="hidden" name="Saisie.CommandeId" value="@Saisie.CommandeId" />
+        <input type="hidden" name="Saisie.Choix" value="@Saisie.Choix" />
+        @if (Saisie.Choix == "danger")
+        {
+            <p class="alerte danger"><strong>Vous signalez un danger.</strong> L'équipe sera alertée en priorité.</p>
+        }
+        @if (Message is not null)
+        {
+            <p role="alert" class="alerte danger">@Message</p>
+        }
+        <label class="champ">Que se passe-t-il ?
+            <InputTextArea @bind-Value="Saisie.Description" rows="4" maxlength="2000" required />
+        </label>
+        <label class="champ">Où exactement ?
+            <InputText @bind-Value="Saisie.Emplacement" maxlength="200" required />
+        </label>
+        <label class="case-ligne"><InputCheckbox @bind-Value="Saisie.ActiviteBloquee" /> Cela bloque une activité</label>
+        <label class="champ">Photos <span class="aide">facultatif, 3 au plus (JPEG, PNG ou HEIC, 10 Mo chacune)</span>
+            <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" multiple />
+        </label>
+        <label class="champ">Votre nom
+            <InputText @bind-Value="Saisie.Nom" autocomplete="name" maxlength="200" required />
+        </label>
+        <label class="champ">Téléphone ou e-mail
+            <InputText @bind-Value="Saisie.Contact" maxlength="200" required />
+            <span class="aide">Seulement pour vous recontacter au sujet de ce signalement.</span>
+        </label>
+        @if (Options.Value.CleSiteTurnstile is { Length: > 0 } cleSite)
+        {
+            <div class="cf-turnstile" data-sitekey="@cleSite" data-language="fr"></div>
+            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+        }
+        <p class="note">Vérification anti-robot automatique.</p>
+        <button type="submit" class="bouton-principal">Envoyer</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public string Code { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "choix")]
+    private string? ChoixDemande { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    // Le formulaire posté remplit Formulaire (préfixe « Saisie ») ; sans envoi, une nouvelle commande.
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "signalement")]
+    private SaisieSignalement? Formulaire { get; set; }
+
+    private SaisieSignalement Saisie => Formulaire ??= new() { CommandeId = Guid.NewGuid(), Choix = Choix(ChoixDemande) };
+
+    private SitePublicApi? Site { get; set; }
+
+    private AccuseApi? Accuse { get; set; }
+
+    private bool Indisponible { get; set; }
+
+    private bool Envoi => Contexte is not null && HttpMethods.IsPost(Contexte.Request.Method);
+
+    private string? Message { get; set; }
+
+    private string Libelle => Saisie.Choix switch
+    {
+        "danger" => "Il y a un danger",
+        "demande" => "J'ai besoin de quelque chose",
+        _ => "Quelque chose est abîmé",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Saisie.Choix = Choix(Saisie.Choix);
+        try
+        {
+            Site = await Depots.SiteAsync(Code, CancellationToken.None);
+        }
+        catch (DepotIndisponibleException)
+        {
+            // Envoi pendant un réveil de l'API : la saisie reste affichée, l'envoi est tenté (le code reste vérifié par l'API).
+            Indisponible = true;
+        }
+    }
+
+    private async Task EnvoyerAsync()
+    {
+        if (Contexte is null)
+        {
+            return;
+        }
+
+        // Un champ fichier laissé vide envoie une partie sans contenu.
+        var photos = Contexte.Request.Form.Files.GetFiles("photos").Where(p => p.Length > 0).ToList();
+        // Un champ fichier ne peut pas être prérempli : à rejoindre après une erreur.
+        var conservee = photos.Count > 0 ? "Votre saisie est conservée ; joignez à nouveau vos photos." : "Votre saisie est conservée.";
+        if (!Limite.Permis(Contexte))
+        {
+            Message = "Trop d'envois depuis votre connexion : réessayez dans quelques minutes.";
+            return;
+        }
+
+        var demande = new DemandeDepotWeb(
+            Saisie.CommandeId, Saisie.Choix == "demande" ? "Demande" : "Incident", Saisie.Description, Saisie.Emplacement,
+            Saisie.Choix == "danger", Saisie.ActiviteBloquee, Saisie.Nom, Saisie.Contact, Contexte.Request.Form["cf-turnstile-response"].ToString());
+        IssueDepot issue;
+        try
+        {
+            issue = await Depots.DeposerAsync(Code, demande, photos, CancellationToken.None);
+        }
+        catch (DepotIndisponibleException)
+        {
+            Message = $"Service momentanément indisponible : réessayez dans un instant. {conservee}";
+            return;
+        }
+
+        Accuse = issue.Accuse;
+        if (Accuse is not null)
+        {
+            Limite.Compter(Contexte);
+            Site ??= new SitePublicApi(Accuse.Site, string.Empty);
+        }
+
+        Message = issue switch
+        {
+            { Accuse: not null } => null,
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "photos" } => $"Photos : 3 au plus, de 10 Mo chacune, au format JPEG, PNG ou HEIC. {conservee}",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "verification" } => $"La vérification anti-robot n'a pas abouti : réessayez. {conservee}",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "description" } => "Décrivez ce qui se passe (2000 caractères au plus).",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "emplacement" } => "Indiquez où se trouve le problème (une ligne, 200 caractères au plus).",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "nom" } => "Indiquez votre nom (une ligne, 200 caractères au plus).",
+            { Statut: HttpStatusCode.UnprocessableEntity, Champ: "contact" } => "Indiquez un téléphone ou un e-mail (une ligne, 200 caractères au plus).",
+            { Statut: HttpStatusCode.Conflict } => "Ce formulaire a déjà été envoyé avec un autre contenu : rechargez la page pour un nouveau signalement.",
+            { Statut: HttpStatusCode.TooManyRequests } => "Ce site reçoit beaucoup de signalements : réessayez dans quelques minutes.",
+            { Statut: HttpStatusCode.NotFound } => "Ce lien n'est plus valable.",
+            { Statut: HttpStatusCode.UnprocessableEntity } => "Le formulaire a expiré ou est incomplet : rechargez la page.",
+            _ => $"Service momentanément indisponible : réessayez dans un instant. {conservee}",
+        };
+    }
+
+    private static string Choix(string? choix) => choix is "danger" or "demande" ? choix : "incident";
+
+    private sealed class SaisieSignalement
+    {
+        public Guid CommandeId { get; set; }
+
+        public string Choix { get; set; } = "incident";
+
+        public string? Description { get; set; }
+
+        public string? Emplacement { get; set; }
+
+        public bool ActiviteBloquee { get; set; }
+
+        public string? Nom { get; set; }
+
+        public string? Contact { get; set; }
+    }
+}

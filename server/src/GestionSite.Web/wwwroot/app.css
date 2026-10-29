@@ -114,3 +114,68 @@ td { padding: 14px 20px; border-top: 1px solid var(--bordure); }
 .lien-activation { padding: 12px; border-radius: 12px; background: var(--etape-fond); font-size: 13px; word-break: break-all; }
 .case { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .case input { width: 20px; height: 20px; }
+
+/* Écran Sites et affiche (US-08, maquettes UX-03) */
+.grille-sites { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.carte-site { padding: 24px; display: flex; flex-wrap: wrap; gap: 20px; }
+.carte-site .qr { flex: 0 0 148px; height: 148px; padding: 6px; border-radius: 16px; background: #FFFFFF; }
+.carte-site .qr svg, .affiche-qr svg { width: 100%; height: 100%; display: block; }
+.carte-site-detail { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.carte-site-detail h2 { margin: 0; font-size: 20px; }
+.bouton-lien { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; height: 44px; }
+a.bouton-principal.bouton-lien, a.bouton-principal.bouton-lien:hover { color: #FFFFFF; }
+.numero-urgence { font-size: 13px; font-weight: 600; color: var(--encre-2); }
+.numero-urgence .ligne { display: flex; gap: 8px; }
+.numero-urgence input { flex: 1; min-width: 0; height: 44px; }
+.affiche-outils { display: flex; gap: 12px; align-items: center; padding: 16px; }
+.affiche { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #FFFFFF; color: #000740; display: flex; flex-direction: column; }
+.affiche header { padding: 64px 72px 56px; color: #FFFFFF; display: flex; flex-direction: column; gap: 14px;
+  background: radial-gradient(circle at 85% 15%, #FFFFFF1F, #0000 35%), linear-gradient(132deg, #0B1118 0%, #152A58 50%, #5D5DF3 100%); }
+.affiche header span { font-size: 20px; color: #D2E2FF; }
+.affiche header h1 { margin: 0; font-size: 60px; line-height: 1.05; }
+.affiche-corps { flex: 1; padding: 56px 72px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.affiche-qr { width: 380px; height: 380px; }
+.affiche-consigne { margin: 0; font-size: 26px; font-weight: 600; text-align: center; }
+.affiche ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: 100%; }
+.affiche li { background: #F4F4F5; border-radius: 18px; padding: 18px; font-size: 18px; line-height: 1.4; }
+.affiche li strong { display: block; font-size: 28px; color: #005DC4; }
+.affiche-pied { margin: auto 0 0; font-size: 16px; color: #3D4654; text-align: center; overflow-wrap: anywhere; }
+@page { size: A4 portrait; margin: 0; }
+@media print {
+  body { background: #FFFFFF; }
+  .affiche-outils { display: none; }
+  .affiche { margin: 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* Formulaire public sur téléphone (US-08, maquette C retenue) — thème Jour seul : le visiteur n'a pas de compte. */
+.public { max-width: 480px; margin: 0 auto; min-height: 100vh; padding: 24px 12px; display: flex; flex-direction: column; gap: 14px; }
+.public h1 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.15; }
+.public-entete { padding: 0 6px; display: flex; flex-direction: column; gap: 8px; }
+.public-entete a { font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.pastille { align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: var(--surface); font-size: 14px; font-weight: 600; box-shadow: var(--ombre); }
+.tuile { min-height: 112px; border-radius: 22px; padding: 18px; display: flex; gap: 14px; align-items: center; text-decoration: none;
+  background: var(--surface); color: var(--encre); box-shadow: var(--ombre); }
+.tuile svg { flex: 0 0 auto; color: #005DC4; }
+.tuile span { display: flex; flex-direction: column; gap: 4px; }
+.tuile strong { font-size: 18px; }
+.tuile span span { font-size: 14px; color: var(--encre-2); }
+.tuile-danger { background: #C7202C; color: #FFFFFF; }
+.tuile-danger svg { color: #FFFFFF; }
+.tuile-danger span span { color: #FFE3E5; }
+a.tuile:hover { color: inherit; }
+.centre { text-align: center; }
+.formulaire-public { padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
+.formulaire-public textarea { border: 1px solid var(--bordure-forte); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 16px; font-weight: 400; resize: vertical;
+  background: var(--champ-fond); color: var(--encre); }
+.formulaire-public input[type="file"] { font: inherit; font-weight: 400; }
+.case-ligne { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: 12px; background: var(--etape-fond); font-weight: 600; }
+.case-ligne input { width: 20px; height: 20px; }
+.accuse { display: flex; flex-direction: column; gap: 18px; padding-top: 24px; text-align: center; }
+.accuse p { margin: 0; font-size: 16px; line-height: 1.5; color: var(--encre-2); }
+.accuse .alerte { text-align: left; font-size: 15px; }
+.accuse-coche { width: 72px; height: 72px; border-radius: 999px; background: var(--succes-fond); color: var(--succes); display: flex; align-items: center; justify-content: center; align-self: center; }
+.formulaire-public input[type="file"] { height: auto; padding: 14px; border: 1px dashed var(--bordure-forte); border-radius: 12px; background: var(--champ-fond); }
+.formulaire-public input[type="file"]::file-selector-button { margin-right: 12px; height: 40px; padding: 0 16px; border: 1px solid var(--bordure-forte); border-radius: 999px;
+  background: var(--surface); color: var(--encre); font: inherit; font-weight: 600; cursor: pointer; }
+.carte-site-detail .actions { justify-content: flex-start; }
+.carte-site-detail .actions .bouton-secondaire, .numero-urgence .bouton-secondaire { height: 44px; }

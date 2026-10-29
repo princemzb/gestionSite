@@ -21,6 +21,18 @@ internal sealed class WebOptions
     /// X-Forwarded-Proto pour connaître le schéma d'origine (HSTS, cookies Secure). Faux par défaut.
     /// </summary>
     public bool RelaisHttps { get; init; }
+
+    /// <summary>Clé de site Turnstile (publique) du formulaire de signalement ; vide : aucun widget (développement).</summary>
+    public string? CleSiteTurnstile { get; init; }
+
+    /// <summary>
+    /// En-tête portant l'adresse du visiteur, posé par le relais (préproduction : CF-Connecting-IP, réécrit par Cloudflare).
+    /// Vide : adresse de la connexion. Ne régler que derrière un relais qui écrase cet en-tête.
+    /// </summary>
+    public string? EnteteAdresseClient { get; init; }
+
+    /// <summary>Signalements publics par adresse de visiteur et par fenêtre de 10 minutes (décision du 28/10).</summary>
+    public int LimiteDepotsParAdresse { get; init; } = 5;
 }
 
 /// <summary>Stockage compatible S3 des clés de chiffrement (Web:Cles), R2 en préproduction.</summary>

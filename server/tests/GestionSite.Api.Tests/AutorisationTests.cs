@@ -183,6 +183,64 @@ public sealed class AutorisationTests(InfrastructureFixture infrastructure) : IA
         return scope;
     }
 
+    [Theory]
+    [InlineData("administrateur", HttpStatusCode.OK, "S1,S2")] // tous les sites
+    [InlineData("responsable", HttpStatusCode.OK, "S1")] // ses sites seulement
+    [InlineData("cumul", HttpStatusCode.OK, "S2")] // responsable de S2, technicien de S1
+    [InlineData("technicien", HttpStatusCode.Forbidden, "")]
+    [InlineData("adminB", HttpStatusCode.NotFound, "")] // autre organisation
+    public async Task PublicLinksAreShownToTheAdministratorAndToManagersOfTheirSites(string compte, HttpStatusCode attendu, string sites)
+    {
+        using var client = _api.CreateClient();
+
+        using var reponse = await LireAsync(client, $"/organizations/{_orgA}/sites/public-links", await ConnecterAsync(compte));
+
+        Assert.Equal(attendu, reponse.StatusCode);
+        if (attendu == HttpStatusCode.OK)
+        {
+            var liens = (await reponse.Content.ReadFromJsonAsync<List<LienLu>>())!;
+            Assert.Equal(sites, string.Join(',', liens.Select(l => l.Nom)));
+            Assert.All(liens, l => Assert.Matches("^[2-9A-HJKMNP-TV-Z]{10}$", l.Code));
+        }
+    }
+
+    [Fact]
+    public async Task OnlyTheAdministratorSetsTheEmergencyNumber()
+    {
+        using var client = _api.CreateClient();
+        var administrateur = await ConnecterAsync("administrateur");
+        var chemin = $"/organizations/{_orgA}/sites/{_s1}/emergency-number";
+
+        using var parResponsable = await EcrireNumeroAsync(client, chemin, await ConnecterAsync("responsable"), "01 23 45 67 89");
+        using var invalide = await EcrireNumeroAsync(client, chemin, administrateur, "appelez Paul");
+        using var defini = await EcrireNumeroAsync(client, chemin, administrateur, " +33 (0)1 23 45 67 89 ");
+        using var liste = await LireAsync(client, $"/organizations/{_orgA}/sites/public-links", administrateur);
+        var numero = (await liste.Content.ReadFromJsonAsync<List<LienLu>>())!.Single(l => l.Nom == "S1").NumeroUrgence;
+        using var efface = await EcrireNumeroAsync(client, chemin, administrateur, "");
+
+        Assert.Equal(HttpStatusCode.Forbidden, parResponsable.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, invalide.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, defini.StatusCode);
+        Assert.Equal("+33 (0)1 23 45 67 89", numero);
+        Assert.Equal(HttpStatusCode.NoContent, efface.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> LireAsync(HttpClient client, string chemin, string jeton)
+    {
+        using var demande = new HttpRequestMessage(HttpMethod.Get, new Uri(chemin, UriKind.Relative));
+        demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jeton);
+        return await client.SendAsync(demande);
+    }
+
+    private static async Task<HttpResponseMessage> EcrireNumeroAsync(HttpClient client, string chemin, string jeton, string numero)
+    {
+        using var demande = new HttpRequestMessage(HttpMethod.Put, new Uri(chemin, UriKind.Relative)) { Content = JsonContent.Create(new { numeroUrgence = numero }) };
+        demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jeton);
+        return await client.SendAsync(demande);
+    }
+
+    private sealed record LienLu(Guid SiteId, string Nom, string Code, string? NumeroUrgence);
+
     private async Task OrganisationAsync(Guid organisationId, (Guid Id, string Nom)[] sites, Dictionary<string, (Role Role, Guid? Site)[]> membres)
     {
         await using var scope = _api.Services.CreateAsyncScope();
@@ -191,6 +249,7 @@ public sealed class AutorisationTests(InfrastructureFixture infrastructure) : IA
         var entites = sites.Select(s => new Site(s.Id, organisationId, s.Nom, Instant)).ToDictionary(s => s.Id);
         context.Add(new Organisation(organisationId, $"Organisation {organisationId:N}", Instant));
         context.AddRange(entites.Values);
+        context.AddRange(entites.Values.Select(s => CodeSitePublic.Nouveau(s.Id, organisationId, Instant)));
         foreach (var (nom, roles) in membres)
         {
             var compte = await CompteAsync(scope, nom);

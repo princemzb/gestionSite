@@ -1,0 +1,135 @@
+@page "/organisations/{OrganisationId:guid}/sites"
+@layout AdminLayout
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject LiensPublics Liens
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="sites" />
+<main class="admin-contenu">
+<PageTitle>Sites · gestionSite</PageTitle>
+<script src="sites.js" defer></script>
+
+@if (Introuvable)
+{
+    <div class="entete"><div><h1>Sites introuvables</h1><p>Cette organisation n'existe pas ou vous n'en affichez pas les liens publics.</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Sites</h1>
+            <p>Chaque site a son lien public et son QR code : affichez-les sur place pour recevoir les signalements.</p>
+        </div>
+    </div>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <div class="grille-sites">
+        @foreach (var lien in LiensSites)
+        {
+            var adresse = Liens.Adresse(lien.Code, Navigation.BaseUri);
+            <section class="carte carte-site" aria-label="@lien.Nom">
+                <div class="qr" role="img" aria-label="QR code de @lien.Nom">@((MarkupString)LiensPublics.Svg(adresse))</div>
+                <div class="carte-site-detail">
+                    <h2>@lien.Nom</h2>
+                    <span class="note">Lien public</span>
+                    <code class="lien-activation">@adresse</code>
+                    <div class="actions">
+                        <a class="bouton-principal bouton-lien" href="@($"/organisations/{OrganisationId}/sites/{lien.SiteId}/affiche")" target="_blank">Imprimer l'affiche</a>
+                        <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/sites/{lien.SiteId}/qr.png")" download>Télécharger le QR</a>
+                        <button type="button" class="bouton-secondaire" data-copier="@adresse">Copier le lien</button>
+                    </div>
+                    @if (SiteNumero == lien.SiteId && MessageNumero is { } message)
+                    {
+                        <p role="@(Numero == "enregistre" ? "status" : "alert")" class="@(Numero == "enregistre" ? "alerte succes" : "alerte danger")">@message</p>
+                    }
+                    @if (Administrateur)
+                    {
+                        <form method="post" action="@($"/organisations/{OrganisationId}/sites/{lien.SiteId}/numero-urgence")" class="champ numero-urgence">
+                            <AntiforgeryToken />
+                            <label for="@($"numero-{lien.SiteId}")">Numéro à appeler en cas de danger
+                                @if (string.IsNullOrEmpty(lien.NumeroUrgence))
+                                {
+                                    <span class="etat-attente"> · Non renseigné : aucune consigne affichée</span>
+                                }
+                                else
+                                {
+                                    <span class="aide"> · affiché au déclarant qui signale un danger</span>
+                                }
+                            </label>
+                            <span class="ligne">
+                                <input id="@($"numero-{lien.SiteId}")" type="tel" name="numero" value="@lien.NumeroUrgence" maxlength="30" placeholder="Ex. 01 00 00 00 00" />
+                                <button type="submit" class="bouton-secondaire">Enregistrer</button>
+                            </span>
+                        </form>
+                    }
+                    else if (!string.IsNullOrEmpty(lien.NumeroUrgence))
+                    {
+                        <span class="note">Numéro en cas de danger : @lien.NumeroUrgence</span>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+    <p class="note">Visible par l'administrateur pour tous les sites, et par responsable et délégués pour leurs sites. Le formulaire public ne donne accès ni aux plans ni à l'inventaire.</p>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "numero")]
+    private string? Numero { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")]
+    private Guid? SiteNumero { get; set; }
+
+    private string? MessageNumero => Numero switch
+    {
+        "enregistre" => "Numéro enregistré.",
+        "invalide" => "Numéro de téléphone attendu (chiffres, espaces, + . - et parenthèses).",
+        "refuse" => "Seul l'administrateur modifie le numéro à appeler en cas de danger.",
+        "introuvable" => "Ce site n'existe plus.",
+        "indisponible" => "Service momentanément indisponible : réessayez dans un instant.",
+        _ => null,
+    };
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant => Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+
+    private IReadOnlyList<LienPublicApi> LiensSites { get; set; } = [];
+
+    private bool Introuvable { get; set; }
+
+    private string? Message { get; set; }
+
+    private bool Administrateur => Organisation?.Roles.Any(r => r.Role == "Administrateur") == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Lectures successives : un renouvellement de session ne doit pas écrire deux fois le cookie de la même réponse.
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            var liens = await Session.LireAsync<List<LienPublicApi>>($"/organizations/{OrganisationId}/sites/public-links", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            LiensSites = liens;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Introuvable = true;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Message;
+        }
+    }
+}
