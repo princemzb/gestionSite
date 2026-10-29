@@ -25,6 +25,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
 
     public DbSet<Intervention> Interventions => Set<Intervention>();
 
+    public DbSet<PhotoIntervention> PhotosIntervention => Set<PhotoIntervention>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -78,12 +80,27 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             intervention.Property(i => i.Statut).HasConversion<string>().HasMaxLength(16);
             intervention.Property(i => i.MotifAttente).HasConversion<string>().HasMaxLength(24);
             intervention.Property(i => i.CommentaireAttente).HasMaxLength(Signalement.CommentaireMax);
+            intervention.Property(i => i.Actions).HasMaxLength(Intervention.ActionsMax);
+            intervention.Property(i => i.EtatFinal).HasConversion<string>().HasMaxLength(24);
             intervention.Property<uint>("xmin").IsRowVersion();
             intervention.HasIndex(i => new { i.DossierId, i.OrganisationId, i.Numero }).IsUnique();
             intervention.HasIndex(i => new { i.OrganisationId, i.SiteId, i.Statut });
             intervention.HasOne<Signalement>().WithMany()
                 .HasForeignKey(i => new { i.DossierId, i.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PhotoIntervention>(photo =>
+        {
+            photo.ToTable("photos_intervention", table => table.HasCheckConstraint("ck_photos_intervention_rang", "rang BETWEEN 1 AND 3"));
+            photo.HasKey(p => p.Id);
+            photo.Property(p => p.Id).ValueGeneratedNever();
+            photo.Property(p => p.Cle).HasMaxLength(PhotoIntervention.CleMax);
+            photo.HasIndex(p => new { p.InterventionId, p.OrganisationId, p.Rang }).IsUnique();
+            photo.HasOne<Intervention>().WithMany()
+                .HasForeignKey(p => new { p.InterventionId, p.OrganisationId })
+                .HasPrincipalKey(i => new { i.Id, i.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

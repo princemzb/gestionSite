@@ -67,7 +67,7 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
         demande.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jeton);
         if (corps is not null)
         {
-            demande.Content = JsonContent.Create(corps);
+            demande.Content = corps as HttpContent ?? JsonContent.Create(corps); // formulaire multipart transmis tel quel
         }
 
         return await _client.SendAsync(demande);

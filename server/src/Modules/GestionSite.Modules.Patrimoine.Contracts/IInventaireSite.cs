@@ -1,7 +1,15 @@
 namespace GestionSite.Modules.Patrimoine.Contracts;
 
 /// <summary>Lieu d'un dossier dans l'inventaire du site : zone obligatoire, composant actif facultatif.</summary>
-public sealed record LieuInventaire(Guid ZoneId, string Zone, string Batiment, Guid? ComposantId, string? Composant, string? CorpsEtat)
+/// <param name="ZoneId"></param>
+/// <param name="Zone"></param>
+/// <param name="Batiment"></param>
+/// <param name="ComposantId"></param>
+/// <param name="Composant"></param>
+/// <param name="CorpsEtat"></param>
+/// <param name="PhotoApresIntervention">Le corps d'état du composant exige une photo à la clôture d'une intervention.</param>
+public sealed record LieuInventaire(
+    Guid ZoneId, string Zone, string Batiment, Guid? ComposantId, string? Composant, string? CorpsEtat, bool PhotoApresIntervention = false)
 {
     /// <summary>« Bâtiment · Zone ».</summary>
     public string Libelle => $"{Batiment} · {Zone}";

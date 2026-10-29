@@ -109,6 +109,15 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Actions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("actions");
+
+                    b.Property<DateTimeOffset?>("ClotureeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cloturee_le");
+
                     b.Property<string>("CommentaireAttente")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -126,6 +135,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dossier_id");
 
+                    b.Property<string>("EtatFinal")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("etat_final");
+
                     b.Property<Guid?>("IntervenantCompteId")
                         .HasColumnType("uuid")
                         .HasColumnName("intervenant_compte_id");
@@ -142,6 +156,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
+
+                    b.Property<bool?>("PhotoExigee")
+                        .HasColumnType("boolean")
+                        .HasColumnName("photo_exigee");
 
                     b.Property<string>("Prestataire")
                         .HasMaxLength(120)
@@ -181,6 +199,9 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_interventions");
 
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_interventions_id_organisation_id");
+
                     b.HasIndex("DossierId", "OrganisationId", "Numero")
                         .IsUnique()
                         .HasDatabaseName("ix_interventions_dossier_id_organisation_id_numero");
@@ -189,6 +210,51 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasDatabaseName("ix_interventions_organisation_id_site_id_statut");
 
                     b.ToTable("interventions", "maintenance");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoIntervention", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("InterventionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("intervention_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int>("Rang")
+                        .HasColumnType("integer")
+                        .HasColumnName("rang");
+
+                    b.Property<int>("Taille")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille");
+
+                    b.HasKey("Id")
+                        .HasName("pk_photos_intervention");
+
+                    b.HasIndex("InterventionId", "OrganisationId", "Rang")
+                        .IsUnique()
+                        .HasDatabaseName("ix_photos_intervention_intervention_id_organisation_id_rang");
+
+                    b.ToTable("photos_intervention", "maintenance", t =>
+                        {
+                            t.HasCheckConstraint("ck_photos_intervention_rang", "rang BETWEEN 1 AND 3");
+                        });
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>
@@ -253,6 +319,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<DateTimeOffset?>("AttenteDepuis")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("attente_depuis");
+
+                    b.Property<DateTimeOffset?>("ClotureLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cloture_le");
 
                     b.Property<Guid>("CommandeId")
                         .HasColumnType("uuid")
@@ -346,6 +416,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recu_le");
 
+                    b.Property<DateTimeOffset?>("RouvertLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rouvert_le");
+
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
@@ -421,6 +495,17 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_interventions_signalements_dossier_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoIntervention", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.Intervention", null)
+                        .WithMany()
+                        .HasForeignKey("InterventionId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_photos_intervention_interventions_intervention_id_organisat");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>

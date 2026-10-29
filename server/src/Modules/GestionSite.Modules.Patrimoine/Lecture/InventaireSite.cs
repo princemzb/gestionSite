@@ -1,4 +1,5 @@
 using GestionSite.Modules.Patrimoine.Contracts;
+using GestionSite.Modules.Patrimoine.Domain;
 using GestionSite.Modules.Patrimoine.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,8 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
             return composantActif ? null : new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null);
         }
 
-        return new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString());
+        return new LieuInventaire(
+            zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString(), CorpsEtats.PhotoApresIntervention(composant.CorpsEtat));
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> ZonesAsync(Guid siteId, IReadOnlyCollection<Guid> zoneIds, CancellationToken cancellationToken)

@@ -1,3 +1,4 @@
+using GestionSite.Modules.Maintenance.Photos;
 using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -21,6 +22,10 @@ internal sealed record DemandeAffectation(string? Titre, Guid? IntervenantCompte
 internal sealed record DemandeVersion(uint? Version);
 
 internal sealed record DemandeAttente(string? Motif, string? Commentaire, DateOnly? ReexamenLe, uint? Version);
+
+internal sealed record DemandeCloture(string? Actions, string? EtatFinal, uint? Version);
+
+internal sealed record DemandeReouverture(string? Motif, uint? Version);
 
 internal sealed record InterventionCreee(int Numero);
 
@@ -55,6 +60,23 @@ internal static class DossiersEndpoints
             Guid orgId, Guid siteId, Guid id, int numero, DemandeVersion demande, ServiceInterventions service, CancellationToken ct) =>
         {
             await service.ReprendreAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        dossiers.MapPost("/{id:guid}/interventions/{numero:int}/close", async (
+            Guid orgId, Guid siteId, Guid id, int numero, HttpRequest requete, ServiceInterventions service, CancellationToken ct) =>
+        {
+            var (demande, photos) = await FormulaireAvecPhotos.LireAsync<DemandeCloture>(requete, ct).ConfigureAwait(false);
+            await service.CloturerAsync(orgId, siteId, id, numero, demande, photos, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        }).AvecPhotos();
+        dossiers.MapGet("/{id:guid}/interventions/{numero:int}/photos/{rang:int}", async (
+            Guid orgId, Guid siteId, Guid id, int numero, int rang, ServiceInterventions service, CancellationToken ct) =>
+            await service.PhotoAsync(orgId, siteId, id, numero, rang, ct).ConfigureAwait(false) is { } photo
+                ? Results.File(photo, "image/jpeg")
+                : Results.NotFound());
+        dossiers.MapPost("/{id:guid}/reopen", async (Guid orgId, Guid siteId, Guid id, DemandeReouverture demande, ServiceDossiers service, CancellationToken ct) =>
+        {
+            await service.RouvrirAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false);
             return Results.NoContent();
         });
         dossiers.MapGet("/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceDossiers service, CancellationToken ct) =>

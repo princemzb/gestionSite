@@ -105,6 +105,16 @@ Attente et reprise (US-09, S09-03) : `/organizations/{orgId}/sites/{siteId}/case
 
 Fiche : `attenteDepuis`, `reexamenLe` (le plus proche des réexamens des interventions en attente), `dureeAttenteSecondes` ; statut du dossier déduit de ses interventions (en cours si l'une avance, sinon en attente si l'une attend, sinon affecté) ; par intervention `motifAttente`, `commentaireAttente`, `reexamenLe`. Journal : MiseEnAttente, Reprise. 409 `statut_incompatible` (attente d'une intervention non démarrée, reprise d'une intervention qui n'attend pas).
 
+
+Clôture et réouverture (US-09, S09-04) : `/organizations/{orgId}/sites/{siteId}/cases/{id}/…`
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| POST interventions/{numero}/close | `CloturerIntervention` ; la personne en charge, sinon `QualifierAffecter` | JSON, ou multipart (partie `demande` + jusqu'à 3 fichiers `photos` de 10 Mo, JPEG/PNG/HEIC réencodés sans métadonnées) : `actions` (≤ 2000, multiligne), `etatFinal` (Resolu, MesureProvisoire, NonResolu), `version` du dossier → 204. Intervention démarrée exigée (409 `statut_incompatible`) ; photo obligatoire (422 `photos`) si le composant du dossier relève de : électricité courants forts, éclairage de sécurité, sécurité incendie, gaz, couverture et étanchéité, structure et gros œuvre. La dernière intervention ouverte clôturée clôt le dossier (`Cloture`, `clotureLe`) |
+| GET interventions/{numero}/photos/{rang} | `ConsulterSite` | → `image/jpeg` ; 404 si absente |
+| POST reopen | `RouvrirArbitrer` (R/D) | `motif` (≤ 500, obligatoire), `version` → 204 ; dossier clôturé ou classé sans suite → « AQualifier » : priorité et délais à refaire, interventions et journal conservés |
+
+Fiche : `clotureLe` ; par intervention `actions`, `etatFinal`, `clotureeLe`, `photos` (rangs), `photoExigee`. Journal : ClotureIntervention, Cloture, Reouverture. Photos stockées en privé sous `organisations/{organisation}/dossiers/{dossier}/interventions/{numero}/{photo}.jpg` (clé propre à chaque envoi). Contrôles (droits, statut, version, photo exigée) avant tout décodage d'image ; `photoExigee` est figé à la clôture ; composant rattaché mais introuvable : photo exigée par prudence. Après une réouverture, seules les interventions du nouveau cycle comptent (prise en charge, clôture).
+
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |
