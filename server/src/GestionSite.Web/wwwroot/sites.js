@@ -3,11 +3,11 @@
 document.addEventListener("click", (evenement) => {
   const copier = evenement.target.closest("[data-copier]");
   if (copier) {
-    navigator.clipboard.writeText(copier.dataset.copier).then(() => {
-      const libelle = copier.textContent;
-      copier.textContent = "Lien copié";
-      setTimeout(() => { copier.textContent = libelle; }, 2000);
-    });
+    const libelle = copier.textContent;
+    navigator.clipboard.writeText(copier.dataset.copier)
+      .then(() => { copier.textContent = "Lien copié"; })
+      .catch(() => { copier.textContent = "Copie impossible : sélectionnez le lien"; })
+      .finally(() => { setTimeout(() => { copier.textContent = libelle; }, 2000); });
   }
 
   if (evenement.target.closest("[data-imprimer]")) {

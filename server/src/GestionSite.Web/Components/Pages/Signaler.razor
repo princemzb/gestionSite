@@ -6,7 +6,7 @@
 
 <PageTitle>Signaler un problème</PageTitle>
 
-@if (Indisponible && Site is null && Formulaire is null)
+@if (Indisponible && Site is null && !Envoi)
 {
     <h1>Service momentanément indisponible</h1>
     <p class="note">Réessayez dans un instant.</p>
@@ -106,6 +106,8 @@ else
     private AccuseApi? Accuse { get; set; }
 
     private bool Indisponible { get; set; }
+
+    private bool Envoi => Contexte is not null && HttpMethods.IsPost(Contexte.Request.Method);
 
     private string? Message { get; set; }
 

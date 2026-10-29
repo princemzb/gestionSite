@@ -1,10 +1,15 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using GestionSite.Modules.Identite;
+using GestionSite.Modules.Identite.Domain;
+using GestionSite.Modules.Identite.Persistence;
 using GestionSite.Modules.Maintenance.DepotPublic;
+using GestionSite.SharedKernel;
 using GestionSite.Web;
 using ImageMagick;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -119,7 +124,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
     [Fact]
     public async Task TooManyReportsFromOneAddressAreRefused()
     {
-        await using var web = Web(_api, ("Web:LimiteDepotsParAdresse", "1"));
+        await using var web = Web(_api, reglages: [("Web:LimiteDepotsParAdresse", "1")]);
         using var visiteur = Navigateur(web);
 
         var refuse = await EnvoyerAsync(visiteur, "incident", "  ", photo: false); // une erreur de saisie ne compte pas
@@ -137,7 +142,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
     {
         var verification = new VerificationEnregistree();
         await using var api = _api.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddScoped<IVerificationHumaine>(_ => verification)));
-        await using var web = Web(api, ("Web:CleSiteTurnstile", "1x00000000000000000000AA"));
+        await using var web = Web(api, reglages: [("Web:CleSiteTurnstile", "1x00000000000000000000AA")]);
         using var visiteur = Navigateur(web);
 
         var formulaire = await LirePageAsync(visiteur, $"/s/{_code}/signaler");
@@ -195,21 +200,151 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         Assert.Contains("value=\"01 23 45 67 89\"", apres, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AManagerSeesTheirSitesButCannotChangeTheEmergencyNumber()
+    {
+        await using var web = Web(_api);
+        var site = (Guid)(await ScalarAsync("SELECT id FROM identite.sites"))!;
+        await MembreAsync("responsable@depot-web.test", Role.Responsable, site);
+        using var responsable = await ConnecteAsync(web, "responsable@depot-web.test");
+        var page = $"/organisations/{_ouverte.OrganisationId}/sites";
+
+        using var accueil = await responsable.GetAsync(new Uri("/", UriKind.Relative));
+        var sites = await LirePageAsync(responsable, page);
+        using var refus = await PosterAsync(responsable, page, formName: null, $"{page}/{site}/numero-urgence", ("numero", "01 23 45 67 89"));
+        var message = await LirePageAsync(responsable, refus.Headers.Location!.OriginalString);
+
+        Assert.EndsWith(page, accueil.Headers.Location?.OriginalString, StringComparison.Ordinal); // l'accueil mène aux sites
+        Assert.Contains($"/s/{_code}", sites, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"numero\"", sites, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Membres<", sites, StringComparison.Ordinal);
+        Assert.Contains("Seul l'administrateur modifie le numéro", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATechnicianHasNoPublicLinks()
+    {
+        await using var web = Web(_api);
+        var site = (Guid)(await ScalarAsync("SELECT id FROM identite.sites"))!;
+        await MembreAsync("technicien@depot-web.test", Role.Technicien, site);
+        using var technicien = await ConnecteAsync(web, "technicien@depot-web.test");
+        var page = $"/organisations/{_ouverte.OrganisationId}/sites";
+
+        var sites = await LirePageAsync(technicien, page);
+        var affiche = await LirePageAsync(technicien, $"{page}/{site}/affiche");
+        using var qr = await technicien.GetAsync(new Uri($"{page}/{site}/qr.png", UriKind.Relative));
+
+        Assert.Contains("Sites introuvables", sites, StringComparison.Ordinal);
+        Assert.Contains("Affiche introuvable", affiche, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, qr.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnUnknownSiteNumberIsReported()
+    {
+        await using var web = Web(_api);
+        using var admin = await AdministrateurConnecteAsync(web);
+        var page = $"/organisations/{_ouverte.OrganisationId}/sites";
+        var inconnu = Guid.NewGuid();
+
+        using var reponse = await PosterAsync(admin, page, formName: null, $"{page}/{inconnu}/numero-urgence", ("numero", "01 23 45 67 89"));
+        using var qr = await admin.GetAsync(new Uri($"{page}/{inconnu}/qr.png", UriKind.Relative));
+
+        Assert.EndsWith("numero=introuvable&site=" + inconnu, reponse.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, qr.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, null, "Ce site reçoit beaucoup de signalements")]
+    [InlineData(HttpStatusCode.Conflict, null, "déjà été envoyé avec un autre contenu")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "photos", "Photos : 3 au plus")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "verification", "La vérification anti-robot n'a pas abouti")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "emplacement", "Indiquez où se trouve le problème")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "nom", "Indiquez votre nom")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "contact", "Indiquez un téléphone ou un e-mail")]
+    [InlineData(HttpStatusCode.UnprocessableEntity, "commandeId", "Le formulaire a expiré ou est incomplet")]
+    [InlineData(HttpStatusCode.NotFound, null, "Ce lien n'est plus valable.")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, null, "Service momentanément indisponible")]
+    public async Task EachRefusalIsExplainedAndTheFormIsKept(HttpStatusCode statut, string? champ, string attendu)
+    {
+        await using var web = Web(_api, depot: () => new ReponseFixe(statut, champ));
+        using var visiteur = Navigateur(web);
+
+        var page = await EnvoyerAsync(visiteur, "incident", "Le robinet goutte.", photo: true);
+
+        Assert.Contains(attendu, page, StringComparison.Ordinal);
+        Assert.Contains("Le robinet goutte.", page, StringComparison.Ordinal); // saisie conservée
+    }
+
+    [Fact]
+    public async Task AnUnreachableApiKeepsTheInputAndSaysSo()
+    {
+        await using var web = Web(_api, depot: () => new ReponseFixe(null, null));
+        using var visiteur = Navigateur(web);
+
+        var page = await EnvoyerAsync(visiteur, "incident", "Le robinet goutte.", photo: true);
+
+        Assert.Contains("Service momentanément indisponible", page, StringComparison.Ordinal);
+        Assert.Contains("joignez à nouveau vos photos", page, StringComparison.Ordinal);
+        Assert.Contains("Le robinet goutte.", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnUnreachableApiIsExplainedOnThePublicPages()
+    {
+        await using var web = Web(_api, api: () => new ReponseFixe(null, null));
+        using var visiteur = Navigateur(web);
+
+        var choix = await LirePageAsync(visiteur, $"/s/{_code}");
+        var formulaire = await LirePageAsync(visiteur, $"/s/{_code}/signaler");
+
+        Assert.Contains("Service momentanément indisponible", choix, StringComparison.Ordinal);
+        Assert.Contains("Service momentanément indisponible", formulaire, StringComparison.Ordinal);
+    }
+
     private static WebApplicationFactory<WebOptions> Web(WebApplicationFactory<Program> api, params (string Cle, string Valeur)[] reglages) =>
+        Web(api, depot: null, reglages);
+
+    /// <summary><paramref name="depot"/> : réponse simulée de l'envoi ; <paramref name="api"/> : de toute l'API.</summary>
+    private static WebApplicationFactory<WebOptions> Web(
+        WebApplicationFactory<Program> vraie, Func<HttpMessageHandler>? depot = null, (string Cle, string Valeur)[]? reglages = null,
+        Func<HttpMessageHandler>? api = null) =>
         new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Web:ApiUrl", "http://localhost");
-            foreach (var (cle, valeur) in reglages)
+            foreach (var (cle, valeur) in reglages ?? [])
             {
                 builder.UseSetting(cle, valeur);
             }
 
             builder.ConfigureServices(services =>
             {
-                services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler());
-                services.AddHttpClient("api-depot").ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler());
+                services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(api ?? vraie.Server.CreateHandler);
+                services.AddHttpClient("api-depot").ConfigurePrimaryHttpMessageHandler(depot ?? api ?? vraie.Server.CreateHandler);
             });
         });
+
+    private async Task MembreAsync(string email, Role role, Guid site)
+    {
+        await using var scope = _api.Services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<OrganisationCourante>().Definir(_ouverte.OrganisationId);
+        var context = scope.ServiceProvider.GetRequiredService<IdentiteDbContext>();
+        var compte = new Compte { Id = Guid.NewGuid(), UserName = email, Email = email };
+        Assert.True((await scope.ServiceProvider.GetRequiredService<UserManager<Compte>>().CreateAsync(compte, MotDePasse)).Succeeded);
+        var membre = new Membre(Guid.NewGuid(), _ouverte.OrganisationId, compte.Id, DateTimeOffset.UtcNow);
+        membre.Reviser([(role, await context.Sites.SingleAsync(s => s.Id == site))]);
+        membre.Accepter(DateTimeOffset.UtcNow);
+        context.Add(membre);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task<HttpClient> ConnecteAsync(WebApplicationFactory<WebOptions> web, string email)
+    {
+        var navigateur = Navigateur(web);
+        using var connexion = await PosterAsync(navigateur, "/connexion", "connexion", action: null, ("Saisie.Email", email), ("Saisie.MotDePasse", MotDePasse));
+        Assert.Equal(HttpStatusCode.Redirect, connexion.StatusCode);
+        return navigateur;
+    }
 
     private static HttpClient Navigateur(WebApplicationFactory<WebOptions> web) =>
         web.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
@@ -305,6 +440,21 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
 
     [GeneratedRegex("name=\"Saisie.CommandeId\" value=\"([0-9a-f-]{36})\"")]
     private static partial Regex Commande();
+
+    /// <summary>API simulée : statut et champ fixes (null : injoignable). Lit le site pour la page, refuse le reste.</summary>
+    private sealed class ReponseFixe(HttpStatusCode? statut, string? champ) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (statut is not { } code)
+            {
+                throw new HttpRequestException("injoignable");
+            }
+
+            var corps = champ is null ? "{}" : $"{{\"code\":\"donnee_invalide\",\"champ\":\"{champ}\"}}";
+            return Task.FromResult(new HttpResponseMessage(code) { Content = new StringContent(corps, System.Text.Encoding.UTF8, "application/json") });
+        }
+    }
 
     private sealed class VerificationEnregistree : IVerificationHumaine
     {
