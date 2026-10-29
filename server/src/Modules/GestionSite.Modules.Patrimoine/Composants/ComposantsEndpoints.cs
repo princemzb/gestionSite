@@ -74,14 +74,27 @@ internal static class SaisieComposant
 
     internal static uint Version(uint? version) => version ?? throw new SaisieInvalideException("version", "Version de la fiche lue obligatoire.");
 
-    // Répartition : un état non saisi compte zéro ; la somme est contrôlée par le domaine.
     private static Lot? Lot(DemandeLot? lot) => lot is null
         ? null
         : new Lot(
             Valeur<UniteLot>(lot.Unite, "lot.unite"),
             lot.Quantite ?? throw new SaisieInvalideException("lot.quantite", "Quantité du lot obligatoire."),
-            lot.Repartition is { } r ? new Repartition(r.Bon ?? 0, r.Satisfaisant ?? 0, r.Degrade ?? 0, r.Mauvais ?? 0, r.Critique ?? 0) : null);
+            Repartition(lot.Repartition));
 
-    private static T Valeur<T>(string? texte, string champ) where T : struct, Enum =>
+    // Répartition : un état non saisi compte zéro ; la somme est contrôlée par le domaine.
+    internal static Repartition? Repartition(DemandeRepartition? r) =>
+        r is null ? null : new Repartition(r.Bon ?? 0, r.Satisfaisant ?? 0, r.Degrade ?? 0, r.Mauvais ?? 0, r.Critique ?? 0);
+
+    /// <summary>Répartition relevée pour le journal, mêmes clés partout (l'historique affiche « bon 40 → 32 »).</summary>
+    internal static Dictionary<string, int?> Releve(Repartition? repartition) => new()
+    {
+        ["bon"] = repartition?.Bon,
+        ["satisfaisant"] = repartition?.Satisfaisant,
+        ["degrade"] = repartition?.Degrade,
+        ["mauvais"] = repartition?.Mauvais,
+        ["critique"] = repartition?.Critique,
+    };
+
+    internal static T Valeur<T>(string? texte, string champ) where T : struct, Enum =>
         NomExact.Essayer<T>(texte, out var valeur) ? valeur : throw new SaisieInvalideException(champ, $"{champ} : valeur inconnue.");
 }

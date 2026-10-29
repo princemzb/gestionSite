@@ -184,6 +184,9 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_composants");
 
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_composants_id_organisation_id");
+
                     b.HasIndex("ZoneId", "OrganisationId")
                         .HasDatabaseName("ix_composants_zone_id_organisation_id");
 
@@ -199,6 +202,114 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                             t.HasCheckConstraint("ck_composants_repartition", "(quantite_bon IS NULL AND quantite_satisfaisant IS NULL AND quantite_degrade IS NULL AND quantite_mauvais IS NULL AND quantite_critique IS NULL) OR (quantite IS NOT NULL AND quantite_bon >= 0 AND quantite_satisfaisant >= 0 AND quantite_degrade >= 0 AND quantite_mauvais >= 0 AND quantite_critique >= 0 AND quantite_bon + quantite_satisfaisant + quantite_degrade + quantite_mauvais + quantite_critique = quantite)");
 
                             t.HasCheckConstraint("ck_composants_retrait", "(retire_le IS NULL) = (motif_retrait IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Evaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("Bon")
+                        .HasColumnType("integer")
+                        .HasColumnName("bon");
+
+                    b.Property<Guid>("CommandeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commande_id");
+
+                    b.Property<Guid>("ComposantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("composant_id");
+
+                    b.Property<string>("CorpsEtat")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("corps_etat");
+
+                    b.Property<int?>("Critique")
+                        .HasColumnType("integer")
+                        .HasColumnName("critique");
+
+                    b.Property<int?>("Degrade")
+                        .HasColumnType("integer")
+                        .HasColumnName("degrade");
+
+                    b.Property<string>("Etat")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("etat");
+
+                    b.Property<Guid>("EvaluateurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluateur_compte_id");
+
+                    b.Property<DateTimeOffset>("EvalueLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evalue_le");
+
+                    b.Property<int>("GrilleVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("grille_version");
+
+                    b.Property<int?>("Mauvais")
+                        .HasColumnType("integer")
+                        .HasColumnName("mauvais");
+
+                    b.Property<string>("Mesures")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mesures");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<string>("Points")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("points");
+
+                    b.Property<string>("Remarque")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("remarque");
+
+                    b.Property<int?>("Satisfaisant")
+                        .HasColumnType("integer")
+                        .HasColumnName("satisfaisant");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("zone_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluations");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_evaluations_id_organisation_id");
+
+                    b.HasIndex("ComposantId", "OrganisationId")
+                        .HasDatabaseName("ix_evaluations_composant_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "CommandeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluations_commande");
+
+                    b.HasIndex("OrganisationId", "SiteId", "ComposantId", "EvalueLe")
+                        .HasDatabaseName("ix_evaluations_organisation_id_site_id_composant_id_evalue_le");
+
+                    b.ToTable("evaluations", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_evaluations_etat", "(etat IS NOT NULL AND bon IS NULL AND satisfaisant IS NULL AND degrade IS NULL AND mauvais IS NULL AND critique IS NULL) OR (etat IS NULL AND bon >= 0 AND satisfaisant >= 0 AND degrade >= 0 AND mauvais >= 0 AND critique >= 0 AND bon + satisfaisant + degrade + mauvais + critique >= 1)");
+
+                            t.HasCheckConstraint("ck_evaluations_grille", "grille_version >= 1");
                         });
                 });
 
@@ -304,6 +415,54 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.ToTable("niveaux", "patrimoine", t =>
                         {
                             t.HasCheckConstraint("ck_niveaux_ordre", "ordre BETWEEN -10 AND 100");
+                        });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.PhotoEvaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("EvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int>("Rang")
+                        .HasColumnType("integer")
+                        .HasColumnName("rang");
+
+                    b.Property<int>("Taille")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille");
+
+                    b.HasKey("Id")
+                        .HasName("pk_photos_evaluations");
+
+                    b.HasIndex("EvaluationId", "OrganisationId")
+                        .HasDatabaseName("ix_photos_evaluations_evaluation_id_organisation_id");
+
+                    b.HasIndex("EvaluationId", "Rang")
+                        .IsUnique()
+                        .HasDatabaseName("ix_photos_evaluations_evaluation_id_rang");
+
+                    b.ToTable("photos_evaluations", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_photos_evaluations_rang", "rang BETWEEN 1 AND 3");
                         });
                 });
 
@@ -434,6 +593,17 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasConstraintName("fk_composants_zones_zone_id_organisation_id");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Evaluation", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.Composant", null)
+                        .WithMany()
+                        .HasForeignKey("ComposantId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluations_composants_composant_id_organisation_id");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Niveau", b =>
                 {
                     b.HasOne("GestionSite.Modules.Patrimoine.Domain.Batiment", null)
@@ -443,6 +613,17 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_niveaux_batiments_batiment_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.PhotoEvaluation", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.Evaluation", null)
+                        .WithMany()
+                        .HasForeignKey("EvaluationId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_photos_evaluations_evaluations_evaluation_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Zone", b =>

@@ -46,7 +46,7 @@ internal static class StructureEndpoints
         return endpoints;
     }
 
-    // Refus propres à l'inventaire (structure et composants) ; accès et saisie : RefusCommuns, placé avant.
+    // Refus propres à l'inventaire (structure, composants, grilles et évaluations) ; accès et saisie : RefusCommuns, placé avant.
     internal static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try
@@ -68,6 +68,14 @@ internal static class StructureEndpoints
         catch (ComposantRetireException retire)
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, retire.Message, "composant_retire");
+        }
+        catch (GrilleModifieeException modifiee)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, modifiee.Message, "grille_modifiee");
+        }
+        catch (CommandeReutiliseeException reutilisee)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilisee.Message, "commande_reutilisee");
         }
     }
 }

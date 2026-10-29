@@ -164,6 +164,22 @@ internal sealed class Composant : IAppartientAOrganisation
         RetireLe = maintenant;
     }
 
+    /// <summary>Répartition d'un lot reprise de sa dernière évaluation (décision du 29/10), déjà contrôlée par l'évaluation.</summary>
+    internal void Repartir(Repartition repartition)
+    {
+        ExigerActif();
+        if (Quantite is not { } quantite || !repartition.Positive || repartition.Total != quantite)
+        {
+            throw new SaisieInvalideException("repartition", "Répartition d'un lot égale à sa quantité.");
+        }
+
+        QuantiteBon = repartition.Bon;
+        QuantiteSatisfaisant = repartition.Satisfaisant;
+        QuantiteDegrade = repartition.Degrade;
+        QuantiteMauvais = repartition.Mauvais;
+        QuantiteCritique = repartition.Critique;
+    }
+
     private void ExigerActif()
     {
         if (Retire)

@@ -15,6 +15,7 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Lancer IA | Non | Oui | Oui | Non | Non |
 | Valider estimation / engager budget | Non | Non | Oui selon délégation | Non | Non |
 | Enregistrer accord finance | Non | Non | Oui | Non | Non |
+| Évaluer un composant (US-11, V 29/10) | Non | Oui | Oui | Non | Non |
 | Consommer stock en intervention | Non | Oui | Oui | Non | Non |
 | Réception / ajustement / rebut | Non | Non | Oui | Non | Non |
 | Voir position partagée du site | Non | Oui | Oui | Non | Non |
