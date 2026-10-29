@@ -392,10 +392,11 @@ form.formulaire-inventaire { padding: 0; }
 .formulaire-evaluation { display: flex; flex-direction: column; gap: 14px; }
 .etape-evaluation { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .etape-evaluation h2 { margin: 0; font-size: 17px; }
-.point-observe { margin: 0; border: 1px solid var(--bordure-forte); border-radius: 14px; padding: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.point-observe { margin: 0; border: 1px solid var(--bordure-forte); border-radius: 14px; padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .point-observe legend { padding: 0 4px; font-weight: 600; }
-.point-observe.defaut { border: 2px solid var(--etat-degrade); background: var(--alerte-fond); }
-.choix-constat { flex: 1 1 96px; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 10px; background: var(--etape-fond); font-size: 14px; cursor: pointer; }
+/* Défaut surligné dès qu'il est coché (sans script), comme après l'envoi. */
+.point-observe.defaut, .point-observe:has(input[value="non"]:checked) { border: 2px solid var(--etat-degrade); background: var(--alerte-fond); }
+.choix-constat { min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 10px; background: var(--etape-fond); font-size: 13px; cursor: pointer; }
 .choix-constat input, .choix-etat input { width: 20px; height: 20px; }
 .choix-etats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .choix-etat { min-height: 64px; border: 1px solid var(--bordure-forte); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center;
