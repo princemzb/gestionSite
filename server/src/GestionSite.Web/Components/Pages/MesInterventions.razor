@@ -92,6 +92,10 @@ else
                 var miennes = await Session.LireAsync<List<MonInterventionApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/cases/mine", CancellationToken.None);
                 Liste.AddRange(miennes.Select(m => (site, m)));
             }
+
+            // Tous sites confondus : par priorité puis par échéance, comme l'API le fait pour chaque site.
+            Liste = [.. Liste.OrderBy(l => Array.FindIndex(LibellesDossiers.Priorites, p => p.Code == l.Intervention.Priorite) is var rang and >= 0 ? rang : 9)
+                .ThenBy(l => (l.Intervention.Statut == "Affectee" ? l.Intervention.EcheancePriseEnCharge : null) ?? l.Intervention.EcheanceResolution ?? DateTimeOffset.MaxValue)];
         }
         catch (SessionExpireeException)
         {

@@ -69,10 +69,9 @@ internal sealed class ServiceDepotPublic(
         // l'enregistrement, sous des clés propres à ce signalement : un échec de la base (ou un envoi concurrent
         // perdant) laisse au pire des fichiers orphelins, jamais les photos d'un autre signalement remplacées.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        var enregistrees = jpegs.Select((jpeg, i) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, i + 1, jpeg.Length)).ToList();
-        await Task.WhenAll(enregistrees.Select((photo, i) =>
-            stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
-        context.Photos.AddRange(enregistrees);
+        context.Photos.AddRange(await PhotosStockees.EcrireAsync(
+            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpeg.Length), p => p.Cle, cancellationToken)
+            .ConfigureAwait(false));
 
         context.Signalements.Add(signalement);
         context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));

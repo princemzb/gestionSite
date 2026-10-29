@@ -128,10 +128,14 @@ internal static class Programme
             entetes["Referrer-Policy"] = "no-referrer"; // le jeton d'activation ne fuit pas par l'en-tête Referer
             await suite(contexte).ConfigureAwait(false);
         });
-        // Formulaire public seulement : 3 photos de 10 Mo et le reste ; ailleurs, la limite de Kestrel (30 Mo).
+        // Formulaires avec photos (public, déclaration interne, clôture d'intervention) : 3 photos de 10 Mo et le reste ;
+        // ailleurs, la limite de Kestrel (30 Mo).
         app.Use(async (contexte, suite) =>
         {
-            if (HttpMethods.IsPost(contexte.Request.Method) && contexte.Request.Path.StartsWithSegments("/s")
+            var chemin = contexte.Request.Path;
+            var avecPhotos = chemin.StartsWithSegments("/s")
+                || (chemin.StartsWithSegments("/organisations") && chemin.Value!.Contains("/dossiers/", StringComparison.Ordinal));
+            if (HttpMethods.IsPost(contexte.Request.Method) && avecPhotos
                 && contexte.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
             {
                 taille.MaxRequestBodySize = 34 * 1024 * 1024;

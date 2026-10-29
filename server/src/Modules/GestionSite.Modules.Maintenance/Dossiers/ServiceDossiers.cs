@@ -139,10 +139,9 @@ internal sealed class ServiceDossiers(
 
         // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        var enregistrees = jpegs.Select((jpeg, i) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, i + 1, jpeg.Length)).ToList();
-        await Task.WhenAll(enregistrees.Select((photo, i) =>
-            stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
-        context.Photos.AddRange(enregistrees);
+        context.Photos.AddRange(await PhotosStockees.EcrireAsync(
+            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, rang, jpeg.Length), p => p.Cle, cancellationToken)
+            .ConfigureAwait(false));
         context.Signalements.Add(dossier);
         if (dossier.Danger)
         {

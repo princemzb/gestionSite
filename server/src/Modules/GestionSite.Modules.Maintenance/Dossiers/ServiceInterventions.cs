@@ -159,9 +159,9 @@ internal sealed class ServiceInterventions(
         //    tenu pendant le téléversement ; un échec ensuite laisse au pire des fichiers orphelins, jamais ceux d'un autre envoi.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         var maintenant = horloge.GetUtcNow();
-        var enregistrees = jpegs.Select((jpeg, i) => new PhotoIntervention(Guid.CreateVersion7(maintenant), interventionLue, i + 1, jpeg.Length, maintenant)).ToList();
-        await Task.WhenAll(enregistrees.Select((photo, i) =>
-            stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
+        var enregistrees = await PhotosStockees.EcrireAsync(
+            stockage, jpegs, (rang, jpeg) => new PhotoIntervention(Guid.CreateVersion7(maintenant), interventionLue, rang, jpeg.Length, maintenant), p => p.Cle,
+            cancellationToken).ConfigureAwait(false);
 
         // 3. Écriture sous verrou, à la version lue : statut et version revérifiés.
         context.ChangeTracker.Clear();

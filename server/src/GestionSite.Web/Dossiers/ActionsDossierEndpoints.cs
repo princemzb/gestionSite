@@ -72,7 +72,13 @@ internal static class ActionsDossierEndpoints
         }
         catch (RefusApiException refus)
         {
-            issue = refus.Code ?? (refus.Statut == System.Net.HttpStatusCode.Forbidden ? "interdit" : "indisponible");
+            // Champ refusé (422) ou élément disparu (404) : la fiche dit pourquoi, pas « service indisponible ».
+            issue = refus.Champ ?? refus.Statut switch
+            {
+                System.Net.HttpStatusCode.NotFound => "introuvable",
+                System.Net.HttpStatusCode.Forbidden => "interdit",
+                _ => refus.Code ?? "indisponible",
+            };
         }
 
         return Results.LocalRedirect($"/organisations/{organisationId}/dossiers/{dossierId}?site={siteId}&onglet={onglet}&issue={Uri.EscapeDataString(issue)}");

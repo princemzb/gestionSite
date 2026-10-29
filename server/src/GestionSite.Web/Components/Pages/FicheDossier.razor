@@ -422,7 +422,7 @@ else
 
     private SaisieAffectation Affectation => FormulaireAffectation ??= new();
 
-    private SaisieAttente Attente => FormulaireAttente ??= new() { ReexamenLe = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
+    private SaisieAttente Attente => FormulaireAttente ??= new() { ReexamenLe = Perimetre.Jour(Maintenant).AddDays(7) };
 
     private SaisieCloture Cloture => FormulaireCloture ??= new();
 
@@ -478,18 +478,32 @@ else
             CompteId = moi.CompteId;
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            // Site demandé d'abord, puis les autres sites de l'appelant : un lien sans site (ou d'un autre site) retrouve le dossier.
             var sites = Perimetre.SitesInternes(Organisation);
-            SiteCourant = sites.FirstOrDefault(s => s.Id == SiteDemande) ?? sites.FirstOrDefault();
-            if (SiteCourant is not { } site)
+            foreach (var site in sites.OrderBy(s => s.Id == SiteDemande ? 0 : 1))
+            {
+                try
+                {
+                    Dossier = await Session.LireAsync<DossierApi>($"/organizations/{OrganisationId}/sites/{site.Id}/cases/{DossierId}", CancellationToken.None);
+                    SiteCourant = site;
+                    break;
+                }
+                catch (RefusApiException refus) when (refus.Statut == HttpStatusCode.NotFound)
+                {
+                    // dossier d'un autre site : on essaie le suivant
+                }
+            }
+
+            if (SiteCourant is not { } courant)
             {
                 return;
             }
 
-            var roles = Organisation!.Roles.Where(r => r.SiteId == site.Id).Select(r => r.Role).ToHashSet();
+            var roles = Organisation!.Roles.Where(r => r.SiteId == courant.Id).Select(r => r.Role).ToHashSet();
             PeutQualifier = roles.Contains("Responsable") || roles.Contains("Delegue");
             PeutDocumenter = PeutQualifier || roles.Contains("Technicien");
             // Aussi lors d'un envoi : Blazor n'accepte un formulaire que s'il figure dans la page rendue.
-            await ChargerAsync();
+            await ChargerFormulairesAsync();
         }
         catch (SessionExpireeException)
         {
@@ -505,15 +519,23 @@ else
         }
     }
 
-    private async Task ChargerAsync()
+    // Données des formulaires de R/D, seulement pour l'onglet qui les affiche (qualification : constat ; affectation : interventions).
+    private async Task ChargerFormulairesAsync()
     {
-        Dossier = await Session.LireAsync<DossierApi>(Base, CancellationToken.None);
-        if (PeutQualifier && Dossier.Statut is "AQualifier" or "Affecte" or "EnCours" or "EnAttente")
+        if (!PeutQualifier || Dossier is not { Statut: "AQualifier" or "Affecte" or "EnCours" or "EnAttente" })
+        {
+            return;
+        }
+
+        if (Onglet == "constat")
         {
             var inventaire = $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/inventory";
             Structure = await Session.LireAsync<List<BatimentApi>>($"{inventaire}/structure", CancellationToken.None);
             Composants = (await Session.LireAsync<ListeComposantsApi>($"{inventaire}/components", CancellationToken.None)).Composants;
-            Intervenants = await Session.LireAsync<List<IntervenantApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/cases/assignees", CancellationToken.None);
+        }
+        else if (Onglet == "interventions" && Dossier.Priorite is not null)
+        {
+            Intervenants = await Session.LireAsync<List<IntervenantApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/cases/assignees", CancellationToken.None);
         }
     }
 
@@ -584,12 +606,14 @@ else
 
     private static string MessageIssue(string code) => code switch
     {
+        "introuvable" => "Cette intervention ou ce dossier n'existe plus : la fiche est rechargée.",
         "modifie_entre_temps" => "Quelqu'un d'autre vient de modifier ce dossier : la fiche est rechargée, recommencez.",
         "statut_incompatible" => "Cette action n'est plus possible dans l'état actuel du dossier.",
         "non_qualifie" => "Qualifiez le dossier (priorité et zone) avant de l'affecter.",
         "doublons_rattaches" => "Ce dossier porte des doublons : traitez-le comme dossier principal.",
         "interdit" => "Vous n'avez pas le droit de faire cette action.",
-        _ => "Service momentanément indisponible : réessayez dans un instant.",
+        "indisponible" => "Service momentanément indisponible : réessayez dans un instant.",
+        _ => MessageChamp(code), // champ refusé, transmis par les actions d'un clic
     };
 
     private string Url(string onglet, params (string Cle, string Valeur)[] extra) =>

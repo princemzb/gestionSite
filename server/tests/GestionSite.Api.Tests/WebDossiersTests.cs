@@ -180,6 +180,10 @@ public sealed partial class WebDossiersTests(InfrastructureFixture infrastructur
 
         Assert.Contains("Choisissez une zone du site.", sansZone, StringComparison.Ordinal);
         Assert.Contains("issue=ok", Chemin(rattache), StringComparison.Ordinal);
+        var dejaRattache = await PosterAsync(responsable, doublon, formName: null,
+            action: $"/organisations/{_organisation}/sites/{_site}/dossiers/{Identifiant().Match(doublon).Groups[1].Value}/rattacher",
+            ("version", VersionAction().Match(await LirePageAsync(responsable, principal)).Groups[1].Value), ("principalId", "pas-un-guid"));
+        Assert.Contains("issue=", Chemin(dejaRattache), StringComparison.Ordinal);
         Assert.Contains("Rattaché à un doublon", await LirePageAsync(responsable, doublon), StringComparison.Ordinal);
         Assert.Contains("Reprise de la toiture", aFaire, StringComparison.Ordinal);
         Assert.Contains("prestataire", aFaire, StringComparison.Ordinal);
@@ -227,6 +231,7 @@ public sealed partial class WebDossiersTests(InfrastructureFixture infrastructur
         Assert.Equal(HttpStatusCode.NotFound, photo.StatusCode);
         Assert.Contains("Aucun site ne vous confie d'intervention.", aucune, StringComparison.Ordinal);
         Assert.Contains("Ce dossier n'existe pas sur vos sites.", inconnu, StringComparison.Ordinal);
+        Assert.Contains("Porte qui grince", await LirePageAsync(pasteur, $"/organisations/{_organisation}/dossiers/{identifiant}"), StringComparison.Ordinal); // lien sans site
     }
 
     private async Task<string> DeclarerAsync(HttpClient navigateur, string zone, string description) =>
