@@ -75,7 +75,12 @@ await cliquer(tel, "button[value='enregistrer']");
 const fiche = await tel.textContent(".fiche-composant");
 ok("évaluation enregistrée : note 1,0 Critique, défaut et mesure affichés",
   fiche.includes("Évaluation enregistrée : 1,0 · Critique.") && fiche.includes("Pas de trace d'échauffement") && fiche.includes("48,5 °C"));
-ok("photo de l'évaluation affichée", await tel.locator(".fiche-composant img[alt='Photo 1 de l\\'évaluation']").evaluate(i => i.complete && i.naturalWidth > 0));
+// Image chargée à la demande (loading=lazy) : amenée à l'écran, puis relais vérifié (JPEG réencodé par l'API).
+const photo = tel.locator(".fiche-composant .photos img").first();
+await photo.scrollIntoViewIfNeeded();
+await tel.waitForFunction(i => i.complete && i.naturalWidth > 0, await photo.elementHandle(), { timeout: 30000 });
+const relais = await tel.request.get(new URL(await photo.getAttribute("src"), base).toString());
+ok("photo de l'évaluation affichée (relais JPEG)", relais.status() === 200 && relais.headers()["content-type"] === "image/jpeg");
 await tel.screenshot({ path: "us11-fiche-evaluee-tel.png", fullPage: true });
 await cliquer(tel, "a:has-text('Ouvrir un dossier prérempli')");
 ok("déclaration préremplie proposée (constat « Critique »)", (await tel.inputValue("textarea[name='Saisie.Description']")).includes("évalué « Critique »"));
