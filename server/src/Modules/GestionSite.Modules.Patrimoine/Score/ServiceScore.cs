@@ -46,12 +46,13 @@ internal sealed class ServiceScore(PatrimoineDbContext context, IAutorisations a
         var debut = CalculScore.DebutHistorique(maintenant);
         var evaluations = await context.Evaluations.AsNoTracking()
             .Where(e => e.SiteId == siteId && (e.EvalueLe >= debut
-                || !context.Evaluations.Any(suivante => suivante.ComposantId == e.ComposantId && suivante.EvalueLe < debut && suivante.EvalueLe > e.EvalueLe)))
+                || !context.Evaluations.Any(suivante => suivante.SiteId == siteId && suivante.ComposantId == e.ComposantId
+                    && suivante.EvalueLe < debut && suivante.EvalueLe > e.EvalueLe)))
             .Select(e => new { e.Id, e.ComposantId, e.EvalueLe, e.Etat, e.Bon, e.Satisfaisant, e.Degrade, e.Mauvais, e.Critique })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var notes = evaluations.Select(e =>
         {
-            var repartition = e.Bon is { } bon ? new Repartition(bon, e.Satisfaisant ?? 0, e.Degrade ?? 0, e.Mauvais ?? 0, e.Critique ?? 0) : null;
+            var repartition = Repartition.Depuis(e.Bon, e.Satisfaisant, e.Degrade, e.Mauvais, e.Critique);
             return new NoteDatee(e.Id, e.ComposantId, e.EvalueLe, Echelle.Note(e.Etat, repartition), Echelle.Critique(e.Etat, repartition));
         });
 
@@ -72,7 +73,7 @@ internal sealed class ServiceScore(PatrimoineDbContext context, IAutorisations a
             .OrderBy(z => parZone[z.ZoneId].Note is null).ThenBy(z => parZone[z.ZoneId].Note) // tri stable : bâtiment puis nom à égalité
             .ToList();
         return new ScoreLu(
-            Affichee(etat.Note), Libelle(etat.Note), new CouvertureLue(etat.Evalues, etat.Actifs), Math.Round(etat.PartAncienne.Approche(), 4),
+            Affichee(etat.Note), Libelle(etat.Note), new CouvertureLue(etat.Evalues, etat.Actifs), Math.Round(etat.PartAncienne.Approche(), 4, MidpointRounding.AwayFromZero),
             etat.Critiques, zonesNotees, [.. historique.Select(p => Point(p.Mois, p.Etat.Note))]);
     }
 

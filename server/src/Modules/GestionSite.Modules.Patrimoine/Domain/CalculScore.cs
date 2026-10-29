@@ -47,7 +47,9 @@ internal sealed class CalculScore
             .ToDictionary(g => g.Key, g => g.OrderBy(n => n.Le).ThenBy(n => n.EvaluationId).ToArray());
     }
 
-    internal static bool Ancienne(DateTimeOffset evalueLe, DateTimeOffset le) => evalueLe < le.AddMonths(-MoisAncienne);
+    /// <summary>Plus de 6 mois avant la date, jugé au calendrier de Paris comme les mois de l'historique.</summary>
+    internal static bool Ancienne(DateTimeOffset evalueLe, DateTimeOffset le) =>
+        TimeZoneInfo.ConvertTime(evalueLe, Fuseau).DateTime < TimeZoneInfo.ConvertTime(le, Fuseau).DateTime.AddMonths(-MoisAncienne);
 
     /// <summary>Premier instant de la fenêtre de l'historique : minuit (Paris) du premier des 12 mois.</summary>
     internal static DateTimeOffset DebutHistorique(DateTimeOffset maintenant) => DebutDuMois(PremierMois(maintenant));
@@ -85,7 +87,7 @@ internal sealed class CalculScore
         })];
     }
 
-    // Dernière évaluation du composant à la date, ou null.
+    // Dernière évaluation du composant à la date, ou null : recherche dichotomique dans ses notes triées par date.
     private NoteDatee? Derniere(Guid composant, DateTimeOffset le)
     {
         if (!_notesParComposant.TryGetValue(composant, out var notes))
@@ -93,15 +95,23 @@ internal sealed class CalculScore
             return null;
         }
 
-        for (var i = notes.Length - 1; i >= 0; i--)
+        var (bas, haut) = (0, notes.Length - 1);
+        NoteDatee? trouvee = null;
+        while (bas <= haut)
         {
-            if (notes[i].Le <= le)
+            var milieu = bas + ((haut - bas) / 2);
+            if (notes[milieu].Le <= le)
             {
-                return notes[i];
+                trouvee = notes[milieu];
+                bas = milieu + 1;
+            }
+            else
+            {
+                haut = milieu - 1;
             }
         }
 
-        return null;
+        return trouvee;
     }
 
     private static DateOnly PremierMois(DateTimeOffset maintenant)

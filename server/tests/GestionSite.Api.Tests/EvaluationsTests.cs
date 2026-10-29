@@ -150,7 +150,7 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         var pasteur = await JetonAsync("pasteur@inventaire.test");
         var (tableau, chaises) = await ComposantsAsync(technicien);
         var sacristie = await CreerAsync($"{Base}/zones", new { batimentId = await BatimentAsync(technicien), nom = "Sacristie" }, technicien);
-        await CreerAsync($"{Base}/components", new { nom = "Armoire", corpsEtat = "Mobilier", zoneId = sacristie }, technicien);
+        var armoire = await CreerAsync($"{Base}/components", new { nom = "Armoire", corpsEtat = "Mobilier", zoneId = sacristie }, technicien);
         var vide = await LireAsync($"{Base}/score", pasteur);
 
         using var lot = await EvaluerAsync(chaises, Lot(new { bon = 30, degrade = 8, critique = 2 }), technicien, photo: true);
@@ -175,6 +175,10 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.Equal(6.4m, zones[0].GetProperty("historique")[11].GetProperty("note").GetDecimal());
         Assert.Equal(JsonValueKind.Null, zones[1].GetProperty("historique")[11].GetProperty("note").ValueKind);
         Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
+
+        using var mauvaise = await EvaluerAsync(armoire, Individuel("Mauvais"), technicien, photo: true);
+        var apres = (await LireAsync($"{Base}/score", pasteur)).GetProperty("zones");
+        Assert.Equal(["Sacristie", "Parties communes"], apres.EnumerateArray().Select(z => z.GetProperty("nom").GetString())); // 3 avant 6,4
     }
 
     [Fact]

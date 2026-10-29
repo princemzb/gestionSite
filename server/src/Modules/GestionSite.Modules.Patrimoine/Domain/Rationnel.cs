@@ -7,9 +7,12 @@ namespace GestionSite.Modules.Patrimoine.Domain;
 /// calcul » (RG-12). Une moyenne de moyennes en décimal arrondit chaque étape (19/3, 49/6…) et une note exacte de 7,25
 /// deviendrait 7,2499…, affichée 7,2 au lieu de 7,3.
 /// </summary>
-internal readonly record struct Rationnel : IComparable<Rationnel>
+internal readonly struct Rationnel : IComparable<Rationnel>, IEquatable<Rationnel>
 {
     private static readonly BigInteger Echelle20 = BigInteger.Pow(10, 20);
+
+    // Dénominateur stocké tel quel : la valeur par défaut du type (0/0) se lit 0/1, jamais une division par zéro.
+    private readonly BigInteger _denominateur;
 
     private Rationnel(BigInteger numerateur, BigInteger denominateur)
     {
@@ -21,12 +24,24 @@ internal readonly record struct Rationnel : IComparable<Rationnel>
         var pgcd = BigInteger.GreatestCommonDivisor(numerateur, denominateur);
         var signe = denominateur.Sign;
         Numerateur = signe * numerateur / pgcd;
-        Denominateur = signe * denominateur / pgcd;
+        _denominateur = signe * denominateur / pgcd;
     }
 
     internal BigInteger Numerateur { get; }
 
-    internal BigInteger Denominateur { get; }
+    internal BigInteger Denominateur => _denominateur.IsZero ? BigInteger.One : _denominateur;
+
+    public static bool operator ==(Rationnel gauche, Rationnel droite) => gauche.Equals(droite);
+
+    public static bool operator !=(Rationnel gauche, Rationnel droite) => !gauche.Equals(droite);
+
+    public static bool operator <(Rationnel gauche, Rationnel droite) => gauche.CompareTo(droite) < 0;
+
+    public static bool operator >(Rationnel gauche, Rationnel droite) => gauche.CompareTo(droite) > 0;
+
+    public static bool operator <=(Rationnel gauche, Rationnel droite) => gauche.CompareTo(droite) <= 0;
+
+    public static bool operator >=(Rationnel gauche, Rationnel droite) => gauche.CompareTo(droite) >= 0;
 
     internal static Rationnel Fraction(BigInteger numerateur, BigInteger denominateur) => new(numerateur, denominateur);
 
@@ -56,4 +71,13 @@ internal readonly record struct Rationnel : IComparable<Rationnel>
     internal decimal Approche() => (decimal)BigInteger.Divide(Numerateur * Echelle20, Denominateur) / 100_000_000_000_000_000_000m;
 
     public int CompareTo(Rationnel other) => (Numerateur * other.Denominateur).CompareTo(other.Numerateur * Denominateur);
+
+    // Fractions réduites : égalité des termes.
+    public bool Equals(Rationnel other) => Numerateur == other.Numerateur && Denominateur == other.Denominateur;
+
+    public override bool Equals(object? obj) => obj is Rationnel autre && Equals(autre);
+
+    public override int GetHashCode() => HashCode.Combine(Numerateur, Denominateur);
+
+    public override string ToString() => $"{Numerateur}/{Denominateur}";
 }

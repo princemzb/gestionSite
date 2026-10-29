@@ -134,9 +134,7 @@ internal sealed class Evaluation : IAppartientAOrganisation
     public DateTimeOffset EvalueLe { get; private set; }
 
     /// <summary>Répartition d'un lot ; absente pour un composant individuel.</summary>
-    internal Repartition? Repartition => Bon is { } bon
-        ? new Repartition(bon, Satisfaisant ?? 0, Degrade ?? 0, Mauvais ?? 0, Critique ?? 0)
-        : null;
+    internal Repartition? Repartition => Repartition.Depuis(Bon, Satisfaisant, Degrade, Mauvais, Critique);
 
     internal Rationnel Note => Echelle.Note(Etat, Repartition);
 

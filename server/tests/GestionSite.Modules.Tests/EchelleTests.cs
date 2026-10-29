@@ -29,6 +29,9 @@ public sealed class EchelleTests
         Assert.Equal(3.66666666666666666666m, Rationnel.Fraction(11, 3).Approche()); // 20 décimales, tronquées
         Assert.Equal(Rationnel.Entier(5), Echelle.Note(EtatComposant.Degrade, null));
         Assert.True(Echelle.Critique(null, new Repartition(39, 0, 0, 0, 1)));
-        Assert.True(Rationnel.Fraction(19, 3).CompareTo(Rationnel.Fraction(49, 6)) < 0);
+        Assert.True(Rationnel.Fraction(19, 3) < Rationnel.Fraction(49, 6));
+        Assert.True(Rationnel.Fraction(2, 4) == Rationnel.Fraction(1, 2));
+        Assert.Equal(Rationnel.Entier(0), default); // valeur par défaut : zéro, jamais une division par zéro
+        Assert.Equal(0m, default(Rationnel).Dixieme());
     }
 }
