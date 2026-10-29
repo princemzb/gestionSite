@@ -155,6 +155,7 @@ internal sealed class ServiceMembres(
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var site = new Site(Guid.NewGuid(), organisationId, nom, horloge.GetUtcNow());
         context.Sites.Add(site);
+        context.CodesSitesPublics.Add(CodeSitePublic.Nouveau(site.Id, organisationId, site.CreeLe)); // lien et QR du dépôt public
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return site;
     }

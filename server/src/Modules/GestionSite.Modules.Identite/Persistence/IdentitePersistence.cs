@@ -1,4 +1,5 @@
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -27,14 +28,9 @@ internal static class IdentitePersistence
         options.UseNpgsql(dataSource, ConfigureNpgsql).UseSnakeCaseNamingConvention();
         return requete is null
             ? options
-            : options.AddInterceptors(
-                new OrganisationCommandInterceptor(requete.Organisation, requete.Compte),
-                new OrganisationTransactionInterceptor(requete.Organisation, requete.Compte));
+            : options.AddInterceptors(requete.Intercepteurs());
     }
 
     private static void ConfigureNpgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
         npgsql.MigrationsHistoryTable(IdentiteDbContext.MigrationsTable, IdentiteDbContext.Schema);
 }
-
-/// <summary>Organisation et compte de la requête, transmis à la base pour les politiques RLS.</summary>
-internal sealed record ContexteRequete(OrganisationCourante Organisation, CompteCourant Compte);

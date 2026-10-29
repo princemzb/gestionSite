@@ -1,8 +1,7 @@
 using System.Data.Common;
-using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace GestionSite.Modules.Identite.Persistence;
+namespace GestionSite.SharedKernel.Persistence;
 
 /// <summary>
 /// Seconde barrière (RLS) : la variable lue par les politiques est posée par SET LOCAL, donc pour une
@@ -13,7 +12,7 @@ namespace GestionSite.Modules.Identite.Persistence;
 /// - Transaction (toute écriture : AutoTransactionBehavior.Always) : SET LOCAL à son ouverture, car EF
 ///   lit les résultats d'un lot d'écriture par position et un préfixe les décalerait.
 /// </summary>
-internal sealed class OrganisationCommandInterceptor(OrganisationCourante organisationCourante, CompteCourant compteCourant) : DbCommandInterceptor
+public sealed class OrganisationCommandInterceptor(OrganisationCourante organisationCourante, CompteCourant compteCourant) : DbCommandInterceptor
 {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
@@ -65,7 +64,7 @@ internal sealed class OrganisationCommandInterceptor(OrganisationCourante organi
 
     // Valeur littérale sûre : un Guid formaté par .NET (chiffres hexadécimaux et tirets) ou vide.
     // SET n'accepte pas de paramètre ; il ne renvoie aucun résultat, le lecteur passe à la suite.
-    internal static string Instruction(OrganisationCourante organisationCourante, CompteCourant compteCourant)
+    public static string Instruction(OrganisationCourante organisationCourante, CompteCourant compteCourant)
     {
         return $"SET LOCAL {OrganisationCourante.VariableSession} = '{Litteral(organisationCourante.Id)}'; " +
             $"SET LOCAL {CompteCourant.VariableSession} = '{Litteral(compteCourant.Id)}';";

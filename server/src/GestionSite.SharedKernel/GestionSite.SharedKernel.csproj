@@ -1,2 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Isolation par organisation commune aux modules (intercepteurs RLS, marqueurs) : EF Core seul, aucun projet. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
 </Project>

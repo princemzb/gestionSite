@@ -1,3 +1,5 @@
+using GestionSite.SharedKernel.Persistence;
+
 namespace GestionSite.Modules.Identite.Domain;
 
 /// <summary>

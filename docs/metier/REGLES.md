@@ -41,6 +41,7 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 - Anti-abus : Turnstile (Cloudflare, ADR-08) vérifié côté serveur, derrière une interface remplaçable, plus une limite de dépôts par adresse ; aucune vérification d’identité.
 - QR code et lien public d’un site : affichables et imprimables par l’administrateur (tous les sites) et par responsable et délégués (leurs sites).
 - Dépôts reçus : liste en lecture par site dès US-08, pour les comptes habilités sur le site (T, R/D, P/C, conformément à DEC-04) ; leur traitement relève d’US-09.
+- Numéro à appeler en cas de danger : saisi par site (administrateur) ; affiché au déclarant public qui signale un danger, seulement s'il est renseigné (décision du 28/10, maquettes UX-03).
 - Ouvert, bloquant avant la production seulement : durée de conservation des coordonnées des déclarants publics (données personnelles, SECURITE).
 
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)

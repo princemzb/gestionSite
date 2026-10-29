@@ -1,11 +1,10 @@
 using System.Data.Common;
-using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace GestionSite.Modules.Identite.Persistence;
+namespace GestionSite.SharedKernel.Persistence;
 
 /// <summary>Pose l'organisation courante (SET LOCAL) dès l'ouverture d'une transaction EF ; voir OrganisationCommandInterceptor.</summary>
-internal sealed class OrganisationTransactionInterceptor(OrganisationCourante organisationCourante, CompteCourant compteCourant) : DbTransactionInterceptor
+public sealed class OrganisationTransactionInterceptor(OrganisationCourante organisationCourante, CompteCourant compteCourant) : DbTransactionInterceptor
 {
     public override DbTransaction TransactionStarted(DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
     {
