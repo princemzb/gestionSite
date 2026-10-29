@@ -1,3 +1,5 @@
+using GestionSite.Web.Session;
+
 namespace GestionSite.Web.Inventaire;
 
 /// <summary>Libellés de l'inventaire (REGLES « Inventaire ») : codes de l'API → texte affiché.</summary>
@@ -90,6 +92,44 @@ internal static class Libelles
         Unites.FirstOrDefault(u => u.Code == code) is { Code: not null } u ? (quantite > 1 ? u.Abrege : u.Libelle) : code;
 
     internal static string Champ(string? champ) => champ is not null && Champs.TryGetValue(champ, out var libelle) ? libelle : champ ?? "Saisie";
+
+    /// <summary>Échelle commune (DEC-01), tirée de <see cref="Etats"/> : code de l'API (« Degrade »), libellé, note (9 à 1), classe.</summary>
+    internal static readonly (string Code, string Libelle, int Note, string Classe)[] Echelle =
+        [.. Etats.Select((e, rang) => (string.Concat(char.ToUpperInvariant(e.Cle[0]), e.Cle[1..]), e.Libelle, 9 - (2 * rang), e.Classe))];
+
+    internal static string Etat(string? code) => Echelle.FirstOrDefault(e => e.Code == code).Libelle ?? code ?? "Non évalué";
+
+    internal static string ClasseEtat(string? code) => Echelle.FirstOrDefault(e => e.Code == code).Classe ?? "etat-aucun";
+
+    /// <summary>Note affichée à une décimale, virgule française (« 6,8 ») ; l'API l'a déjà arrondie.</summary>
+    internal static string Note(decimal note) => note.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
+
+    internal static int Nombre(RepartitionApi r, string cle) => cle switch
+    {
+        "bon" => r.Bon,
+        "satisfaisant" => r.Satisfaisant,
+        "degrade" => r.Degrade,
+        "mauvais" => r.Mauvais,
+        _ => r.Critique,
+    };
+
+    /// <summary>« 32 bon, 8 dégradé » : états présents seulement, du meilleur au pire.</summary>
+    internal static string Repartition(Func<string, int> nombre) =>
+        string.Join(", ", Etats.Where(e => nombre(e.Cle) > 0).Select(e => $"{nombre(e.Cle)} {e.Libelle.ToLowerInvariant()}"));
+
+    /// <summary>Texte coupé à la longueur donnée sans séparer un caractère composé (émoji, lettre accentuée décomposée).</summary>
+    internal static string? Tronquer(string? texte, int longueur)
+    {
+        if (texte is null || texte.Length <= longueur)
+        {
+            return texte;
+        }
+
+        var fin = System.Globalization.StringInfo.ParseCombiningCharacters(texte).LastOrDefault(debut => debut <= longueur);
+        return texte[..(fin == 0 ? longueur : fin)].TrimEnd();
+    }
+
+    internal static string Pourcentage(int part, int total) => total == 0 ? "—" : $"{Math.Round(100m * part / total, MidpointRounding.AwayFromZero)} %";
 
     internal static string MiseEnService(int? annee, int? mois) =>
         annee is null ? "—" : mois is { } m and >= 1 and <= 12 ? $"{Mois[m - 1]} {annee}" : $"{annee}";

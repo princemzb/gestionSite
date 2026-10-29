@@ -340,6 +340,80 @@ form.formulaire-inventaire { padding: 0; }
 .repere.danger, .repere.priorite-urgente { background: var(--danger); }
 .repere.priorite-haute { background: var(--alerte); }
 
+/* État du site (US-11, maquette A) : note en tête, indicateurs, une carte par zone, la moins bien notée d'abord. */
+.etat-bon { color: var(--etat-bon); }
+.etat-satisfaisant { color: var(--etat-satisfaisant); }
+.etat-degrade { color: var(--etat-degrade); }
+.etat-mauvais { color: var(--etat-mauvais); }
+.etat-critique { color: var(--etat-critique); }
+.resume-site { padding: 24px; display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch; }
+.note-site { flex: 0 0 240px; display: flex; flex-direction: column; gap: 6px; }
+.note-site > span:first-child { font-size: 14px; color: var(--encre-2); }
+.valeur-note { font-size: 56px; font-weight: 700; line-height: 1; }
+.valeur-note span { font-size: 20px; font-weight: 500; color: var(--encre-2); }
+.valeur-note.vide { font-size: 28px; }
+.etiquette-etat { align-self: flex-start; padding: 4px 12px; border-radius: 999px; font-weight: 700; background: var(--etape-fond); }
+.indicateurs { flex: 1 1 420px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.indicateurs > div { border: 1px solid var(--bordure-forte); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.indicateurs > div > span:first-child { font-size: 13px; color: var(--encre-2); }
+.indicateurs strong { font-size: 26px; }
+.indicateurs > div > span:last-child { font-size: 13px; color: var(--encre-2); }
+.indicateurs .critique { border-color: var(--etat-critique); }
+.indicateurs .critique strong { color: var(--etat-critique); }
+.titre-section { margin: 8px 0 0; font-size: 18px; }
+.titre-section span { font-weight: 400; color: var(--encre-2); font-size: 14px; }
+.grille-zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.carte-zone { padding: 18px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--encre); min-height: 44px; }
+.carte-zone:hover { color: var(--encre); border-color: var(--bordure-forte); }
+.carte-zone .lieu { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--encre-2); }
+.carte-zone strong { font-size: 17px; }
+.note-zone { font-size: 24px; font-weight: 700; }
+.note-zone span { font-size: 14px; font-weight: 600; }
+.note-zone.vide { font-size: 16px; font-weight: 600; }
+.carte-zone > span:last-child { font-size: 13px; }
+.jauge { width: 100%; height: 8px; border-radius: 999px; overflow: hidden; display: block; }
+.jauge .fond { fill: var(--etape-fond); }
+.jauge .etat-bon { fill: var(--etat-bon); }
+.jauge .etat-satisfaisant { fill: var(--etat-satisfaisant); }
+.jauge .etat-degrade { fill: var(--etat-degrade); }
+.jauge .etat-mauvais { fill: var(--etat-mauvais); }
+.jauge .etat-critique { fill: var(--etat-critique); }
+
+/* Évaluation pas à pas sur téléphone (US-11, maquette A) : une étape par écran, grandes cibles tactiles. */
+.evaluation { max-width: 640px; }
+.evaluation .retour { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+.entete-evaluation h1 { margin: 4px 0 0; font-size: 24px; letter-spacing: -0.02em; }
+.progression { margin: 0; padding: 0; list-style: none; display: flex; gap: 6px; }
+.progression li { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--encre-2); }
+.progression li::before { content: ""; height: 6px; border-radius: 999px; background: var(--etape-fond); }
+.progression li.faite::before { background: var(--succes); }
+.progression li.courante::before { background: #1E6CFF; }
+.progression li.courante { color: var(--encre); font-weight: 600; }
+.formulaire-evaluation { display: flex; flex-direction: column; gap: 14px; }
+.etape-evaluation { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.etape-evaluation h2 { margin: 0; font-size: 17px; }
+.point-observe { margin: 0; border: 1px solid var(--bordure-forte); border-radius: 14px; padding: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.point-observe legend { padding: 0 4px; font-weight: 600; }
+.point-observe.defaut { border: 2px solid var(--etat-degrade); background: var(--alerte-fond); }
+.choix-constat { flex: 1 1 96px; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 10px; background: var(--etape-fond); font-size: 14px; cursor: pointer; }
+.choix-constat input, .choix-etat input { width: 20px; height: 20px; }
+.choix-etats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.choix-etat { min-height: 64px; border: 1px solid var(--bordure-forte); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; padding: 6px 2px; }
+.choix-etat:has(input:checked) { border-width: 2px; border-color: currentColor; background: var(--selection); }
+.actions-evaluation { display: flex; flex-direction: row-reverse; gap: 8px; } /* bouton principal premier dans le code : Entrée avance */
+.actions-evaluation > * { flex: 1; }
+.actions-evaluation .bouton-principal { flex: 2; }
+
+/* Fiche composant : dernière évaluation et courbe des notes (US-11, maquette commune). */
+.note-composant { margin: 0; font-size: 15px; }
+.note-composant strong { font-size: 26px; }
+.points-evalues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.points-evalues .defaut { color: var(--etat-degrade); font-weight: 600; }
+.points-evalues .non-verifie, .points-evalues .mesure { color: var(--encre-2); }
+.courbe-notes { width: 100%; height: 48px; display: block; }
+.courbe-notes polyline { fill: none; stroke: #1E6CFF; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
 /* Téléphone (US-09 : « Mes interventions » du technicien) : navigation compacte en haut, le contenu reste au premier écran. */
 @media (max-width: 640px) {
   .admin { align-content: flex-start; } /* les lignes ne s'étirent pas sur la hauteur de l'écran */

@@ -84,10 +84,21 @@ else
 
     [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
 
+    // Préremplissage (évaluation « Critique », US-11) : zone, emplacement et constat proposés, modifiables avant envoi.
+    [SupplyParameterFromQuery(Name = "zone")] private Guid? ZoneProposee { get; set; }
+
+    [SupplyParameterFromQuery(Name = "emplacement")] private string? EmplacementPropose { get; set; }
+
+    [SupplyParameterFromQuery(Name = "description")] private string? DescriptionProposee { get; set; }
+
     // Le formulaire posté remplit Formulaire ; sans envoi, une nouvelle commande (un renvoi ne crée pas de second dossier).
     [SupplyParameterFromForm(Name = "Saisie", FormName = "declaration")] private SaisieDeclaration? Formulaire { get; set; }
 
-    private SaisieDeclaration Saisie => Formulaire ??= new() { CommandeId = Guid.NewGuid() };
+    private SaisieDeclaration Saisie => Formulaire ??= new()
+    {
+        CommandeId = Guid.NewGuid(), ZoneId = ZoneProposee, Emplacement = GestionSite.Web.Inventaire.Libelles.Tronquer(EmplacementPropose, 200),
+        Description = GestionSite.Web.Inventaire.Libelles.Tronquer(DescriptionProposee, 2000),
+    };
 
     private OrganisationApi? Organisation { get; set; }
 

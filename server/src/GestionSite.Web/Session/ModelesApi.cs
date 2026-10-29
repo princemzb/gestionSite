@@ -87,3 +87,31 @@ internal sealed record MonInterventionApi(
     DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, bool Prestataire);
 
 internal sealed record NumeroApi(int Numero);
+
+internal sealed record MesureGrilleApi(string Libelle, string Unite);
+
+internal sealed record GrilleApi(string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures);
+
+internal sealed record PointEvalueApi(string Texte, bool? Conforme);
+
+internal sealed record MesureEvalueeApi(string Libelle, string Unite, decimal? Valeur);
+
+internal sealed record EvaluationApi(
+    Guid Id, DateTimeOffset EvalueLe, Guid EvaluateurCompteId, string? Evaluateur, int GrilleVersion, string? Etat, RepartitionApi? Repartition,
+    decimal Note, string Libelle, IReadOnlyList<PointEvalueApi> Points, IReadOnlyList<MesureEvalueeApi> Mesures, string? Remarque, int Photos);
+
+internal sealed record EvaluationCreeeApi(Guid Id, decimal Note, string Libelle, bool ProposerDossier);
+
+internal sealed record CouvertureApi(int Evalues, int Actifs);
+
+internal sealed record PointHistoriqueApi(string Mois, decimal? Note, string? Libelle);
+
+internal sealed record CritiqueApi(Guid Id, string Nom, Guid ZoneId);
+
+internal sealed record ZoneNoteeApi(
+    Guid ZoneId, string Nom, Guid BatimentId, string Batiment, string? Niveau, bool PartiesCommunes, decimal? Note, string? Libelle,
+    CouvertureApi Couverture, int Anciennes, int AEvaluer, int Critiques, DateTimeOffset? PlusAncienne, IReadOnlyList<PointHistoriqueApi> Historique);
+
+internal sealed record ScoreApi(
+    decimal? Note, string? Libelle, CouvertureApi Couverture, decimal PartAncienne, IReadOnlyList<CritiqueApi> Critiques, IReadOnlyList<ZoneNoteeApi> Zones,
+    IReadOnlyList<PointHistoriqueApi> Historique);

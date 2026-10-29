@@ -1,0 +1,186 @@
+@page "/organisations/{OrganisationId:guid}/etat"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Inventaire
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="etat" />
+<main class="admin-contenu etat-site">
+<PageTitle>État du site · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Score is null)
+{
+    <div class="entete"><div><h1>État du site</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    var s = Score;
+    <div class="entete">
+        <div>
+            <h1>État du site · @SiteCourant.Nom</h1>
+            <p>Recalculé à chaque consultation depuis les évaluations datées.</p>
+        </div>
+        @if (Sites.Count > 1)
+        {
+            <nav class="onglets" aria-label="Site">
+                @foreach (var site in Sites)
+                {
+                    <a href="@($"/organisations/{OrganisationId}/etat?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                }
+            </nav>
+        }
+    </div>
+
+    <section class="carte resume-site" aria-label="Note du site">
+        <div class="note-site">
+            <span>État du site @SiteCourant.Nom</span>
+            @if (s.Note is { } note)
+            {
+                <strong class="valeur-note">@Libelles.Note(note)<span> /10</span></strong>
+                <span class="@($"etiquette-etat {Libelles.ClasseEtat(s.Libelle)}")">@Libelles.Etat(s.Libelle)</span>
+            }
+            else
+            {
+                <strong class="valeur-note vide">Non évalué</strong>
+                <span class="note">Évaluez les composants depuis l'inventaire : la note apparaît dès la première évaluation.</span>
+            }
+        </div>
+        <div class="indicateurs">
+            <div>
+                <span>Couverture</span>
+                <strong>@Libelles.Pourcentage(s.Couverture.Evalues, s.Couverture.Actifs)</strong>
+                <span>@s.Couverture.Evalues composant@(s.Couverture.Evalues > 1 ? "s" : "") évalué@(s.Couverture.Evalues > 1 ? "s" : "") sur @s.Couverture.Actifs</span>
+            </div>
+            <div>
+                <span>Fraîcheur</span>
+                <strong>@Math.Round(100 * s.PartAncienne, MidpointRounding.AwayFromZero) %</strong>
+                <span>de la note sur des évaluations de plus de 6 mois</span>
+            </div>
+            <div class="@(s.Critiques.Count > 0 ? "critique" : null)">
+                <span>Points critiques</span>
+                <strong>@s.Critiques.Count</strong>
+                <span>
+                    @if (s.Critiques.Count == 0)
+                    {
+                        @("Aucun composant en état critique")
+                    }
+                    @for (var i = 0; i < s.Critiques.Count; i++)
+                    {
+                        var critique = s.Critiques[i];
+                        @(i > 0 ? " · " : "")<a href="@Inventaire(("zone", critique.ZoneId.ToString()), ("composant", critique.Id.ToString()))">@critique.Nom</a>
+                    }
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <h2 class="titre-section">Par zone <span>· la moins bien notée d'abord</span></h2>
+    @if (s.Zones.Count == 0)
+    {
+        <p class="note">Aucune zone : décrivez le site dans l'inventaire.</p>
+    }
+    <div class="grille-zones">
+        @foreach (var z in s.Zones)
+        {
+            <a class="carte carte-zone" href="@Inventaire(("zone", z.ZoneId.ToString()))">
+                <span class="lieu">@Lieu(z)</span>
+                <strong>@z.Nom</strong>
+                @if (z.Note is { } noteZone)
+                {
+                    <span class="@($"note-zone {Libelles.ClasseEtat(z.Libelle)}")">@Libelles.Note(noteZone) <span>@Libelles.Etat(z.Libelle)</span></span>
+                    @* SVG : la politique de sécurité interdit les styles en ligne ; la longueur passe par la géométrie. *@
+                    <svg class="jauge" viewBox="0 0 10 1" preserveAspectRatio="none" aria-hidden="true">
+                        <rect class="fond" x="0" y="0" width="10" height="1" />
+                        <rect class="@Libelles.ClasseEtat(z.Libelle)" x="0" y="0" width="@noteZone.ToString(System.Globalization.CultureInfo.InvariantCulture)" height="1" />
+                    </svg>
+                }
+                else
+                {
+                    <span class="note-zone vide">Non évalué</span>
+                }
+                <span class="vide">@Detail(z)</span>
+            </a>
+        }
+    </div>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private ScoreApi? Score { get; set; }
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                Score = await Session.LireAsync<ScoreApi>($"/organizations/{OrganisationId}/sites/{site.Id}/inventory/score", CancellationToken.None);
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas l'état de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private string Inventaire(params (string Cle, string Valeur)[] parametres) =>
+        $"/organisations/{OrganisationId}/inventaire?site={SiteCourant?.Id}{string.Concat(parametres.Select(p => $"&{p.Cle}={Uri.EscapeDataString(p.Valeur)}"))}";
+
+    // « ÉGLISE · REZ-DE-CHAUSSÉE », « ÉGLISE · TOUT LE BÂTIMENT » pour les parties communes.
+    private static string Lieu(ZoneNoteeApi z) => string.Join(" · ", new[] { z.Batiment, z.PartiesCommunes ? "Tout le bâtiment" : z.Niveau }.Where(t => t is not null));
+
+    // « 6 composants · 75 % évalués · 1 ancienne · 1 critique ».
+    private static string Detail(ZoneNoteeApi z)
+    {
+        var actifs = z.Couverture.Actifs;
+        if (actifs == 0)
+        {
+            return "Aucun composant";
+        }
+
+        var morceaux = new List<string>
+        {
+            $"{actifs} composant{(actifs > 1 ? "s" : "")}",
+            z.Couverture.Evalues == 0 ? "aucun évalué" : $"{Libelles.Pourcentage(z.Couverture.Evalues, actifs)} évalués",
+        };
+        if (z.Anciennes > 0)
+        {
+            morceaux.Add($"{z.Anciennes} ancienne{(z.Anciennes > 1 ? "s" : "")}");
+        }
+
+        if (z.Critiques > 0)
+        {
+            morceaux.Add($"{z.Critiques} critique{(z.Critiques > 1 ? "s" : "")}");
+        }
+
+        return string.Join(" · ", morceaux);
+    }
+}
