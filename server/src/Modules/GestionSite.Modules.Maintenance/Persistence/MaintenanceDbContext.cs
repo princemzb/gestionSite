@@ -19,6 +19,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
 
     public DbSet<AlerteDanger> AlertesDanger => Set<AlerteDanger>();
 
+    public DbSet<PhotoSignalement> Photos => Set<PhotoSignalement>();
+
     // Lu à chaque requête par les filtres (paramètre EF) : sans organisation, aucune ligne.
     private Guid? OrganisationId => organisationCourante.Id;
 
@@ -64,7 +66,21 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PhotoSignalement>(photo =>
+        {
+            photo.ToTable("photos_signalement", table => table.HasCheckConstraint("ck_photos_signalement_rang", "rang BETWEEN 1 AND 3"));
+            photo.HasKey(p => p.Id);
+            photo.Property(p => p.Id).ValueGeneratedNever();
+            photo.Property(p => p.Cle).HasMaxLength(PhotoSignalement.CleMax);
+            photo.HasIndex(p => new { p.SignalementId, p.OrganisationId, p.Rang }).IsUnique();
+            photo.HasOne<Signalement>().WithMany()
+                .HasForeignKey(p => new { p.SignalementId, p.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Signalement>().HasQueryFilter(s => s.OrganisationId == OrganisationId);
+        modelBuilder.Entity<PhotoSignalement>().HasQueryFilter(p => p.OrganisationId == OrganisationId);
         modelBuilder.Entity<AlerteDanger>().HasQueryFilter(a => a.OrganisationId == OrganisationId);
     }
 

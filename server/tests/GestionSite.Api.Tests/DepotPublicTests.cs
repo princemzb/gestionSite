@@ -4,10 +4,12 @@ using System.Text.Json;
 using GestionSite.Modules.Identite;
 using GestionSite.Modules.Identite.Persistence;
 using GestionSite.SharedKernel;
+using ImageMagick;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace GestionSite.Api.Tests;
@@ -232,6 +234,84 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
         // Seconde barrière : le rôle de l'API ne voit rien sans organisation, seulement la sienne avec.
         Assert.Equal(0, await CompterCommeApplicationAsync(organisation: null));
         Assert.Equal(1, await CompterCommeApplicationAsync(_ouverte.OrganisationId));
+    }
+
+    [Fact]
+    public async Task PhotosAreStoredPrivatelyAsJpegWithoutMetadata()
+    {
+        using var formulaire = Formulaire(Demande(), Photo(MagickFormat.Jpeg, avecPosition: true), Photo(MagickFormat.Png));
+
+        using var reponse = await _client.PostAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), formulaire);
+        var cle = await CleAsync(rang: 1);
+        var stockee = await _api.Services.GetRequiredService<IStockageFichiers>().LireAsync(cle, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
+        Assert.Equal(2, await _database.CountAsync("SELECT count(*) FROM maintenance.photos_signalement"));
+        Assert.StartsWith($"organisations/{_ouverte.OrganisationId:D}/signalements/", cle, StringComparison.Ordinal);
+        Assert.Equal("image/jpeg", stockee!.Value.TypeContenu);
+        using var image = new MagickImage(stockee.Value.Contenu);
+        Assert.Null(image.GetExifProfile());
+    }
+
+    [Fact]
+    public async Task AReplayWithPhotosKeepsASingleReportAndItsPhotos()
+    {
+        var demande = Demande();
+
+        using var premier = await _client.PostAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Formulaire(demande, Photo(MagickFormat.Jpeg)));
+        using var rejeu = await _client.PostAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Formulaire(demande, Photo(MagickFormat.Jpeg)));
+
+        Assert.Equal(HttpStatusCode.OK, rejeu.StatusCode);
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements"));
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.photos_signalement"));
+    }
+
+    [Theory]
+    [InlineData(4, false)] // au-delà de 3
+    [InlineData(1, true)] // pas une image
+    public async Task RefusedPhotosLeaveNoReport(int nombre, bool fausse)
+    {
+        var photos = Enumerable.Range(0, nombre).Select(_ => fausse ? "<svg onload=alert(1)>"u8.ToArray() : Photo(MagickFormat.Jpeg)).ToArray();
+
+        using var reponse = await _client.PostAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Formulaire(Demande(), photos));
+        var probleme = await reponse.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, reponse.StatusCode);
+        Assert.Equal("photos", probleme.GetProperty("champ").GetString());
+        Assert.Equal(0, await _database.CountAsync("SELECT count(*) FROM maintenance.signalements"));
+    }
+
+    private static MultipartFormDataContent Formulaire(DemandeTest demande, params byte[][] photos)
+    {
+        var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };
+        foreach (var (photo, rang) in photos.Select((p, i) => (p, i + 1)))
+        {
+            formulaire.Add(new ByteArrayContent(photo), "photos", $"photo-{rang}.jpg");
+        }
+
+        return formulaire;
+    }
+
+    private static byte[] Photo(MagickFormat format, bool avecPosition = false)
+    {
+        using var image = new MagickImage(MagickColors.OrangeRed, 64, 48) { Format = format };
+        if (avecPosition)
+        {
+            var exif = new ExifProfile();
+            exif.SetValue(ExifTag.GPSLatitudeRef, "N");
+            image.SetProfile(exif);
+        }
+
+        return image.ToByteArray();
+    }
+
+    private async Task<string> CleAsync(int rang)
+    {
+        await using var connexion = new NpgsqlConnection(_database.ConnectionString);
+        await connexion.OpenAsync();
+        await using var commande = new NpgsqlCommand("SELECT cle FROM maintenance.photos_signalement WHERE rang = @rang", connexion);
+        commande.Parameters.AddWithValue("rang", rang);
+        return (string)(await commande.ExecuteScalarAsync())!;
     }
 
     private static async Task MigrerIdentiteAsync(TestDatabase base_, string? cible)

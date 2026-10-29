@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="EFCore.NamingConventions" />
+    <!-- Photos du dépôt public : lecture JPEG/PNG/HEIC, orientation, métadonnées retirées, réencodage JPEG. -->
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
   <ItemGroup>

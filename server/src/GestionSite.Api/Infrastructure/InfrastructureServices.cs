@@ -47,6 +47,7 @@ internal static class InfrastructureServices
             var storage = provider.GetRequiredService<IOptions<ObjectStorageOptions>>().Value;
             return ObjectStorageClientFactory.Create(storage.ServiceUrl, storage.AccessKey, storage.SecretKey, storage.Region);
         });
+        services.AddSingleton<IStockageFichiers, StockageFichiersS3>();
 
         services.AddOptions<MigrationOptions>()
             .Bind(configuration.GetSection(MigrationOptions.Section))

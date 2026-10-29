@@ -1,6 +1,7 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -20,15 +21,21 @@ internal sealed record AccuseDepot(string Site, bool Danger, string? NumeroUrgen
 internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant d'envoi a déjà servi pour un autre signalement.");
 
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
-internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPublics sites, TimeProvider horloge)
+internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
     /// <summary>L'accusé, ou null si le code de site est inconnu (404).</summary>
     /// <exception cref="SaisieInvalideException">Champ manquant ou invalide (422).</exception>
     /// <exception cref="CommandeReutiliseeException">Même commande, contenu différent (409).</exception>
-    internal async Task<AccuseDepot?> DeposerAsync(string code, DemandeDepot demande, CancellationToken cancellationToken)
+    internal async Task<AccuseDepot?> DeposerAsync(
+        string code, DemandeDepot demande, IReadOnlyList<PhotoRecue> photos, CancellationToken cancellationToken)
     {
+        if (photos.Count > TraitementPhotos.NombreMax)
+        {
+            throw new SaisieInvalideException("photos", "Trois photos au plus.");
+        }
+
         // Avant toute transaction : la recherche fixe l'organisation courante (filtres et RLS).
         if (await sites.OuvrirAsync(code, cancellationToken).ConfigureAwait(false) is not { } site)
         {
@@ -42,6 +49,17 @@ internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPub
         if (await DejaRecuAsync(signalement, cancellationToken).ConfigureAwait(false) is { } accuse)
         {
             return accuse;
+        }
+
+        // Photos traitées puis écrites avant l'enregistrement : clés dérivées de la commande, un échec de la
+        // base laisse au pire des fichiers sans signalement, réécrits à l'identique par le renvoi.
+        // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit.
+        var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
+        for (var rang = 1; rang <= jpegs.Count; rang++)
+        {
+            var enregistree = new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpegs[rang - 1].Length);
+            await stockage.EcrireAsync(enregistree.Cle, jpegs[rang - 1], TraitementPhotos.TypeContenu, cancellationToken).ConfigureAwait(false);
+            context.Photos.Add(enregistree);
         }
 
         context.Signalements.Add(signalement);

@@ -5,7 +5,10 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.302 AS construc
 WORKDIR /depot
 COPY global.json dotnet-tools.json ./
 COPY server/ server/
-RUN dotnet publish server/src/GestionSite.Api -c Release -o /sortie/api \
+# API publiée pour l'architecture cible seulement : bibliothèques natives d'ImageMagick (photos) de cette seule plateforme.
+ARG TARGETARCH
+RUN dotnet publish server/src/GestionSite.Api -c Release -o /sortie/api --self-contained false \
+      -r "linux-$([ "$TARGETARCH" = arm64 ] && echo arm64 || echo x64)" \
  && dotnet publish server/src/GestionSite.Web -c Release -o /sortie/web
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.14

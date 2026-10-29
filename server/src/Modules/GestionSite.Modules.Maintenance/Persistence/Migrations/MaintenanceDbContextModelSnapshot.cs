@@ -55,6 +55,51 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.ToTable("alertes_danger", "maintenance");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int>("Rang")
+                        .HasColumnType("integer")
+                        .HasColumnName("rang");
+
+                    b.Property<Guid>("SignalementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("signalement_id");
+
+                    b.Property<int>("Taille")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille");
+
+                    b.HasKey("Id")
+                        .HasName("pk_photos_signalement");
+
+                    b.HasIndex("SignalementId", "OrganisationId", "Rang")
+                        .IsUnique()
+                        .HasDatabaseName("ix_photos_signalement_signalement_id_organisation_id_rang");
+
+                    b.ToTable("photos_signalement", "maintenance", t =>
+                        {
+                            t.HasCheckConstraint("ck_photos_signalement_rang", "rang BETWEEN 1 AND 3");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.Signalement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -140,6 +185,17 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_alertes_danger_signalements_signalement_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.Signalement", null)
+                        .WithMany()
+                        .HasForeignKey("SignalementId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_photos_signalement_signalements_signalement_id_organisation");
                 });
 #pragma warning restore 612, 618
         }
