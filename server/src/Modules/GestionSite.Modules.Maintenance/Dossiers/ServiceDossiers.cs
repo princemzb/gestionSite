@@ -3,6 +3,7 @@ using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.Modules.Maintenance.Photos;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Persistence;
@@ -13,7 +14,7 @@ namespace GestionSite.Modules.Maintenance.Dossiers;
 
 internal sealed record DossierResume(
     Guid Id, string Titre, string Statut, string? Priorite, Guid? ZoneId, string? Zone, bool Danger, bool ActiviteBloquee, string Origine,
-    DateTimeOffset RecuLe);
+    DateTimeOffset RecuLe, DateTimeOffset? EcheancePriseEnCharge = null, DateTimeOffset? EcheanceResolution = null);
 
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
@@ -42,8 +43,8 @@ internal sealed class DossierModifieException() : Exception("Ce dossier vient d'
 /// Chaque décision est tracée au journal du dossier.
 /// </summary>
 internal sealed class ServiceDossiers(
-    MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IAnnuaireMembres annuaire, CompteCourant compte,
-    TimeProvider horloge)
+    MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IAnnuaireMembres annuaire, IStockageFichiers stockage,
+    CompteCourant compte, TimeProvider horloge)
 {
     internal const int Limite = 500;
     private const int TitreMax = 80;
@@ -114,7 +115,8 @@ internal sealed class ServiceDossiers(
     }
 
     /// <summary>Déclaration d'un compte interne du site (décision du 29/10) ; même commande rejouée : même dossier.</summary>
-    internal async Task<Guid> DeclarerAsync(Guid organisationId, Guid siteId, DemandeDeclaration demande, CancellationToken cancellationToken)
+    internal async Task<Guid> DeclarerAsync(
+        Guid organisationId, Guid siteId, DemandeDeclaration demande, IReadOnlyList<PhotoRecue> photos, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DeposerSignalement, cancellationToken).ConfigureAwait(false);
         var zoneId = demande.ZoneId ?? throw new SaisieInvalideException("zoneId", "Zone obligatoire.");
@@ -135,6 +137,12 @@ internal sealed class ServiceDossiers(
             return deja;
         }
 
+        // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier.
+        var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
+        var enregistrees = jpegs.Select((jpeg, i) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, i + 1, jpeg.Length)).ToList();
+        await Task.WhenAll(enregistrees.Select((photo, i) =>
+            stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
+        context.Photos.AddRange(enregistrees);
         context.Signalements.Add(dossier);
         if (dossier.Danger)
         {
@@ -254,7 +262,7 @@ internal sealed class ServiceDossiers(
             .ConfigureAwait(false);
         return [.. dossiers.Select(d => new DossierResume(
             d.Id, Titre(d), d.Statut.ToString(), d.Priorite?.ToString(), d.ZoneId, d.ZoneId is { } z ? zones.GetValueOrDefault(z) : null, d.Danger,
-            d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe))];
+            d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe, d.EcheancePriseEnCharge, d.EcheanceResolution))];
     }
 
     private Task<bool> ADesDoublonsAsync(Guid id, CancellationToken cancellationToken) =>

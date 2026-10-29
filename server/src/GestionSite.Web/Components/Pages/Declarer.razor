@@ -1,0 +1,186 @@
+@page "/organisations/{OrganisationId:guid}/dossiers/declarer"
+@layout AdminLayout
+@attribute [Authorize]
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
+<main class="admin-contenu">
+<PageTitle>Déclarer un problème · gestionSite</PageTitle>
+
+@if (SiteCourant is null)
+{
+    <div class="entete"><div><h1>Déclarer un problème</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <a href="@($"/organisations/{OrganisationId}/dossiers?site={SiteCourant.Id}")">← Dossiers</a>
+            <h1>Déclarer un problème · @SiteCourant.Nom</h1>
+            <p>Le dossier arrive « À qualifier » ; le responsable fixe sa priorité et l'affecte.</p>
+        </div>
+    </div>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+    @if (Structure.Count == 0)
+    {
+        <p class="alerte avertissement">Aucune zone n'est décrite pour ce site : l'inventaire doit d'abord comporter un bâtiment.</p>
+    }
+    else
+    {
+        <section class="carte formulaire-inventaire" aria-label="Déclaration">
+            <EditForm Model="Saisie" FormName="declaration" OnSubmit="DeclarerAsync" enctype="multipart/form-data" class="formulaire-inventaire">
+                <input type="hidden" name="Saisie.CommandeId" value="@Saisie.CommandeId" />
+                <div class="grille-champs">
+                    <label class="champ">Zone
+                        <InputSelect @bind-Value="Saisie.ZoneId" required>
+                            <option value="">Choisir…</option>
+                            @foreach (var b in Structure)
+                            {
+                                <optgroup label="@b.Nom">
+                                    @foreach (var z in b.Zones)
+                                    {
+                                        <option value="@z.Id">@(b.Niveaux.FirstOrDefault(n => n.Id == z.NiveauId) is { } niveau ? $"{z.Nom} ({niveau.Nom})" : z.Nom)</option>
+                                    }
+                                </optgroup>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label class="champ">Type
+                        <InputSelect @bind-Value="Saisie.Nature">
+                            <option value="Incident">Quelque chose est abîmé (incident)</option>
+                            <option value="Demande">J'ai besoin de quelque chose (demande)</option>
+                        </InputSelect>
+                    </label>
+                    <label class="champ">Emplacement précis <span class="aide">(facultatif)</span>
+                        <InputText @bind-Value="Saisie.Emplacement" maxlength="200" placeholder="Près de l'armoire, côté nef…" />
+                    </label>
+                </div>
+                <label class="champ">Description
+                    <InputTextArea @bind-Value="Saisie.Description" rows="4" maxlength="2000" required />
+                </label>
+                <label class="case"><InputCheckbox @bind-Value="Saisie.Danger" /> Il y a un danger (personnes ou bâtiment)</label>
+                <label class="case"><InputCheckbox @bind-Value="Saisie.ActiviteBloquee" /> Une activité est bloquée</label>
+                <label class="champ">Photos <span class="aide">(3 au plus, 10 Mo chacune)</span>
+                    <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" multiple />
+                </label>
+                <div class="actions">
+                    <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/dossiers?site={SiteCourant.Id}")">Annuler</a>
+                    <button type="submit" class="bouton-principal">Déclarer</button>
+                </div>
+            </EditForm>
+        </section>
+    }
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    // Le formulaire posté remplit Formulaire ; sans envoi, une nouvelle commande (un renvoi ne crée pas de second dossier).
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "declaration")] private SaisieDeclaration? Formulaire { get; set; }
+
+    private SaisieDeclaration Saisie => Formulaire ??= new() { CommandeId = Guid.NewGuid() };
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<BatimentApi> Structure { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            var sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = sites.FirstOrDefault(s => s.Id == SiteDemande) ?? sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                Structure = await Session.LireAsync<List<BatimentApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/inventory/structure", CancellationToken.None);
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task DeclarerAsync()
+    {
+        if (SiteCourant is null || Contexte is null)
+        {
+            return;
+        }
+
+        Guid id;
+        try
+        {
+            var photos = Contexte.Request.Form.Files.GetFiles("photos");
+            var cree = await Session.EnvoyerFormulaireAsync<CreeApi>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/cases", new
+            {
+                commandeId = Saisie.CommandeId,
+                zoneId = Saisie.ZoneId,
+                nature = Saisie.Nature,
+                emplacement = Saisie.Emplacement,
+                description = Saisie.Description,
+                danger = Saisie.Danger,
+                activiteBloquee = Saisie.ActiviteBloquee,
+            }, photos, CancellationToken.None);
+            id = cree!.Id;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Champ switch
+            {
+                "zoneId" => "Choisissez une zone du site.",
+                "description" => "Décrivez le problème (texte visible, 2000 caractères au plus).",
+                "emplacement" => "Emplacement : une ligne visible de 200 caractères au plus.",
+                "photos" => "Photos : 3 au plus, de 10 Mo chacune, au format JPEG, PNG ou HEIC.",
+                _ => refus.Statut == HttpStatusCode.Forbidden ? "Vous ne déclarez pas sur ce site." : "Service momentanément indisponible : réessayez dans un instant.",
+            };
+            return;
+        }
+
+        Navigation.NavigateTo($"/organisations/{OrganisationId}/dossiers/{id}?site={SiteCourant.Id}");
+    }
+
+    private sealed class SaisieDeclaration
+    {
+        public Guid CommandeId { get; set; }
+
+        public Guid? ZoneId { get; set; }
+
+        public string Nature { get; set; } = "Incident";
+
+        public string? Emplacement { get; set; }
+
+        public string? Description { get; set; }
+
+        public bool Danger { get; set; }
+
+        public bool ActiviteBloquee { get; set; }
+    }
+}

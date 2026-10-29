@@ -1,0 +1,692 @@
+@page "/organisations/{OrganisationId:guid}/dossiers/{DossierId:guid}"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Text.Json
+@using GestionSite.Web.Dossiers
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject TimeProvider Horloge
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
+<main class="admin-contenu">
+<PageTitle>Dossier · gestionSite</PageTitle>
+
+@if (Dossier is not { } d || SiteCourant is null)
+{
+    <div class="entete"><div><h1>Dossier</h1></div></div>
+    <p role="alert" class="alerte danger">@(Message ?? "Ce dossier n'existe pas sur vos sites.")</p>
+}
+else
+{
+    <a href="@($"/organisations/{OrganisationId}/dossiers?site={SiteCourant.Id}")">← Dossiers</a>
+    <section class="carte fiche-dossier">
+        <div class="entete-dossier">
+            <div>
+                <h1>@d.Titre</h1>
+                <p class="vide">@(d.Lieu is { } lieu ? $"{lieu.Batiment} · {lieu.Zone}" : d.Emplacement)@(d.Lieu?.Composant is { } c ? $" · {c}" : "") · @LibellesDossiers.Priorite(d.Priorite) · reçu le @Perimetre.Date(d.RecuLe)</p>
+                @if (d.Danger)
+                {
+                    <span class="etiquette danger">Danger signalé</span>
+                }
+                @if (d.ActiviteBloquee)
+                {
+                    <span class="etiquette priorite-haute">Activité bloquée</span>
+                }
+            </div>
+            <div class="delai-dossier">
+                @if (d.EcheancePriseEnCharge is { } priseEnCharge)
+                {
+                    <span>Prise en charge</span><strong class="@(priseEnCharge < Maintenant ? "depasse" : null)">@LibellesDossiers.Restant(priseEnCharge, Maintenant)</strong>
+                }
+                else if (d.EcheanceResolution is { } resolution)
+                {
+                    <span>Résolution</span><strong class="@(resolution < Maintenant ? "depasse" : null)">@LibellesDossiers.Restant(resolution, Maintenant)</strong>
+                }
+                else if (d.Statut == "EnAttente")
+                {
+                    <span>Délai suspendu</span><strong>@(d.ReexamenLe is { } r ? $"réexamen le {LibellesDossiers.Date(r)}" : "en attente")</strong>
+                }
+                else
+                {
+                    <span>Statut</span><strong>@LibellesDossiers.Statut(d.Statut)</strong>
+                }
+            </div>
+        </div>
+
+        @if (d.Statut is "ClasseSansSuite" or "RattacheDoublon")
+        {
+            <p class="alerte avertissement">@LibellesDossiers.Statut(d.Statut)@(d.MotifClassement is { } m ? $" : {LibellesDossiers.Libelle(LibellesDossiers.MotifsClassement, m)}" : "")@(d.CommentaireClassement is { } com ? $" — {com}" : "")</p>
+        }
+        else
+        {
+            <ol class="etapes" aria-label="Avancement">
+                @foreach (var (valeur, libelle) in LibellesDossiers.Etapes)
+                {
+                    var rang = Rang(valeur);
+                    <li class="@(rang < RangCourant ? "faite" : null)" aria-current="@(rang == RangCourant ? "step" : null)">@(rang < RangCourant ? "✓ " : "")@libelle@(valeur == "EnCours" && d.Statut == "EnAttente" ? " (en attente)" : "")</li>
+                }
+            </ol>
+        }
+
+        @if (Issue is { } issue && issue != "ok")
+        {
+            <p role="alert" class="alerte danger">@MessageIssue(issue)</p>
+        }
+        @if (Message is not null)
+        {
+            <p role="alert" class="alerte danger">@Message</p>
+        }
+
+        <nav class="onglets-dossier" aria-label="Sections du dossier">
+            @foreach (var (valeur, libelle) in Onglets)
+            {
+                <a href="@Url(valeur)" aria-current="@(valeur == Onglet ? "page" : null)">@libelle@(valeur == "interventions" ? $" ({d.Interventions.Count})" : "")</a>
+            }
+        </nav>
+
+        @if (Onglet == "constat")
+        {
+            <p class="texte-libre">@d.Description</p>
+            <p class="vide">Emplacement indiqué : @d.Emplacement</p>
+            @if (d.Photos.Count > 0)
+            {
+                <div class="photos">
+                    @foreach (var rang in d.Photos)
+                    {
+                        <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/depots/{d.Id}/photos/{rang}")" alt="@($"Photo {rang} du constat")" loading="lazy" />
+                    }
+                </div>
+            }
+            @if (d.Doublons.Count > 0)
+            {
+                <p class="note">Doublons rattachés : @string.Join(", ", d.Doublons.Select(x => x.Titre))</p>
+            }
+
+            @if (PeutQualifier && d.Statut is "AQualifier" or "Affecte" or "EnCours" or "EnAttente")
+            {
+                <EditForm Model="Qualification" FormName="qualification" OnSubmit="QualifierAsync" class="formulaire-inventaire panneau-action">
+                    <h2>@(d.Priorite is null ? "Qualifier" : "Modifier la qualification")</h2>
+                    <input type="hidden" name="Qualification.Version" value="@d.Version" />
+                    <fieldset class="priorites">
+                        <legend>Priorité <span class="aide">(prise en charge · résolution)</span></legend>
+                        @foreach (var (valeur, libelle, delais) in LibellesDossiers.Priorites)
+                        {
+                            <label class="@($"choix-priorite {LibellesDossiers.ClassePriorite(valeur)}")"><input type="radio" name="Qualification.Priorite" value="@valeur" checked="@(Qualification.Priorite == valeur)" required /> <strong>@libelle</strong> <span>@delais</span></label>
+                        }
+                    </fieldset>
+                    <div class="grille-champs">
+                        <label class="champ">Zone
+                            <InputSelect @bind-Value="Qualification.ZoneId" required>
+                                <option value="">Choisir…</option>
+                                @foreach (var b in Structure)
+                                {
+                                    <optgroup label="@b.Nom">
+                                        @foreach (var z in b.Zones)
+                                        {
+                                            <option value="@z.Id">@z.Nom</option>
+                                        }
+                                    </optgroup>
+                                }
+                            </InputSelect>
+                        </label>
+                        <label class="champ">Composant <span class="aide">(facultatif, de la zone choisie)</span>
+                            <InputSelect @bind-Value="Qualification.ComposantId">
+                                <option value="">Aucun</option>
+                                @foreach (var groupe in Composants.GroupBy(c => c.ZoneId))
+                                {
+                                    <optgroup label="@NomZone(groupe.Key)">
+                                        @foreach (var c in groupe)
+                                        {
+                                            <option value="@c.Id">@c.Nom</option>
+                                        }
+                                    </optgroup>
+                                }
+                            </InputSelect>
+                        </label>
+                    </div>
+                    <div class="actions"><button type="submit" class="bouton-principal">Enregistrer la qualification</button></div>
+                </EditForm>
+
+                @if (d.Statut == "AQualifier")
+                {
+                    @if (d.Suggestions.Count > 0)
+                    {
+                        <section class="panneau-action">
+                            <h2>Doublons possibles</h2>
+                            @foreach (var suggestion in d.Suggestions)
+                            {
+                                <form method="post" action="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/dossiers/{d.Id}/rattacher")" class="ligne-suggestion">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="version" value="@d.Version" />
+                                    <input type="hidden" name="principalId" value="@suggestion.Id" />
+                                    <span><strong>@suggestion.Titre</strong> <span class="vide">· @(suggestion.Zone ?? "—") · reçu le @Perimetre.Date(suggestion.RecuLe)</span></span>
+                                    <button type="submit" class="bouton-secondaire">Rattacher à ce dossier</button>
+                                </form>
+                            }
+                        </section>
+                    }
+                    <EditForm Model="Classement" FormName="classement" OnSubmit="ClasserAsync" class="formulaire-inventaire panneau-action">
+                        <h2>Classer sans suite</h2>
+                        <input type="hidden" name="Classement.Version" value="@d.Version" />
+                        <div class="grille-champs">
+                            <label class="champ">Motif
+                                <InputSelect @bind-Value="Classement.Motif" required>
+                                    <option value="">Choisir…</option>
+                                    @foreach (var (valeur, libelle) in LibellesDossiers.MotifsClassement)
+                                    {
+                                        <option value="@valeur">@libelle</option>
+                                    }
+                                </InputSelect>
+                            </label>
+                            <label class="champ">Commentaire <span class="aide">(obligatoire pour « Autre »)</span>
+                                <InputText @bind-Value="Classement.Commentaire" maxlength="500" />
+                            </label>
+                        </div>
+                        <div class="actions"><button type="submit" class="bouton-danger">Classer sans suite</button></div>
+                    </EditForm>
+                }
+            }
+        }
+        else if (Onglet == "interventions")
+        {
+            @if (d.Interventions.Count == 0)
+            {
+                <p class="vide">Aucune intervention pour l'instant.</p>
+            }
+            <div class="grille-interventions">
+                @foreach (var i in d.Interventions)
+                {
+                    var enCharge = (i.IntervenantCompteId ?? i.ReferentCompteId) == CompteId;
+                    var peutAgir = enCharge || PeutQualifier;
+                    <article class="@($"carte-intervention{(i.Statut == "EnCours" ? " active" : "")}")">
+                        <span class="statut-intervention">@LibellesDossiers.StatutIntervention(i.Statut)@(i.EtatFinal is { } ef ? $" · {LibellesDossiers.Libelle(LibellesDossiers.EtatsFinaux, ef)}" : "")</span>
+                        <strong>@i.Numero · @i.Titre</strong>
+                        <span class="vide">@(i.Prestataire is { } p ? $"{p} (prestataire) · suivi par {i.Referent}" : i.Intervenant)</span>
+                        @if (i.Statut == "EnAttente")
+                        {
+                            <span class="vide">@LibellesDossiers.Libelle(LibellesDossiers.MotifsAttente, i.MotifAttente)@(i.ReexamenLe is { } re ? $" · réexamen le {LibellesDossiers.Date(re)}" : "")@(i.CommentaireAttente is { } ca ? $" · {ca}" : "")</span>
+                        }
+                        @if (i.Actions is { } actions)
+                        {
+                            <p class="texte-libre">@actions</p>
+                        }
+                        @if (i.Photos.Count > 0)
+                        {
+                            <div class="photos">
+                                @foreach (var rang in i.Photos)
+                                {
+                                    <img src="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/dossiers/{d.Id}/interventions/{i.Numero}/photos/{rang}")" alt="@($"Photo {rang} après intervention")" loading="lazy" />
+                                }
+                            </div>
+                        }
+                        @if (peutAgir && PeutDocumenter)
+                        {
+                            <div class="actions debut">
+                                @if (i.Statut == "Affectee")
+                                {
+                                    <form method="post" action="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/dossiers/{d.Id}/interventions/{i.Numero}/demarrer")">
+                                        <AntiforgeryToken />
+                                        <input type="hidden" name="version" value="@d.Version" />
+                                        <button type="submit" class="bouton-principal">Démarrer</button>
+                                    </form>
+                                }
+                                else if (i.Statut == "EnCours")
+                                {
+                                    <a class="bouton-secondaire bouton-lien" href="@Url("interventions", ("action", "attente"), ("intervention", i.Numero.ToString(Francais)))">Mettre en attente</a>
+                                    <a class="bouton-principal bouton-lien" href="@Url("interventions", ("action", "cloture"), ("intervention", i.Numero.ToString(Francais)))">Clôturer</a>
+                                }
+                                else if (i.Statut == "EnAttente")
+                                {
+                                    <form method="post" action="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/dossiers/{d.Id}/interventions/{i.Numero}/reprendre")">
+                                        <AntiforgeryToken />
+                                        <input type="hidden" name="version" value="@d.Version" />
+                                        <button type="submit" class="bouton-principal">Reprendre</button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
+
+            @if (InterventionChoisie is { } choisie && Action == "attente" && choisie.Statut == "EnCours")
+            {
+                <EditForm Model="Attente" FormName="attente" OnSubmit="AttendreAsync" class="formulaire-inventaire panneau-action">
+                    <h2>Mettre en attente · @choisie.Titre</h2>
+                    <input type="hidden" name="Attente.Version" value="@d.Version" />
+                    <input type="hidden" name="Attente.Numero" value="@choisie.Numero" />
+                    <div class="grille-champs">
+                        <label class="champ">Motif
+                            <InputSelect @bind-Value="Attente.Motif" required>
+                                <option value="">Choisir…</option>
+                                @foreach (var (valeur, libelle) in LibellesDossiers.MotifsAttente)
+                                {
+                                    <option value="@valeur">@libelle</option>
+                                }
+                            </InputSelect>
+                        </label>
+                        <label class="champ">Réexamen le
+                            <InputDate @bind-Value="Attente.ReexamenLe" required />
+                        </label>
+                        <label class="champ">Commentaire <span class="aide">(obligatoire pour « Autre »)</span>
+                            <InputText @bind-Value="Attente.Commentaire" maxlength="500" />
+                        </label>
+                    </div>
+                    <p class="note">Le délai de résolution est suspendu pendant l'attente ; l'ancienneté du dossier reste affichée.</p>
+                    <div class="actions"><a class="bouton-secondaire bouton-lien" href="@Url("interventions")">Annuler</a><button type="submit" class="bouton-principal">Mettre en attente</button></div>
+                </EditForm>
+            }
+            else if (InterventionChoisie is { } aClore && Action == "cloture" && aClore.Statut == "EnCours")
+            {
+                <EditForm Model="Cloture" FormName="cloture" OnSubmit="CloturerAsync" enctype="multipart/form-data" class="formulaire-inventaire panneau-action">
+                    <h2>Clôturer · @aClore.Titre</h2>
+                    <input type="hidden" name="Cloture.Version" value="@d.Version" />
+                    <input type="hidden" name="Cloture.Numero" value="@aClore.Numero" />
+                    <label class="champ">Actions réalisées
+                        <InputTextArea @bind-Value="Cloture.Actions" rows="4" maxlength="2000" required />
+                    </label>
+                    <fieldset class="etats-finaux">
+                        <legend>État final</legend>
+                        @foreach (var (valeur, libelle) in LibellesDossiers.EtatsFinaux)
+                        {
+                            <label class="case-ligne"><input type="radio" name="Cloture.EtatFinal" value="@valeur" checked="@(Cloture.EtatFinal == valeur)" required /> @libelle</label>
+                        }
+                    </fieldset>
+                    <label class="champ">Photo après intervention
+                        @if (aClore.PhotoExigee)
+                        {
+                            <span class="etiquette verification">obligatoire pour ce corps d'état</span>
+                        }
+                        <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" multiple />
+                    </label>
+                    @if (d.Interventions.Count(x => x.Statut != "Cloturee") == 1)
+                    {
+                        <p class="note encadre">C'est la dernière intervention ouverte : le dossier sera clôturé. Le responsable peut le rouvrir avec un motif.</p>
+                    }
+                    <div class="actions"><a class="bouton-secondaire bouton-lien" href="@Url("interventions")">Annuler</a><button type="submit" class="bouton-principal">Clôturer</button></div>
+                </EditForm>
+            }
+
+            @if (PeutQualifier && d.Priorite is not null && d.Statut is "AQualifier" or "Affecte" or "EnCours" or "EnAttente")
+            {
+                <EditForm Model="Affectation" FormName="affectation" OnSubmit="AffecterAsync" class="formulaire-inventaire panneau-action">
+                    <h2>Ajouter une intervention</h2>
+                    <input type="hidden" name="Affectation.Version" value="@d.Version" />
+                    <label class="champ">Intitulé
+                        <InputText @bind-Value="Affectation.Titre" required maxlength="120" placeholder="Remplacer la batterie du bloc, réparer la gouttière…" />
+                    </label>
+                    <div class="grille-champs">
+                        <label class="champ">Technicien du site
+                            <InputSelect @bind-Value="Affectation.IntervenantCompteId">
+                                <option value="">— ou un prestataire ci-contre —</option>
+                                @foreach (var m in Intervenants.Where(m => m.Roles.Contains("Technicien")))
+                                {
+                                    <option value="@m.CompteId">@m.Nom</option>
+                                }
+                            </InputSelect>
+                        </label>
+                        <label class="champ">Prestataire extérieur
+                            <InputText @bind-Value="Affectation.Prestataire" maxlength="120" placeholder="Entreprise" />
+                        </label>
+                        <label class="champ">Référent interne du prestataire
+                            <InputSelect @bind-Value="Affectation.ReferentCompteId">
+                                <option value="">Choisir…</option>
+                                @foreach (var m in Intervenants)
+                                {
+                                    <option value="@m.CompteId">@m.Nom</option>
+                                }
+                            </InputSelect>
+                        </label>
+                    </div>
+                    <div class="actions"><button type="submit" class="bouton-principal">Affecter</button></div>
+                </EditForm>
+            }
+            else if (PeutQualifier && d.Priorite is null && d.Statut == "AQualifier")
+            {
+                <p class="note encadre">Qualifiez le dossier (priorité et zone, onglet Constat) avant de l'affecter.</p>
+            }
+        }
+        else if (Onglet == "historique")
+        {
+            <ol class="historique">
+                @foreach (var e in d.Historique)
+                {
+                    <li><strong>@Perimetre.Date(e.Le, avecHeure: true) · @(e.AuteurCompteId is null ? (e.Nature == "Declaration" && d.Origine == "Public" ? "Déclarant public" : "Opération automatique") : e.Auteur ?? "Compte inconnu")</strong><br /><span>@LibellesDossiers.Nature(e.Nature)@Detail(e)</span></li>
+                }
+            </ol>
+        }
+        else
+        {
+            <dl class="declarant">
+                <dt>Déclarant</dt><dd>@d.NomDeclarant@(d.Origine == "Interne" ? " (compte interne)" : "")</dd>
+                <dt>Contact</dt><dd>@(d.ContactDeclarant is { } contact ? contact : "Joignable dans l'application") @(d.Origine == "Public" ? "(non vérifié)" : "")</dd>
+                <dt>Reçu le</dt><dd>@Perimetre.Date(d.RecuLe, avecHeure: true)</dd>
+            </dl>
+        }
+
+        @if (PeutRouvrir && d.Statut is "Cloture" or "ClasseSansSuite")
+        {
+            <EditForm Model="Reouverture" FormName="reouverture" OnSubmit="RouvrirAsync" class="formulaire-inventaire panneau-action">
+                <h2>Rouvrir le dossier</h2>
+                <input type="hidden" name="Reouverture.Version" value="@d.Version" />
+                <label class="champ">Motif
+                    <InputText @bind-Value="Reouverture.Motif" required maxlength="500" placeholder="La fuite est revenue…" />
+                </label>
+                <div class="actions"><button type="submit" class="bouton-secondaire">Rouvrir</button></div>
+            </EditForm>
+        }
+    </section>
+}
+</main>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Francais = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+
+    private static readonly (string Code, string Libelle)[] Onglets =
+        [("constat", "Constat"), ("interventions", "Interventions"), ("historique", "Historique"), ("declarant", "Déclarant")];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [Parameter] public Guid DossierId { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "onglet")] private string? OngletDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "action")] private string? Action { get; set; }
+
+    [SupplyParameterFromQuery(Name = "intervention")] private int? NumeroDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "issue")] private string? Issue { get; set; }
+
+    [SupplyParameterFromForm(Name = "Qualification", FormName = "qualification")] private SaisieQualification? FormulaireQualification { get; set; }
+
+    [SupplyParameterFromForm(Name = "Classement", FormName = "classement")] private SaisieClassement? FormulaireClassement { get; set; }
+
+    [SupplyParameterFromForm(Name = "Affectation", FormName = "affectation")] private SaisieAffectation? FormulaireAffectation { get; set; }
+
+    [SupplyParameterFromForm(Name = "Attente", FormName = "attente")] private SaisieAttente? FormulaireAttente { get; set; }
+
+    [SupplyParameterFromForm(Name = "Cloture", FormName = "cloture")] private SaisieCloture? FormulaireCloture { get; set; }
+
+    [SupplyParameterFromForm(Name = "Reouverture", FormName = "reouverture")] private SaisieReouverture? FormulaireReouverture { get; set; }
+
+    private SaisieQualification Qualification => FormulaireQualification ??= new()
+    {
+        Priorite = Dossier?.Priorite, ZoneId = Dossier?.Lieu?.ZoneId, ComposantId = Dossier?.Lieu?.ComposantId,
+    };
+
+    private SaisieClassement Classement => FormulaireClassement ??= new();
+
+    private SaisieAffectation Affectation => FormulaireAffectation ??= new();
+
+    private SaisieAttente Attente => FormulaireAttente ??= new() { ReexamenLe = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) };
+
+    private SaisieCloture Cloture => FormulaireCloture ??= new();
+
+    private SaisieReouverture Reouverture => FormulaireReouverture ??= new();
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private Guid CompteId { get; set; }
+
+    private DossierApi? Dossier { get; set; }
+
+    private IReadOnlyList<BatimentApi> Structure { get; set; } = [];
+
+    private IReadOnlyList<ComposantApi> Composants { get; set; } = [];
+
+    private IReadOnlyList<IntervenantApi> Intervenants { get; set; } = [];
+
+    private bool PeutQualifier { get; set; }
+
+    private bool PeutRouvrir => PeutQualifier;
+
+    private bool PeutDocumenter { get; set; }
+
+    private string? Message { get; set; }
+
+    private DateTimeOffset Maintenant => Horloge.GetUtcNow();
+
+    private string Onglet => Onglets.Any(o => o.Code == OngletDemande) ? OngletDemande! : Action is "attente" or "cloture" ? "interventions" : "constat";
+
+    private InterventionApi? InterventionChoisie => Dossier?.Interventions.FirstOrDefault(i => i.Numero == (FormulaireAttente?.Numero ?? FormulaireCloture?.Numero ?? NumeroDemande));
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/cases/{DossierId}";
+
+    // Étape atteinte dans la barre d'avancement : déclaré, qualifié, affecté, en cours, clôturé.
+    private int RangCourant => Dossier switch
+    {
+        { Statut: "Cloture" } => 4,
+        { Statut: "EnCours" or "EnAttente" } => 3,
+        { Statut: "Affecte" } => 2,
+        { Priorite: not null } => 1,
+        _ => 0,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            CompteId = moi.CompteId;
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            var sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = sites.FirstOrDefault(s => s.Id == SiteDemande) ?? sites.FirstOrDefault();
+            if (SiteCourant is not { } site)
+            {
+                return;
+            }
+
+            var roles = Organisation!.Roles.Where(r => r.SiteId == site.Id).Select(r => r.Role).ToHashSet();
+            PeutQualifier = roles.Contains("Responsable") || roles.Contains("Delegue");
+            PeutDocumenter = PeutQualifier || roles.Contains("Technicien");
+            // Aussi lors d'un envoi : Blazor n'accepte un formulaire que s'il figure dans la page rendue.
+            await ChargerAsync();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Ce dossier n'existe pas sur vos sites.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task ChargerAsync()
+    {
+        Dossier = await Session.LireAsync<DossierApi>(Base, CancellationToken.None);
+        if (PeutQualifier && Dossier.Statut is "AQualifier" or "Affecte" or "EnCours" or "EnAttente")
+        {
+            var inventaire = $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/inventory";
+            Structure = await Session.LireAsync<List<BatimentApi>>($"{inventaire}/structure", CancellationToken.None);
+            Composants = (await Session.LireAsync<ListeComposantsApi>($"{inventaire}/components", CancellationToken.None)).Composants;
+            Intervenants = await Session.LireAsync<List<IntervenantApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/cases/assignees", CancellationToken.None);
+        }
+    }
+
+    private Task QualifierAsync() => EcrireAsync("constat", () => Session.ExecuterAsync($"{Base}/qualify",
+        new { priorite = Qualification.Priorite, zoneId = Qualification.ZoneId, composantId = Qualification.ComposantId, version = Qualification.Version }, CancellationToken.None));
+
+    private Task ClasserAsync() => EcrireAsync("constat", () => Session.ExecuterAsync($"{Base}/dismiss",
+        new { motif = Classement.Motif, commentaire = Classement.Commentaire, version = Classement.Version }, CancellationToken.None));
+
+    private Task AffecterAsync() => EcrireAsync("interventions", () => Session.EcrireAsync<NumeroApi>($"{Base}/interventions", new
+    {
+        titre = Affectation.Titre,
+        intervenantCompteId = Affectation.IntervenantCompteId,
+        prestataire = string.IsNullOrWhiteSpace(Affectation.Prestataire) ? null : Affectation.Prestataire,
+        referentCompteId = string.IsNullOrWhiteSpace(Affectation.Prestataire) ? null : Affectation.ReferentCompteId,
+        version = Affectation.Version,
+    }, CancellationToken.None));
+
+    private Task AttendreAsync() => EcrireAsync("interventions", () => Session.ExecuterAsync($"{Base}/interventions/{Attente.Numero}/hold",
+        new { motif = Attente.Motif, commentaire = Attente.Commentaire, reexamenLe = Attente.ReexamenLe, version = Attente.Version }, CancellationToken.None));
+
+    private Task CloturerAsync() => EcrireAsync("interventions", () => Session.EnvoyerFormulaireAsync<object>($"{Base}/interventions/{Cloture.Numero}/close",
+        new { actions = Cloture.Actions, etatFinal = Cloture.EtatFinal, version = Cloture.Version },
+        Contexte?.Request.Form.Files.GetFiles("photos") ?? [], CancellationToken.None));
+
+    private Task RouvrirAsync() => EcrireAsync("constat", () => Session.ExecuterAsync($"{Base}/reopen",
+        new { motif = Reouverture.Motif, version = Reouverture.Version }, CancellationToken.None));
+
+    // Succès : retour à la fiche (rechargement GET). Refus : saisie conservée, message selon le champ ou le code.
+    private async Task EcrireAsync(string onglet, Func<Task> ecriture)
+    {
+        try
+        {
+            await ecriture();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Champ is { } champ ? MessageChamp(champ) : MessageIssue(refus.Code ?? (refus.Statut == HttpStatusCode.Forbidden ? "interdit" : "indisponible"));
+            return;
+        }
+
+        Navigation.NavigateTo(Url(onglet));
+    }
+
+    private static string MessageChamp(string champ) => champ switch
+    {
+        "priorite" => "Choisissez une priorité.",
+        "zoneId" => "Choisissez une zone du site.",
+        "composantId" => "Le composant doit être un composant actif de la zone choisie.",
+        "motif" => "Choisissez un motif.",
+        "commentaire" => "Commentaire obligatoire pour le motif « Autre » (500 caractères au plus).",
+        "titre" => "Donnez un intitulé à l'intervention (120 caractères au plus).",
+        "intervenantCompteId" => "Choisissez un technicien du site, ou un prestataire et son référent.",
+        "referentCompteId" => "Un prestataire est suivi par un référent interne du site.",
+        "prestataire" => "Nom du prestataire : une ligne visible de 120 caractères au plus.",
+        "reexamenLe" => "Date de réexamen entre aujourd'hui et un an.",
+        "actions" => "Décrivez les actions réalisées (2000 caractères au plus).",
+        "etatFinal" => "Choisissez l'état final.",
+        "photos" => "Photo obligatoire pour ce corps d'état (3 au plus, 10 Mo chacune, JPEG, PNG ou HEIC).",
+        "principalId" => "Choisissez un autre dossier ouvert du site.",
+        _ => "Saisie refusée : vérifiez le formulaire.",
+    };
+
+    private static string MessageIssue(string code) => code switch
+    {
+        "modifie_entre_temps" => "Quelqu'un d'autre vient de modifier ce dossier : la fiche est rechargée, recommencez.",
+        "statut_incompatible" => "Cette action n'est plus possible dans l'état actuel du dossier.",
+        "non_qualifie" => "Qualifiez le dossier (priorité et zone) avant de l'affecter.",
+        "doublons_rattaches" => "Ce dossier porte des doublons : traitez-le comme dossier principal.",
+        "interdit" => "Vous n'avez pas le droit de faire cette action.",
+        _ => "Service momentanément indisponible : réessayez dans un instant.",
+    };
+
+    private string Url(string onglet, params (string Cle, string Valeur)[] extra) =>
+        $"/organisations/{OrganisationId}/dossiers/{DossierId}?site={SiteCourant?.Id}&onglet={onglet}{string.Concat(extra.Select(e => $"&{e.Cle}={Uri.EscapeDataString(e.Valeur)}"))}";
+
+    private static int Rang(string etape) => Array.FindIndex(LibellesDossiers.Etapes, e => e.Code == etape);
+
+    private string NomZone(Guid zoneId) =>
+        Structure.SelectMany(b => b.Zones.Select(z => (b, z))).FirstOrDefault(x => x.z.Id == zoneId) is { b: not null } trouve
+            ? $"{trouve.b.Nom} · {trouve.z.Nom}"
+            : "Zone";
+
+    // Détail lisible d'un événement du journal (priorité, motif, intervention…).
+    private static string Detail(EvenementDossierApi e)
+    {
+        if (e.Detail is not { ValueKind: JsonValueKind.Object } detail)
+        {
+            return string.Empty;
+        }
+
+        string? Texte(string nom) => detail.TryGetProperty(nom, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+        var morceaux = new[]
+        {
+            Texte("priorite") is { } p ? $"priorité {LibellesDossiers.Priorite(p).ToLowerInvariant()}" : null,
+            Texte("zone"),
+            Texte("composant"),
+            Texte("titre"),
+            Texte("prestataire") is { } pr ? $"prestataire {pr}" : null,
+            Texte("motif") is { } m ? LibellesDossiers.Libelle([.. LibellesDossiers.MotifsClassement, .. LibellesDossiers.MotifsAttente], m) : null,
+            Texte("etatFinal") is { } ef ? LibellesDossiers.Libelle(LibellesDossiers.EtatsFinaux, ef) : null,
+            Texte("commentaire"),
+        }.Where(t => !string.IsNullOrWhiteSpace(t));
+        var texte = string.Join(" · ", morceaux);
+        return texte.Length == 0 ? string.Empty : $" : {texte}";
+    }
+
+    private sealed class SaisieQualification
+    {
+        public uint? Version { get; set; }
+
+        public string? Priorite { get; set; }
+
+        public Guid? ZoneId { get; set; }
+
+        public Guid? ComposantId { get; set; }
+    }
+
+    private sealed class SaisieClassement
+    {
+        public uint? Version { get; set; }
+
+        public string? Motif { get; set; }
+
+        public string? Commentaire { get; set; }
+    }
+
+    private sealed class SaisieAffectation
+    {
+        public uint? Version { get; set; }
+
+        public string? Titre { get; set; }
+
+        public Guid? IntervenantCompteId { get; set; }
+
+        public string? Prestataire { get; set; }
+
+        public Guid? ReferentCompteId { get; set; }
+    }
+
+    private sealed class SaisieAttente
+    {
+        public uint? Version { get; set; }
+
+        public int Numero { get; set; }
+
+        public string? Motif { get; set; }
+
+        public DateOnly? ReexamenLe { get; set; }
+
+        public string? Commentaire { get; set; }
+    }
+
+    private sealed class SaisieCloture
+    {
+        public uint? Version { get; set; }
+
+        public int Numero { get; set; }
+
+        public string? Actions { get; set; }
+
+        public string? EtatFinal { get; set; }
+    }
+
+    private sealed class SaisieReouverture
+    {
+        public uint? Version { get; set; }
+
+        public string? Motif { get; set; }
+    }
+}

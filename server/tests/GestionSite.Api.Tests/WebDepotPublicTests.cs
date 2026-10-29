@@ -215,7 +215,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         using var refus = await PosterAsync(responsable, page, formName: null, $"{page}/{site}/numero-urgence", ("numero", "01 23 45 67 89"));
         var message = await LirePageAsync(responsable, refus.Headers.Location!.OriginalString);
 
-        Assert.EndsWith($"/organisations/{_ouverte.OrganisationId}/depots", accueil.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        Assert.EndsWith($"/organisations/{_ouverte.OrganisationId}/dossiers", accueil.Headers.Location?.OriginalString, StringComparison.Ordinal);
         Assert.Contains($"/s/{_code}", sites, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"numero\"", sites, StringComparison.Ordinal);
         Assert.DoesNotContain(">Membres<", sites, StringComparison.Ordinal);
@@ -316,7 +316,9 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
 
         using var technicien = await ConnecteAsync(web, "tech-depots@depot-web.test");
         using var accueil = await technicien.GetAsync(new Uri("/", UriKind.Relative));
-        var page = await LirePageAsync(technicien, new Uri(accueil.Headers.Location!.OriginalString).PathAndQuery);
+        // Accueil : les dossiers (US-09) ; la liste des dépôts reçus reste à son adresse.
+        Assert.EndsWith("/dossiers", accueil.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        var page = await LirePageAsync(technicien, new Uri(accueil.Headers.Location!.OriginalString).PathAndQuery.Replace("/dossiers", "/depots", StringComparison.Ordinal));
         var image = PhotoDepot().Match(page).Groups[1].Value;
         using var photo = await technicien.GetAsync(new Uri(image, UriKind.Relative));
 

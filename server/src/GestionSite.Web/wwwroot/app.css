@@ -279,3 +279,63 @@ form.formulaire-inventaire { padding: 0; }
 .grille-etats input { color: var(--encre); }
 .retrait { padding: 16px 0 0; border-top: 1px solid var(--bordure); }
 .bouton-danger { height: 44px; padding: 0 18px; border: 1px solid var(--danger); border-radius: 999px; background: var(--surface); color: var(--danger); font: inherit; font-weight: 600; cursor: pointer; }
+
+/* Dossiers (US-09, S09-05) : suivi en colonnes par statut (B), fiche à étapes et onglets (B), mes interventions en liste (B). */
+.suivi { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; align-items: start; }
+.colonne-statut { background: var(--etape-fond); border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.colonne-statut h2 { margin: 0 4px; font-size: 15px; }
+.colonne-statut h2 span { color: var(--encre-2); font-weight: 400; }
+.carte-dossier { background: var(--surface); border: 1px solid var(--surface-bordure); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--encre); box-shadow: var(--ombre); }
+.carte-dossier.danger { border-left: 4px solid var(--danger); }
+.carte-dossier.en-retard { box-shadow: inset 0 0 0 2px var(--danger); }
+.carte-dossier strong { font-size: 15px; }
+.carte-dossier .vide { font-size: 13px; }
+.etiquette { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.etiquette.danger { background: var(--danger); color: #FFFFFF; }
+.etiquette.priorite-urgente { background: var(--danger-fond); color: var(--danger); }
+.etiquette.priorite-haute { background: var(--alerte-fond); color: var(--alerte); }
+.etiquette.priorite-normale { background: var(--etape-fond); color: var(--encre-2); }
+.etiquette.verification { background: var(--verif-fond); color: var(--verif); font-weight: 600; }
+.delai { font-size: 13px; color: var(--encre-2); }
+.delai.depasse, .delai-dossier .depasse { color: var(--danger); font-weight: 600; }
+.fiche-dossier { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.entete-dossier { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.entete-dossier h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+.entete-dossier p { margin: 6px 0 8px; font-size: 14px; }
+.delai-dossier { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.delai-dossier span { font-size: 13px; color: var(--encre-2); }
+.delai-dossier strong { font-size: 20px; }
+.onglets-dossier { display: flex; gap: 4px; border-bottom: 1px solid var(--bordure-forte); flex-wrap: wrap; }
+.onglets-dossier a { padding: 12px 16px; text-decoration: none; color: var(--encre-2); }
+.onglets-dossier a[aria-current="page"] { color: var(--encre); font-weight: 700; border-bottom: 3px solid #1E6CFF; }
+.panneau-action { border-top: 1px solid var(--bordure); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.panneau-action h2 { margin: 0; font-size: 18px; }
+.priorites { border: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.priorites legend { font-weight: 600; margin-bottom: 8px; }
+.choix-priorite { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--bordure-forte); font-size: 14px; }
+.choix-priorite span { width: 100%; font-size: 13px; color: var(--encre-2); }
+.ligne-suggestion { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; background: var(--etape-fond); font-size: 14px; }
+.ligne-suggestion .bouton-secondaire { height: 40px; }
+.grille-interventions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.carte-intervention { border: 1px solid var(--bordure-forte); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.carte-intervention.active { border: 2px solid var(--encre); }
+.statut-intervention { font-size: 13px; font-weight: 600; color: var(--lien); text-transform: uppercase; letter-spacing: 0.02em; }
+.carte-intervention form { margin: 0; }
+.photos { display: flex; gap: 8px; flex-wrap: wrap; }
+.photos img { width: 120px; height: 90px; object-fit: cover; border-radius: 12px; }
+.etats-finaux { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.etats-finaux legend { font-weight: 600; margin-bottom: 8px; }
+.declarant { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
+.declarant dt { color: var(--encre-2); }
+.declarant dd { margin: 0; overflow-wrap: anywhere; }
+.mes-interventions { max-width: 640px; }
+.mes-interventions h1 { margin: 0; font-size: 26px; }
+.filtre-interventions a { flex: 1; justify-content: center; }
+.liste-interventions { padding: 0; overflow: hidden; }
+.ligne-intervention { display: flex; gap: 12px; align-items: center; padding: 16px; text-decoration: none; color: var(--encre); border-bottom: 1px solid var(--bordure); min-height: 64px; }
+.ligne-intervention:last-child { border-bottom: none; }
+.ligne-intervention .texte { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ligne-intervention .texte .vide { font-size: 13px; }
+.repere { flex: 0 0 8px; height: 44px; border-radius: 999px; background: var(--encre-3); }
+.repere.danger, .repere.priorite-urgente { background: var(--danger); }
+.repere.priorite-haute { background: var(--alerte); }

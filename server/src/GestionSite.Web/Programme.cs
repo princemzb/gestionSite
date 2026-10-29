@@ -1,6 +1,7 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using GestionSite.Web.Components;
+using GestionSite.Web.Dossiers;
 using GestionSite.Web.Public;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -144,6 +145,7 @@ internal static class Programme
         app.UseAntiforgery();
         app.MapPost("/deconnexion", SessionApi.DeconnecterAsync).RequireAuthorization();
         app.MapSitesAdministration();
+        app.MapActionsDossier();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
         {

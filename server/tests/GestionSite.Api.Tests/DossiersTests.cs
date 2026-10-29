@@ -188,6 +188,23 @@ public sealed class DossiersTests(InfrastructureFixture infrastructure) : Invent
         return (await reponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("composant");
     }
 
+    [Fact]
+    public async Task AnInternalDeclarationMayCarryPhotos()
+    {
+        var (_, communes) = await LieuAsync();
+        var pasteur = await JetonAsync("pasteur@inventaire.test");
+        var demande = JsonSerializer.Serialize(new { commandeId = Guid.NewGuid(), zoneId = communes, description = "Vitre fêlée" });
+        using var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.SteelBlue, 64, 48) { Format = ImageMagick.MagickFormat.Png };
+        using var formulaire = new MultipartFormDataContent { { new StringContent(demande), "demande" }, { new ByteArrayContent(image.ToByteArray()), "photos", "vitre.png" } };
+
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, Dossiers, pasteur, formulaire);
+        var id = (await reponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var lu = await LireAsync(id, pasteur);
+
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
+        Assert.Equal([1], lu.GetProperty("photos").EnumerateArray().Select(p => p.GetInt32()));
+    }
+
     // Église, sa zone « Parties communes » et un composant BAES (éclairage de sécurité) dans cette zone.
     private async Task<(Guid Composant, Guid PartiesCommunes)> LieuAsync()
     {
