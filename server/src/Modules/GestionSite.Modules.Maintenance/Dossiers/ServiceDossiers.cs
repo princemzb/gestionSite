@@ -17,7 +17,7 @@ internal sealed record DossierResume(
 
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
-    string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe);
+    string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe, string? MotifAttente, string? CommentaireAttente, DateOnly? ReexamenLe);
 
 internal sealed record EvenementDossierLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
@@ -25,7 +25,8 @@ internal sealed record DossierLu(
     Guid Id, string Titre, string Statut, string Nature, string Description, string Emplacement, bool Danger, bool ActiviteBloquee,
     string Origine, DateTimeOffset RecuLe, string NomDeclarant, string? ContactDeclarant, IReadOnlyList<int> Photos, string? Priorite,
     LieuInventaire? Lieu, DateTimeOffset? QualifieLe, Guid? DoublonDe, string? MotifClassement, string? CommentaireClassement,
-    DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, IReadOnlyList<InterventionLue> Interventions,
+    DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, DateTimeOffset? AttenteDepuis,
+    DateOnly? ReexamenLe, long DureeAttenteSecondes, IReadOnlyList<InterventionLue> Interventions,
     IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version);
 
 /// <summary>Dossier absent du site (404).</summary>
@@ -93,10 +94,13 @@ internal sealed class ServiceDossiers(
             dossier.Id, Titre(dossier), dossier.Statut.ToString(), dossier.Nature.ToString(), dossier.Description, dossier.Emplacement, dossier.Danger,
             dossier.ActiviteBloquee, dossier.Origine.ToString(), dossier.RecuLe, dossier.NomDeclarant, dossier.ContactDeclarant, photos,
             dossier.Priorite?.ToString(), lieu, dossier.QualifieLe, dossier.DoublonDe, dossier.MotifClassement?.ToString(), dossier.CommentaireClassement,
-            dossier.AffecteLe, dossier.EcheancePriseEnCharge, dossier.EcheanceResolution,
+            dossier.AffecteLe, dossier.EcheancePriseEnCharge, dossier.EcheanceResolution, dossier.AttenteDepuis,
+            // Réexamen : le plus proche des interventions en attente (déduit, jamais recopié sur le dossier).
+            interventions.Where(i => i.ReexamenLe is not null).Min(i => i.ReexamenLe), (long)dossier.DureeAttente.TotalSeconds,
             [.. interventions.Select(i => new InterventionLue(
                 i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
-                i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe))],
+                i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe,
+                i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,

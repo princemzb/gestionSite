@@ -53,6 +53,19 @@ internal sealed class DoublonsRattachesException() : Exception("Ce dossier porte
 /// <summary>Affectation d'un dossier sans priorité ni zone (409 « non_qualifie ») : qualifier d'abord.</summary>
 internal sealed class DossierNonQualifieException() : Exception("Qualifiez le dossier (priorité et zone) avant de l'affecter.");
 
+/// <summary>Commentaire d'un motif (classement, attente) : facultatif, obligatoire pour « Autre » (DEC-03).</summary>
+internal static class Commentaire
+{
+    internal static string? Exiger(string? commentaire, bool obligatoire)
+    {
+        var texte = string.IsNullOrWhiteSpace(commentaire) ? null : TexteAffichable.Nettoyer(commentaire, Signalement.CommentaireMax, multiligne: true)
+            ?? throw new SaisieInvalideException("commentaire", $"Commentaire visible de {Signalement.CommentaireMax} caractères au plus.");
+        return obligatoire && texte is null
+            ? throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour le motif « Autre ».")
+            : texte;
+    }
+}
+
 /// <summary>Délais cibles par priorité (DEC-05), en temps calendaire : prise en charge et résolution.</summary>
 internal static class Delais
 {
@@ -189,6 +202,12 @@ internal sealed class Signalement : IAppartientAOrganisation
     /// <summary>Premier démarrage d'une intervention : fin de la prise en charge.</summary>
     public DateTimeOffset? PrisEnChargeLe { get; private set; }
 
+    /// <summary>Début de l'attente en cours : le délai de résolution est suspendu (RG-07).</summary>
+    public DateTimeOffset? AttenteDepuis { get; private set; }
+
+    /// <summary>Durée cumulée des attentes terminées, ajoutée au délai de résolution (RG-07).</summary>
+    public TimeSpan DureeAttente { get; private set; }
+
     /// <summary>Dossier principal d'un doublon rattaché (la déclaration rattachée est conservée, DEC-03).</summary>
     public Guid? DoublonDe { get; private set; }
 
@@ -202,9 +221,12 @@ internal sealed class Signalement : IAppartientAOrganisation
     internal DateTimeOffset? EcheancePriseEnCharge =>
         Ouvert && Priorite is { } priorite && AffecteLe is { } affecte && PrisEnChargeLe is null ? affecte + Delais.PriseEnCharge(priorite) : null;
 
-    /// <summary>Échéance de résolution (DEC-05) : qualification + délai, tant que le dossier est ouvert (attentes : S09-03).</summary>
+    /// <summary>
+    /// Échéance de résolution (DEC-05) : qualification + délai + durée des attentes terminées, tant que le dossier est ouvert ;
+    /// suspendue (null) pendant une attente (RG-07). L'ancienneté (date de réception) n'est jamais suspendue.
+    /// </summary>
     internal DateTimeOffset? EcheanceResolution =>
-        Ouvert && Priorite is { } priorite && QualifieLe is { } qualifie ? qualifie + Delais.Resolution(priorite) : null;
+        Ouvert && AttenteDepuis is null && Priorite is { } priorite && QualifieLe is { } qualifie ? qualifie + Delais.Resolution(priorite) + DureeAttente : null;
 
     /// <summary>
     /// Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04). Faux si rien ne change
@@ -255,16 +277,39 @@ internal sealed class Signalement : IAppartientAOrganisation
         AffecteLe ??= maintenant;
     }
 
-    /// <summary>Une intervention démarre : le dossier passe « En cours » ; la première fixe la prise en charge.</summary>
-    internal void Demarrer(DateTimeOffset maintenant)
+    /// <summary>
+    /// Statut du dossier affecté, déduit en un seul endroit de ses interventions (DEC-03) : « En cours » si l'une avance,
+    /// sinon « En attente » si l'une attend (délai de résolution suspendu, RG-07), sinon « Affecté » tant qu'aucune n'a
+    /// démarré. À appeler après chaque changement d'une intervention. Entrer en attente date sa suspension ; en sortir
+    /// ajoute la durée d'attente au délai. Le premier démarrage fixe la prise en charge.
+    /// </summary>
+    internal void Synchroniser(IReadOnlyCollection<Intervention> interventions, DateTimeOffset maintenant)
     {
-        if (Statut is not (StatutDossier.Affecte or StatutDossier.EnCours))
+        if (Statut is not (StatutDossier.Affecte or StatutDossier.EnCours or StatutDossier.EnAttente))
         {
             throw new StatutIncompatibleException(Statut);
         }
 
-        Statut = StatutDossier.EnCours;
-        PrisEnChargeLe ??= maintenant;
+        var actives = interventions.Where(i => i.Statut != StatutIntervention.Cloturee).ToList();
+        if (actives.Exists(i => i.DemarreeLe is not null))
+        {
+            PrisEnChargeLe ??= actives.Where(i => i.DemarreeLe is not null).Min(i => i.DemarreeLe);
+        }
+
+        var cible = actives.Exists(i => i.Statut == StatutIntervention.EnCours) ? StatutDossier.EnCours
+            : actives.Exists(i => i.Statut == StatutIntervention.EnAttente) ? StatutDossier.EnAttente
+            : PrisEnChargeLe is null ? StatutDossier.Affecte : StatutDossier.EnCours;
+        if (cible == StatutDossier.EnAttente && AttenteDepuis is null)
+        {
+            AttenteDepuis = maintenant;
+        }
+        else if (cible != StatutDossier.EnAttente && AttenteDepuis is { } debut)
+        {
+            DureeAttente += maintenant - debut;
+            AttenteDepuis = null;
+        }
+
+        Statut = cible;
     }
 
     /// <summary>
@@ -310,15 +355,8 @@ internal sealed class Signalement : IAppartientAOrganisation
             throw new SaisieInvalideException("motif", "Motif inconnu.");
         }
 
-        var texte = string.IsNullOrWhiteSpace(commentaire) ? null : TexteAffichable.Nettoyer(commentaire, CommentaireMax, multiligne: true)
-            ?? throw new SaisieInvalideException("commentaire", $"Commentaire visible de {CommentaireMax} caractères au plus.");
-        if (motif == Domain.MotifClassement.Autre && texte is null)
-        {
-            throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour le motif « Autre ».");
-        }
-
         MotifClassement = motif;
-        CommentaireClassement = texte;
+        CommentaireClassement = Commentaire.Exiger(commentaire, motif == Domain.MotifClassement.Autre);
         Statut = StatutDossier.ClasseSansSuite;
     }
 
@@ -411,6 +449,8 @@ internal enum NatureEvenementDossier
     ClassementSansSuite = 4,
     Affectation = 5,
     Demarrage = 6,
+    MiseEnAttente = 7,
+    Reprise = 8,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

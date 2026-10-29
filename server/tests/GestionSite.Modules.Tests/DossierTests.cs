@@ -95,18 +95,75 @@ public sealed class DossierTests
         var dossier = Public();
         Assert.Throws<DossierNonQualifieException>(() => dossier.Affecter(Instant));
         dossier.Qualifier(PrioriteDossier.Urgente, Guid.NewGuid(), composantId: null, Instant);
-        Assert.Throws<StatutIncompatibleException>(() => dossier.Demarrer(Instant));
+        Assert.Throws<StatutIncompatibleException>(() => dossier.Synchroniser([], Instant));
 
         dossier.Affecter(Instant);
         dossier.Affecter(Instant.AddHours(1)); // seconde intervention : la première affectation fait foi
         var intervention = new Intervention(Guid.NewGuid(), dossier, 1, "Bloc", Guid.NewGuid(), null, null, Instant);
+        dossier.Synchroniser([intervention], Instant.AddHours(1));
+        Assert.Equal(StatutDossier.Affecte, dossier.Statut);
         intervention.Demarrer(Instant.AddHours(2));
-        dossier.Demarrer(Instant.AddHours(2));
+        dossier.Synchroniser([intervention], Instant.AddHours(2));
 
         Assert.Equal((StatutDossier.EnCours, Instant, Instant.AddHours(2)), (dossier.Statut, dossier.AffecteLe!.Value, dossier.PrisEnChargeLe!.Value));
         Assert.Throws<InterventionIncompatibleException>(() => intervention.Demarrer(Instant));
         Assert.Equal(TimeSpan.FromHours(4), Delais.PriseEnCharge(PrioriteDossier.Urgente));
         Assert.Equal(TimeSpan.FromDays(90), Delais.Resolution(PrioriteDossier.Basse));
+    }
+
+    [Fact]
+    public void WaitingTimeIsAddedToTheResolutionDeadlineButNotToTheAge()
+    {
+        var (dossier, pompe, purge) = DeuxInterventions();
+        pompe.Demarrer(Instant);
+        dossier.Synchroniser([pompe, purge], Instant);
+
+        Assert.Throws<SaisieInvalideException>(() => pompe.MettreEnAttente(MotifAttente.Livraison, null, DateOnly.FromDateTime(Instant.UtcDateTime.AddYears(2)), Instant));
+        Assert.Throws<SaisieInvalideException>(() => pompe.MettreEnAttente(MotifAttente.Livraison, null, DateOnly.FromDateTime(Instant.UtcDateTime.AddDays(-2)), Instant));
+        pompe.MettreEnAttente(MotifAttente.Livraison, null, DateOnly.FromDateTime(Instant.UtcDateTime.AddDays(3)), Instant.AddDays(1));
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(1)); // la purge, affectée mais pas démarrée, n'empêche pas l'attente
+        var suspendue = dossier.EcheanceResolution;
+        purge.Demarrer(Instant.AddDays(4)); // une autre intervention démarre : l'attente du dossier prend fin
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(4));
+
+        Assert.Null(suspendue);
+        Assert.Equal(StatutDossier.EnCours, dossier.Statut);
+        Assert.Equal(TimeSpan.FromDays(3), dossier.DureeAttente);
+        Assert.Equal(Instant.AddDays(7 + 3), dossier.EcheanceResolution);
+        Assert.Equal(Instant, dossier.RecuLe); // ancienneté conservée
+        pompe.Reprendre();
+        Assert.Throws<InterventionIncompatibleException>(() => pompe.Reprendre());
+    }
+
+    [Fact]
+    public void AWaitingPeriodIsCountedOnceWhateverTheOrderOfHoldsAndResumes()
+    {
+        var (dossier, pompe, purge) = DeuxInterventions();
+        pompe.Demarrer(Instant);
+        purge.Demarrer(Instant);
+        dossier.Synchroniser([pompe, purge], Instant);
+        var reexamen = DateOnly.FromDateTime(Instant.UtcDateTime.AddDays(10));
+
+        pompe.MettreEnAttente(MotifAttente.Livraison, null, reexamen, Instant.AddDays(1));
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(1)); // la purge avance encore
+        purge.MettreEnAttente(MotifAttente.Prestataire, null, reexamen, Instant.AddDays(2));
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(2)); // plus rien n'avance : attente
+        pompe.Reprendre();
+        dossier.Synchroniser([pompe, purge], Instant.AddDays(5));
+
+        Assert.Equal(StatutDossier.EnCours, dossier.Statut);
+        Assert.Equal(TimeSpan.FromDays(3), dossier.DureeAttente);
+        Assert.Null(dossier.AttenteDepuis);
+    }
+
+    private static (Signalement Dossier, Intervention Pompe, Intervention Purge) DeuxInterventions()
+    {
+        var dossier = Public();
+        dossier.Qualifier(PrioriteDossier.Haute, Guid.NewGuid(), composantId: null, Instant);
+        dossier.Affecter(Instant);
+        var technicien = Guid.NewGuid();
+        return (dossier, new Intervention(Guid.NewGuid(), dossier, 1, "Pompe", technicien, null, null, Instant),
+            new Intervention(Guid.NewGuid(), dossier, 2, "Purge", technicien, null, null, Instant));
     }
 
     private static Signalement Public() =>

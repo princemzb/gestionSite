@@ -20,6 +20,8 @@ internal sealed record DemandeAffectation(string? Titre, Guid? IntervenantCompte
 
 internal sealed record DemandeVersion(uint? Version);
 
+internal sealed record DemandeAttente(string? Motif, string? Commentaire, DateOnly? ReexamenLe, uint? Version);
+
 internal sealed record InterventionCreee(int Numero);
 
 /// <summary>Dossiers d'un site (CONTRATS : dossiers, S09-01).</summary>
@@ -41,6 +43,18 @@ internal static class DossiersEndpoints
             Guid orgId, Guid siteId, Guid id, int numero, DemandeVersion demande, ServiceInterventions service, CancellationToken ct) =>
         {
             await service.DemarrerAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        dossiers.MapPost("/{id:guid}/interventions/{numero:int}/hold", async (
+            Guid orgId, Guid siteId, Guid id, int numero, DemandeAttente demande, ServiceInterventions service, CancellationToken ct) =>
+        {
+            await service.MettreEnAttenteAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        dossiers.MapPost("/{id:guid}/interventions/{numero:int}/resume", async (
+            Guid orgId, Guid siteId, Guid id, int numero, DemandeVersion demande, ServiceInterventions service, CancellationToken ct) =>
+        {
+            await service.ReprendreAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
             return Results.NoContent();
         });
         dossiers.MapGet("/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceDossiers service, CancellationToken ct) =>

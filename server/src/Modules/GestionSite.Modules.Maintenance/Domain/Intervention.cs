@@ -3,6 +3,17 @@ using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Maintenance.Domain;
 
+/// <summary>Motifs d'attente (DEC-03) ; « Autre » exige un commentaire.</summary>
+internal enum MotifAttente
+{
+    Financement = 1,
+    Livraison = 2,
+    Prestataire = 3,
+    AccesImpossible = 4,
+    DecisionInterne = 5,
+    Autre = 6,
+}
+
 internal enum StatutIntervention
 {
     Affectee = 1,
@@ -78,6 +89,13 @@ internal sealed class Intervention : IAppartientAOrganisation
 
     public DateTimeOffset? DemarreeLe { get; private set; }
 
+    public MotifAttente? MotifAttente { get; private set; }
+
+    public string? CommentaireAttente { get; private set; }
+
+    /// <summary>Date de réexamen de l'attente en cours (DEC-03 : obligatoire).</summary>
+    public DateOnly? ReexamenLe { get; private set; }
+
     /// <summary>Compte qui en répond : l'intervenant interne, ou le référent d'un prestataire.</summary>
     internal Guid EnCharge => IntervenantCompteId ?? ReferentCompteId!.Value;
 
@@ -90,6 +108,49 @@ internal sealed class Intervention : IAppartientAOrganisation
 
         Statut = StatutIntervention.EnCours;
         DemarreeLe = maintenant;
+    }
+
+    /// <summary>
+    /// Attente (financement, livraison, prestataire…) : motif de la liste DEC-03, date de réexamen obligatoire, comprise
+    /// entre aujourd'hui et un an ; commentaire obligatoire pour « Autre ».
+    /// </summary>
+    internal void MettreEnAttente(MotifAttente motif, string? commentaire, DateOnly? reexamenLe, DateTimeOffset maintenant)
+    {
+        if (Statut != StatutIntervention.EnCours)
+        {
+            throw new InterventionIncompatibleException(Statut);
+        }
+
+        if (!Enum.IsDefined(motif))
+        {
+            throw new SaisieInvalideException("motif", "Motif d'attente inconnu.");
+        }
+
+        // « Aujourd'hui » de l'utilisateur, où qu'il soit : de la date la plus en retard (UTC−12) à la plus avancée (UTC+14).
+        var auPlusTot = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(-12)).DateTime);
+        var auPlusTard = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(14)).DateTime).AddYears(1);
+        if (reexamenLe is not { } reexamen || reexamen < auPlusTot || reexamen > auPlusTard)
+        {
+            throw new SaisieInvalideException("reexamenLe", "Date de réexamen entre aujourd'hui et un an.");
+        }
+
+        Statut = StatutIntervention.EnAttente;
+        MotifAttente = motif;
+        CommentaireAttente = Commentaire.Exiger(commentaire, motif == Domain.MotifAttente.Autre);
+        ReexamenLe = reexamen;
+    }
+
+    internal void Reprendre()
+    {
+        if (Statut != StatutIntervention.EnAttente)
+        {
+            throw new InterventionIncompatibleException(Statut);
+        }
+
+        Statut = StatutIntervention.EnCours;
+        MotifAttente = null;
+        CommentaireAttente = null;
+        ReexamenLe = null;
     }
 }
 
