@@ -27,29 +27,34 @@ internal sealed class ServiceEvaluations(
     PatrimoineDbContext context, IAutorisations autorisations, ServiceGrilles grilles, IAnnuaireMembres annuaire, IStockageFichiers stockage,
     CompteCourant compte, TimeProvider horloge)
 {
+    /// <summary>
+    /// Évaluation d'un composant. Le formulaire (<paramref name="lire"/>) n'est lu qu'après le contrôle d'accès et du
+    /// composant : 403/404 avant toute erreur de saisie, aucune photo reçue pour une demande refusée.
+    /// </summary>
     internal async Task<EvaluationCreee> EvaluerAsync(
-        Guid organisationId, Guid siteId, Guid composantId, DemandeEvaluation demande, IReadOnlyList<PhotoRecue> photos, CancellationToken cancellationToken)
+        Guid organisationId, Guid siteId, Guid composantId, Func<Task<(DemandeEvaluation Demande, IReadOnlyList<PhotoRecue> Photos)>> lire,
+        CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.EvaluerComposant, cancellationToken).ConfigureAwait(false);
         var composant = await context.Composants.SingleOrDefaultAsync(c => c.Id == composantId && c.SiteId == siteId, cancellationToken).ConfigureAwait(false)
             ?? throw new ElementIntrouvableException();
+        var (demande, photos) = await lire().ConfigureAwait(false);
         var commandeId = demande.CommandeId is { } commande && commande != Guid.Empty
             ? commande
             : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
         var evaluateur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
-
-        // 1. Contrôles complets (composant, grille en vigueur, saisie, photo exigée) avant tout décodage d'image.
-        var courante = await grilles.CouranteAsync(siteId, composant.CorpsEtat, cancellationToken).ConfigureAwait(false);
-        var grille = new GrilleEvaluee(courante.Version, courante.Contenu.Criteres, courante.Contenu.Mesures);
         var saisie = new SaisieEvaluation(
-            commandeId, demande.GrilleVersion, demande.Constats, demande.Mesures, Etat(demande.Etat),
-            demande.Repartition is { } r ? new Repartition(r.Bon ?? 0, r.Satisfaisant ?? 0, r.Degrade ?? 0, r.Mauvais ?? 0, r.Critique ?? 0) : null,
-            demande.Remarque, photos.Count);
+            commandeId, demande.GrilleVersion, demande.Constats, demande.Mesures,
+            string.IsNullOrWhiteSpace(demande.Etat) ? null : SaisieComposant.Valeur<EtatComposant>(demande.Etat, "etat"),
+            SaisieComposant.Repartition(demande.Repartition), demande.Remarque, photos.Count);
         if (await DejaEvalueeAsync(evaluateur, composant.Id, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return Resultat(deja); // rejeu reconnu avant les contrôles : une grille modifiée depuis l'envoi ne le refuse pas
         }
 
+        // 1. Contrôles complets (grille en vigueur, saisie, photo exigée) avant tout décodage d'image.
+        var courante = await grilles.CouranteAsync(siteId, composant.CorpsEtat, cancellationToken).ConfigureAwait(false);
+        var grille = new GrilleEvaluee(courante.Version, courante.Contenu.Criteres, courante.Contenu.Mesures);
         var maintenant = horloge.GetUtcNow();
         var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, maintenant);
 
@@ -60,28 +65,39 @@ internal sealed class ServiceEvaluations(
             cancellationToken).ConfigureAwait(false));
         context.Evaluations.Add(evaluation);
 
-        // 3. Lot : répartition de l'inventaire reprise de l'évaluation, à la version lue du composant (xmin, sinon 409).
-        if (evaluation.Repartition is { } repartition && composant.Lot?.Repartition != repartition)
+        // 3. Lot : répartition de l'inventaire reprise de l'évaluation, toujours à la version lue du composant (xmin), même
+        //    inchangée : une évaluation ou une modification concurrente du lot est refusée (409) au lieu d'être écrasée.
+        if (evaluation.Repartition is { } repartition)
         {
-            var avant = Releve(composant.Lot?.Repartition);
+            var avant = SaisieComposant.Releve(composant.Lot?.Repartition);
             composant.Repartir(repartition);
-            var apres = Releve(repartition);
+            context.Entry(composant).Property(c => c.QuantiteBon).IsModified = true;
+            var apres = SaisieComposant.Releve(repartition);
             var changes = apres.Keys.Where(etat => avant[etat] != apres[etat]).ToList();
-            context.Tracer(evaluateur, maintenant, siteId, CibleInventaire.Composant, composant.Id, NatureEvenementInventaire.Evaluation,
-                changes.ToDictionary(etat => etat, etat => avant[etat]), changes.ToDictionary(etat => etat, etat => apres[etat]));
+            if (changes.Count > 0)
+            {
+                context.Tracer(evaluateur, maintenant, siteId, CibleInventaire.Composant, composant.Id, NatureEvenementInventaire.Evaluation,
+                    changes.ToDictionary(etat => etat, etat => avant[etat]), changes.ToDictionary(etat => etat, etat => apres[etat]));
+            }
         }
 
         try
         {
             await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation
-            && violation.ConstraintName == Evaluation.ContrainteCommande)
+        catch (Exception concurrent) when (concurrent is ModifieEntreTempsException
+            || (concurrent is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation }
+                && violation.ConstraintName == Evaluation.ContrainteCommande))
         {
-            // Même envoi reçu en parallèle : l'autre requête l'a enregistré ; même réponse que pour un rejeu.
+            // Même envoi reçu en parallèle : l'autre requête l'a enregistré (doublon de commande, ou lot déjà mis à jour par
+            // elle) ; même réponse que pour un rejeu. Sinon, conflit réel.
             context.ChangeTracker.Clear();
-            return Resultat(await DejaEvalueeAsync(evaluateur, composant.Id, saisie, cancellationToken).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Doublon signalé par la base mais introuvable.", doublon));
+            if (await DejaEvalueeAsync(evaluateur, composant.Id, saisie, cancellationToken).ConfigureAwait(false) is not { } enregistree)
+            {
+                throw;
+            }
+
+            return Resultat(enregistree);
         }
 
         return Resultat(evaluation);
@@ -140,18 +156,4 @@ internal sealed class ServiceEvaluations(
 
     private static EvaluationCreee Resultat(Evaluation evaluation) =>
         new(evaluation.Id, Echelle.Arrondie(evaluation.Note), Echelle.Libelle(evaluation.Note).ToString(), evaluation.ProposerDossier);
-
-    private static EtatComposant? Etat(string? etat) => string.IsNullOrWhiteSpace(etat)
-        ? null
-        : NomExact.Essayer<EtatComposant>(etat, out var valeur) ? valeur : throw new SaisieInvalideException("etat", "etat : valeur inconnue.");
-
-    // Mêmes clés que le journal des composants (bon … critique) : l'historique affiche « bon 40 → 32 ».
-    private static Dictionary<string, int?> Releve(Repartition? repartition) => new()
-    {
-        ["bon"] = repartition?.Bon,
-        ["satisfaisant"] = repartition?.Satisfaisant,
-        ["degrade"] = repartition?.Degrade,
-        ["mauvais"] = repartition?.Mauvais,
-        ["critique"] = repartition?.Critique,
-    };
 }

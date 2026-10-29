@@ -19,7 +19,7 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         var (tableau, _) = await ComposantsAsync(technicien);
 
         using var parPasteur = await EvaluerAsync(tableau, Individuel("Degrade"), pasteur);
-        using var reponse = await EvaluerAsync(tableau, Individuel("Degrade", constats: [true, true, false], mesures: [48.5m]), technicien);
+        using var reponse = await EvaluerAsync(tableau, Individuel("Degrade", constats: [true, true, false], mesures: [48.500m]), technicien);
         var resultat = await reponse.Content.ReadFromJsonAsync<JsonElement>();
         var lue = (await ListerAsync(tableau, pasteur)).Single();
         var points = lue.GetProperty("points").EnumerateArray().ToList();
@@ -36,7 +36,7 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.False(points[2].GetProperty("conforme").GetBoolean());
         Assert.Equal(JsonValueKind.Null, points[4].GetProperty("conforme").ValueKind);
         Assert.Equal("°C", lue.GetProperty("mesures")[0].GetProperty("unite").GetString());
-        Assert.Equal(48.5m, lue.GetProperty("mesures")[0].GetProperty("valeur").GetDecimal());
+        Assert.Equal("48.5", lue.GetProperty("mesures")[0].GetProperty("valeur").GetRawText()); // zéros de fin retirés
         Assert.Equal(0, lue.GetProperty("photos").GetInt32());
     }
 
@@ -52,8 +52,9 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         using var etat = await EvaluerAsync(chaises, Individuel("Bon"), technicien);
         using var reponse = await EvaluerAsync(chaises, Lot(repartition), technicien, photo: true);
         var resultat = await reponse.Content.ReadFromJsonAsync<JsonElement>();
+        using var memeRepartition = await EvaluerAsync(chaises, Lot(repartition), technicien, photo: true);
         var fiche = await LireAsync($"{Base}/components/{chaises}", technicien);
-        var lue = (await ListerAsync(chaises, technicien)).Single();
+        var lue = (await ListerAsync(chaises, technicien))[^1];
         using var photo = await EnvoyerAsync(HttpMethod.Get, $"{Base}/components/{chaises}/evaluations/{lue.GetProperty("id").GetGuid()}/photos/1", technicien);
         using var absente = await EnvoyerAsync(HttpMethod.Get, $"{Base}/components/{chaises}/evaluations/{lue.GetProperty("id").GetGuid()}/photos/2", technicien);
 
@@ -65,6 +66,8 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.True(resultat.GetProperty("proposerDossier").GetBoolean());
         var lot = fiche.GetProperty("composant").GetProperty("lot").GetProperty("repartition");
         Assert.Equal((30, 8, 2), (lot.GetProperty("bon").GetInt32(), lot.GetProperty("degrade").GetInt32(), lot.GetProperty("critique").GetInt32()));
+        Assert.Equal(HttpStatusCode.OK, memeRepartition.StatusCode);
+        Assert.Equal(2, fiche.GetProperty("historique").GetArrayLength()); // création, une seule évaluation qui change le lot
         var evenement = fiche.GetProperty("historique")[0];
         Assert.Equal("Evaluation", evenement.GetProperty("nature").GetString());
         Assert.Equal(40, evenement.GetProperty("avant").GetProperty("bon").GetInt32());
@@ -113,6 +116,8 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         var technicien = await JetonAsync("technicien@inventaire.test");
         var (tableau, _) = await ComposantsAsync(technicien);
 
+        using var parPasteur = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components/{tableau}/evaluations", await JetonAsync("pasteur@inventaire.test"),
+            new StringContent("{illisible", System.Text.Encoding.UTF8, "application/json"));
         using var inconnu = await EvaluerAsync(Guid.NewGuid(), Individuel("Bon"), technicien);
         using var autreSite = await EnvoyerAsync(
             HttpMethod.Get, $"/organizations/{Organisation}/sites/{Guid.NewGuid()}/inventory/components/{tableau}/evaluations", technicien);
@@ -125,6 +130,7 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
             new { motif = "Remplacé", version = (await LireAsync($"{Base}/components/{tableau}", technicien)).GetProperty("composant").GetProperty("version").GetUInt32() });
         using var retire = await EvaluerAsync(tableau, Individuel("Bon"), technicien);
 
+        Assert.Equal(HttpStatusCode.Forbidden, parPasteur.StatusCode); // accès contrôlé avant la lecture du corps
         Assert.Equal(HttpStatusCode.NotFound, inconnu.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
         Assert.Equal("commandeId", await ChampAsync(sansCommande));

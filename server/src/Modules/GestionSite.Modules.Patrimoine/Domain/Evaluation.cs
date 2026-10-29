@@ -218,8 +218,8 @@ internal sealed class Evaluation : IAppartientAOrganisation
     {
         null => null,
         > MesureMax or < -MesureMax => throw new SaisieInvalideException("mesures", $"Mesure entre -{MesureMax} et {MesureMax}."),
-        { } v when v.Scale > 3 => throw new SaisieInvalideException("mesures", "Mesure : trois décimales au plus."),
-        { } v => v,
+        { } v when Math.Round(v, 3) != v => throw new SaisieInvalideException("mesures", "Mesure : trois décimales au plus."),
+        { } v => v / 1.000000000000000000000000000m, // zéros de fin retirés : 48,500 enregistré 48,5
     };
 }
 

@@ -21,11 +21,9 @@ public static class TraitementPhotos
     // Au plus deux décodages simultanés : la mémoire du conteneur reste bornée quel que soit le nombre d'envois.
     private static readonly SemaphoreSlim Decodages = new(2);
 
-    /// <summary>
-    /// Bornes d'ImageMagick pour tout le processus, posées au démarrage du module : une image annonçant des
-    /// dimensions énormes est refusée avant allocation, sans repli sur le disque.
-    /// </summary>
-    public static void Configurer()
+    // Bornes d'ImageMagick pour tout le processus, posées une fois avant le premier traitement, quel que soit le module
+    // appelant : une image annonçant des dimensions énormes est refusée avant allocation, sans repli sur le disque.
+    static TraitementPhotos()
     {
         ResourceLimits.Width = 12_000;
         ResourceLimits.Height = 12_000;

@@ -24,10 +24,9 @@ internal static class EvaluationsEndpoints
         evaluations.MapGet("/", async (Guid orgId, Guid siteId, Guid composantId, ServiceEvaluations service, CancellationToken ct) =>
             Results.Ok(await service.ListerAsync(orgId, siteId, composantId, ct).ConfigureAwait(false)));
         evaluations.MapPost("/", async (Guid orgId, Guid siteId, Guid composantId, HttpRequest requete, ServiceEvaluations service, CancellationToken ct) =>
-        {
-            var (demande, photos) = await FormulaireAvecPhotos.LireAsync<DemandeEvaluation>(requete, ct).ConfigureAwait(false);
-            return Results.Ok(await service.EvaluerAsync(orgId, siteId, composantId, demande, photos, ct).ConfigureAwait(false));
-        }).AvecPhotos();
+            Results.Ok(await service.EvaluerAsync(orgId, siteId, composantId, () => FormulaireAvecPhotos.LireAsync<DemandeEvaluation>(requete, ct), ct)
+                .ConfigureAwait(false)))
+            .AvecPhotos();
         evaluations.MapGet("/{evaluationId:guid}/photos/{rang:int}", async (
             Guid orgId, Guid siteId, Guid composantId, Guid evaluationId, int rang, ServiceEvaluations service, CancellationToken ct) =>
             await service.PhotoAsync(orgId, siteId, composantId, evaluationId, rang, ct).ConfigureAwait(false) is { } photo

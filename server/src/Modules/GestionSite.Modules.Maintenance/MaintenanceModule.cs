@@ -2,7 +2,6 @@ using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.DepotsRecus;
 using GestionSite.Modules.Maintenance.Dossiers;
 using GestionSite.Modules.Maintenance.Persistence;
-using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,7 +17,6 @@ public static class MaintenanceModule
 {
     public static IServiceCollection AddMaintenanceModule(this IServiceCollection services)
     {
-        TraitementPhotos.Configurer();
         services.AddOptions<TurnstileOptions>().BindConfiguration(TurnstileOptions.Section)
             .Validate<IHostEnvironment>((o, environnement) => !o.Desactive || environnement.IsDevelopment(),
                 "Turnstile:Desactive n'est permis qu'en développement.")

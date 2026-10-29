@@ -759,7 +759,7 @@ else
         _ => r.Critique,
     };
 
-    // « Répartition : bon 40 → 32, dégradé 0 → 8 » ; création et retrait résumés.
+    // « Modification : bon 40 → 32, dégradé 0 → 8 » (ou « Évaluation : … ») ; création et retrait résumés.
     private static string Evenement(EvenementApi e)
     {
         switch (e.Nature)
@@ -771,14 +771,16 @@ else
             case "Retrait":
                 return $"Retrait : {(e.Apres is { } motif ? Texte(motif, "motif") : "")}";
             default:
+                // Évaluation (US-11) : répartition du lot reprise de l'évaluation, présentée comme une modification.
+                var nature = e.Nature == "Evaluation" ? "Évaluation" : "Modification";
                 if (e.Avant is not { ValueKind: JsonValueKind.Object } avant || e.Apres is not { ValueKind: JsonValueKind.Object } apresModif)
                 {
-                    return "Modification";
+                    return nature;
                 }
 
                 var changes = apresModif.EnumerateObject().Where(p => p.Name != "zoneId").OrderBy(p => Libelles.Rang(p.Name))
                     .Select(p => $"{Libelles.Champ(p.Name).ToLowerInvariant()} {Valeur(p.Name, avant.TryGetProperty(p.Name, out var v) ? v : default)} → {Valeur(p.Name, p.Value)}");
-                return $"Modification : {string.Join(", ", changes)}";
+                return $"{nature} : {string.Join(", ", changes)}";
         }
     }
 

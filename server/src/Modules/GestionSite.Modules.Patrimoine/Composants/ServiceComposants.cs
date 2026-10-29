@@ -172,28 +172,32 @@ internal sealed class ServiceComposants(
             ?? throw new SaisieInvalideException("zoneId", "Zone inconnue sur ce site.");
 
     // Valeurs comparées champ à champ pour le journal (types simples, énumérations en texte).
-    private static Dictionary<string, object?> Releve(Composant composant, Zone zone) => new()
+    private static Dictionary<string, object?> Releve(Composant composant, Zone zone)
     {
-        ["nom"] = composant.Nom,
-        ["corpsEtat"] = composant.CorpsEtat.ToString(),
-        ["zoneId"] = composant.ZoneId,
-        ["zone"] = zone.Nom,
-        ["emplacement"] = composant.Emplacement,
-        ["marque"] = composant.Marque,
-        ["modele"] = composant.Modele,
-        ["numeroSerie"] = composant.NumeroSerie,
-        ["anneeMiseEnService"] = composant.AnneeMiseEnService,
-        ["moisMiseEnService"] = composant.MoisMiseEnService,
-        ["remarques"] = composant.Remarques,
-        ["soumisAVerification"] = composant.SoumisAVerification,
-        ["unite"] = composant.Unite?.ToString(),
-        ["quantite"] = composant.Quantite,
-        ["bon"] = composant.QuantiteBon,
-        ["satisfaisant"] = composant.QuantiteSatisfaisant,
-        ["degrade"] = composant.QuantiteDegrade,
-        ["mauvais"] = composant.QuantiteMauvais,
-        ["critique"] = composant.QuantiteCritique,
-    };
+        var releve = new Dictionary<string, object?>
+        {
+            ["nom"] = composant.Nom,
+            ["corpsEtat"] = composant.CorpsEtat.ToString(),
+            ["zoneId"] = composant.ZoneId,
+            ["zone"] = zone.Nom,
+            ["emplacement"] = composant.Emplacement,
+            ["marque"] = composant.Marque,
+            ["modele"] = composant.Modele,
+            ["numeroSerie"] = composant.NumeroSerie,
+            ["anneeMiseEnService"] = composant.AnneeMiseEnService,
+            ["moisMiseEnService"] = composant.MoisMiseEnService,
+            ["remarques"] = composant.Remarques,
+            ["soumisAVerification"] = composant.SoumisAVerification,
+            ["unite"] = composant.Unite?.ToString(),
+            ["quantite"] = composant.Quantite,
+        };
+        foreach (var (etat, quantite) in SaisieComposant.Releve(composant.Lot?.Repartition))
+        {
+            releve[etat] = quantite;
+        }
+
+        return releve;
+    }
 
     private static ComposantLu Lire(Composant c, uint version) => new(
         c.Id, c.ZoneId, c.Nom, c.CorpsEtat.ToString(), c.Emplacement, c.Marque, c.Modele, c.NumeroSerie,
