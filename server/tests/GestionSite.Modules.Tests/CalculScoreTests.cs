@@ -29,7 +29,8 @@ public sealed class CalculScoreTests
         Assert.Equal((3, 2), (salle.Actifs, salle.Evalues));
         Assert.Equal(7.7m, Echelle.Arrondie(etat.Note!.Value)); // (6,4 + 9) / 2 : Parties communes comptées comme une zone
         Assert.Null(etat.Zones.Single(z => z.ZoneId == Parking).Note); // zone vide : ni note ni effet sur le site
-        Assert.Equal((4, 3, 1), (etat.Actifs, etat.Evalues, etat.Critiques));
+        Assert.Equal((4, 3), (etat.Actifs, etat.Evalues));
+        Assert.Equal([chaises.Id], etat.Critiques);
         Assert.Equal(Rationnel.Entier(0), etat.PartAncienne);
     }
 
@@ -88,9 +89,9 @@ public sealed class CalculScoreTests
         var avant = calcul.Calculer(Maintenant.AddDays(-10));
 
         Assert.Equal(Rationnel.Entier(3), aujourdhui.Note);
-        Assert.Equal(0, aujourdhui.Critiques);
+        Assert.Empty(aujourdhui.Critiques);
         Assert.Equal(Rationnel.Entier(5), avant.Note); // (9 + 1) / 2 : chaises encore en service, dernière note du tableau 9
-        Assert.Equal(1, avant.Critiques);
+        Assert.Equal([chaises.Id], avant.Critiques);
     }
 
     [Fact]

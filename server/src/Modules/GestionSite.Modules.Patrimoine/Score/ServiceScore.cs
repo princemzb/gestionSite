@@ -10,13 +10,15 @@ internal sealed record CouvertureLue(int Evalues, int Actifs);
 
 internal sealed record PointLu(string Mois, decimal? Note, string? Libelle);
 
+internal sealed record ComposantCritique(Guid Id, string Nom, Guid ZoneId);
+
 internal sealed record ZoneNotee(
     Guid ZoneId, string Nom, Guid BatimentId, string Batiment, string? Niveau, bool PartiesCommunes, decimal? Note, string? Libelle,
     CouvertureLue Couverture, int Anciennes, int AEvaluer, int Critiques, DateTimeOffset? PlusAncienne, IReadOnlyList<PointLu> Historique);
 
 internal sealed record ScoreLu(
-    decimal? Note, string? Libelle, CouvertureLue Couverture, decimal PartAncienne, int Critiques, IReadOnlyList<ZoneNotee> Zones,
-    IReadOnlyList<PointLu> Historique);
+    decimal? Note, string? Libelle, CouvertureLue Couverture, decimal PartAncienne, IReadOnlyList<ComposantCritique> Critiques,
+    IReadOnlyList<ZoneNotee> Zones, IReadOnlyList<PointLu> Historique);
 
 /// <summary>
 /// État du site (US-11, S11-03) : note, couverture, fraîcheur et points critiques, du site et de chaque zone, et courbes
@@ -39,7 +41,7 @@ internal sealed class ServiceScore(PatrimoineDbContext context, IAutorisations a
                 select new { z.Id, z.Nom, z.BatimentId, Batiment = b.Nom, Niveau = n == null ? null : n.Nom, z.PartiesCommunes })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var composants = await context.Composants.AsNoTracking().Where(c => c.SiteId == siteId)
-            .Select(c => new ComposantSuivi(c.Id, c.ZoneId, c.CreeLe, c.RetireLe))
+            .Select(c => new { Suivi = new ComposantSuivi(c.Id, c.ZoneId, c.CreeLe, c.RetireLe), c.Nom })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
         // Évaluations utiles seulement : celles de la fenêtre de 12 mois, et la dernière de chaque composant avant elle.
@@ -56,7 +58,7 @@ internal sealed class ServiceScore(PatrimoineDbContext context, IAutorisations a
             return new NoteDatee(e.Id, e.ComposantId, e.EvalueLe, Echelle.Note(e.Etat, repartition), Echelle.Critique(e.Etat, repartition));
         });
 
-        var historique = new CalculScore([.. zones.Select(z => z.Id)], composants, notes).Historique(maintenant);
+        var historique = new CalculScore([.. zones.Select(z => z.Id)], composants.Select(c => c.Suivi), notes).Historique(maintenant);
         var etat = historique[^1].Etat;
         var parZone = etat.Zones.ToDictionary(z => z.ZoneId);
         var historiqueParZone = historique
@@ -67,14 +69,16 @@ internal sealed class ServiceScore(PatrimoineDbContext context, IAutorisations a
                 var e = parZone[z.Id];
                 return new ZoneNotee(
                     z.Id, z.Nom, z.BatimentId, z.Batiment, z.Niveau, z.PartiesCommunes, Affichee(e.Note), Libelle(e.Note),
-                    new CouvertureLue(e.Evalues, e.Actifs), e.Anciennes, e.Actifs - e.Evalues + e.Anciennes, e.Critiques, e.PlusAncienne,
+                    new CouvertureLue(e.Evalues, e.Actifs), e.Anciennes, e.Actifs - e.Evalues + e.Anciennes, e.Critiques.Count, e.PlusAncienne,
                     [.. historiqueParZone[z.Id]]);
             })
             .OrderBy(z => parZone[z.ZoneId].Note is null).ThenBy(z => parZone[z.ZoneId].Note) // tri stable : bâtiment puis nom à égalité
             .ToList();
+        var noms = composants.ToDictionary(c => c.Suivi.Id, c => c.Nom);
         return new ScoreLu(
             Affichee(etat.Note), Libelle(etat.Note), new CouvertureLue(etat.Evalues, etat.Actifs), Math.Round(etat.PartAncienne.Approche(), 4, MidpointRounding.AwayFromZero),
-            etat.Critiques, zonesNotees, [.. historique.Select(p => Point(p.Mois, p.Etat.Note))]);
+            [.. etat.Zones.SelectMany(z => z.Critiques.Select(id => new ComposantCritique(id, noms[id], z.ZoneId))).OrderBy(c => c.Nom, StringComparer.Ordinal)],
+            zonesNotees, [.. historique.Select(p => Point(p.Mois, p.Etat.Note))]);
     }
 
     private static PointLu Point(DateOnly mois, Rationnel? note) =>

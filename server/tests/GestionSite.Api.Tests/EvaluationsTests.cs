@@ -164,7 +164,8 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.Equal(6.4m, score.GetProperty("note").GetDecimal()); // seule zone évaluée : (7,8 + 5) / 2
         Assert.Equal("Satisfaisant", score.GetProperty("libelle").GetString());
         Assert.Equal((2, 3), (score.GetProperty("couverture").GetProperty("evalues").GetInt32(), score.GetProperty("couverture").GetProperty("actifs").GetInt32()));
-        Assert.Equal(1, score.GetProperty("critiques").GetInt32());
+        Assert.Equal("Chaises", score.GetProperty("critiques").EnumerateArray().Single().GetProperty("nom").GetString());
+        Assert.Equal(1, zones[0].GetProperty("critiques").GetInt32());
         Assert.Equal("Parties communes", zones[0].GetProperty("nom").GetString()); // notée d'abord, puis non évaluées
         Assert.Equal(0, zones[0].GetProperty("aEvaluer").GetInt32());
         Assert.Equal("Sacristie", zones[1].GetProperty("nom").GetString());

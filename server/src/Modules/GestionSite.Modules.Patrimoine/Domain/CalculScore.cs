@@ -10,10 +10,15 @@ internal sealed record ComposantSuivi(Guid Id, Guid ZoneId, DateTimeOffset CreeL
 internal sealed record NoteDatee(Guid EvaluationId, Guid ComposantId, DateTimeOffset Le, Rationnel Note, bool Critique);
 
 /// <summary>État d'une zone à une date : note (null sans composant évalué), couverture, fraîcheur, points critiques.</summary>
-internal sealed record EtatZone(Guid ZoneId, Rationnel? Note, int Actifs, int Evalues, int Anciennes, int Critiques, DateTimeOffset? PlusAncienne);
+internal sealed record EtatZone(
+    Guid ZoneId, Rationnel? Note, int Actifs, int Evalues, int Anciennes, IReadOnlyList<Guid> Critiques, DateTimeOffset? PlusAncienne);
 
 /// <summary>État du site à une date : note, couverture, part de la note reposant sur des évaluations anciennes.</summary>
-internal sealed record EtatSite(Rationnel? Note, int Actifs, int Evalues, Rationnel PartAncienne, int Critiques, IReadOnlyList<EtatZone> Zones);
+internal sealed record EtatSite(Rationnel? Note, int Actifs, int Evalues, Rationnel PartAncienne, IReadOnlyList<EtatZone> Zones)
+{
+    /// <summary>Composants actifs dont la dernière évaluation constate « Critique » : un danger ne disparaît pas dans la moyenne.</summary>
+    internal IReadOnlyList<Guid> Critiques => [.. Zones.SelectMany(z => z.Critiques)];
+}
 
 /// <summary>Point mensuel de l'historique : état du site et des zones à la fin du mois (ou maintenant pour le mois en cours).</summary>
 internal sealed record PointHistorique(DateOnly Mois, EtatSite Etat);
@@ -62,7 +67,8 @@ internal sealed class CalculScore
             var evaluees = actifs.Select(c => Derniere(c.Id, le)).OfType<NoteDatee>().ToList();
             return new EtatZone(
                 zone, evaluees.Count == 0 ? null : Rationnel.Moyenne([.. evaluees.Select(n => n.Note)]), actifs.Count, evaluees.Count,
-                evaluees.Count(n => Ancienne(n.Le, le)), evaluees.Count(n => n.Critique), evaluees.Count == 0 ? null : evaluees.Min(n => n.Le));
+                evaluees.Count(n => Ancienne(n.Le, le)), [.. evaluees.Where(n => n.Critique).Select(n => n.ComposantId)],
+                evaluees.Count == 0 ? null : evaluees.Min(n => n.Le));
         }).ToList();
 
         // Part ancienne : poids, dans la note du site, des composants dont la dernière évaluation est ancienne (chaque zone
@@ -73,7 +79,7 @@ internal sealed class CalculScore
             : Rationnel.Moyenne([.. notees.Select(z => Rationnel.Fraction(z.Anciennes, z.Evalues))]);
         return new EtatSite(
             notees.Count == 0 ? null : Rationnel.Moyenne([.. notees.Select(z => z.Note!.Value)]), etats.Sum(z => z.Actifs), etats.Sum(z => z.Evalues),
-            partAncienne, etats.Sum(z => z.Critiques), etats);
+            partAncienne, etats);
     }
 
     /// <summary>État à la fin de chacun des 12 derniers mois (le plus ancien d'abord) ; le dernier point est l'état actuel.</summary>
