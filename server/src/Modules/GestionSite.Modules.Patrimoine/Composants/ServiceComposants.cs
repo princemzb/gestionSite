@@ -23,6 +23,7 @@ internal sealed record EvenementLu(DateTimeOffset Le, string Nature, Guid? Auteu
 
 internal sealed record FicheLue(ComposantLu Composant, IReadOnlyList<EvenementLu> Historique);
 
+// Recherche déjà nettoyée (une ligne visible) ; null : pas de filtre.
 internal sealed record FiltreComposants(Guid? ZoneId, Guid? BatimentId, CorpsEtat? CorpsEtat, bool? Verification, string? Recherche, bool Retires);
 
 /// <summary>
@@ -33,9 +34,10 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
 {
     internal const int Limite = 1000;
 
-    internal async Task<ListeComposants> ListerAsync(Guid organisationId, Guid siteId, FiltreComposants filtre, CancellationToken cancellationToken)
+    internal async Task<ListeComposants> ListerAsync(Guid organisationId, Guid siteId, DemandeFiltre demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        var filtre = SaisieComposant.Filtre(demande);
         var requete = context.Composants.AsNoTracking().Where(c => c.SiteId == siteId);
         if (!filtre.Retires)
         {
@@ -62,10 +64,9 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
             requete = requete.Where(c => c.SoumisAVerification == verification);
         }
 
-        if (filtre.Recherche is not null)
+        if (filtre.Recherche is { } recherche)
         {
-            var motif = Motifs.Contenant(TexteAffichable.Nettoyer(filtre.Recherche, Nom.Max)
-                ?? throw new SaisieInvalideException("recherche", $"recherche : une ligne visible de {Nom.Max} caractères au plus."));
+            var motif = Motifs.Contenant(recherche);
             requete = requete.Where(c => EF.Functions.ILike(c.Nom, motif, Motifs.Echappement)
                 || EF.Functions.ILike(c.Marque!, motif, Motifs.Echappement) || EF.Functions.ILike(c.Modele!, motif, Motifs.Echappement)
                 || EF.Functions.ILike(c.NumeroSerie!, motif, Motifs.Echappement) || EF.Functions.ILike(c.Emplacement!, motif, Motifs.Echappement));
@@ -80,19 +81,22 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
     internal async Task<FicheLue> LireAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
-        var composant = await ComposantAsync(siteId, id, cancellationToken).ConfigureAwait(false);
+        var lu = await context.Composants.AsNoTracking().Where(c => c.Id == id && c.SiteId == siteId)
+            .Select(c => new { Composant = c, Version = EF.Property<uint>(c, "xmin") })
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) ?? throw new ElementIntrouvableException();
         var historique = await context.Journal.AsNoTracking()
             .Where(e => e.SiteId == siteId && e.Cible == CibleInventaire.Composant && e.CibleId == id).OrderByDescending(e => e.Id)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new FicheLue(
-            Lire(composant, Version(composant)),
+            Lire(lu.Composant, lu.Version),
             [.. historique.Select(e => new EvenementLu(e.Le, e.Nature.ToString(), e.AuteurCompteId, Json(e.Avant), Json(e.Apres)))]);
     }
 
-    internal async Task<Guid> CreerAsync(Guid organisationId, Guid siteId, Guid zoneId, FicheComposant fiche, CancellationToken cancellationToken)
+    internal async Task<Guid> CreerAsync(Guid organisationId, Guid siteId, DemandeComposant demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
-        var zone = await ZoneAsync(siteId, zoneId, cancellationToken).ConfigureAwait(false);
+        var fiche = SaisieComposant.Fiche(demande);
+        var zone = await ZoneAsync(siteId, SaisieComposant.Zone(demande), cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var composant = new Composant(Guid.CreateVersion7(maintenant), zone, fiche, maintenant);
         context.Composants.Add(composant);
@@ -102,14 +106,16 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
         return composant.Id;
     }
 
-    /// <summary>Remplace la fiche lue à <paramref name="version"/> ; une version dépassée est refusée (409), sans rien écrire.</summary>
-    internal async Task ModifierAsync(
-        Guid organisationId, Guid siteId, Guid id, Guid zoneId, FicheComposant fiche, uint version, CancellationToken cancellationToken)
+    /// <summary>Remplace la fiche lue à la version donnée ; une version dépassée est refusée (409), sans rien écrire.</summary>
+    internal async Task ModifierAsync(Guid organisationId, Guid siteId, Guid id, DemandeComposant demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
-        var composant = await ComposantAVersionAsync(siteId, id, version, cancellationToken).ConfigureAwait(false);
-        var zoneAvant = await context.Zones.SingleAsync(z => z.Id == composant.ZoneId, cancellationToken).ConfigureAwait(false);
-        var zone = zoneId == zoneAvant.Id ? zoneAvant : await ZoneAsync(siteId, zoneId, cancellationToken).ConfigureAwait(false);
+        var composant = await ComposantAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
+        var fiche = SaisieComposant.Fiche(demande);
+        var zone = await ZoneAsync(siteId, SaisieComposant.Zone(demande), cancellationToken).ConfigureAwait(false);
+        var zoneAvant = zone.Id == composant.ZoneId
+            ? zone
+            : await context.Zones.SingleAsync(z => z.Id == composant.ZoneId, cancellationToken).ConfigureAwait(false);
         var avant = Releve(composant, zoneAvant);
         var maintenant = horloge.GetUtcNow();
         composant.Modifier(zone, fiche, maintenant);
@@ -125,30 +131,23 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    internal async Task RetirerAsync(Guid organisationId, Guid siteId, Guid id, string? motif, uint version, CancellationToken cancellationToken)
+    internal async Task RetirerAsync(Guid organisationId, Guid siteId, Guid id, DemandeRetrait demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierInventaire, cancellationToken).ConfigureAwait(false);
-        var composant = await ComposantAVersionAsync(siteId, id, version, cancellationToken).ConfigureAwait(false);
+        var composant = await ComposantAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
-        composant.Retirer(motif, maintenant);
+        composant.Retirer(demande.Motif, maintenant);
         context.Tracer(compte.Id, maintenant, siteId, CibleInventaire.Composant, id, NatureEvenementInventaire.Retrait,
             avant: null, new { motif = composant.MotifRetrait });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<Composant> ComposantAsync(Guid siteId, Guid id, CancellationToken cancellationToken) =>
-        await context.Composants.SingleOrDefaultAsync(c => c.Id == id && c.SiteId == siteId, cancellationToken).ConfigureAwait(false)
-            ?? throw new ElementIntrouvableException();
-
-    // Version lue par le formulaire : déjà dépassée, refus immédiat ; dépassée pendant la requête, refus à l'enregistrement (xmin).
-    private async Task<Composant> ComposantAVersionAsync(Guid siteId, Guid id, uint version, CancellationToken cancellationToken)
+    // Version lue par le formulaire, prise comme valeur d'origine de xmin : dépassée, l'enregistrement est refusé (409).
+    private async Task<Composant> ComposantAVersionAsync(Guid siteId, Guid id, uint? version, CancellationToken cancellationToken)
     {
-        var composant = await ComposantAsync(siteId, id, cancellationToken).ConfigureAwait(false);
-        if (Version(composant) != version)
-        {
-            throw new ModifieEntreTempsException();
-        }
-
+        var composant = await context.Composants.SingleOrDefaultAsync(c => c.Id == id && c.SiteId == siteId, cancellationToken).ConfigureAwait(false)
+            ?? throw new ElementIntrouvableException();
+        context.Entry(composant).Property<uint>("xmin").OriginalValue = SaisieComposant.Version(version);
         return composant;
     }
 
@@ -156,8 +155,6 @@ internal sealed class ServiceComposants(PatrimoineDbContext context, IAutorisati
     private async Task<Zone> ZoneAsync(Guid siteId, Guid zoneId, CancellationToken cancellationToken) =>
         await context.Zones.SingleOrDefaultAsync(z => z.Id == zoneId && z.SiteId == siteId, cancellationToken).ConfigureAwait(false)
             ?? throw new SaisieInvalideException("zoneId", "Zone inconnue sur ce site.");
-
-    private uint Version(Composant composant) => context.Entry(composant).Property<uint>("xmin").CurrentValue;
 
     // Valeurs comparées champ à champ pour le journal (types simples, énumérations en texte).
     private static Dictionary<string, object?> Releve(Composant composant, Zone zone) => new()

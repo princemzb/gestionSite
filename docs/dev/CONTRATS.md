@@ -61,7 +61,7 @@ Erreurs : 422 `donnee_invalide` + `champ` (champ absent compris) ; 409 `nom_exis
 Inventaire — composants (US-07, S07-02) : `/organizations/{orgId}/sites/{siteId}/inventory/components…`
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |
-| GET components | `ConsulterSite` | filtres facultatifs `zoneId`, `batimentId`, `corpsEtat`, `verification` (true/false), `recherche` (nom, marque, modèle, n° de série, emplacement ; casse ignorée, % et _ littéraux), `retires` (false par défaut) → `{composants: [composant], tronquee}` par nom, 1000 au plus (`tronquee` si davantage) |
+| GET components | `ConsulterSite` | filtres facultatifs `zoneId`, `batimentId`, `corpsEtat`, `verification` (true/false), `recherche` (≤ 200 ; nom, marque, modèle, n° de série, emplacement ; casse ignorée, % et _ littéraux), `retires` (false par défaut) ; un filtre vide est ignoré → `{composants: [composant], tronquee}` par nom, 1000 au plus (`tronquee` si davantage) |
 | GET components/{id} | `ConsulterSite` | → `{composant, historique: [{le, nature, auteurCompteId, avant, apres}]}` (plus récent d'abord ; retirés compris) |
 | POST components | `ModifierInventaire` | fiche ci-dessous → `{id}` ; `soumisAVerification` absent : proposition du corps d'état |
 | PUT components/{id} | `ModifierInventaire` | fiche complète + `version` lue + `soumisAVerification` exigé → 204 ; sans changement, rien n'est écrit |
@@ -69,7 +69,7 @@ Inventaire — composants (US-07, S07-02) : `/organizations/{orgId}/sites/{siteI
 
 Fiche : `nom` (≤ 120), `corpsEtat` (nom exact : StructureGrosOeuvre, CouvertureEtancheite, MenuiseriesExterieures, MenuiseriesInterieures, RevetementsFinitions, CourantsForts, EclairageSecurite, SecuriteIncendie, CourantsFaibles, ChauffageVentilation, Plomberie, Gaz, Ascenseurs, Paratonnerre, Campanaire, Accessibilite, Mobilier, EquipementsCulte, ExterieursVoirie, Autre), `zoneId` (zone du site), facultatifs `emplacement` (≤ 200), `marque`, `modele`, `numeroSerie` (≤ 120), `anneeMiseEnService` (1000 à l'année en cours), `moisMiseEnService` (1–12, avec l'année, jamais futur), `remarques` (≤ 2000, multiligne), `soumisAVerification`, `lot` absent pour un composant individuel, sinon `{unite: Unite|MetreCarre|MetreLineaire|MetreCube|Ensemble, quantite: 1–100000, repartition?: {bon, satisfaisant, degrade, mauvais, critique}}` (état absent = 0, somme = quantité, RG-10). Composant lu : mêmes champs + `id`, `retireLe`, `motifRetrait`, `version`.
 
-Erreurs : 422 `donnee_invalide` + `champ` (`lot.repartition`, `lot.quantite`, `lot.unite`, `zoneId` absente ou d'un autre site, `version` absente…) ; 409 `modifie_entre_temps` (version dépassée : relire puis refaire), 409 `composant_retire` ; 404 composant absent ou hors périmètre ; 403 sans rôle de terrain. Journal : création (valeurs saisies), modification (champs changés seulement, avant et après), retrait (motif).
+Erreurs (403/404 d'accès toujours avant les erreurs de saisie) : 422 `donnee_invalide` + `champ` (`lot.repartition`, `lot.quantite`, `lot.unite`, `zoneId` absente ou d'un autre site, `version` absente…) ; 409 `modifie_entre_temps` (version dépassée : relire puis refaire), 409 `composant_retire` ; 404 composant absent ou hors périmètre ; 403 sans rôle de terrain. Journal : création (valeurs saisies), modification (champs changés seulement, avant et après), retrait (motif).
 
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |

@@ -56,10 +56,13 @@ internal sealed record Repartition(int Bon, int Satisfaisant, int Degrade, int M
 
 internal sealed record Lot(UniteLot Unite, int Quantite, Repartition? Repartition);
 
-/// <summary>Saisie d'un composant : un lot absent désigne un composant individuel.</summary>
+/// <summary>
+/// Saisie d'un composant : un lot absent désigne un composant individuel ; « soumis à vérification » absent prend, à la
+/// création seulement, la proposition du corps d'état.
+/// </summary>
 internal sealed record FicheComposant(
     string? Nom, CorpsEtat CorpsEtat, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
-    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool SoumisAVerification, Lot? Lot);
+    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool? SoumisAVerification, Lot? Lot);
 
 /// <summary>
 /// Élément suivi d'une zone (US-07, S07-02), individuel ou en lot. Retiré, il sort du calcul du score et reste
@@ -84,7 +87,7 @@ internal sealed class Composant : IAppartientAOrganisation
         OrganisationId = zone.OrganisationId;
         SiteId = zone.SiteId;
         CreeLe = maintenant;
-        Appliquer(zone, fiche, maintenant);
+        Appliquer(zone, fiche with { SoumisAVerification = fiche.SoumisAVerification ?? CorpsEtats.VerificationProposee(fiche.CorpsEtat) }, maintenant);
     }
 
     public Guid Id { get; private set; }
@@ -165,6 +168,7 @@ internal sealed class Composant : IAppartientAOrganisation
         }
     }
 
+    // Tout est validé avant la première affectation : une saisie refusée laisse le composant intact.
     private void Appliquer(Zone zone, FicheComposant fiche, DateTimeOffset maintenant)
     {
         if (zone.SiteId != SiteId || zone.OrganisationId != OrganisationId)
@@ -177,19 +181,27 @@ internal sealed class Composant : IAppartientAOrganisation
             throw new SaisieInvalideException("corpsEtat", "Corps d'état inconnu.");
         }
 
+        var nom = Domain.Nom.Exiger(fiche.Nom);
+        var emplacement = Facultatif(fiche.Emplacement, "emplacement", EmplacementMax);
+        var marque = Facultatif(fiche.Marque, "marque", TexteCourtMax);
+        var modele = Facultatif(fiche.Modele, "modele", TexteCourtMax);
+        var numeroSerie = Facultatif(fiche.NumeroSerie, "numeroSerie", TexteCourtMax);
+        var remarques = Facultatif(fiche.Remarques, "remarques", RemarquesMax, multiligne: true);
         var (annee, mois) = MiseEnService(fiche.AnneeMiseEnService, fiche.MoisMiseEnService, maintenant);
         var lot = Valider(fiche.Lot);
+        var verification = fiche.SoumisAVerification
+            ?? throw new SaisieInvalideException("soumisAVerification", "Indiquer si le composant est soumis à vérification.");
         ZoneId = zone.Id;
-        Nom = Domain.Nom.Exiger(fiche.Nom);
+        Nom = nom;
         CorpsEtat = fiche.CorpsEtat;
-        Emplacement = Facultatif(fiche.Emplacement, "emplacement", EmplacementMax);
-        Marque = Facultatif(fiche.Marque, "marque", TexteCourtMax);
-        Modele = Facultatif(fiche.Modele, "modele", TexteCourtMax);
-        NumeroSerie = Facultatif(fiche.NumeroSerie, "numeroSerie", TexteCourtMax);
+        Emplacement = emplacement;
+        Marque = marque;
+        Modele = modele;
+        NumeroSerie = numeroSerie;
         AnneeMiseEnService = annee;
         MoisMiseEnService = mois;
-        Remarques = Facultatif(fiche.Remarques, "remarques", RemarquesMax, multiligne: true);
-        SoumisAVerification = fiche.SoumisAVerification;
+        Remarques = remarques;
+        SoumisAVerification = verification;
         Unite = lot?.Unite;
         Quantite = lot?.Quantite;
         QuantiteBon = lot?.Repartition?.Bon;
@@ -199,9 +211,11 @@ internal sealed class Composant : IAppartientAOrganisation
         QuantiteCritique = lot?.Repartition?.Critique;
     }
 
-    // Plaque signalétique : l'année seule suffit souvent ; le mois précise sans être exigé. Jamais dans le futur.
+    // Plaque signalétique : l'année seule suffit souvent ; le mois précise sans être exigé. Jamais dans le futur, jugé
+    // au fuseau le plus avancé (UTC+14) : un mois déjà commencé chez l'utilisateur n'est pas refusé.
     private static (int? Annee, int? Mois) MiseEnService(int? annee, int? mois, DateTimeOffset maintenant)
     {
+        maintenant = maintenant.ToOffset(TimeSpan.FromHours(14));
         if (annee is null)
         {
             return mois is null ? (null, null) : throw new SaisieInvalideException("moisMiseEnService", "Le mois précise une année de mise en service.");

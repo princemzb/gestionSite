@@ -230,8 +230,7 @@ internal sealed class ServiceMembres(
         var sites = await context.Sites.Where(s => siteIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, cancellationToken).ConfigureAwait(false);
         return [.. roles.Select(r =>
         {
-            // Nom exact seulement : Enum.TryParse accepterait « 0 » ou « Responsable, Delegue ».
-            if (r.Role is null || !Enum.GetNames<Role>().Contains(r.Role, StringComparer.Ordinal) || !Enum.TryParse<Role>(r.Role, out var role))
+            if (!NomExact.Essayer<Role>(r.Role, out var role))
             {
                 throw RefusException.Invalide("role_inconnu", $"Rôle inconnu : {r.Role}.");
             }

@@ -125,6 +125,34 @@ public sealed class PatrimoinePersistenceTests
         Assert.Equal("zoneId", autreSite.Champ);
     }
 
+    [Fact]
+    public void ARefusedChangeLeavesTheComponentIntactAndTheCheckFlagIsThenRequired()
+    {
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant));
+        var composant = new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { SoumisAVerification = null, CorpsEtat = CorpsEtat.Gaz }, Instant);
+
+        var marque = Assert.Throws<SaisieInvalideException>(() => composant.Modifier(zone, Fiche(lot: null) with { Nom = "Autre", Marque = new string('m', 121) }, Instant));
+        var verification = Assert.Throws<SaisieInvalideException>(() => composant.Modifier(zone, Fiche(lot: null) with { SoumisAVerification = null }, Instant));
+
+        Assert.True(composant.SoumisAVerification); // proposé pour le gaz
+        Assert.Equal(("marque", "Chaises"), (marque.Champ, composant.Nom));
+        Assert.Equal("soumisAVerification", verification.Champ);
+    }
+
+    [Fact]
+    public void AMonthAlreadyStartedSomewhereIsNotInTheFuture()
+    {
+        var zone = Zone.PartiesCommunesDe(Guid.NewGuid(), new Batiment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Église", Instant));
+        var veilleUtc = new DateTimeOffset(2026, 10, 31, 23, 30, 0, TimeSpan.Zero); // déjà le 1er novembre à Paris
+
+        var novembre = new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { AnneeMiseEnService = 2026, MoisMiseEnService = 11 }, veilleUtc);
+        var futur = Assert.Throws<SaisieInvalideException>(() =>
+            new Composant(Guid.NewGuid(), zone, Fiche(lot: null) with { AnneeMiseEnService = 2026, MoisMiseEnService = 12 }, veilleUtc));
+
+        Assert.Equal(11, novembre.MoisMiseEnService);
+        Assert.Equal("moisMiseEnService", futur.Champ);
+    }
+
     private static FicheComposant Fiche(Lot? lot) => new(
         "Chaises", CorpsEtat.Mobilier, Emplacement: null, Marque: null, Modele: null, NumeroSerie: null,
         AnneeMiseEnService: 2019, MoisMiseEnService: null, Remarques: "Empilables\nhêtre", SoumisAVerification: false, lot);

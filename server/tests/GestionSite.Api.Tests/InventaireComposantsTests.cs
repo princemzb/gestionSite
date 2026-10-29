@@ -43,6 +43,7 @@ public sealed class InventaireComposantsTests(InfrastructureFixture infrastructu
         Assert.Equal(["Armoire à vêtements"], Noms(await ListerAsync($"?zoneId={sacristie}&corpsEtat=Mobilier", pasteur)));
         Assert.Equal(["Extincteurs eau 6 L"], Noms(await ListerAsync("?recherche=sicli", pasteur)));
         Assert.Empty(await ListerAsync("?recherche=%25", pasteur)); // « % » littéral, pas un joker
+        Assert.Equal(3, (await ListerAsync("?recherche=%20&corpsEtat=", pasteur)).Length); // filtres vides : aucun filtre
         Assert.Equal(3, await Database.CountAsync(
             "SELECT count(*) FROM patrimoine.journal_inventaire WHERE cible = 'Composant' AND nature = 'Creation' AND auteur_compte_id IS NOT NULL"));
     }
@@ -127,7 +128,7 @@ public sealed class InventaireComposantsTests(InfrastructureFixture infrastructu
 
         using var zoneInconnue = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components", technicien, new { nom = "Banc", corpsEtat = "Mobilier", zoneId = Guid.NewGuid() });
         using var sansZone = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components", technicien, new { nom = "Banc", corpsEtat = "Mobilier" });
-        using var pasteur = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components", await JetonAsync("pasteur@inventaire.test"), new { nom = "Banc", corpsEtat = "Mobilier", zoneId = communes });
+        using var pasteur = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components", await JetonAsync("pasteur@inventaire.test"), new { nom = "Banc", corpsEtat = "17" }); // droits avant saisie
         using var introuvable = await EnvoyerAsync(HttpMethod.Get, $"{Base}/components/{Guid.NewGuid()}", technicien);
         using var autreSite = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/sites/{Guid.NewGuid()}/inventory/components", technicien);
 

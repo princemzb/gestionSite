@@ -101,7 +101,7 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             composant.ToTable("composants", table =>
             {
                 // Mêmes règles que le domaine, tenues aussi en base : lot complet ou absent, répartition complète égale à la quantité.
-                table.HasCheckConstraint("ck_composants_lot", "(unite IS NULL) = (quantite IS NULL) AND (quantite IS NULL OR quantite BETWEEN 1 AND 100000)");
+                table.HasCheckConstraint("ck_composants_lot", $"(unite IS NULL) = (quantite IS NULL) AND (quantite IS NULL OR quantite BETWEEN 1 AND {Composant.QuantiteMax})");
                 table.HasCheckConstraint(
                     "ck_composants_repartition",
                     "(quantite_bon IS NULL AND quantite_satisfaisant IS NULL AND quantite_degrade IS NULL AND quantite_mauvais IS NULL AND quantite_critique IS NULL) " +
