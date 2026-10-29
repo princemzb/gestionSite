@@ -4,6 +4,7 @@ using GestionSite.Modules.Patrimoine.Domain;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.Modules.Patrimoine.Structure;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Patrimoine.Composants;

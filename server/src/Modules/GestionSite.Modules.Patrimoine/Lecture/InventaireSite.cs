@@ -6,7 +6,7 @@ namespace GestionSite.Modules.Patrimoine.Lecture;
 
 internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireSite
 {
-    public async Task<LieuInventaire?> LieuAsync(Guid siteId, Guid zoneId, Guid? composantId, CancellationToken cancellationToken)
+    public async Task<LieuInventaire?> LieuAsync(Guid siteId, Guid zoneId, Guid? composantId, bool composantActif, CancellationToken cancellationToken)
     {
         var zone = await (
                 from z in context.Zones.AsNoTracking()
@@ -24,11 +24,17 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
             return new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null);
         }
 
-        // Composant actif de cette zone seulement : un composant retiré ne reçoit plus de dossier.
+        // Nouveau rattachement : composant actif de cette zone seulement (un composant retiré ne reçoit plus de dossier).
+        // Relecture : le composant rattaché reste nommé même retiré ou déplacé depuis ; disparu, la zone reste affichée.
         var composant = await context.Composants.AsNoTracking()
-            .Where(c => c.Id == id && c.SiteId == siteId && c.ZoneId == zoneId && c.RetireLe == null)
+            .Where(c => c.Id == id && c.SiteId == siteId && (!composantActif || (c.ZoneId == zoneId && c.RetireLe == null)))
             .Select(c => new { c.Id, c.Nom, c.CorpsEtat }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        return composant is null ? null : new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString());
+        if (composant is null)
+        {
+            return composantActif ? null : new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null);
+        }
+
+        return new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString());
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> ZonesAsync(Guid siteId, IReadOnlyCollection<Guid> zoneIds, CancellationToken cancellationToken)

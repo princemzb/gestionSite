@@ -1,4 +1,5 @@
 using GestionSite.Modules.Identite.Contracts;
+using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,8 @@ internal sealed class ServiceDepotsRecus(MaintenanceDbContext context, IAutorisa
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         await autorisations.ExigerAsync(organisationId, siteId, Droit.LireContactsDeclarant, cancellationToken).ConfigureAwait(false);
-        var signalements = context.Signalements.AsNoTracking().Where(s => s.SiteId == siteId);
+        // Dépôts publics seulement : les déclarations des comptes internes se suivent dans les dossiers (US-09).
+        var signalements = context.Signalements.AsNoTracking().Where(s => s.SiteId == siteId && s.Origine == OrigineDossier.Public);
         if (avant is { } curseur)
         {
             signalements = signalements.Where(s => s.Id.CompareTo(curseur) < 0);

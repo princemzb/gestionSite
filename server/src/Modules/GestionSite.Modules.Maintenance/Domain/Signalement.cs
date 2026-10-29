@@ -47,6 +47,9 @@ internal enum OrigineDossier
     Interne = 2,
 }
 
+/// <summary>Dossier principal qui a déjà des doublons rattachés : ni rattachement ailleurs ni classement (409 « doublons_rattaches »).</summary>
+internal sealed class DoublonsRattachesException() : Exception("Ce dossier porte des doublons rattachés : traitez-le comme dossier principal.");
+
 /// <summary>Dossier dans un statut qui n'admet pas cette action (409 « statut_incompatible »).</summary>
 internal sealed class StatutIncompatibleException(StatutDossier statut) : Exception($"Action impossible pour un dossier « {statut} ».")
 {
@@ -61,6 +64,9 @@ internal sealed class StatutIncompatibleException(StatutDossier statut) : Except
 internal sealed class Signalement : IAppartientAOrganisation
 {
     internal const int CommentaireMax = 500;
+
+    /// <summary>Statuts d'un dossier ouvert (à traiter) ; les autres sont clos (clôturé, classé, rattaché).</summary>
+    internal static readonly StatutDossier[] StatutsOuverts = [StatutDossier.AQualifier, StatutDossier.Affecte, StatutDossier.EnCours, StatutDossier.EnAttente];
     internal const int DescriptionMax = 2000;
     internal const int EmplacementMax = 200;
     internal const int NomMax = 200;
@@ -98,7 +104,10 @@ internal sealed class Signalement : IAppartientAOrganisation
         Guid id, Guid organisationId, Guid siteId, Guid commandeId, NatureSignalement nature, string? description, string? emplacement,
         string libelleZone, Guid zoneId, bool danger, bool activiteBloquee, Guid compteId, string nomCompte, DateTimeOffset recuLe)
     {
-        var precis = string.IsNullOrWhiteSpace(emplacement) ? libelleZone : emplacement;
+        // Libellé « Bâtiment · Zone » raccourci si besoin : jamais refusé pour un champ que le déclarant n'a pas rempli.
+        var precis = string.IsNullOrWhiteSpace(emplacement)
+            ? (libelleZone.Length <= EmplacementMax ? libelleZone : string.Concat(libelleZone.AsSpan(0, EmplacementMax - 1), "…"))
+            : emplacement;
         var signalement = new Signalement(
             id, organisationId, siteId, commandeId, nature, description, precis, danger, activiteBloquee, nomCompte, contactDeclarant: "—", recuLe)
         {
@@ -158,28 +167,50 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     public string? CommentaireClassement { get; private set; }
 
-    internal bool Ouvert => Statut is StatutDossier.AQualifier or StatutDossier.Affecte or StatutDossier.EnCours or StatutDossier.EnAttente;
+    internal bool Ouvert => StatutsOuverts.Contains(Statut);
 
-    /// <summary>Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04).</summary>
-    internal void Qualifier(PrioriteDossier priorite, Guid zoneId, Guid? composantId, DateTimeOffset maintenant)
+    /// <summary>
+    /// Priorité et lieu, à la qualification ou ensuite tant que le dossier est ouvert (R/D, RG-04). Faux si rien ne change
+    /// (aucune écriture, aucune trace).
+    /// </summary>
+    internal bool Qualifier(PrioriteDossier priorite, Guid zoneId, Guid? composantId, DateTimeOffset maintenant)
     {
         if (!Ouvert)
         {
             throw new StatutIncompatibleException(Statut);
         }
 
-        Priorite = Enum.IsDefined(priorite) ? priorite : throw new SaisieInvalideException("priorite", "Priorité inconnue.");
+        if (!Enum.IsDefined(priorite))
+        {
+            throw new SaisieInvalideException("priorite", "Priorité inconnue.");
+        }
+
+        if (QualifieLe is not null && Priorite == priorite && ZoneId == zoneId && ComposantId == composantId)
+        {
+            return false;
+        }
+
+        Priorite = priorite;
         ZoneId = zoneId;
         ComposantId = composantId;
         QualifieLe ??= maintenant;
+        return true;
     }
 
-    /// <summary>Rattachement à un dossier ouvert du même site, confirmé par R/D (DEC-03).</summary>
-    internal void RattacherA(Signalement principal)
+    /// <summary>
+    /// Rattachement à un dossier ouvert du même site, confirmé par R/D (DEC-03). Un dossier qui porte déjà des doublons
+    /// reste principal : pas de chaîne de doublons.
+    /// </summary>
+    internal void RattacherA(Signalement principal, bool aDesDoublons)
     {
         if (Statut != StatutDossier.AQualifier)
         {
             throw new StatutIncompatibleException(Statut);
+        }
+
+        if (aDesDoublons)
+        {
+            throw new DoublonsRattachesException();
         }
 
         if (principal.Id == Id || principal.SiteId != SiteId || !principal.Ouvert || principal.DoublonDe is not null)
@@ -191,11 +222,17 @@ internal sealed class Signalement : IAppartientAOrganisation
         Statut = StatutDossier.RattacheDoublon;
     }
 
-    internal void ClasserSansSuite(MotifClassement motif, string? commentaire)
+    /// <summary>Classement sans suite (R/D, DEC-03) ; un dossier qui porte des doublons ne se classe pas (ils resteraient orphelins).</summary>
+    internal void ClasserSansSuite(MotifClassement motif, string? commentaire, bool aDesDoublons)
     {
         if (Statut != StatutDossier.AQualifier)
         {
             throw new StatutIncompatibleException(Statut);
+        }
+
+        if (aDesDoublons)
+        {
+            throw new DoublonsRattachesException();
         }
 
         if (!Enum.IsDefined(motif))

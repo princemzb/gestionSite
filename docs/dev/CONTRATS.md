@@ -83,7 +83,7 @@ Dossiers (US-09, S09-01) : `/organizations/{orgId}/sites/{siteId}/cases…` — 
 | POST cases/{id}/duplicate-of | `QualifierAffecter` | `principalId` (autre dossier ouvert du même site, non doublon), `version` → 204 ; statut `RattacheDoublon` |
 | POST cases/{id}/dismiss | `QualifierAffecter` | `motif` (AucunProbleme, HorsPerimetre, DejaTraite, SpamAbusif, Autre), `commentaire` (≤ 500, obligatoire pour Autre), `version` → 204 ; statut `ClasseSansSuite` |
 
-Erreurs : 422 `donnee_invalide` + `champ` ; 409 `statut_incompatible` (action impossible dans ce statut), 409 `modifie_entre_temps` (version dépassée) ; 404 dossier absent ou hors périmètre ; 403 sans le droit. Journal `maintenance.journal_dossiers` en ajout seul (Declaration, Qualification, RattachementDoublon, ClassementSansSuite). Inventaire lu par le contrat `IInventaireSite` (Patrimoine.Contracts).
+Erreurs : 422 `donnee_invalide` + `champ` ; 409 `statut_incompatible` (action impossible dans ce statut), 409 `doublons_rattaches` (un dossier qui porte des doublons ne se rattache ni ne se classe), 409 `modifie_entre_temps` (version dépassée), 409 `commande_reutilisee` (même commande, autre contenu, autre compte ou autre site) ; 404 dossier absent ou hors périmètre ; 403 sans le droit. Journal `maintenance.journal_dossiers` en ajout seul (Declaration, Qualification, RattachementDoublon, ClassementSansSuite). Inventaire lu par le contrat `IInventaireSite` (Patrimoine.Contracts) : un composant retiré ou déplacé depuis la qualification reste nommé. Les dépôts antérieurs au journal affichent leur déclaration reconstituée (date de réception). « Dépôts reçus » (S08-05) ne liste que les dépôts publics.
 
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |

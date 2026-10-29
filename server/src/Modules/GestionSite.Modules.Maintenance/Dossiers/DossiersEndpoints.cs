@@ -66,9 +66,13 @@ internal static class DossiersEndpoints
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, modifie.Message, "modifie_entre_temps");
         }
-        catch (CommandeDejaUtiliseeException reutilisee)
+        catch (DepotPublic.CommandeReutiliseeException reutilisee)
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilisee.Message, "commande_reutilisee");
+        }
+        catch (Domain.DoublonsRattachesException rattaches)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, rattaches.Message, "doublons_rattaches");
         }
     }
 }

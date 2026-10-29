@@ -1,9 +1,11 @@
 using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
+using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -42,9 +44,8 @@ internal sealed class ServiceDossiers(
     internal async Task<IReadOnlyList<DossierResume>> ListerAsync(Guid organisationId, Guid siteId, bool clos, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
-        var ouverts = new[] { StatutDossier.AQualifier, StatutDossier.Affecte, StatutDossier.EnCours, StatutDossier.EnAttente };
         var dossiers = await context.Signalements.AsNoTracking()
-            .Where(s => s.SiteId == siteId && ouverts.Contains(s.Statut) != clos)
+            .Where(s => s.SiteId == siteId && Signalement.StatutsOuverts.Contains(s.Statut) != clos)
             .OrderByDescending(s => s.Id).Take(Limite)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return await ResumesAsync(siteId, dossiers, cancellationToken).ConfigureAwait(false);
@@ -70,16 +71,23 @@ internal sealed class ServiceDossiers(
         var auteurs = await annuaire.NomsAsync([.. journal.Where(e => e.AuteurCompteId is not null).Select(e => e.AuteurCompteId!.Value).Distinct()], cancellationToken)
             .ConfigureAwait(false);
         var lieu = dossier.ZoneId is { } zone
-            ? await inventaire.LieuAsync(siteId, zone, dossier.ComposantId, cancellationToken).ConfigureAwait(false)
+            ? await inventaire.LieuAsync(siteId, zone, dossier.ComposantId, composantActif: false, cancellationToken).ConfigureAwait(false)
             : null;
+        // Dépôts antérieurs au journal des dossiers (US-08) : leur déclaration est reconstituée depuis la date de réception.
+        var historique = journal.Select(e => new EvenementDossierLu(
+            e.Le, e.Nature.ToString(), e.AuteurCompteId, e.AuteurCompteId is { } auteur ? auteurs.GetValueOrDefault(auteur) : null, Json(e.Detail))).ToList();
+        if (journal.All(e => e.Nature != NatureEvenementDossier.Declaration))
+        {
+            historique.Add(new EvenementDossierLu(dossier.RecuLe, nameof(NatureEvenementDossier.Declaration), null, null, null));
+        }
+
         return new DossierLu(
             dossier.Id, Titre(dossier), dossier.Statut.ToString(), dossier.Nature.ToString(), dossier.Description, dossier.Emplacement, dossier.Danger,
             dossier.ActiviteBloquee, dossier.Origine.ToString(), dossier.RecuLe, dossier.NomDeclarant, dossier.ContactDeclarant, photos,
             dossier.Priorite?.ToString(), lieu, dossier.QualifieLe, dossier.DoublonDe, dossier.MotifClassement?.ToString(), dossier.CommentaireClassement,
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
-            [.. journal.Select(e => new EvenementDossierLu(
-                e.Le, e.Nature.ToString(), e.AuteurCompteId, e.AuteurCompteId is { } auteur ? auteurs.GetValueOrDefault(auteur) : null, Json(e.Detail)))],
+            historique,
             lu.Version);
     }
 
@@ -88,24 +96,23 @@ internal sealed class ServiceDossiers(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.DeposerSignalement, cancellationToken).ConfigureAwait(false);
         var zoneId = demande.ZoneId ?? throw new SaisieInvalideException("zoneId", "Zone obligatoire.");
-        var lieu = await inventaire.LieuAsync(siteId, zoneId, composantId: null, cancellationToken).ConfigureAwait(false)
+        var lieu = await inventaire.LieuAsync(siteId, zoneId, composantId: null, composantActif: true, cancellationToken).ConfigureAwait(false)
             ?? throw new SaisieInvalideException("zoneId", "Zone inconnue sur ce site.");
         var compteId = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
         // Nom affiché du membre ; à défaut (compte sans nom), un libellé neutre : le compte reste la référence (DeclarantCompteId).
         var nom = (await annuaire.NomsAsync([compteId], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(compteId) is { Length: > 0 } nomMembre
             ? nomMembre
             : "Compte interne";
-        if (await context.Signalements.AsNoTracking().Where(s => s.CommandeId == demande.CommandeId)
-                .Select(s => new { s.Id, s.DeclarantCompteId }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) is { } deja)
-        {
-            return deja.DeclarantCompteId == compteId ? deja.Id : throw new CommandeDejaUtiliseeException();
-        }
-
         var maintenant = horloge.GetUtcNow();
         var dossier = Signalement.Interne(
             Guid.CreateVersion7(maintenant), organisationId, siteId, demande.CommandeId, Saisie.Valeur<NatureSignalement>(demande.Nature ?? "Incident", "nature"),
-            demande.Description, demande.Emplacement, $"{lieu.Batiment} · {lieu.Zone}", lieu.ZoneId, demande.Danger, demande.ActiviteBloquee, compteId, nom,
+            demande.Description, demande.Emplacement, lieu.Libelle, lieu.ZoneId, demande.Danger, demande.ActiviteBloquee, compteId, nom,
             maintenant);
+        if (await DejaDeclareAsync(dossier, cancellationToken).ConfigureAwait(false) is { } deja)
+        {
+            return deja;
+        }
+
         context.Signalements.Add(dossier);
         if (dossier.Danger)
         {
@@ -113,8 +120,32 @@ internal sealed class ServiceDossiers(
         }
 
         Tracer(dossier, NatureEvenementDossier.Declaration, maintenant, detail: null);
-        await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Même envoi reçu en parallèle : l'autre requête l'a enregistré ; même réponse que pour un rejeu.
+            context.ChangeTracker.Clear();
+            return await DejaDeclareAsync(dossier, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Doublon signalé par la base mais introuvable.", doublon);
+        }
+
         return dossier.Id;
+    }
+
+    // Rejeu : même compte, même site, même contenu → même dossier ; sinon la commande est réutilisée à tort (409).
+    private async Task<Guid?> DejaDeclareAsync(Signalement envoye, CancellationToken cancellationToken)
+    {
+        var recu = await context.Signalements.AsNoTracking().Where(s => s.CommandeId == envoye.CommandeId)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return recu switch
+        {
+            null => null,
+            _ when recu.DeclarantCompteId == envoye.DeclarantCompteId && recu.ZoneId == envoye.ZoneId && recu.MemeEnvoi(envoye) => recu.Id,
+            _ => throw new CommandeReutiliseeException(),
+        };
     }
 
     /// <summary>Priorité (DEC-05), zone obligatoire et composant facultatif (décision du 29/10), à la version lue.</summary>
@@ -124,46 +155,58 @@ internal sealed class ServiceDossiers(
         var dossier = await DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
         var priorite = Saisie.Valeur<PrioriteDossier>(demande.Priorite, "priorite");
         var zoneId = demande.ZoneId ?? throw new SaisieInvalideException("zoneId", "Zone obligatoire.");
-        var lieu = await inventaire.LieuAsync(siteId, zoneId, demande.ComposantId, cancellationToken).ConfigureAwait(false)
+        var lieu = await inventaire.LieuAsync(siteId, zoneId, demande.ComposantId, composantActif: true, cancellationToken).ConfigureAwait(false)
             ?? throw new SaisieInvalideException(demande.ComposantId is null ? "zoneId" : "composantId", "Zone ou composant inconnu sur ce site.");
         var maintenant = horloge.GetUtcNow();
-        dossier.Qualifier(priorite, lieu.ZoneId, lieu.ComposantId, maintenant);
+        if (!dossier.Qualifier(priorite, lieu.ZoneId, lieu.ComposantId, maintenant))
+        {
+            return; // sans changement : rien n'est écrit
+        }
+
         Tracer(dossier, NatureEvenementDossier.Qualification, maintenant,
-            new { priorite = priorite.ToString(), zone = $"{lieu.Batiment} · {lieu.Zone}", composant = lieu.Composant });
+            new { priorite = priorite.ToString(), zone = lieu.Libelle, composant = lieu.Composant });
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task RattacherAsync(Guid organisationId, Guid siteId, Guid id, DemandeRattachement demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        var dossier = await DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
         var principalId = demande.PrincipalId ?? throw new SaisieInvalideException("principalId", "Dossier principal obligatoire.");
+        // Les deux dossiers verrouillés (ordre fixe) : un rattachement concurrent ne peut pas créer de chaîne ni d'orphelin.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync([id, principalId], cancellationToken).ConfigureAwait(false);
+        var dossier = await DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
         var principal = await context.Signalements.SingleOrDefaultAsync(s => s.Id == principalId && s.SiteId == siteId, cancellationToken).ConfigureAwait(false)
             ?? throw new SaisieInvalideException("principalId", "Dossier principal inconnu sur ce site.");
-        dossier.RattacherA(principal);
+        dossier.RattacherA(principal, await ADesDoublonsAsync(id, cancellationToken).ConfigureAwait(false));
         Tracer(dossier, NatureEvenementDossier.RattachementDoublon, horloge.GetUtcNow(), new { principal = principal.Id, titre = Titre(principal) });
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task ClasserAsync(Guid organisationId, Guid siteId, Guid id, DemandeClassement demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync([id], cancellationToken).ConfigureAwait(false);
         var dossier = await DossierAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
-        dossier.ClasserSansSuite(Saisie.Valeur<MotifClassement>(demande.Motif, "motif"), demande.Commentaire);
+        dossier.ClasserSansSuite(Saisie.Valeur<MotifClassement>(demande.Motif, "motif"), demande.Commentaire, await ADesDoublonsAsync(id, cancellationToken).ConfigureAwait(false));
         Tracer(dossier, NatureEvenementDossier.ClassementSansSuite, horloge.GetUtcNow(),
             new { motif = dossier.MotifClassement.ToString(), commentaire = dossier.CommentaireClassement });
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     // Doublons possibles (DEC-03) : dossiers ouverts du même site, même zone si elle est connue, sinon même emplacement saisi.
     private async Task<List<Signalement>> SuggestionsAsync(Signalement dossier, CancellationToken cancellationToken)
     {
-        var ouverts = new[] { StatutDossier.AQualifier, StatutDossier.Affecte, StatutDossier.EnCours, StatutDossier.EnAttente };
         var candidats = context.Signalements.AsNoTracking()
-            .Where(s => s.SiteId == dossier.SiteId && s.Id != dossier.Id && s.DoublonDe == null && ouverts.Contains(s.Statut));
+            .Where(s => s.SiteId == dossier.SiteId && s.Id != dossier.Id && s.DoublonDe == null && Signalement.StatutsOuverts.Contains(s.Statut));
+        // Même emplacement, casse ignorée, saisie littérale (% et _ échappés).
+        var emplacement = Motifs.Exact(dossier.Emplacement);
         candidats = dossier.ZoneId is { } zone
-            ? candidats.Where(s => s.ZoneId == zone || EF.Functions.ILike(s.Emplacement, dossier.Emplacement))
-            : candidats.Where(s => EF.Functions.ILike(s.Emplacement, dossier.Emplacement));
+            ? candidats.Where(s => s.ZoneId == zone || EF.Functions.ILike(s.Emplacement, emplacement, Motifs.Echappement))
+            : candidats.Where(s => EF.Functions.ILike(s.Emplacement, emplacement, Motifs.Echappement));
         return await candidats.OrderByDescending(s => s.Id).Take(5).ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -185,6 +228,18 @@ internal sealed class ServiceDossiers(
         return dossier;
     }
 
+    private async Task VerrouillerAsync(Guid[] ids, CancellationToken cancellationToken)
+    {
+        foreach (var id in ids.Distinct().Order())
+        {
+            await context.Database.ExecuteSqlAsync($"SELECT 1 FROM maintenance.signalements WHERE id = {id} FOR UPDATE", cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private Task<bool> ADesDoublonsAsync(Guid id, CancellationToken cancellationToken) =>
+        context.Signalements.AnyAsync(s => s.DoublonDe == id, cancellationToken);
+
     private void Tracer(Signalement dossier, NatureEvenementDossier nature, DateTimeOffset le, object? detail) =>
         context.Journal.Add(new EvenementDossier(
             Guid.CreateVersion7(le), dossier, nature, compte.Id, le, detail is null ? null : JsonSerializer.Serialize(detail)));
@@ -198,10 +253,6 @@ internal sealed class ServiceDossiers(
         catch (DbUpdateConcurrencyException)
         {
             throw new DossierModifieException();
-        }
-        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            throw new CommandeDejaUtiliseeException(); // même commande enregistrée en parallèle
         }
     }
 
@@ -223,9 +274,6 @@ internal sealed class ServiceDossiers(
         return document.RootElement.Clone();
     }
 }
-
-/// <summary>Commande de déclaration déjà utilisée par un autre envoi (409 « commande_reutilisee »).</summary>
-internal sealed class CommandeDejaUtiliseeException() : Exception("Cet identifiant d'envoi a déjà servi pour une autre déclaration.");
 
 internal static class Saisie
 {

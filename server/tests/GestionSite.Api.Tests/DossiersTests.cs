@@ -131,6 +131,63 @@ public sealed class DossiersTests(InfrastructureFixture infrastructure) : Invent
         Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
     }
 
+    [Fact]
+    public async Task ReplayChecksTheContentAndInternalCasesStayOutOfReceivedDeposits()
+    {
+        var (_, communes) = await LieuAsync();
+        var pasteur = await JetonAsync("pasteur@inventaire.test");
+        var commande = Guid.NewGuid();
+        await DeclarerAsync(pasteur, communes, "Fuite", commande);
+
+        using var autreContenu = await EnvoyerAsync(HttpMethod.Post, Dossiers, pasteur, new { commandeId = commande, zoneId = communes, description = "Autre chose" });
+        using var recus = await EnvoyerAsync(HttpMethod.Get, Base.Replace("/inventory", "/reports", StringComparison.Ordinal), pasteur);
+
+        Assert.Equal(HttpStatusCode.Conflict, autreContenu.StatusCode);
+        Assert.Empty((await recus.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray()); // déclarations internes : dans les dossiers seulement
+    }
+
+    [Fact]
+    public async Task AMainCaseWithDuplicatesIsNeitherAttachedNorDismissedAndKeepsItsWithdrawnComponent()
+    {
+        var (composant, communes) = await LieuAsync();
+        await MembreAsync("responsable@inventaire.test", Role.Responsable);
+        var responsable = await JetonAsync("responsable@inventaire.test");
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var principal = await DeclarerAsync(responsable, communes, "Bloc éteint", Guid.NewGuid());
+        var doublon = await DeclarerAsync(responsable, communes, "BAES éteint", Guid.NewGuid());
+        var autre = await DeclarerAsync(responsable, communes, "Encore le bloc", Guid.NewGuid());
+        await PosterAsync(responsable, $"{Dossiers}/{doublon}/duplicate-of", new { principalId = principal, version = await VersionAsync(doublon, responsable) });
+        await PosterAsync(responsable, $"{Dossiers}/{principal}/qualify",
+            new { priorite = "Haute", zoneId = communes, composantId = composant, version = await VersionAsync(principal, responsable) });
+        using var retrait = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components/{composant}/withdraw", technicien,
+            new { motif = "Remplacé", version = (await LireComposantAsync(composant, technicien)).GetProperty("version").GetUInt32() });
+
+        using var chaine = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{principal}/duplicate-of", responsable,
+            new { principalId = autre, version = await VersionAsync(principal, responsable) });
+        using var classe = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{principal}/dismiss", responsable,
+            new { motif = "DejaTraite", version = await VersionAsync(principal, responsable) });
+        var lu = await LireAsync(principal, responsable);
+
+        Assert.Equal(HttpStatusCode.NoContent, retrait.StatusCode);
+        Assert.Equal("doublons_rattaches", (await chaine.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        Assert.Equal("doublons_rattaches", (await classe.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        Assert.Equal("BAES", lu.GetProperty("lieu").GetProperty("composant").GetString()); // retiré depuis, toujours nommé
+    }
+
+    private async Task<uint> VersionAsync(Guid id, string jeton) => (await LireAsync(id, jeton)).GetProperty("version").GetUInt32();
+
+    private async Task PosterAsync(string jeton, string chemin, object corps)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, jeton, corps);
+        Assert.Equal(HttpStatusCode.NoContent, reponse.StatusCode);
+    }
+
+    private async Task<JsonElement> LireComposantAsync(Guid id, string jeton)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Get, $"{Base}/components/{id}", jeton);
+        return (await reponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("composant");
+    }
+
     // Église, sa zone « Parties communes » et un composant BAES (éclairage de sécurité) dans cette zone.
     private async Task<(Guid Composant, Guid PartiesCommunes)> LieuAsync()
     {
