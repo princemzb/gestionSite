@@ -171,7 +171,40 @@ public sealed class EvaluationsTests(InfrastructureFixture infrastructure) : Inv
         Assert.Equal(1, zones[1].GetProperty("aEvaluer").GetInt32());
         Assert.Equal(12, score.GetProperty("historique").GetArrayLength());
         Assert.Equal(6.4m, score.GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(12, zones[0].GetProperty("historique").GetArrayLength());
+        Assert.Equal(6.4m, zones[0].GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, zones[1].GetProperty("historique")[11].GetProperty("note").ValueKind);
         Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheLatestEvaluationBeforeTheHistoryWindowStillCountsAsOld()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var (tableau, _) = await ComposantsAsync(technicien);
+        var zone = (await LireAsync($"{Base}/components/{tableau}", technicien)).GetProperty("composant").GetProperty("zoneId").GetGuid();
+        foreach (var (etat, ans) in new[] { ("Bon", 3), ("Mauvais", 2) })
+        {
+            Assert.Equal(1, await Database.CountAsync(
+                """
+                WITH ajout AS (
+                    INSERT INTO patrimoine.evaluations (id, organisation_id, site_id, composant_id, zone_id, corps_etat, commande_id, grille_version,
+                        points, mesures, etat, evaluateur_compte_id, evalue_le)
+                    VALUES (gen_random_uuid(), @organisation, @site, @composant, @zone, 'CourantsForts', gen_random_uuid(), 1,
+                        '[]', '[]', @etat, gen_random_uuid(), now() - make_interval(years => @ans)) RETURNING 1)
+                SELECT count(*) FROM ajout
+                """,
+                ("organisation", Organisation), ("site", Site), ("composant", tableau), ("zone", zone), ("etat", etat), ("ans", ans)));
+        }
+
+        var score = await LireAsync($"{Base}/score", technicien);
+        var communes = score.GetProperty("zones")[0];
+
+        Assert.Equal(3m, score.GetProperty("note").GetDecimal()); // la plus récente (Mauvais), il y a 2 ans
+        Assert.Equal(1, communes.GetProperty("anciennes").GetInt32());
+        Assert.Equal(1m, score.GetProperty("partAncienne").GetDecimal());
+        Assert.Equal(3m, score.GetProperty("historique")[11].GetProperty("note").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, score.GetProperty("historique")[10].GetProperty("note").ValueKind); // composant créé ce mois-ci
     }
 
     private static object Individuel(string etat, Guid? commande = null, int version = 1, bool?[]? constats = null, decimal?[]? mesures = null) =>

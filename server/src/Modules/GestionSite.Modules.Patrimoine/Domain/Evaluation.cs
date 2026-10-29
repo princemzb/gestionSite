@@ -14,19 +14,25 @@ internal enum EtatComposant
     Bon = 9,
 }
 
-/// <summary>Notes et libellés de l'échelle commune (DEC-01, RG-12).</summary>
+/// <summary>Notes et libellés de l'échelle commune (DEC-01, RG-12), en fractions exactes.</summary>
 internal static class Echelle
 {
-    /// <summary>Note d'un lot : moyenne des états pondérée par les quantités, précision complète.</summary>
-    internal static decimal Note(Repartition repartition) =>
-        ((9m * repartition.Bon) + (7m * repartition.Satisfaisant) + (5m * repartition.Degrade) + (3m * repartition.Mauvais) + repartition.Critique)
-        / repartition.Total;
+    /// <summary>
+    /// Note d'une évaluation : valeur de l'état d'un composant individuel, ou moyenne des états d'un lot pondérée par les
+    /// quantités (30×9 + 8×5 + 2×1 sur 40 = 7,8), précision complète.
+    /// </summary>
+    internal static Rationnel Note(EtatComposant? etat, Repartition? repartition) => repartition is { } r
+        ? Rationnel.Fraction((9L * r.Bon) + (7L * r.Satisfaisant) + (5L * r.Degrade) + (3L * r.Mauvais) + r.Critique, r.Total)
+        : Rationnel.Entier((int)(etat ?? throw new ArgumentException("État ou répartition requis.", nameof(etat))));
 
-    /// <summary>Note affichée : une décimale, arrondi au plus proche (0,05 vers le haut).</summary>
-    internal static decimal Arrondie(decimal note) => Math.Round(note, 1, MidpointRounding.AwayFromZero);
+    /// <summary>« Critique » constaté : état d'un composant individuel, ou au moins une unité d'un lot.</summary>
+    internal static bool Critique(EtatComposant? etat, Repartition? repartition) => etat == EtatComposant.Critique || repartition?.Critique > 0;
+
+    /// <summary>Note affichée : une décimale, arrondi au plus proche (0,05 vers le haut), calculé exactement.</summary>
+    internal static decimal Arrondie(Rationnel note) => note.Dixieme();
 
     /// <summary>Libellé de la note arrondie affichée : [0;2[ Critique … [8;10] Bon, jamais en contradiction avec le chiffre.</summary>
-    internal static EtatComposant Libelle(decimal note) => Arrondie(note) switch
+    internal static EtatComposant Libelle(Rationnel note) => Arrondie(note) switch
     {
         >= 8 => EtatComposant.Bon,
         >= 6 => EtatComposant.Satisfaisant,
@@ -132,10 +138,10 @@ internal sealed class Evaluation : IAppartientAOrganisation
         ? new Repartition(bon, Satisfaisant ?? 0, Degrade ?? 0, Mauvais ?? 0, Critique ?? 0)
         : null;
 
-    internal decimal Note => Repartition is { } repartition ? Echelle.Note(repartition) : (int)Etat!.Value;
+    internal Rationnel Note => Echelle.Note(Etat, Repartition);
 
     /// <summary>« Critique » constaté (au moins une unité d'un lot) : l'application propose d'ouvrir un dossier, sans le créer.</summary>
-    internal bool ProposerDossier => Etat == EtatComposant.Critique || Critique > 0;
+    internal bool ProposerDossier => Echelle.Critique(Etat, Repartition);
 
     internal IReadOnlyList<PointEvalue> PointsLus => JsonSerializer.Deserialize<List<PointEvalue>>(Points) ?? [];
 
