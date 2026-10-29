@@ -100,10 +100,10 @@ Fiche du dossier (GET cases/{id}) : en plus `affecteLe`, `echeancePriseEnCharge`
 Attente et reprise (US-09, S09-03) : `/organizations/{orgId}/sites/{siteId}/cases/{id}/interventions/{numero}/…`
 | Opération | Accès | Contenu et réponses |
 | --- | --- | --- |
-| POST …/hold | `DocumenterIntervention` ; la personne en charge, sinon `QualifierAffecter` | `motif` (Financement, Livraison, Prestataire, AccesImpossible, DecisionInterne, Autre — DEC-03), `commentaire` (≤ 500, obligatoire pour Autre), `reexamenLe` (date, aujourd'hui à un an), `version` du dossier → 204 ; intervention « EnAttente » ; le dossier passe « EnAttente » quand plus aucune intervention n'est en cours : `attenteDepuis`, `reexamenLe`, `echeanceResolution` = null (délai suspendu, RG-07) |
-| POST …/resume | idem | `version` → 204 ; intervention « EnCours » ; dossier « EnCours », la durée d'attente s'ajoute à `dureeAttente` et à `echeanceResolution` ; l'ancienneté (`recuLe`) n'est jamais suspendue |
+| POST …/hold | `DocumenterIntervention` ; la personne en charge, sinon `QualifierAffecter` | `motif` (Financement, Livraison, Prestataire, AccesImpossible, DecisionInterne, Autre — DEC-03), `commentaire` (≤ 500, obligatoire pour Autre), `reexamenLe` (date, aujourd'hui à un an), `version` du dossier → 204 ; intervention « EnAttente » ; le dossier passe « EnAttente » quand plus aucune intervention n'avance (une intervention seulement affectée n'empêche pas l'attente) : `attenteDepuis`, `echeanceResolution` = null (délai suspendu, RG-07) |
+| POST …/resume | idem | `version` → 204 ; intervention « EnCours ». Le dossier repasse « EnCours » dès qu'une intervention avance (reprise, ou démarrage d'une autre) : la durée d'attente s'ajoute à `dureeAttenteSecondes` et à `echeanceResolution` ; l'ancienneté (`recuLe`) n'est jamais suspendue |
 
-Fiche : `attenteDepuis`, `reexamenLe`, `dureeAttente` ; par intervention `motifAttente`, `commentaireAttente`, `reexamenLe`. Journal : MiseEnAttente, Reprise. 409 `statut_incompatible` (attente d'une intervention non démarrée, reprise d'une intervention qui n'attend pas).
+Fiche : `attenteDepuis`, `reexamenLe` (le plus proche des réexamens des interventions en attente), `dureeAttenteSecondes` ; statut du dossier déduit de ses interventions (en cours si l'une avance, sinon en attente si l'une attend, sinon affecté) ; par intervention `motifAttente`, `commentaireAttente`, `reexamenLe`. Journal : MiseEnAttente, Reprise. 409 `statut_incompatible` (attente d'une intervention non démarrée, reprise d'une intervention qui n'attend pas).
 
 Liens publics des sites (S08-04) :
 | Opération | Accès | Contenu et réponses |

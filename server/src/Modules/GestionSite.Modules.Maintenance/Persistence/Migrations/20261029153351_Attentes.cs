@@ -26,13 +26,6 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 nullable: false,
                 defaultValue: new TimeSpan(0, 0, 0, 0, 0));
 
-            migrationBuilder.AddColumn<DateOnly>(
-                name: "reexamen_le",
-                schema: "maintenance",
-                table: "signalements",
-                type: "date",
-                nullable: true);
-
             migrationBuilder.AddColumn<string>(
                 name: "commentaire_attente",
                 schema: "maintenance",
@@ -67,11 +60,6 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "duree_attente",
-                schema: "maintenance",
-                table: "signalements");
-
-            migrationBuilder.DropColumn(
-                name: "reexamen_le",
                 schema: "maintenance",
                 table: "signalements");
 

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 {
     [DbContext(typeof(MaintenanceDbContext))]
-    [Migration("20261029152219_Attentes")]
+    [Migration("20261029153351_Attentes")]
     partial class Attentes
     {
         /// <inheritdoc />
@@ -348,10 +348,6 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<DateTimeOffset>("RecuLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recu_le");
-
-                    b.Property<DateOnly?>("ReexamenLe")
-                        .HasColumnType("date")
-                        .HasColumnName("reexamen_le");
 
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")

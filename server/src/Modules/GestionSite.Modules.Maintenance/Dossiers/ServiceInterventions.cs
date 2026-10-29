@@ -57,6 +57,7 @@ internal sealed class ServiceInterventions(
             Guid.CreateVersion7(maintenant), dossier, numero, demande.Titre, demande.IntervenantCompteId, demande.Prestataire, demande.ReferentCompteId, maintenant);
         dossier.Affecter(maintenant);
         context.Interventions.Add(intervention);
+        await SynchroniserAsync(dossier, maintenant, ajoutee: intervention, cancellationToken).ConfigureAwait(false);
         // Comptes par identifiant (noms résolus à la lecture) : le journal en ajout seul ne fige aucun nom de personne.
         context.Tracer(dossier, NatureEvenementDossier.Affectation, compte.Id, maintenant, new
         {
@@ -80,7 +81,7 @@ internal sealed class ServiceInterventions(
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.Demarrer(maintenant);
-        dossier.Demarrer(maintenant);
+        await SynchroniserAsync(dossier, maintenant, ajoutee: null, cancellationToken).ConfigureAwait(false);
         context.Tracer(dossier, NatureEvenementDossier.Demarrage, compte.Id, maintenant, new { numero, titre = intervention.Titre });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -100,12 +101,7 @@ internal sealed class ServiceInterventions(
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.MettreEnAttente(motif, demande.Commentaire, demande.ReexamenLe, maintenant);
-        var autreEnCours = await context.Interventions
-            .AnyAsync(i => i.DossierId == dossierId && i.Id != intervention.Id && i.Statut == StatutIntervention.EnCours, cancellationToken).ConfigureAwait(false);
-        if (!autreEnCours)
-        {
-            dossier.Attendre(intervention.ReexamenLe!.Value, maintenant);
-        }
+        await SynchroniserAsync(dossier, maintenant, ajoutee: null, cancellationToken).ConfigureAwait(false);
 
         context.Tracer(dossier, NatureEvenementDossier.MiseEnAttente, compte.Id, maintenant, new
         {
@@ -127,14 +123,23 @@ internal sealed class ServiceInterventions(
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         intervention.Reprendre();
-        if (dossier.Statut == StatutDossier.EnAttente)
-        {
-            dossier.Reprendre(maintenant);
-        }
+        await SynchroniserAsync(dossier, maintenant, ajoutee: null, cancellationToken).ConfigureAwait(false);
 
         context.Tracer(dossier, NatureEvenementDossier.Reprise, compte.Id, maintenant, new { numero, titre = intervention.Titre });
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // Statut du dossier recalculé depuis toutes ses interventions (suivies : l'état modifié dans cette requête compte).
+    private async Task SynchroniserAsync(Signalement dossier, DateTimeOffset maintenant, Intervention? ajoutee, CancellationToken cancellationToken)
+    {
+        var interventions = await context.Interventions.Where(i => i.DossierId == dossier.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (ajoutee is not null && !interventions.Contains(ajoutee))
+        {
+            interventions.Add(ajoutee);
+        }
+
+        dossier.Synchroniser(interventions, maintenant);
     }
 
     // Dossier verrouillé à la version lue et intervention dont l'appelant est en charge, sinon R/D (RG-04, RG-06).

@@ -136,12 +136,13 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
         Assert.Equal(HttpStatusCode.NoContent, seconde.StatusCode);
         Assert.Equal("EnAttente", enAttente.GetProperty("statut").GetString());
         Assert.Equal(JsonValueKind.Null, enAttente.GetProperty("echeanceResolution").ValueKind); // délai suspendu (RG-07)
-        Assert.Equal(reexamen, enAttente.GetProperty("reexamenLe").GetString());
+        Assert.Equal(reexamen, enAttente.GetProperty("reexamenLe").GetString()); // le plus proche des réexamens
         Assert.Equal("Livraison", enAttente.GetProperty("interventions")[0].GetProperty("motifAttente").GetString());
         Assert.Equal(HttpStatusCode.NoContent, reprise.StatusCode);
         Assert.Equal("EnCours", repris.GetProperty("statut").GetString());
-        var base30 = repris.GetProperty("qualifieLe").GetDateTimeOffset().AddDays(30);
-        Assert.True(repris.GetProperty("echeanceResolution").GetDateTimeOffset() > base30); // la durée d'attente s'ajoute
+        // La durée d'attente exacte s'ajoute au délai de 30 jours (Normale).
+        var attendue = repris.GetProperty("qualifieLe").GetDateTimeOffset().AddDays(30).AddSeconds(repris.GetProperty("dureeAttenteSecondes").GetInt64());
+        Assert.InRange(repris.GetProperty("echeanceResolution").GetDateTimeOffset() - attendue, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }
 
     private async Task<HttpResponseMessage> AttendreAsync(Guid dossier, int numero, string jeton, string lecteur, object attente)

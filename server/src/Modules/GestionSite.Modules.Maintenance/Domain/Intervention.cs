@@ -126,22 +126,17 @@ internal sealed class Intervention : IAppartientAOrganisation
             throw new SaisieInvalideException("motif", "Motif d'attente inconnu.");
         }
 
-        var aujourdhui = DateOnly.FromDateTime(maintenant.UtcDateTime);
-        if (reexamenLe is not { } reexamen || reexamen < aujourdhui.AddDays(-1) || reexamen > aujourdhui.AddYears(1))
+        // « Aujourd'hui » de l'utilisateur, où qu'il soit : de la date la plus en retard (UTC−12) à la plus avancée (UTC+14).
+        var auPlusTot = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(-12)).DateTime);
+        var auPlusTard = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(14)).DateTime).AddYears(1);
+        if (reexamenLe is not { } reexamen || reexamen < auPlusTot || reexamen > auPlusTard)
         {
             throw new SaisieInvalideException("reexamenLe", "Date de réexamen entre aujourd'hui et un an.");
         }
 
-        var texte = string.IsNullOrWhiteSpace(commentaire) ? null : TexteAffichable.Nettoyer(commentaire, Signalement.CommentaireMax, multiligne: true)
-            ?? throw new SaisieInvalideException("commentaire", $"Commentaire visible de {Signalement.CommentaireMax} caractères au plus.");
-        if (motif == Domain.MotifAttente.Autre && texte is null)
-        {
-            throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour le motif « Autre ».");
-        }
-
         Statut = StatutIntervention.EnAttente;
         MotifAttente = motif;
-        CommentaireAttente = texte;
+        CommentaireAttente = Commentaire.Exiger(commentaire, motif == Domain.MotifAttente.Autre);
         ReexamenLe = reexamen;
     }
 
