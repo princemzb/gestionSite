@@ -170,8 +170,8 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_signalements_organisation_id_commande_id");
 
-                    b.HasIndex("OrganisationId", "SiteId", "RecuLe")
-                        .HasDatabaseName("ix_signalements_organisation_id_site_id_recu_le");
+                    b.HasIndex("OrganisationId", "SiteId", "Id")
+                        .HasDatabaseName("ix_signalements_organisation_id_site_id_id");
 
                     b.ToTable("signalements", "maintenance");
                 });

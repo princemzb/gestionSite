@@ -51,7 +51,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             signalement.HasAlternateKey(s => new { s.Id, s.OrganisationId });
             // Un envoi = un signalement, même rejoué ou envoyé deux fois en parallèle (F-01).
             signalement.HasIndex(s => new { s.OrganisationId, s.CommandeId }).IsUnique();
-            signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.RecuLe });
+            // Liste par site, du plus récent au plus ancien (identifiants ordonnés dans le temps), curseur « avant ».
+            signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.Id });
         });
 
         modelBuilder.Entity<AlerteDanger>(alerte =>

@@ -82,7 +82,10 @@ public sealed partial class WebAdministrationTests(InfrastructureFixture infrast
         var activation = await PosterAsync(luc, new Uri(lien).PathAndQuery, "activation",
             ("Saisie.Jeton", jeton), ("Saisie.MotDePasse", MotDePasse), ("Saisie.Confirmation", MotDePasse));
         Assert.Equal(HttpStatusCode.Redirect, activation.StatusCode);
-        Assert.Contains("Votre compte est actif", await LirePageAsync(luc, "/"), StringComparison.Ordinal); // technicien : pas d'administration
+        using var accueil = await luc.GetAsync(new Uri("/", UriKind.Relative)); // technicien : les dépôts reçus de son site, pas l'administration
+        var depots = await LirePageAsync(luc, Chemin(accueil));
+        Assert.Contains("Dépôts reçus", depots, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Membres<", depots, StringComparison.Ordinal);
         Assert.Contains("Actif", await LirePageAsync(admin, page), StringComparison.Ordinal);
     }
 

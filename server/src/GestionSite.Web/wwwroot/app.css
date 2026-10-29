@@ -179,3 +179,29 @@ a.tuile:hover { color: inherit; }
   background: var(--surface); color: var(--encre); font: inherit; font-weight: 600; cursor: pointer; }
 .carte-site-detail .actions { justify-content: flex-start; }
 .carte-site-detail .actions .bouton-secondaire, .numero-urgence .bouton-secondaire { height: 44px; }
+
+/* Dépôts reçus (US-08, S08-05, maquette A retenue) */
+.onglets { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 999px; background: var(--surface); box-shadow: var(--ombre); }
+.onglets a { height: 40px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; text-decoration: none; color: var(--encre); }
+.onglets a[aria-current="page"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); font-weight: 600; }
+.depots { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.depots .tableau-conteneur { flex: 1 1 560px; min-width: 0; }
+.depots table { min-width: 560px; }
+.depots tr.choisi { background: #1E6CFF0D; }
+.depots td.date { white-space: nowrap; }
+.depots td.date a { color: var(--encre); font-weight: 600; text-decoration: none; }
+.depots td.resume { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.badge.danger { background: #C7202C; color: #FFFFFF; }
+.badge.alerte { background: var(--alerte-fond); color: var(--alerte); }
+.detail-depot { flex: 0 1 380px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.detail-depot .badge { align-self: flex-start; }
+.detail-depot h2 { margin: 0; font-size: 20px; }
+.detail-depot img { width: 100%; border-radius: 16px; }
+.detail-depot dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.detail-depot dt { color: var(--encre-2); }
+.detail-depot dd { margin: 0; overflow-wrap: anywhere; }
+.texte-libre { margin: 0; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.encadre { padding: 12px; border-radius: 12px; background: var(--etape-fond); }
+.vide-carte { padding: 24px; }
+.vide-carte p { margin: 0; }
