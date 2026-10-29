@@ -1,15 +1,13 @@
 // Vérification de la préproduction pour US-08 (navigateur réel, Chromium sans interface via Playwright 1.55.0) :
 // écran Sites, affiche, formulaire public et widget Turnstile, invitation d'un technicien, Dépôts reçus.
 // Le défi Turnstile n'est pas franchissable par un navigateur automatisé (c'est son rôle) : le dépôt réel se vérifie
-// depuis un téléphone. Usage : node us08.mjs <dossier> avec preprod-url.txt, preprod-org.txt, preprod-jeton.txt
-// (organisation fictive ouverte par « ouvrir-organisation --site »), dans un dossier où playwright est installé.
+// depuis un téléphone. Usage, dans un dossier où playwright est installé (captures écrites dans ce dossier) :
+//   VERIF_URL=<adresse publique> VERIF_ORG=<organisation> VERIF_JETON=<jeton d'activation> node us08.mjs
+// (organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit).
 import { chromium } from "playwright";
-import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-const d = process.argv[2];
-const base = readFileSync(`${d}/preprod-url.txt`, "utf8").trim();
-const org = readFileSync(`${d}/preprod-org.txt`, "utf8").trim();
-const jeton = readFileSync(`${d}/preprod-jeton.txt`, "utf8").trim();
+const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
+if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
 const mdp = randomBytes(12).toString("hex") + "-verif";
 const ok = (nom, cond) => { console.log((cond ? "OK    " : "ÉCHEC ") + nom); if (!cond) process.exit(1); };
 const b = await chromium.launch();
@@ -23,7 +21,7 @@ await admin.goto(`${base}/organisations/${org}/sites`);
 const lien = (await admin.textContent(".carte-site code")).trim();
 ok("écran Sites : lien public du site en https sur l'adresse publique", lien.startsWith(`${base}/s/`));
 ok("écran Sites : QR code affiché", await admin.locator(".carte-site .qr svg").count() === 1);
-await admin.screenshot({ path: `${d}/preprod-sites.png`, fullPage: true });
+await admin.screenshot({ path: "us08-sites.png", fullPage: true });
 const affiche = await admin.request.get(`${base}${await admin.getAttribute("a:has-text('Imprimer l')", "href")}`);
 ok("affiche A4 servie", affiche.ok() && (await affiche.text()).includes("Un problème ici ?"));
 
@@ -54,5 +52,5 @@ await tech.goto(`${base}/`); await tech.waitForLoadState();
 ok("le technicien arrive sur les dépôts reçus", tech.url().includes(`/organisations/${org}/depots`));
 const page = await tech.textContent("body");
 ok("écran Dépôts reçus du site (encore vide)", page.includes("Dépôts reçus") && page.includes("Aucun dépôt reçu pour Site vérification"));
-await tech.screenshot({ path: `${d}/preprod-depots.png`, fullPage: true });
+await tech.screenshot({ path: "us08-depots.png", fullPage: true });
 await b.close();
