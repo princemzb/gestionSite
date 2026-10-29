@@ -78,21 +78,15 @@ Choix faits en expert du bâtiment (corps d'état, pratique des contrôleurs pou
 - Numéro à appeler en cas de danger : saisi par site (administrateur) ; affiché au déclarant public qui signale un danger, seulement s'il est renseigné (décision du 28/10, maquettes UX-03).
 - Ouvert, bloquant avant la production seulement : durée de conservation des coordonnées des déclarants publics (données personnelles, SECURITE).
 
-## Traitement des dossiers — cadrage US-09 (29/10, propositions de l'agent à valider par le porteur)
+## Traitement des dossiers — US-09, V, 29 octobre 2026 (porteur du projet)
 Acquis (V) : cycle à 7 statuts et motifs d'attente et de classement (DEC-03, PROCESSUS) ; priorités et délais (DEC-05) ; qualification, priorité et affectation par R/D, clôture par le technicien affecté, réouverture par R/D (RG-04, RG-06) ; attente suspendant le délai de résolution, ancienneté conservée (RG-07) ; contact du déclarant lisible par T, R/D, P/C du site (DEC-04).
-Découpage proposé :
-- S09-01 Dossier et qualification : chaque dépôt (public ou interne) ouvre un dossier « À qualifier » ; R/D fixe la priorité (DEC-05), le rattache à une zone et, si possible, à un composant de l'inventaire, confirme ou écarte les doublons suggérés (même site et même emplacement), ou classe sans suite (motif de la liste) ; tout est journalisé.
-- S09-02 Affectation et interventions : 1 à N interventions par dossier, chacune avec son intervenant ; démarrage déclaré (« En cours »).
-- S09-03 Attente et reprise : motif de la liste DEC-03, date de réexamen obligatoire, délai de résolution suspendu, ancienneté affichée.
-- S09-04 Clôture et réouverture : compte rendu (actions réalisées), état final, photo selon le corps d'état ; dossier clôturé à la clôture de sa dernière intervention ouverte ; réouverture motivée par R/D.
-- S09-05 Écrans web : file de qualification (UI-03), dossier (UI-04), « Mes interventions » du technicien (web adapté au téléphone ; la tablette hors ligne relève d'US-13). Maquettes UX-05 d'abord.
-Hors périmètre : alertes danger, rappels et escalades (US-10), estimation et budget (US-17 à US-19), consommation de stock (US-15).
-Questions ouvertes (soumises au porteur, recommandation de l'agent en premier) :
-1. Intervenant : technicien interne, ou prestataire extérieur suivi par un référent interne (PRD 5.2) — recommandé : les deux.
-2. Rattachement à l'inventaire lors de la qualification : zone obligatoire, composant facultatif — recommandé (récurrence DEC-05 par zone ou composant, futur score).
-3. Photo après intervention obligatoire pour : électricité courants forts, éclairage de sécurité, sécurité incendie, gaz, couverture, structure — recommandé (travaux à risque ou à contrôler).
-4. État final à la clôture : « Résolu », « Mesure provisoire » (mise en sécurité, à reprendre), « Non résolu » — recommandé ; l'évaluation de l'état du composant reste celle d'US-11.
-5. Déclaration interne par un compte (pasteur, coordination, technicien, R/D) dans US-09 — recommandé : oui, formulaire simple.
+Décisions du 29/10 (QCM, recommandations de l'agent retenues) :
+- Intervenant : technicien interne du site, ou prestataire extérieur nommé dont le suivi est assuré par un référent interne (technicien ou R/D du site).
+- Qualification : zone de l'inventaire obligatoire, composant facultatif.
+- Clôture d'une intervention : actions réalisées, état final parmi « Résolu », « Mesure provisoire » (mis en sécurité, à reprendre) et « Non résolu » ; photo après intervention obligatoire pour les corps d'état électricité courants forts, éclairage de sécurité, sécurité incendie, gaz, couverture et étanchéité, structure et gros œuvre (déduits du composant rattaché ; sans composant, photo facultative). L'évaluation de l'état d'un composant reste celle d'US-11.
+- Déclaration interne : tout compte interne du site (T, R/D, P/C) déclare un problème par un formulaire simple (zone, description, danger, activité bloquée, photos) ; le dossier arrive « À qualifier » comme un dépôt public.
+- Écrans (maquettes UX-05) : suivi des dossiers en colonnes par statut, qualification dans un panneau (B) ; dossier avec barre d'étapes et onglets Constat / Interventions / Historique / Déclarant (B) ; « Mes interventions » du technicien en liste par priorité avec délai restant (B), web adapté au téléphone (tablette hors ligne : US-13).
+Découpage : S09-01 dossier et qualification (dont doublons et classement sans suite) ; S09-02 affectation et interventions ; S09-03 attente et reprise ; S09-04 clôture et réouverture ; S09-05 écrans web et préproduction. Hors périmètre : alertes danger, rappels et escalades (US-10), estimation et budget (US-17 à US-19), consommation de stock (US-15).
 
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
