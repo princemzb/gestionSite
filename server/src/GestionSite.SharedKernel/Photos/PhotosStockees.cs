@@ -1,15 +1,13 @@
-using GestionSite.SharedKernel;
-
-namespace GestionSite.Modules.Maintenance.Photos;
+namespace GestionSite.SharedKernel.Photos;
 
 /// <summary>
 /// Écriture des photos préparées (JPEG réencodés) avant l'enregistrement en base, sous la clé de chaque ligne créée :
 /// dépôt public, déclaration interne, clôture d'intervention. Un échec ensuite laisse au pire des fichiers orphelins,
 /// jamais ceux d'un autre envoi (clés propres à chaque photo enregistrée).
 /// </summary>
-internal static class PhotosStockees
+public static class PhotosStockees
 {
-    internal static async Task<IReadOnlyList<T>> EcrireAsync<T>(
+    public static async Task<IReadOnlyList<T>> EcrireAsync<T>(
         IStockageFichiers stockage, IReadOnlyList<byte[]> jpegs, Func<int, byte[], T> creer, Func<T, string> cle, CancellationToken cancellationToken)
     {
         var photos = jpegs.Select((jpeg, i) => creer(i + 1, jpeg)).ToList();

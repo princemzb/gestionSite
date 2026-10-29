@@ -1,26 +1,25 @@
 using System.Text.Json;
-using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 
-namespace GestionSite.Modules.Maintenance.Photos;
+namespace GestionSite.SharedKernel.Photos;
 
 /// <summary>
 /// Formulaire avec photos (dépôt public, clôture d'intervention) : JSON seul, ou multipart avec une partie « demande »
 /// (JSON) et jusqu'à 3 fichiers « photos » de 10 Mo. Lu ici plutôt que lié par le framework : un corps illisible reçoit
 /// la même réponse 422 que les autres saisies.
 /// </summary>
-internal static class FormulaireAvecPhotos
+public static class FormulaireAvecPhotos
 {
-    internal const long CorpsMax = (TraitementPhotos.NombreMax * (long)TraitementPhotos.TailleMax) + (1024 * 1024);
+    public const long CorpsMax = (TraitementPhotos.NombreMax * (long)TraitementPhotos.TailleMax) + (1024 * 1024);
 
     /// <summary>Limites de taille du point d'entrée : 3 photos de 10 Mo et le reste du formulaire.</summary>
-    internal static RouteHandlerBuilder AvecPhotos(this RouteHandlerBuilder route) =>
+    public static RouteHandlerBuilder AvecPhotos(this RouteHandlerBuilder route) =>
         route.WithMetadata(new RequestSizeLimitAttribute(CorpsMax)).WithFormOptions(multipartBodyLengthLimit: CorpsMax, valueLengthLimit: 64 * 1024);
 
-    internal static async Task<(T Demande, IReadOnlyList<PhotoRecue> Photos)> LireAsync<T>(HttpRequest requete, CancellationToken cancellationToken)
+    public static async Task<(T Demande, IReadOnlyList<PhotoRecue> Photos)> LireAsync<T>(HttpRequest requete, CancellationToken cancellationToken)
         where T : class
     {
         // Limite de Kestrel (30 Mo par défaut) relevée pour ce seul point d'entrée.

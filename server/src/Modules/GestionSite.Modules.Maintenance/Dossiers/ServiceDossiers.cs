@@ -3,7 +3,7 @@ using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Persistence;
-using GestionSite.Modules.Maintenance.Photos;
+using GestionSite.SharedKernel.Photos;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Persistence;
