@@ -106,3 +106,45 @@ internal sealed class AlerteDanger : IAppartientAOrganisation
 
     public DateTimeOffset CreeLe { get; private set; }
 }
+
+/// <summary>
+/// Photo d'un signalement, réencodée sans métadonnées, stockée en privé. Clé propre au signalement enregistré :
+/// un envoi concurrent perdant (même commande) n'écrase jamais les fichiers du gagnant.
+/// </summary>
+internal sealed class PhotoSignalement : IAppartientAOrganisation
+{
+    internal const int CleMax = 200;
+
+    private PhotoSignalement()
+    {
+    }
+
+    internal PhotoSignalement(Guid id, Signalement signalement, int rang, int taille)
+    {
+        Id = id;
+        OrganisationId = signalement.OrganisationId;
+        SignalementId = signalement.Id;
+        Rang = rang;
+        Cle = CleDe(signalement.OrganisationId, signalement.Id, rang);
+        Taille = taille;
+        CreeLe = signalement.RecuLe;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid OrganisationId { get; private set; }
+
+    public Guid SignalementId { get; private set; }
+
+    /// <summary>1 à 3, dans l'ordre d'envoi.</summary>
+    public int Rang { get; private set; }
+
+    public string Cle { get; private set; } = string.Empty;
+
+    public int Taille { get; private set; }
+
+    public DateTimeOffset CreeLe { get; private set; }
+
+    internal static string CleDe(Guid organisationId, Guid signalementId, int rang) =>
+        $"organisations/{organisationId:D}/signalements/{signalementId:D}/photo-{rang}.jpg";
+}

@@ -44,6 +44,8 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 
 - Module Maintenance (S08-01) : même commande avec `--project server/src/Modules/GestionSite.Modules.Maintenance --context MaintenanceDbContext`. Isolation commune dans le noyau (`GestionSite.SharedKernel.Persistence` : intercepteurs `SET LOCAL`, marqueurs `IAppartientAOrganisation`/`IDonneeGlobale`, `ContexteRequete.Intercepteurs()`) ; chaque contexte garde ses filtres et sa garde d'écriture ; chaque table d'organisation reçoit ENABLE + FORCE RLS et la politique `isolation_organisation` dans sa migration (test `EveryTableOfTheSchemaHasForcedRowLevelSecurity`, schémas `identite` et `maintenance`).
 
+- Photos (S08-02) : Magick.NET (Apache-2.0) ; l'API est publiée pour l'architecture cible (`-r linux-x64` dans `server/Dockerfile`) afin de n'embarquer que la bibliothèque native utile ; stockage via `IStockageFichiers` (noyau), implémenté en S3 par l'API (`ObjectStorage:*`).
+
 ### Authentification (S06-03)
 - `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /me` (CONTRATS). Jeton d'accès JWT HS256 15 min ; jeton de renouvellement aléatoire (32 octets), stocké en empreinte SHA-256, rotation à chaque usage, réutilisation d'un jeton remplacé = révocation de toute la lignée.
 - Clé de signature `Authentification:CleSignature` (base64, ≥ 32 octets) : valeur locale non sensible dans `appsettings.Development.json`, fournie par l'environnement ailleurs ; l'API refuse de démarrer sans clé valide.
