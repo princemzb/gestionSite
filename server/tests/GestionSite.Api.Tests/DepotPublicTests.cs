@@ -345,6 +345,12 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
         await using var api = _api.WithWebHostBuilder(b => b.UseSetting("DepotPublic:LimiteParSite", "2"));
         using var client = api.CreateClient();
         var (_, autreCode) = await OuvrirAsync("Autre église", "admin@limite.test");
+        for (var i = 0; i < 5; i++)
+        {
+            // Requêtes invalides : ne consomment rien (sinon n'importe qui bloquerait un site sans passer l'anti-robot).
+            using var invalide = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Demande() with { Nom = "" });
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, invalide.StatusCode);
+        }
 
         var reponses = new List<HttpResponseMessage>();
         for (var i = 0; i < 3; i++)
@@ -359,6 +365,21 @@ public sealed class DepotPublicTests(InfrastructureFixture infrastructure) : IAs
         Assert.Equal("trop_de_depots", probleme.GetProperty("code").GetString());
         Assert.Equal(HttpStatusCode.OK, autreSite.StatusCode);
         reponses.ForEach(r => r.Dispose());
+    }
+
+    [Fact]
+    public async Task WithoutTheTurnstileSecretOnlyThePublicFormIsUnavailable()
+    {
+        await using var api = _api.WithWebHostBuilder(b => b.UseSetting("Turnstile:Desactive", "false"));
+        using var client = api.CreateClient();
+
+        using var depot = await client.PostAsJsonAsync(new Uri($"/public/sites/{_code}/reports", UriKind.Relative), Demande() with { Verification = "x" });
+        using var sante = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
+        var probleme = await depot.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, depot.StatusCode);
+        Assert.Equal("depot_indisponible", probleme.GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.OK, sante.StatusCode);
     }
 
     private sealed class VerificationSimulee : IVerificationHumaine

@@ -24,7 +24,8 @@ internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant
 
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
 internal sealed class ServiceDepotPublic(
-    MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, IVerificationHumaine verification, TimeProvider horloge)
+    MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, IVerificationHumaine verification, LimiteDepots limites,
+    TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
@@ -60,6 +61,8 @@ internal sealed class ServiceDepotPublic(
         {
             throw new SaisieInvalideException("verification", "Vérification anti-robot échouée : réessayez.");
         }
+
+        limites.Exiger(site.SiteId);
 
         // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant
         // l'enregistrement, sous des clés propres à ce signalement : un échec de la base (ou un envoi concurrent

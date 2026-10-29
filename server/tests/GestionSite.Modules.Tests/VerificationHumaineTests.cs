@@ -3,6 +3,8 @@ using GestionSite.Modules.Maintenance;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -46,21 +48,36 @@ public sealed class VerificationHumaineTests
         Assert.False(await Verification(cloudflare).VerifierAsync("jeton", CancellationToken.None));
     }
 
-    [Fact]
-    public void TheModuleRefusesToStartWithoutTheSecretUnlessExplicitlyDisabled()
+    [Theory]
+    [InlineData("Development", true)]
+    [InlineData("Production", false)]
+    public void DisablingTheCheckIsOnlyAllowedInDevelopment(string environnement, bool permis)
     {
-        using var sansCle = Fournisseur([]);
-        using var desactive = Fournisseur(new() { ["Turnstile:Desactive"] = "true" });
+        using var fournisseur = Fournisseur(new() { ["Turnstile:Desactive"] = "true" }, environnement);
 
-        Assert.Throws<OptionsValidationException>(() => sansCle.GetRequiredService<IOptions<TurnstileOptions>>().Value);
-        Assert.True(desactive.GetRequiredService<IOptions<TurnstileOptions>>().Value.Desactive);
+        var lecture = Record.Exception(() => fournisseur.GetRequiredService<IOptions<TurnstileOptions>>().Value);
+
+        Assert.Equal(permis, lecture is null);
+    }
+
+    [Fact]
+    public async Task WithoutTheSecretDepositsAreUnavailableRatherThanUnchecked()
+    {
+        using var fournisseur = Fournisseur([], "Production");
+        using var portee = fournisseur.CreateScope();
+
+        var verification = portee.ServiceProvider.GetRequiredService<IVerificationHumaine>();
+
+        await Assert.ThrowsAsync<DepotIndisponibleException>(() => verification.VerifierAsync("jeton", CancellationToken.None));
     }
 
     private static VerificationTurnstile Verification(CloudflareSimule cloudflare) => new(
         new HttpClient(cloudflare), Options.Create(new TurnstileOptions { CleSecrete = "cle-secrete" }), NullLogger<VerificationTurnstile>.Instance);
 
-    private static ServiceProvider Fournisseur(Dictionary<string, string?> reglages) => new ServiceCollection()
+    private static ServiceProvider Fournisseur(Dictionary<string, string?> reglages, string environnement) => new ServiceCollection()
         .AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(reglages).Build())
+        .AddSingleton<IHostEnvironment>(new HostingEnvironment { EnvironmentName = environnement })
+        .AddLogging()
         .AddMaintenanceModule()
         .BuildServiceProvider();
 

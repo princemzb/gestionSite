@@ -2,6 +2,7 @@ using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Persistence;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace GestionSite.Modules.Maintenance;
@@ -16,14 +17,20 @@ public static class MaintenanceModule
     {
         TraitementPhotos.Configurer();
         services.AddOptions<TurnstileOptions>().BindConfiguration(TurnstileOptions.Section)
-            .Validate(o => o.Desactive || !string.IsNullOrWhiteSpace(o.CleSecrete),
-                "Turnstile:CleSecrete est requise (Turnstile:Desactive seulement en développement et en test).")
+            .Validate<IHostEnvironment>((o, environnement) => !o.Desactive || environnement.IsDevelopment(),
+                "Turnstile:Desactive n'est permis qu'en développement.")
             .ValidateOnStart();
         services.AddHttpClient<VerificationTurnstile>(client => client.Timeout = TimeSpan.FromSeconds(10));
-        services.AddScoped<IVerificationHumaine>(p => p.GetRequiredService<IOptions<TurnstileOptions>>().Value.Desactive
-            ? new SansVerification()
-            : p.GetRequiredService<VerificationTurnstile>());
-        return services.AddMaintenancePersistence().AddLimitesDepotPublic().AddScoped<ServiceDepotPublic>();
+        services.AddScoped<IVerificationHumaine>(p => p.GetRequiredService<IOptions<TurnstileOptions>>().Value switch
+        {
+            { Desactive: true } => new SansVerification(),
+            { CleSecrete: { Length: > 0 } } => p.GetRequiredService<VerificationTurnstile>(),
+            _ => ActivatorUtilities.CreateInstance<VerificationIndisponible>(p),
+        });
+        services.AddOptions<DepotPublicOptions>().BindConfiguration(DepotPublicOptions.Section)
+            .Validate(o => o.LimiteParSite > 0 && o.Fenetre > TimeSpan.Zero, "DepotPublic : limite et fenêtre positives.")
+            .ValidateOnStart();
+        return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>();
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic();

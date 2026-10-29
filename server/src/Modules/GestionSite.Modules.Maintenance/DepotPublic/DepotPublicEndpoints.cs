@@ -26,7 +26,6 @@ internal static class DepotPublicEndpoints
                     ? Results.Ok(accuse)
                     : Results.NotFound();
             })
-            .RequireRateLimiting(LimitesDepotPublic.Politique)
             // 3 photos de 10 Mo et le reste du formulaire.
             .WithMetadata(new RequestSizeLimitAttribute(CorpsMax))
             .WithFormOptions(multipartBodyLengthLimit: CorpsMax, valueLengthLimit: 64 * 1024);
@@ -87,6 +86,16 @@ internal static class DepotPublicEndpoints
         {
             return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "Donnée invalide.",
                 extensions: new Dictionary<string, object?> { ["code"] = "donnee_invalide", ["champ"] = invalide.Champ });
+        }
+        catch (TropDeDepotsException trop)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: trop.Message,
+                extensions: new Dictionary<string, object?> { ["code"] = "trop_de_depots" });
+        }
+        catch (DepotIndisponibleException indisponible)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: indisponible.Message,
+                extensions: new Dictionary<string, object?> { ["code"] = "depot_indisponible" });
         }
         catch (CommandeReutiliseeException reutilisee)
         {
