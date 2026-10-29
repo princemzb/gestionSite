@@ -1,5 +1,5 @@
-using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
+using GestionSite.SharedKernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -21,7 +21,7 @@ internal static class StructureEndpoints
     internal static IEndpointRouteBuilder MapStructure(this IEndpointRouteBuilder endpoints)
     {
         var inventaire = endpoints.MapGroup("/organizations/{orgId:guid}/sites/{siteId:guid}/inventory")
-            .RequireAuthorization().AddEndpointFilter(TraduireRefus);
+            .RequireAuthorization().AddEndpointFilter(RefusCommuns.Traduire).AddEndpointFilter(TraduireRefus);
         inventaire.MapGet("/structure", async (Guid orgId, Guid siteId, ServiceStructure service, CancellationToken ct) =>
             Results.Ok(await service.LireAsync(orgId, siteId, ct).ConfigureAwait(false)));
         inventaire.MapPost("/buildings", async (Guid orgId, Guid siteId, DemandeNom demande, ServiceStructure service, CancellationToken ct) =>
@@ -46,18 +46,12 @@ internal static class StructureEndpoints
         return endpoints;
     }
 
-    // Refus de l'inventaire (structure et composants) traduits en réponses du contrat.
+    // Refus propres à l'inventaire (structure et composants) ; accès et saisie : RefusCommuns, placé avant.
     internal static async ValueTask<object?> TraduireRefus(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try
         {
             return await next(context).ConfigureAwait(false);
-        }
-        catch (AccesInventaireRefuseException refus)
-        {
-            return refus.Decision == DecisionAutorisation.Refuse
-                ? Probleme(StatusCodes.Status403Forbidden, "Action non permise.", "interdit")
-                : Results.NotFound();
         }
         catch (ElementIntrouvableException)
         {
@@ -65,23 +59,15 @@ internal static class StructureEndpoints
         }
         catch (NomExistantException existant)
         {
-            return Probleme(StatusCodes.Status409Conflict, existant.Message, "nom_existant");
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, existant.Message, "nom_existant");
         }
         catch (ModifieEntreTempsException modifie)
         {
-            return Probleme(StatusCodes.Status409Conflict, modifie.Message, "modifie_entre_temps");
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, modifie.Message, "modifie_entre_temps");
         }
         catch (ComposantRetireException retire)
         {
-            return Probleme(StatusCodes.Status409Conflict, retire.Message, "composant_retire");
-        }
-        catch (SaisieInvalideException invalide)
-        {
-            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "Donnée invalide.",
-                extensions: new Dictionary<string, object?> { ["code"] = "donnee_invalide", ["champ"] = invalide.Champ });
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, retire.Message, "composant_retire");
         }
     }
-
-    private static IResult Probleme(int statut, string titre, string code) =>
-        Results.Problem(statusCode: statut, title: titre, extensions: new Dictionary<string, object?> { ["code"] = code });
 }

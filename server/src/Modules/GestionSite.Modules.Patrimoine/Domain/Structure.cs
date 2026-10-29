@@ -3,12 +3,6 @@ using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Patrimoine.Domain;
 
-/// <summary>Saisie refusée d'un champ (422 « donnee_invalide » + champ).</summary>
-internal sealed class SaisieInvalideException(string champ, string message) : Exception(message)
-{
-    internal string Champ { get; } = champ;
-}
-
 internal static class Nom
 {
     internal const int Max = 120;

@@ -26,7 +26,7 @@ internal static class ComposantsEndpoints
     internal static IEndpointRouteBuilder MapComposants(this IEndpointRouteBuilder endpoints)
     {
         var composants = endpoints.MapGroup("/organizations/{orgId:guid}/sites/{siteId:guid}/inventory/components")
-            .RequireAuthorization().AddEndpointFilter(StructureEndpoints.TraduireRefus);
+            .RequireAuthorization().AddEndpointFilter(RefusCommuns.Traduire).AddEndpointFilter(StructureEndpoints.TraduireRefus);
         composants.MapGet("/", async (
             Guid orgId, Guid siteId, Guid? zoneId, Guid? batimentId, string? corpsEtat, bool? verification, string? recherche, bool? retires,
             ServiceComposants service, CancellationToken ct) =>

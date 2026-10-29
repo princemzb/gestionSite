@@ -1,3 +1,4 @@
+using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Maintenance.Domain;

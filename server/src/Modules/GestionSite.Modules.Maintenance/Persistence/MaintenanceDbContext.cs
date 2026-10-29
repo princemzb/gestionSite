@@ -10,7 +10,7 @@ namespace GestionSite.Modules.Maintenance.Persistence;
 /// l'organisation courante, refus d'écrire pour une autre, RLS forcée en base (migration).
 /// </summary>
 internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext> options, OrganisationCourante organisationCourante)
-    : DbContext(options)
+    : ContexteOrganisation(options, organisationCourante)
 {
     internal const string Schema = "maintenance";
     internal const string MigrationsTable = "__ef_migrations";
@@ -20,21 +20,6 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
     public DbSet<AlerteDanger> AlertesDanger => Set<AlerteDanger>();
 
     public DbSet<PhotoSignalement> Photos => Set<PhotoSignalement>();
-
-    // Lu à chaque requête par les filtres (paramètre EF) : sans organisation, aucune ligne.
-    private Guid? OrganisationId => organisationCourante.Id;
-
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        ExigerOrganisationCourante();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-    {
-        ExigerOrganisationCourante();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -80,32 +65,6 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<Signalement>().HasQueryFilter(s => s.OrganisationId == OrganisationId);
-        modelBuilder.Entity<PhotoSignalement>().HasQueryFilter(p => p.OrganisationId == OrganisationId);
-        modelBuilder.Entity<AlerteDanger>().HasQueryFilter(a => a.OrganisationId == OrganisationId);
-    }
-
-    // Double barrière : la RLS refuserait aussi ces écritures, mais l'erreur applicative est plus claire.
-    private void ExigerOrganisationCourante()
-    {
-        // Toute écriture dans une transaction : l'organisation y est posée à l'ouverture (intercepteurs du noyau).
-        Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
-        foreach (var entree in ChangeTracker.Entries())
-        {
-            if (entree.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
-            {
-                continue;
-            }
-
-            if (entree.Entity is not IAppartientAOrganisation donnee)
-            {
-                throw new InvalidOperationException($"{entree.Metadata.ClrType.Name} n'est rattachée à aucune organisation.");
-            }
-
-            if (donnee.OrganisationId != OrganisationId)
-            {
-                throw new InvalidOperationException("Écriture refusée : la donnée appartient à une autre organisation que celle de la requête.");
-            }
-        }
+        FiltrerParOrganisation(modelBuilder);
     }
 }

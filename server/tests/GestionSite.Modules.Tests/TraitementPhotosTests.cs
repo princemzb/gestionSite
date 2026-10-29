@@ -1,5 +1,5 @@
 using GestionSite.Modules.Maintenance.DepotPublic;
-using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.SharedKernel;
 using ImageMagick;
 
 namespace GestionSite.Modules.Tests;

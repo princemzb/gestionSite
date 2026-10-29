@@ -1,4 +1,5 @@
 ﻿using System;
+using GestionSite.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -158,7 +159,7 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
 
             foreach (var table in new[] { "batiments", "niveaux", "zones", "journal_inventaire" })
             {
-                Isoler(migrationBuilder, table);
+                migrationBuilder.IsolerParOrganisation("patrimoine", table);
             }
 
             // Rôle de l'API : structure lue, créée et renommée (aucune suppression) ; journal en ajout seul.
@@ -167,18 +168,6 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
             migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON patrimoine.batiments, patrimoine.niveaux, patrimoine.zones TO gestionsite_app;");
             migrationBuilder.Sql("GRANT SELECT, INSERT ON patrimoine.journal_inventaire TO gestionsite_app;");
         }
-
-        // Seconde barrière (ADR-10), comme les autres modules : sans organisation de session, aucune ligne visible ni écrite.
-        private static void Isoler(MigrationBuilder migrationBuilder, string table)
-        {
-            const string organisationDeSession = "NULLIF(current_setting('app.organisation_id', true), '')::uuid";
-            migrationBuilder.Sql($"ALTER TABLE patrimoine.{table} ENABLE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql($"ALTER TABLE patrimoine.{table} FORCE ROW LEVEL SECURITY;");
-            migrationBuilder.Sql(
-                $"CREATE POLICY isolation_organisation ON patrimoine.{table} " +
-                $"USING (organisation_id = {organisationDeSession}) WITH CHECK (organisation_id = {organisationDeSession});");
-        }
-
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {

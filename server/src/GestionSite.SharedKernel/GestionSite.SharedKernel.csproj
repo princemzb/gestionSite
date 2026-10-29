@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Isolation par organisation commune aux modules (intercepteurs RLS, marqueurs) : EF Core seul, aucun projet. -->
+  <!-- Socle commun aux modules (SOC-01) : isolation par organisation (intercepteurs RLS, contexte de base, migrations),
+       configuration PostgreSQL, refus HTTP communs. Paquets et cadre ASP.NET Core seulement, aucun projet. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 </Project>

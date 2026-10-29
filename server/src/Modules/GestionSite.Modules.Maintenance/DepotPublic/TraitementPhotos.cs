@@ -1,4 +1,4 @@
-using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.SharedKernel;
 using ImageMagick;
 
 namespace GestionSite.Modules.Maintenance.DepotPublic;
