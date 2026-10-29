@@ -1,8 +1,8 @@
 using System.Text.Json;
 using GestionSite.Modules.Maintenance.Domain;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace GestionSite.Modules.Maintenance.DepotPublic;
@@ -64,9 +64,13 @@ internal static class DepotPublicEndpoints
 
             return (demande, photos);
         }
-        catch (Exception illisible) when (illisible is JsonException or InvalidOperationException or InvalidDataException)
+        catch (BadHttpRequestException tropGros) when (tropGros.StatusCode == StatusCodes.Status413PayloadTooLarge)
         {
-            throw Illisible();
+            throw new SaisieInvalideException("photos", "Trois photos au plus, de 10 Mo chacune.");
+        }
+        catch (Exception illisible) when (illisible is JsonException or InvalidOperationException or InvalidDataException or IOException)
+        {
+            throw Illisible(); // dont un envoi interrompu (multipart tronqué)
         }
     }
 

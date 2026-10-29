@@ -7,6 +7,17 @@ namespace GestionSite.Modules.Tests;
 /// <summary>Photos du dépôt public (S08-02) : métadonnées retirées, orientation appliquée, formats et tailles bornés.</summary>
 public sealed class TraitementPhotosTests
 {
+    public TraitementPhotosTests() => TraitementPhotos.Configurer(); // comme au démarrage du module
+
+    [Fact]
+    public void DecodingIsBoundedWithoutDiskFallback()
+    {
+        Assert.Equal(12_000u, ResourceLimits.Width);
+        Assert.Equal(50_000_000ul, ResourceLimits.Area);
+        Assert.Equal(0ul, ResourceLimits.Disk);
+        Assert.True(ResourceLimits.Memory <= 512ul * 1024 * 1024);
+    }
+
     [Fact]
     public void LocationAndOtherMetadataAreRemovedAndOrientationIsApplied()
     {

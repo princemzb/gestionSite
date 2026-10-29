@@ -19,14 +19,20 @@ internal static class TraitementPhotos
     internal const uint CoteMax = 2560;
     internal const string TypeContenu = "image/jpeg";
 
-    // Bornes de décodage : une petite image annonçant des dimensions énormes est refusée avant allocation.
-    private const uint DimensionMax = 12_000;
+    // Au plus deux décodages simultanés : la mémoire du conteneur reste bornée quel que soit le nombre d'envois.
+    private static readonly SemaphoreSlim Decodages = new(2);
 
-    static TraitementPhotos()
+    /// <summary>
+    /// Bornes d'ImageMagick pour tout le processus, posées au démarrage du module : une image annonçant des
+    /// dimensions énormes est refusée avant allocation, sans repli sur le disque.
+    /// </summary>
+    internal static void Configurer()
     {
-        ResourceLimits.Width = DimensionMax;
-        ResourceLimits.Height = DimensionMax;
-        ResourceLimits.Area = 100_000_000;
+        ResourceLimits.Width = 12_000;
+        ResourceLimits.Height = 12_000;
+        ResourceLimits.Area = 50_000_000; // 50 Mpx : au-delà des photos de téléphone courantes
+        ResourceLimits.Memory = 512UL * 1024 * 1024;
+        ResourceLimits.Disk = 0;
     }
 
     internal static byte[] Preparer(byte[] contenu)
@@ -37,16 +43,19 @@ internal static class TraitementPhotos
         }
 
         var format = Format(contenu) ?? throw new SaisieInvalideException("photos", "Photo attendue au format JPEG, PNG ou HEIC.");
+        Decodages.Wait();
         try
         {
             using var image = new MagickImage(contenu, new MagickReadSettings { Format = format });
             image.AutoOrient();
-            image.Strip();
-            if (image.Width > CoteMax || image.Height > CoteMax)
+            // Profil de couleur appliqué avant d'être retiré (ex. Display P3 d'un iPhone) : sinon couleurs faussées.
+            if (image.GetColorProfile() is not null)
             {
-                image.Resize(new MagickGeometry(CoteMax, CoteMax) { Greater = true });
+                image.TransformColorSpace(ColorProfiles.SRGB);
             }
 
+            image.Strip();
+            image.Resize(new MagickGeometry(CoteMax, CoteMax) { Greater = true }); // réduit seulement les plus grandes
             image.Format = MagickFormat.Jpeg;
             image.Quality = 85;
             return image.ToByteArray();
@@ -54,6 +63,10 @@ internal static class TraitementPhotos
         catch (MagickException)
         {
             throw new SaisieInvalideException("photos", "Photo illisible.");
+        }
+        finally
+        {
+            Decodages.Release();
         }
     }
 

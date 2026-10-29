@@ -11,8 +11,11 @@ namespace GestionSite.Modules.Maintenance;
 /// </summary>
 public static class MaintenanceModule
 {
-    public static IServiceCollection AddMaintenanceModule(this IServiceCollection services) =>
-        services.AddMaintenancePersistence().AddScoped<ServiceDepotPublic>();
+    public static IServiceCollection AddMaintenanceModule(this IServiceCollection services)
+    {
+        TraitementPhotos.Configurer();
+        return services.AddMaintenancePersistence().AddScoped<ServiceDepotPublic>();
+    }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic();
 }

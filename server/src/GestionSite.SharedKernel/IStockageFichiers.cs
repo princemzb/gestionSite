@@ -7,7 +7,7 @@ namespace GestionSite.SharedKernel;
 public interface IStockageFichiers
 {
     /// <summary>Écrit (ou remplace) le fichier : une même clé réécrite avec le même contenu est sans effet visible.</summary>
-    Task EcrireAsync(string cle, ReadOnlyMemory<byte> contenu, string typeContenu, CancellationToken cancellationToken);
+    Task EcrireAsync(string cle, byte[] contenu, string typeContenu, CancellationToken cancellationToken);
 
     /// <summary>Contenu et type du fichier, ou null s'il n'existe pas.</summary>
     Task<(byte[] Contenu, string TypeContenu)?> LireAsync(string cle, CancellationToken cancellationToken);

@@ -51,16 +51,14 @@ internal sealed class ServiceDepotPublic(MaintenanceDbContext context, ISitesPub
             return accuse;
         }
 
-        // Photos traitées puis écrites avant l'enregistrement : clés dérivées de la commande, un échec de la
-        // base laisse au pire des fichiers sans signalement, réécrits à l'identique par le renvoi.
-        // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit.
+        // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant
+        // l'enregistrement, sous des clés propres à ce signalement : un échec de la base (ou un envoi concurrent
+        // perdant) laisse au pire des fichiers orphelins, jamais les photos d'un autre signalement remplacées.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        for (var rang = 1; rang <= jpegs.Count; rang++)
-        {
-            var enregistree = new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpegs[rang - 1].Length);
-            await stockage.EcrireAsync(enregistree.Cle, jpegs[rang - 1], TraitementPhotos.TypeContenu, cancellationToken).ConfigureAwait(false);
-            context.Photos.Add(enregistree);
-        }
+        var enregistrees = jpegs.Select((jpeg, i) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, i + 1, jpeg.Length)).ToList();
+        await Task.WhenAll(enregistrees.Select((photo, i) =>
+            stockage.EcrireAsync(photo.Cle, jpegs[i], TraitementPhotos.TypeContenu, cancellationToken))).ConfigureAwait(false);
+        context.Photos.AddRange(enregistrees);
 
         context.Signalements.Add(signalement);
         if (signalement.Danger)

@@ -9,9 +9,9 @@ namespace GestionSite.Api.Infrastructure;
 /// <summary>Fichiers dans le compartiment privé configuré (ObjectStorage:Bucket) : SeaweedFS en local, R2 ailleurs.</summary>
 internal sealed class StockageFichiersS3(IAmazonS3 client, IOptions<ObjectStorageOptions> options) : IStockageFichiers
 {
-    public async Task EcrireAsync(string cle, ReadOnlyMemory<byte> contenu, string typeContenu, CancellationToken cancellationToken)
+    public async Task EcrireAsync(string cle, byte[] contenu, string typeContenu, CancellationToken cancellationToken)
     {
-        using var flux = new MemoryStream(contenu.ToArray(), writable: false);
+        using var flux = new MemoryStream(contenu, writable: false);
         await client.PutObjectAsync(new PutObjectRequest
         {
             BucketName = options.Value.Bucket,
