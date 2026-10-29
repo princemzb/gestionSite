@@ -71,6 +71,44 @@ public sealed class DossierTests
         Assert.Equal(StatutDossier.AQualifier, dossier.Statut);
     }
 
+    [Fact]
+    public void AnInterventionGoesToAnInternalTechnicianOrToAContractorWithAReferent()
+    {
+        var dossier = Public();
+        dossier.Qualifier(PrioriteDossier.Normale, Guid.NewGuid(), composantId: null, Instant);
+        var technicien = Guid.NewGuid();
+
+        var aucun = Assert.Throws<SaisieInvalideException>(() => new Intervention(Guid.NewGuid(), dossier, 1, "Réparer", null, null, null, Instant));
+        var lesDeux = Assert.Throws<SaisieInvalideException>(() => new Intervention(Guid.NewGuid(), dossier, 1, "Réparer", technicien, "Martin", technicien, Instant));
+        var sansReferent = Assert.Throws<SaisieInvalideException>(() => new Intervention(Guid.NewGuid(), dossier, 1, "Réparer", null, "Martin", null, Instant));
+        var prestataire = new Intervention(Guid.NewGuid(), dossier, 2, "Couverture", null, " Couverture Martin ", technicien, Instant);
+
+        Assert.Equal("intervenantCompteId", aucun.Champ);
+        Assert.Equal("intervenantCompteId", lesDeux.Champ);
+        Assert.Equal("referentCompteId", sansReferent.Champ);
+        Assert.Equal(("Couverture Martin", technicien), (prestataire.Prestataire, prestataire.EnCharge));
+    }
+
+    [Fact]
+    public void AssignmentNeedsAQualifiedCaseAndStartingFixesTheTakeOver()
+    {
+        var dossier = Public();
+        Assert.Throws<DossierNonQualifieException>(() => dossier.Affecter(Instant));
+        dossier.Qualifier(PrioriteDossier.Urgente, Guid.NewGuid(), composantId: null, Instant);
+        Assert.Throws<StatutIncompatibleException>(() => dossier.Demarrer(Instant));
+
+        dossier.Affecter(Instant);
+        dossier.Affecter(Instant.AddHours(1)); // seconde intervention : la première affectation fait foi
+        var intervention = new Intervention(Guid.NewGuid(), dossier, 1, "Bloc", Guid.NewGuid(), null, null, Instant);
+        intervention.Demarrer(Instant.AddHours(2));
+        dossier.Demarrer(Instant.AddHours(2));
+
+        Assert.Equal((StatutDossier.EnCours, Instant, Instant.AddHours(2)), (dossier.Statut, dossier.AffecteLe!.Value, dossier.PrisEnChargeLe!.Value));
+        Assert.Throws<InterventionIncompatibleException>(() => intervention.Demarrer(Instant));
+        Assert.Equal(TimeSpan.FromHours(4), Delais.PriseEnCharge(PrioriteDossier.Urgente));
+        Assert.Equal(TimeSpan.FromDays(90), Delais.Resolution(PrioriteDossier.Basse));
+    }
+
     private static Signalement Public() =>
         new(Guid.NewGuid(), Organisation, Site, Guid.NewGuid(), NatureSignalement.Incident, "Fuite au plafond", "Sacristie", false, false, "Anne", "06 12", Instant);
 }

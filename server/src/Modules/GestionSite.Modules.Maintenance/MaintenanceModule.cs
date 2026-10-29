@@ -33,7 +33,7 @@ public static class MaintenanceModule
             .Validate(o => o.LimiteParSite > 0 && o.Fenetre > TimeSpan.Zero, "DepotPublic : limite et fenêtre positives.")
             .ValidateOnStart();
         return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>()
-            .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>();
+            .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>().AddScoped<ServiceInterventions>();
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers();

@@ -103,6 +103,80 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.ToTable("journal_dossiers", "maintenance");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.Intervention", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<DateTimeOffset?>("DemarreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("demarree_le");
+
+                    b.Property<Guid>("DossierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dossier_id");
+
+                    b.Property<Guid?>("IntervenantCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("intervenant_compte_id");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("integer")
+                        .HasColumnName("numero");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<string>("Prestataire")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("prestataire");
+
+                    b.Property<Guid?>("ReferentCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referent_compte_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("statut");
+
+                    b.Property<string>("Titre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("titre");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interventions");
+
+                    b.HasIndex("DossierId", "OrganisationId", "Numero")
+                        .IsUnique()
+                        .HasDatabaseName("ix_interventions_dossier_id_organisation_id_numero");
+
+                    b.HasIndex("OrganisationId", "SiteId", "Statut")
+                        .HasDatabaseName("ix_interventions_organisation_id_site_id_statut");
+
+                    b.ToTable("interventions", "maintenance");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -157,6 +231,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<bool>("ActiviteBloquee")
                         .HasColumnType("boolean")
                         .HasColumnName("activite_bloquee");
+
+                    b.Property<DateTimeOffset?>("AffecteLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("affecte_le");
 
                     b.Property<Guid>("CommandeId")
                         .HasColumnType("uuid")
@@ -234,6 +312,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("priorite");
 
+                    b.Property<DateTimeOffset?>("PrisEnChargeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pris_en_charge_le");
+
                     b.Property<DateTimeOffset?>("QualifieLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("qualifie_le");
@@ -306,6 +388,17 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_journal_dossiers_signalements_dossier_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.Intervention", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.Signalement", null)
+                        .WithMany()
+                        .HasForeignKey("DossierId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_interventions_signalements_dossier_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoSignalement", b =>

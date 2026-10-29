@@ -23,6 +23,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
 
     public DbSet<EvenementDossier> Journal => Set<EvenementDossier>();
 
+    public DbSet<Intervention> Interventions => Set<Intervention>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -62,6 +64,23 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
             alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique();
             alerte.HasOne<Signalement>().WithMany()
                 .HasForeignKey(a => new { a.SignalementId, a.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Intervention>(intervention =>
+        {
+            intervention.ToTable("interventions");
+            intervention.HasKey(i => i.Id);
+            intervention.Property(i => i.Id).ValueGeneratedNever();
+            intervention.Property(i => i.Titre).HasMaxLength(Intervention.TitreMax);
+            intervention.Property(i => i.Prestataire).HasMaxLength(Intervention.PrestataireMax);
+            intervention.Property(i => i.Statut).HasConversion<string>().HasMaxLength(16);
+            intervention.Property<uint>("xmin").IsRowVersion();
+            intervention.HasIndex(i => new { i.DossierId, i.OrganisationId, i.Numero }).IsUnique();
+            intervention.HasIndex(i => new { i.OrganisationId, i.SiteId, i.Statut });
+            intervention.HasOne<Signalement>().WithMany()
+                .HasForeignKey(i => new { i.DossierId, i.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
