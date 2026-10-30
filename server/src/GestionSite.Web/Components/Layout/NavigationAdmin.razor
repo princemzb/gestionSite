@@ -13,6 +13,7 @@
                 <a href="@($"/organisations/{OrganisationId}/interventions")" aria-current="@(Courant == "interventions" ? "page" : null)">Mes interventions</a>
             }
             <a href="@($"/organisations/{OrganisationId}/inventaire")" aria-current="@(Courant == "inventaire" ? "page" : null)">Inventaire</a>
+            <a href="@($"/organisations/{OrganisationId}/preventif")" aria-current="@(Courant == "preventif" ? "page" : null)">Préventif</a>
             @if (Roles.Any(r => r is "Responsable" or "Delegue"))
             {
                 <a href="@($"/organisations/{OrganisationId}/grilles")" aria-current="@(Courant == "grilles" ? "page" : null)">Grilles d'évaluation</a>

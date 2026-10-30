@@ -1,0 +1,225 @@
+@page "/organisations/{OrganisationId:guid}/preventif"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Globalization
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject TimeProvider Horloge
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu preventif">
+<PageTitle>Préventif · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Plans is null)
+{
+    <div class="entete"><div><h1>Préventif</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>Préventif · @SiteCourant.Nom</h1>
+            <p>Échéances calculées à chaque consultation ; rien n'est envoyé automatiquement.</p>
+        </div>
+        @if (Sites.Count > 1)
+        {
+            <nav class="onglets" aria-label="Site">
+                @foreach (var site in Sites)
+                {
+                    <a href="@Url(site.Id, Mois)" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                }
+            </nav>
+        }
+    </div>
+
+    <div class="echeancier">
+        <section class="carte calendrier" aria-label="Calendrier des échéances">
+            <div class="calendrier-entete">
+                <h2>@LibellesPreventif.Mois(Mois)</h2>
+                <span class="calendrier-navigation">
+                    <a href="@Url(SiteCourant.Id, Mois.AddMonths(-1))" aria-label="Mois précédent">‹</a>
+                    <a href="@Url(SiteCourant.Id, Mois.AddMonths(1))" aria-label="Mois suivant">›</a>
+                </span>
+            </div>
+            <div class="calendrier-jours" aria-hidden="true">
+                @foreach (var jour in JoursSemaine)
+                {
+                    <span>@jour</span>
+                }
+            </div>
+            <ol class="calendrier-grille">
+                @foreach (var jour in Jours())
+                {
+                    var echeances = ParJour.TryGetValue(jour, out var liste) ? liste : [];
+                    <li class="@ClasseJour(jour)">
+                        <span class="numero-jour">@jour.Day</span>
+                        @foreach (var p in echeances)
+                        {
+                            <a class="@($"echeance {LibellesPreventif.ClasseEtat(p.Prochaine!.Etat)}")" href="@FichePlan(p.Id)">
+                                <span class="visuellement-masque">@LibellesPreventif.Etat(p.Prochaine.Etat) : </span>@p.Libelle
+                            </a>
+                        }
+                    </li>
+                }
+            </ol>
+            <p class="note legende"><span class="echeance echeance-a-faire">À faire</span> <span class="echeance echeance-en-retard">En retard</span> <span class="echeance echeance-a-venir">À venir</span></p>
+        </section>
+
+        <aside class="carte panneau-echeances" aria-label="À traiter">
+            <h2>En retard · @EnRetard.Count</h2>
+            @if (EnRetard.Count == 0)
+            {
+                <p class="note">Aucune échéance dépassée.</p>
+            }
+            <ul class="liste-echeances">
+                @foreach (var p in EnRetard)
+                {
+                    <li>
+                        <a href="@FichePlan(p.Id)">@p.Libelle</a> · échue le @LibellesPreventif.DateCourte(p.Prochaine!.Echeance)
+                        @if (p.Prochaine.Intervenant is { } i)
+                        {
+                            <span class="note"> · @(i.Nom ?? i.Prestataire)</span>
+                        }
+                        else if (Planificateur)
+                        {
+                            <a class="lien-discret" href="@FichePlan(p.Id)#affecter">Affecter</a>
+                        }
+                    </li>
+                }
+            </ul>
+
+            @if (MesControles.Count > 0)
+            {
+                <h2>Mes contrôles · @MesControles.Count</h2>
+                <ul class="liste-echeances">
+                    @foreach (var p in MesControles)
+                    {
+                        <li><a href="@FichePlan(p.Id)">@p.Libelle</a> · @LibellesPreventif.DateCourte(p.Prochaine!.Echeance) · @LibellesPreventif.Etat(p.Prochaine.Etat)</li>
+                    }
+                </ul>
+            }
+
+            <h2>Plans proposés · @Proposes</h2>
+            <p class="note">À confirmer par le responsable avant d'apparaître au calendrier.</p>
+            <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/propositions?site={SiteCourant.Id}")">Voir les plans proposés</a>
+
+            <h2>Tous les plans · @Plans.Count</h2>
+            <ul class="liste-echeances">
+                @foreach (var p in Plans)
+                {
+                    <li>
+                        <a href="@FichePlan(p.Id)">@p.Libelle</a>
+                        <span class="note"> · @p.Cible.Libelle · @(p.Suspendu ? "suspendu" : p.Prochaine is { } e ? LibellesPreventif.Date(e.Echeance) : "terminé")</span>
+                    </li>
+                }
+            </ul>
+        </aside>
+    </div>
+}
+</main>
+
+@code {
+    private static readonly string[] JoursSemaine = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "mois")] private string? MoisDemande { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<PlanApi>? Plans { get; set; }
+
+    private IReadOnlyList<PlanApi> MesControles { get; set; } = [];
+
+    private IReadOnlyList<PlanApi> EnRetard { get; set; } = [];
+
+    private Dictionary<DateOnly, List<PlanApi>> ParJour { get; set; } = [];
+
+    private int Proposes { get; set; }
+
+    private DateOnly Aujourdhui { get; set; }
+
+    private DateOnly Mois { get; set; }
+
+    private string? Message { get; set; }
+
+    private bool Planificateur => Organisation?.Roles.Any(r => r.SiteId == SiteCourant?.Id && r.Role is "Responsable" or "Delegue") == true;
+
+    private bool Terrain => Organisation?.Roles.Any(r => r.SiteId == SiteCourant?.Id && r.Role is "Technicien" or "Responsable" or "Delegue") == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Aujourdhui = Perimetre.Jour(Horloge.GetUtcNow());
+        Mois = DateOnly.TryParseExact(MoisDemande, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var mois)
+            ? mois
+            : new DateOnly(Aujourdhui.Year, Aujourdhui.Month, 1);
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is not { } site)
+            {
+                return;
+            }
+
+            var racine = $"/organizations/{OrganisationId}/sites/{site.Id}/preventive";
+            Plans = await Session.LireAsync<List<PlanApi>>($"{racine}/plans", CancellationToken.None);
+            var propositions = await Session.LireAsync<List<PropositionApi>>($"{racine}/proposals", CancellationToken.None);
+            Proposes = propositions.Count(p => p.Statut == "Proposee");
+            if (Terrain)
+            {
+                MesControles = await Session.LireAsync<List<PlanApi>>($"{racine}/mine", CancellationToken.None);
+            }
+
+            EnRetard = [.. Plans.Where(p => p.Prochaine?.Etat == "EnRetard").OrderBy(p => p.Prochaine!.Echeance)];
+            ParJour = Plans.Where(p => p.Prochaine is not null).GroupBy(p => p.Prochaine!.Echeance).ToDictionary(g => g.Key, g => g.ToList());
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas le préventif de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    // Semaines complètes du lundi au dimanche couvrant le mois affiché.
+    private IEnumerable<DateOnly> Jours()
+    {
+        var debut = Mois.AddDays(-(((int)Mois.DayOfWeek + 6) % 7));
+        var finMois = Mois.AddMonths(1).AddDays(-1);
+        var fin = finMois.AddDays(6 - (((int)finMois.DayOfWeek + 6) % 7));
+        for (var jour = debut; jour <= fin; jour = jour.AddDays(1))
+        {
+            yield return jour;
+        }
+    }
+
+    private string? ClasseJour(DateOnly jour) => string.Join(' ', new[]
+    {
+        jour.Month != Mois.Month ? "hors-mois" : null,
+        jour == Aujourdhui ? "aujourdhui" : null,
+    }.Where(c => c is not null)) is { Length: > 0 } classe ? classe : null;
+
+    private string Url(Guid site, DateOnly mois) =>
+        $"/organisations/{OrganisationId}/preventif?site={site}&mois={mois.ToString("yyyy-MM", CultureInfo.InvariantCulture)}";
+
+    private string FichePlan(Guid plan) => $"/organisations/{OrganisationId}/preventif/plan?site={SiteCourant?.Id}&plan={plan}";
+}
