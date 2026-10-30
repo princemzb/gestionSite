@@ -2601,6 +2601,148 @@
       ],
       "trelloId": "6ae3937524975ba17e1a229b",
       "trelloShortLink": "Iseo04vt"
+    },
+    {
+      "id": "S12-01",
+      "name": "[S12-01] Classement ERP des bâtiments et catalogue de plans proposés",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Champs ERP du bâtiment (type, catégorie déclarée, drapeaux) et « salariés présents » du site, modifications tracées (R/D).",
+        "Catalogue de plans par corps d'état (périodicité, nature, base réglementaire ou bonne pratique « à confirmer ») ajusté au classement ; point d'entrée « plans proposés ».",
+        "Église V 5e catégorie : ni organisme agréé ni commission proposés ; 3e catégorie : proposés ; isolation (404) et droits (403) testés."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c4d657001cba654bb72",
+      "trelloShortLink": "Yq1vErPT"
+    },
+    {
+      "id": "S12-02",
+      "name": "[S12-02] Plans préventifs et échéances calculées",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Création, modification, suspension d'un plan (cible composant, zone + corps d'état ou bâtiment ; nature ; récurrence ; mode glissant par défaut ou fixe).",
+        "Liste « À faire / En retard / À venir » calculée à la lecture (fenêtre 10 % de la période, 7 à 30 jours ; aucune tolérance après l'échéance).",
+        "Tests d'horloge : glissant repart de la réalisation, fixe garde sa date, fins de mois, composant retiré suspend le plan, proposition confirmée rejouée = un seul plan."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c4e4684aaccfdd1ef60",
+      "trelloShortLink": "aTzc4OBw"
+    },
+    {
+      "id": "S12-03",
+      "name": "[S12-03] Exécution d'une occurrence : affectation, saut, inspection interne",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Occurrence enregistrée à l'affectation, la réalisation ou le saut (clé plan + échéance, rejeu sans doublon) ; saut avec motif ; saisie après coup avec date réelle.",
+        "Inspection interne avec la grille courante figée et évaluation US-11 enregistrée dans la même saisie.",
+        "Droits : technicien affecté et R/D exécutent ; rejeu sans deuxième contrôle ni deuxième évaluation."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c4ff5551c0d7779b6a6",
+      "trelloShortLink": "35ccifGE"
+    },
+    {
+      "id": "S12-04",
+      "name": "[S12-04] Vérification extérieure et rapport PDF",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Prestataire (raison sociale, agrément facultatif) et référent interne ; observations (libellé, zone, danger, photo facultative).",
+        "Rapport PDF obligatoire pour une vérification réglementaire extérieure (signature %PDF, 10 Mo), stocké dans R2, lu par T, R/D, P/C du site.",
+        "/security-review obligatoire."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c4fb5f19e8052e3f045",
+      "trelloShortLink": "m8cJD68r"
+    },
+    {
+      "id": "S12-05",
+      "name": "[S12-05] Non-conformités vers dossiers et levée des réserves",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Chaque défaut ou observation crée ou rattache un constat (dossier US-09) avec zone et composant, origine Inspection, rejeu sans doublon.",
+        "Levée des réserves tracée ; non-régression d'US-09."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c50a651e4c4c1f30c63",
+      "trelloShortLink": "Am9sVUfP"
+    },
+    {
+      "id": "S12-06",
+      "name": "[S12-06] Écrans de planification (maquettes d'abord)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Échéancier du site, fiche plan, plans proposés, classement ERP des bâtiments : plusieurs maquettes, validation du porteur avant tout code d'écran ; Jour et Nuit."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c51cdf0907f45478309",
+      "trelloShortLink": "7QrTcZzl"
+    },
+    {
+      "id": "S12-07",
+      "name": "[S12-07] Écrans de terrain et préproduction (maquettes d'abord)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Exécution sur téléphone, saisie d'un rapport d'organisme, historique : maquettes validées avant tout code ; déploiement préprod et deploy/verification/us12.mjs."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42c52183f964f5e60c577",
+      "trelloShortLink": "QDPicIfs"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
