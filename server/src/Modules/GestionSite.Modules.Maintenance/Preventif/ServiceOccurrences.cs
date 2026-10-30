@@ -26,7 +26,9 @@ internal sealed record DemandeReleve(string? Libelle, string? Unite, decimal? Va
 internal sealed record DemandeRealisation(
     Guid? CommandeId, DateOnly? Echeance, DateOnly? RealiseLe, string? Resultat, string? CompteRendu, int? GrilleVersion,
     IReadOnlyList<DemandePoint?>? Points, IReadOnlyList<decimal?>? Mesures, IReadOnlyList<DemandeReleve?>? Releves, string? Etat,
-    RepartitionInventaire? Repartition, string? Prestataire, string? NumeroAgrement);
+    RepartitionInventaire? Repartition, string? Prestataire, string? NumeroAgrement, IReadOnlyList<DemandeObservation?>? Observations = null);
+
+internal sealed record DemandeObservation(string? Libelle, Guid? ZoneId, bool Danger);
 
 internal sealed record ControleResume(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, string Resultat, Guid? ComposantId, Guid BatimentId, int Defauts,
@@ -36,7 +38,10 @@ internal sealed record ControleLu(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, Guid AuteurCompteId, string? Auteur,
     Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, string? NumeroAgrement, string Resultat, string? CompteRendu, string? CorpsEtat,
     Guid? ComposantId, Guid ZoneId, Guid BatimentId, int? GrilleVersion, IReadOnlyList<PointControle> Points, IReadOnlyList<MesureControle> Mesures,
-    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos);
+    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos, IReadOnlyList<ObservationControle> Observations, RapportLu? Rapport);
+
+/// <summary>Rapport PDF joint : taille et empreinte SHA-256 (le fichier se télécharge à part).</summary>
+internal sealed record RapportLu(int Taille, string Empreinte);
 
 /// <summary>Échéance qui n'est pas l'échéance courante du plan (422 « echeance »).</summary>
 internal sealed class EcheanceInattendueException() : Exception("Échéance attendue : l'échéance courante du plan.");
@@ -147,8 +152,7 @@ internal sealed class ServiceOccurrences(
     /// d'abord (commande dérivée), puis le contrôle ; un rejeu après un échec partiel retrouve l'évaluation sans la doubler.
     /// </summary>
     internal async Task<ControleEnregistre> RealiserAsync(
-        Guid organisationId, Guid siteId, Guid planId, Func<Task<(DemandeRealisation Demande, IReadOnlyList<PhotoRecue> Photos)>> lire,
-        CancellationToken cancellationToken)
+        Guid organisationId, Guid siteId, Guid planId, Func<Task<FormulaireRecu<DemandeRealisation>>> lire, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
         if (!await context.Plans.AnyAsync(p => p.Id == planId && p.SiteId == siteId, cancellationToken).ConfigureAwait(false))
@@ -156,11 +160,13 @@ internal sealed class ServiceOccurrences(
             throw new PlanIntrouvableException();
         }
 
-        var (demande, photos) = await lire().ConfigureAwait(false);
+        var recu = await lire().ConfigureAwait(false);
+        var (demande, photos) = (recu.Demande, recu.Photos);
         var commande = demande.CommandeId is { } c && c != Guid.Empty ? c : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
         var echeanceDemandee = Echeance(demande.Echeance);
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
-        var saisie = SaisieDe(commande, demande);
+        // Empreinte calculée d'emblée : un rejeu doit porter le même rapport (ou aucun) pour être reconnu.
+        var saisie = SaisieDe(commande, demande) with { EmpreinteRapport = recu.Document is { } joint ? RapportControle.Empreinte(joint) : null };
         if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return deja; // rejeu reconnu avant les contrôles
@@ -184,6 +190,30 @@ internal sealed class ServiceOccurrences(
             Guid.CreateVersion7(maintenant), plan, cible, nouvelle,
             grille is null ? null : new GrilleControle(grille.Version, grille.Criteres, [.. grille.Mesures.Select(m => (m.Libelle, m.Unite))]),
             saisie, auteur, maintenant, affecte);
+        // Seules les zones fournies sont vérifiées (celle du plan, par défaut, est connue).
+        var zonesObservees = (saisie.Observations ?? []).Where(o => o.ZoneId is not null).Select(o => o.ZoneId!.Value).Distinct().ToList();
+        if (zonesObservees.Count > 0 && (await inventaire.ZonesAsync(siteId, zonesObservees, cancellationToken).ConfigureAwait(false)).Count != zonesObservees.Count)
+        {
+            throw new SaisieInvalideException("observations", "Zone d'observation inconnue sur ce site.");
+        }
+
+        // Rapport PDF (décision du 30/10) : celui d'une vérification extérieure seulement, reconnu par sa signature, exigé
+        // pour une vérification réglementaire faite par un intervenant extérieur.
+        if (recu.Document is { } pdf)
+        {
+            if (plan.Nature != NaturePlan.VerificationExterieure)
+            {
+                throw new SaisieInvalideException("rapport", "Un rapport PDF accompagne une vérification extérieure.");
+            }
+
+            RapportControle.Valider(pdf);
+            controle.Joindre(Guid.CreateVersion7(maintenant), pdf.Length, saisie.EmpreinteRapport!);
+        }
+        else if (RapportControle.Exige(plan.Nature, plan.Base, controle.Prestataire))
+        {
+            throw new SaisieInvalideException("rapport", "Rapport PDF obligatoire pour une vérification réglementaire par un intervenant extérieur.");
+        }
+
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
 
         // 2. Photos écrites sous des clés propres au contrôle, retirées si l'enregistrement n'aboutit pas.
@@ -191,6 +221,10 @@ internal sealed class ServiceOccurrences(
             stockage, jpegs, (rang, jpeg) => new PhotoControle(Guid.CreateVersion7(maintenant), controle, rang, jpeg.Length, maintenant), p => p.Cle,
             enregistrees => { var id = enregistrees[0].Id; return context.PhotosControles.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); },
             cancellationToken).ConfigureAwait(false);
+
+        // Rapport PDF écrit de même, hors verrou, sous une clé propre au contrôle.
+        await using var rapport = await PhotosStockees.EcrireAsync(
+            stockage, recu.Document is { } document ? [document] : [], RapportControle.TypeContenu, (_, _) => controle.RapportCle!, cle => cle, _ => context.Controles.AsNoTracking().AnyAsync(c => c.Id == controle.Id, CancellationToken.None), cancellationToken).ConfigureAwait(false);
 
         // 3. Échéance verrouillée (affectation, saut et réalisation concurrents attendent) puis revérifiée : une saisie
         //    concurrente l'a résolue ou modifiée → 409, avant d'évaluer, sans laisser d'évaluation orpheline.
@@ -242,6 +276,7 @@ internal sealed class ServiceOccurrences(
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             envoi.Confirmer();
+            rapport.Confirmer();
         }
         catch (DbUpdateException conflit) when (conflit is DbUpdateConcurrencyException
             || conflit.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
@@ -301,7 +336,19 @@ internal sealed class ServiceOccurrences(
             c.Id, c.PlanId, lu.Plan, c.Nature.ToString(), c.Echeance, c.RealiseLe, c.SaisiLe, c.AuteurCompteId, noms.GetValueOrDefault(c.AuteurCompteId),
             c.IntervenantCompteId, c.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, c.Prestataire, c.NumeroAgrement, c.Resultat.ToString(),
             c.CompteRendu, c.CorpsEtat, c.ComposantId, c.ZoneId, c.BatimentId, c.GrilleVersion, c.PointsLus, c.MesuresLues, c.EvaluationId, c.Note, c.LibelleNote,
-            photos);
+            photos, c.ObservationsLues, c.RapportTaille is { } taille ? new RapportLu(taille, c.RapportEmpreinte!) : null);
+    }
+
+    /// <summary>
+    /// Rapport PDF d'un contrôle du site, ou null s'il n'en a pas. Lecture ouverte aux comptes internes du site (T, R/D,
+    /// P/C, décision du 30/10), après le même contrôle d'accès que la fiche.
+    /// </summary>
+    internal async Task<byte[]?> RapportAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        var cle = await context.Controles.AsNoTracking().Where(c => c.Id == id && c.SiteId == siteId).Select(c => c.RapportCle)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return cle is null ? null : (await stockage.LireAsync(cle, cancellationToken).ConfigureAwait(false))?.Contenu;
     }
 
     /// <summary>Photo d'un contrôle (JPEG), ou null si elle n'existe pas pour ce contrôle du site.</summary>
@@ -320,7 +367,8 @@ internal sealed class ServiceOccurrences(
     private static SaisieControle SaisieDe(Guid commande, DemandeRealisation demande) => new(
         commande, demande.RealiseLe, SaisiePreventif.Facultatif<ResultatControle>(demande.Resultat, "resultat"), demande.CompteRendu, demande.GrilleVersion,
         demande.Points?.Select(p => (p?.Conforme, p?.Danger ?? false)).ToList(), demande.Mesures,
-        demande.Releves?.Select(r => (r?.Libelle, r?.Unite, r?.Valeur)).ToList(), demande.Prestataire, demande.NumeroAgrement);
+        demande.Releves?.Select(r => (r?.Libelle, r?.Unite, r?.Valeur)).ToList(), demande.Prestataire, demande.NumeroAgrement,
+        demande.Observations?.Select(o => (o?.Libelle, o?.ZoneId, o?.Danger ?? false)).ToList());
 
     // Rejeu : même auteur, même plan et échéance, même résultat et date → même contrôle ; sinon la commande est réutilisée (409).
     private async Task<ControleEnregistre?> DejaRealiseAsync(Guid auteur, Guid planId, DateOnly echeance, SaisieControle saisie, CancellationToken cancellationToken)

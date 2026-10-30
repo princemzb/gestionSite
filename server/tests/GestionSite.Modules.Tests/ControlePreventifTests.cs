@@ -142,6 +142,44 @@ public sealed class ControlePreventifTests
     }
 
     [Fact]
+    public void AReportIsRecognisedByItsSignatureAndRequiredForRegulatoryContractorChecks()
+    {
+        var pdf = "%PDF-1.4\n%%EOF"u8.ToArray();
+
+        Assert.Equal(64, RapportControle.Valider(pdf).Length);
+        Assert.Equal("rapport", Champ(() => RapportControle.Valider([])));
+        Assert.Equal("rapport", Champ(() => RapportControle.Valider("PK\u0003\u0004 pas un PDF"u8.ToArray())));
+        Assert.Equal("rapport", Champ(() => RapportControle.Valider(new byte[(10 * 1024 * 1024) + 1])));
+        Assert.True(RapportControle.Exige(NaturePlan.VerificationExterieure, BasePlan.Reglementaire, "Socotec"));
+        Assert.False(RapportControle.Exige(NaturePlan.VerificationExterieure, BasePlan.Reglementaire, prestataire: null));
+        Assert.False(RapportControle.Exige(NaturePlan.VerificationExterieure, BasePlan.BonnePratique, "Socotec"));
+        Assert.False(RapportControle.Exige(NaturePlan.Entretien, BasePlan.Reglementaire, "Socotec"));
+        Assert.StartsWith("organisations/", RapportControle.Cle(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ObservationsBelongToExternalVerificationsAndEachIsAReservation()
+    {
+        var (verification, occurrence) = Occurrence(NaturePlan.VerificationExterieure);
+        var (entretien, autre) = Occurrence(NaturePlan.Entretien);
+        var zone = Guid.NewGuid();
+
+        var controle = Creer(verification, occurrence, Saisie(grilleVersion: null, observations: [("Prise arrachée", zone, true), ("Repérage absent", null, false)]));
+
+        Assert.Equal(2, controle.Defauts);
+        Assert.Equal([zone, verification.ZoneId], controle.ObservationsLues.Select(o => o.ZoneId));
+        Assert.True(controle.ObservationsLues[0].Danger);
+        Assert.Equal("observations", Champ(() => Creer(entretien, autre, Saisie(grilleVersion: null, compteRendu: "Fait", observations: [("Tuile", null, false)]))));
+        Assert.Equal("observations", Champ(() => Creer(verification, occurrence, Saisie(grilleVersion: null, observations: [(" ", null, false)]))));
+        Assert.Equal("observations", Champ(() => Creer(verification, occurrence, Saisie(grilleVersion: null,
+            observations: [.. Enumerable.Range(0, 51).Select(i => ((string?)$"Écart {i}", (Guid?)null, false))]))));
+        Assert.Equal("resultat", Champ(() => Creer(verification, occurrence, Saisie(grilleVersion: null, resultat: ResultatControle.Conforme,
+            observations: [("Écart", null, false)]))));
+        controle.Joindre(Guid.NewGuid(), 120, new string('a', 64));
+        Assert.Equal((120, 64), (controle.RapportTaille!.Value, controle.RapportEmpreinte!.Length));
+    }
+
+    [Fact]
     public void DerivedCommandsAreStableAndDistinctPerUse()
     {
         var commande = Guid.NewGuid();
@@ -176,6 +214,6 @@ public sealed class ControlePreventifTests
     private static SaisieControle Saisie(
         int? grilleVersion = 2, (bool? Conforme, bool Danger)[]? points = null, decimal?[]? mesures = null, (string?, string?, decimal?)[]? releves = null,
         ResultatControle? resultat = ResultatControle.AvecObservations, DateOnly? realiseLe = null, string? compteRendu = null, string? prestataire = null,
-        string? agrement = null, Guid? commande = null) => new(
-        commande ?? Guid.NewGuid(), realiseLe ?? Aujourdhui, resultat, compteRendu, grilleVersion, points, mesures, releves, prestataire, agrement);
+        string? agrement = null, Guid? commande = null, (string?, Guid?, bool)[]? observations = null) => new(
+        commande ?? Guid.NewGuid(), realiseLe ?? Aujourdhui, resultat, compteRendu, grilleVersion, points, mesures, releves, prestataire, agrement, observations);
 }
