@@ -2,6 +2,7 @@ using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.DepotsRecus;
 using GestionSite.Modules.Maintenance.Dossiers;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.Modules.Maintenance.Preventif;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -32,8 +33,10 @@ public static class MaintenanceModule
             .Validate(o => o.LimiteParSite > 0 && o.Fenetre > TimeSpan.Zero, "DepotPublic : limite et fenêtre positives.")
             .ValidateOnStart();
         return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>()
-            .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>().AddScoped<ServiceInterventions>();
+            .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>().AddScoped<ServiceInterventions>()
+            .AddScoped<ServicePropositions>();
     }
 
-    public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) => endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers();
+    public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) =>
+        endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers().MapPreventif();
 }

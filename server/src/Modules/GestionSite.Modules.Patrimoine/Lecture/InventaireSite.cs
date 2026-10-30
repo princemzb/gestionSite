@@ -1,11 +1,13 @@
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
+using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Patrimoine.Lecture;
 
-internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireSite
+internal sealed class InventaireSite(PatrimoineDbContext context, ServiceGrilles grilles) : IInventaireSite
 {
     public async Task<LieuInventaire?> LieuAsync(Guid siteId, Guid zoneId, Guid? composantId, bool composantActif, CancellationToken cancellationToken)
     {
@@ -52,5 +54,52 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
                 where z.SiteId == siteId && zoneIds.Contains(z.Id)
                 select new { z.Id, Libelle = b.Nom + " · " + z.Nom })
             .ToDictionaryAsync(x => x.Id, x => x.Libelle, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<EtablissementInventaire> EtablissementAsync(Guid siteId, CancellationToken cancellationToken)
+    {
+        var salaries = await context.Etablissements.AsNoTracking().Where(e => e.SiteId == siteId).Select(e => (bool?)e.SalariesPresents)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var batiments = await (
+                from b in context.Batiments.AsNoTracking()
+                join z in context.Zones.AsNoTracking() on b.Id equals z.BatimentId
+                where b.SiteId == siteId && z.PartiesCommunes
+                orderby b.Nom
+                select new { Batiment = b, Communes = z.Id })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        return new EtablissementInventaire(salaries, [.. batiments.Select(b => new BatimentInventaire(
+            b.Batiment.Id, b.Batiment.Nom, b.Batiment.Classement is { } c
+                ? new ClassementBatiment(
+                    c.Erp, c.Type?.ToString(), [.. c.TypesSecondaires.Select(t => t.ToString())], c.Categorie, c.LocauxSommeil, c.MonumentHistorique,
+                    c.PermisAvant1997.ToString(), c.DerniereVisiteCommission)
+                : null,
+            b.Communes))]);
+    }
+
+    public async Task<IReadOnlyList<ComposantInventaire>> ComposantsAsync(Guid siteId, IReadOnlyCollection<Guid>? ids, CancellationToken cancellationToken)
+    {
+        var composants = context.Composants.AsNoTracking().Where(c => c.SiteId == siteId);
+        composants = ids is null ? composants.Where(c => c.RetireLe == null && c.SoumisAVerification) : composants.Where(c => ids.Contains(c.Id));
+        var lus = await (
+                from c in composants
+                join z in context.Zones.AsNoTracking() on c.ZoneId equals z.Id
+                join b in context.Batiments.AsNoTracking() on z.BatimentId equals b.Id
+                orderby b.Nom, z.Nom, c.Nom, c.Id
+                select new { c.Id, c.Nom, c.ZoneId, Zone = b.Nom + " · " + z.Nom, BatimentId = b.Id, c.CorpsEtat, c.SoumisAVerification, c.Quantite, c.RetireLe })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        return [.. lus.Select(c => new ComposantInventaire(
+            c.Id, c.Nom, c.ZoneId, c.Zone, c.BatimentId, c.CorpsEtat.ToString(), c.SoumisAVerification, c.Quantite is not null, c.RetireLe is not null))];
+    }
+
+    public async Task<GrilleInventaire?> GrilleAsync(Guid siteId, string corpsEtat, CancellationToken cancellationToken)
+    {
+        if (!NomExact.Essayer<CorpsEtat>(corpsEtat, out var corps))
+        {
+            return null;
+        }
+
+        var grille = await grilles.CouranteAsync(siteId, corps, cancellationToken).ConfigureAwait(false);
+        return new GrilleInventaire(
+            corps.ToString(), grille.Version, grille.Contenu.Criteres, [.. grille.Contenu.Mesures.Select(m => new MesureInventaire(m.Libelle, m.Unite))]);
     }
 }

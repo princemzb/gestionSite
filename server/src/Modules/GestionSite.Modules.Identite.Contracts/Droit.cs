@@ -45,4 +45,8 @@ public enum Droit
     AutoriserSupport,
     /// <summary>Évaluer un composant du site (US-11, décision du 29/10) : technicien, responsable, délégué.</summary>
     EvaluerComposant,
+    /// <summary>Planifier le préventif (US-12, décision du 30/10) : classement ERP, plans, propositions, affectation des contrôles.</summary>
+    PlanifierPreventif,
+    /// <summary>Exécuter un contrôle préventif (US-12) : le module Maintenance vérifie en plus que le technicien est affecté.</summary>
+    ExecuterControle,
 }

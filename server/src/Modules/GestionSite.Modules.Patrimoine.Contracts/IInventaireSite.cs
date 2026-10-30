@@ -15,6 +15,56 @@ public sealed record LieuInventaire(
     public string Libelle => $"{Batiment} · {Zone}";
 }
 
+/// <summary>Classement ERP déclaré d'un bâtiment (US-12) : types et réponses en noms exacts (« V », « Oui »…).</summary>
+/// <param name="Erp"></param>
+/// <param name="Type">Type principal (ERP seulement).</param>
+/// <param name="TypesSecondaires"></param>
+/// <param name="Categorie">1 à 5 (ERP seulement).</param>
+/// <param name="LocauxSommeil"></param>
+/// <param name="MonumentHistorique">Classé ou inscrit.</param>
+/// <param name="PermisAvant1997">Oui, Non ou Inconnu.</param>
+/// <param name="DerniereVisiteCommission"></param>
+public sealed record ClassementBatiment(
+    bool Erp, string? Type, IReadOnlyList<string> TypesSecondaires, int? Categorie, bool LocauxSommeil, bool MonumentHistorique,
+    string PermisAvant1997, DateOnly? DerniereVisiteCommission);
+
+/// <summary>Bâtiment du site et son classement, null tant qu'il n'est pas déclaré.</summary>
+/// <param name="Id"></param>
+/// <param name="Nom"></param>
+/// <param name="Classement"></param>
+/// <param name="PartiesCommunesId">Zone « Parties communes » du bâtiment.</param>
+public sealed record BatimentInventaire(Guid Id, string Nom, ClassementBatiment? Classement, Guid PartiesCommunesId);
+
+/// <summary>Données du site pour le préventif : salariés présents (null : non déclaré) et bâtiments classés.</summary>
+/// <param name="SalariesPresents"></param>
+/// <param name="Batiments"></param>
+public sealed record EtablissementInventaire(bool? SalariesPresents, IReadOnlyList<BatimentInventaire> Batiments);
+
+/// <summary>Composant de l'inventaire suivi par le préventif (US-12).</summary>
+/// <param name="Id"></param>
+/// <param name="Nom"></param>
+/// <param name="ZoneId"></param>
+/// <param name="Zone">« Bâtiment · Zone ».</param>
+/// <param name="BatimentId"></param>
+/// <param name="CorpsEtat">Nom exact du corps d'état (« CourantsForts »…).</param>
+/// <param name="SoumisAVerification"></param>
+/// <param name="EnLot"></param>
+/// <param name="Retire"></param>
+public sealed record ComposantInventaire(
+    Guid Id, string Nom, Guid ZoneId, string Zone, Guid BatimentId, string CorpsEtat, bool SoumisAVerification, bool EnLot, bool Retire);
+
+/// <summary>Mesure d'une grille d'évaluation.</summary>
+/// <param name="Libelle"></param>
+/// <param name="Unite"></param>
+public sealed record MesureInventaire(string Libelle, string Unite);
+
+/// <summary>Grille d'évaluation en vigueur sur le site pour un corps d'état (US-11), version et contenu.</summary>
+/// <param name="CorpsEtat"></param>
+/// <param name="Version"></param>
+/// <param name="Criteres"></param>
+/// <param name="Mesures"></param>
+public sealed record GrilleInventaire(string CorpsEtat, int Version, IReadOnlyList<string> Criteres, IReadOnlyList<MesureInventaire> Mesures);
+
 /// <summary>
 /// Lecture de l'inventaire d'un site par les autres modules (US-09 : rattachement d'un dossier). À appeler après une
 /// autorisation favorable sur le site : l'organisation courante est alors fixée (filtres et RLS).
@@ -30,4 +80,16 @@ public interface IInventaireSite
 
     /// <summary>Libellés « Bâtiment · Zone » des zones demandées qui existent sur le site.</summary>
     Task<IReadOnlyDictionary<Guid, string>> ZonesAsync(Guid siteId, IReadOnlyCollection<Guid> zoneIds, CancellationToken cancellationToken);
+
+    /// <summary>Salariés présents et bâtiments du site avec leur classement (US-12), bâtiments par nom.</summary>
+    Task<EtablissementInventaire> EtablissementAsync(Guid siteId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Composants du site : sans <paramref name="ids"/>, les composants actifs soumis à vérification ; sinon les composants
+    /// demandés qui existent sur le site, retirés compris (relecture d'un plan).
+    /// </summary>
+    Task<IReadOnlyList<ComposantInventaire>> ComposantsAsync(Guid siteId, IReadOnlyCollection<Guid>? ids, CancellationToken cancellationToken);
+
+    /// <summary>Grille en vigueur sur le site pour le corps d'état (nom exact), ou null si ce corps d'état est inconnu.</summary>
+    Task<GrilleInventaire?> GrilleAsync(Guid siteId, string corpsEtat, CancellationToken cancellationToken);
 }

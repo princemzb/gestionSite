@@ -31,15 +31,27 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<PhotoEvaluation> PhotosEvaluation => Set<PhotoEvaluation>();
 
+    public DbSet<EtablissementSite> Etablissements => Set<EtablissementSite>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Batiment>(batiment =>
         {
-            batiment.ToTable("batiments");
+            batiment.ToTable("batiments", table =>
+                // Classement ERP (US-12) : un ERP a un type et une catégorie ; hors ERP, rien de ce qui lui est propre.
+                table.HasCheckConstraint(
+                    "ck_batiments_classement",
+                    "(erp IS NULL AND permis_avant1997 IS NULL AND type_etablissement IS NULL AND categorie IS NULL) " +
+                    "OR (erp AND permis_avant1997 IS NOT NULL AND type_etablissement IS NOT NULL AND categorie BETWEEN 1 AND 5) " +
+                    "OR (NOT erp AND permis_avant1997 IS NOT NULL AND type_etablissement IS NULL AND types_secondaires IS NULL AND categorie IS NULL " +
+                    "AND effectif_declare IS NULL AND NOT locaux_sommeil AND derniere_visite_commission IS NULL)"));
             batiment.HasKey(b => b.Id);
             batiment.Property(b => b.Id).ValueGeneratedNever();
             batiment.Property(b => b.Nom).HasMaxLength(Nom.Max);
+            batiment.Property(b => b.TypeEtablissement).HasConversion<string>().HasMaxLength(2);
+            batiment.Property(b => b.TypesSecondaires).HasMaxLength(32);
+            batiment.Property(b => b.PermisAvant1997).HasConversion<string>().HasMaxLength(8);
             batiment.HasAlternateKey(b => new { b.Id, b.OrganisationId });
             batiment.HasIndex(b => new { b.OrganisationId, b.SiteId, b.Nom }).IsUnique().HasDatabaseName(ContraintesNom.Batiment);
             // Renommages concurrents détectés (xmin) : le journal garde la vraie valeur « avant ».
@@ -172,6 +184,14 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
                 .HasForeignKey(p => new { p.EvaluationId, p.OrganisationId })
                 .HasPrincipalKey(e => new { e.Id, e.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EtablissementSite>(etablissement =>
+        {
+            etablissement.ToTable("etablissements");
+            etablissement.HasKey(e => e.SiteId);
+            etablissement.Property(e => e.SiteId).ValueGeneratedNever();
+            etablissement.Property<uint>("xmin").IsRowVersion();
         });
 
         modelBuilder.Entity<EvenementInventaire>(evenement =>

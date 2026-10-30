@@ -34,6 +34,8 @@ public sealed class MatriceDroitsTests
     [InlineData(Droit.ModifierInventaire, "T R D")]
     [InlineData(Droit.ModifierGrilles, "R D")]
     [InlineData(Droit.EvaluerComposant, "T R D")]
+    [InlineData(Droit.PlanifierPreventif, "R D")]
+    [InlineData(Droit.ExecuterControle, "T R D")]
     [InlineData(Droit.ModifierPlans, "R D")]
     [InlineData(Droit.GererComptes, "A")]
     [InlineData(Droit.AutoriserSupport, "A")]
