@@ -1,3 +1,4 @@
+using GestionSite.Modules.Identite.Autorisation;
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Persistence;
@@ -183,7 +184,9 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
         modelBuilder.Entity<DroitNominatif>(droit =>
         {
             // Liste blanche tenue aussi en base : aucun autre droit ne peut être accordé nommément.
-            droit.ToTable("droits_nominatifs", table => table.HasCheckConstraint("ck_droits_nominatifs_liste_blanche", "droit IN ('ModifierPlans')"));
+            // Dérivée de la matrice : un droit ajouté à la liste blanche sans migration fait échouer le test du modèle.
+            var listeBlanche = string.Join(", ", MatriceDroits.Nominatifs.Select(d => $"'{d}'").Order(StringComparer.Ordinal));
+            droit.ToTable("droits_nominatifs", table => table.HasCheckConstraint("ck_droits_nominatifs_liste_blanche", $"droit IN ({listeBlanche})"));
             droit.HasKey(d => d.Id);
             droit.Property(d => d.Id).ValueGeneratedNever();
             droit.Property(d => d.Droit).HasConversion<string>().HasMaxLength(32);

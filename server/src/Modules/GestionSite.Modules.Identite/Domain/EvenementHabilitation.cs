@@ -36,9 +36,9 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
     }
 
     /// <summary>
-    /// Seule fabrique d'entrées : les rôles après sont l'état du membre, sauf révocation et refus (aucun) et droits
-    /// nominatifs (rôles inchangés, non répétés). Révision, révocation, attribution et retrait d'un droit exigent un
-    /// motif (RG-31 : auteur, motif et valeur précédente). Droits nominatifs avant et après : seulement s'ils changent.
+    /// Seule fabrique d'entrées : les rôles après sont l'état du membre, sauf révocation et refus (aucun) ; pour un droit
+    /// nominatif, rôles avant et après identiques (inchangés). Révision, révocation, attribution et retrait d'un droit
+    /// exigent un motif (RG-31 : auteur, motif et valeur précédente). Droits nominatifs avant et après : seulement s'ils changent.
     /// </summary>
     internal static EvenementHabilitation Pour(
         Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif, IReadOnlyCollection<RoleJournalise>? avant,
@@ -50,8 +50,12 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
             throw new ArgumentException("Un motif est requis pour réviser ou révoquer une habilitation.", nameof(motif));
         }
 
-        var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus or NatureHabilitation.AttributionDroit
-            or NatureHabilitation.RetraitDroit ? null : Instantane(membre);
+        var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus ? null : Instantane(membre);
+        if (nature is NatureHabilitation.AttributionDroit or NatureHabilitation.RetraitDroit)
+        {
+            avant = apres;
+        }
+
         return new EvenementHabilitation(membre, nature, auteurCompteId, le, motif, avant, apres, droitsAvant, droitsApres);
     }
 
@@ -93,7 +97,7 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
 
     public string? Motif { get; private set; }
 
-    /// <summary>Rôles avant l'action (JSON), null s'il n'y en avait pas.</summary>
+    /// <summary>Rôles avant l'action (JSON), null s'il n'y en avait pas ; inchangés pour un droit nominatif.</summary>
     public string? RolesAvant { get; private set; }
 
     public string? RolesApres { get; private set; }

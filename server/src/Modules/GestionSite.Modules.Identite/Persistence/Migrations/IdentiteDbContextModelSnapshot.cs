@@ -198,10 +198,6 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("accorde_le");
 
-                    b.Property<Guid?>("AccordeParCompteId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("accorde_par_compte_id");
-
                     b.Property<string>("Droit")
                         .IsRequired()
                         .HasMaxLength(32)

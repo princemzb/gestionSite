@@ -157,6 +157,71 @@ public sealed class DroitsNominatifsTests(InfrastructureFixture infrastructure) 
     }
 
     [Fact]
+    public async Task WithRolesOnTwoSitesTheRightOnOneIsRefusedOnTheOther()
+    {
+        await MembreAsync("technicien2@inventaire.test", Role.Technicien);
+        var admin = await JetonAsync("admin@inventaire.test");
+        var t2 = await JetonAsync("technicien2@inventaire.test");
+        var autreSite = await CreerSiteAsync(admin, "Site nord");
+        var membreT2 = await MembreIdAsync(admin, "technicien2@inventaire.test");
+        using var accord = await EnvoyerAsync(HttpMethod.Put, Droit(membreT2, Site), admin, new { motif = "Relevé" });
+        var version = await VersionAsync(admin, membreT2);
+        // Révision qui garde le rôle sur Site et en ajoute un sur le site nord : le droit reste.
+        using var revision = await EnvoyerAsync(HttpMethod.Put, $"{Membres}/{membreT2}", admin, new
+        {
+            roles = new[] { new { role = "Technicien", siteId = Site }, new { role = "Technicien", siteId = autreSite } },
+            version,
+            motif = "Renfort au site nord",
+        });
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var (eglise, rdc, _) = await LieuxAsync(technicien);
+        var batimentNord = await CreerAsync($"/organizations/{Organisation}/sites/{autreSite}/inventory/buildings", new { nom = "Chapelle" }, t2);
+
+        using var ici = await EnvoyerAsync(HttpMethod.Post, Plans, t2, new { batimentId = eglise, niveauId = rdc });
+        using var auNord = await EnvoyerAsync(HttpMethod.Post, $"/organizations/{Organisation}/sites/{autreSite}/inventory/building-plans", t2,
+            new { batimentId = batimentNord });
+
+        Assert.Equal(HttpStatusCode.OK, revision.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ici.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, auNord.StatusCode); // rôle sur le site nord, droit seulement sur Site
+        Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM identite.droits_nominatifs"));
+    }
+
+    [Fact]
+    public async Task APendingInvitationIsNotEligibleAndAnAdministratorWithASiteRoleMayGrantItself()
+    {
+        var admin = await JetonAsync("admin@inventaire.test");
+        using var invitation = await EnvoyerAsync(HttpMethod.Post, Membres, admin,
+            new { nom = "Invité", email = "invite@inventaire.test", roles = new[] { new { role = "Pasteur", siteId = (Guid?)Site } } });
+        var invite = (await invitation.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("membreId").GetGuid();
+        var membreAdmin = await MembreIdAsync(admin, "admin@inventaire.test");
+        using var revision = await EnvoyerAsync(HttpMethod.Put, $"{Membres}/{membreAdmin}", admin, new
+        {
+            roles = new[] { new { role = "Administrateur", siteId = (Guid?)null }, new { role = "Technicien", siteId = (Guid?)Site } },
+            version = await VersionAsync(admin, membreAdmin),
+            motif = "Administrateur aussi technicien",
+        });
+
+        using var accordInvite = await EnvoyerAsync(HttpMethod.Put, Droit(invite, Site), admin, new { motif = "Relevé" });
+        using var accordSoi = await EnvoyerAsync(HttpMethod.Put, Droit(membreAdmin, Site), admin, new { motif = "Relevé" });
+        using var sansCorps = await EnvoyerAsync(HttpMethod.Put, Droit(membreAdmin, Site), admin);
+        using var dejaSansMotif = await EnvoyerAsync(HttpMethod.Put, Droit(membreAdmin, Site), admin, new { motif = " " });
+
+        Assert.Equal(HttpStatusCode.Created, invitation.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, revision.StatusCode);
+        Assert.Equal("membre_non_eligible", await CodeAsync(accordInvite, HttpStatusCode.UnprocessableEntity));
+        Assert.Equal(HttpStatusCode.NoContent, accordSoi.StatusCode); // tracé au journal à son nom
+        Assert.Equal("donnee_invalide", await CodeAsync(sansCorps, HttpStatusCode.UnprocessableEntity));
+        Assert.Equal("donnee_invalide", await CodeAsync(dejaSansMotif, HttpStatusCode.UnprocessableEntity)); // motif exigé même sans effet
+    }
+
+    [Fact]
+    public async Task TheApplicationRoleCannotRewriteAGrantedRight() =>
+        Assert.Equal(0, await Database.CountAsync(
+            "SELECT count(*) FROM information_schema.role_table_grants WHERE grantee = 'gestionsite_app' AND table_schema = 'identite' " +
+            "AND table_name = 'droits_nominatifs' AND privilege_type = 'UPDATE'"));
+
+    [Fact]
     public async Task TheApplicationCannotGrantARightOutsideTheWhitelistEvenDirectly()
     {
         var admin = await JetonAsync("admin@inventaire.test");
@@ -196,6 +261,9 @@ public sealed class DroitsNominatifsTests(InfrastructureFixture infrastructure) 
         var nef = await CreerAsync($"{Base}/zones", new { nom = "Nef", batimentId = eglise, niveauId = rdc }, technicien);
         return (eglise, rdc, nef);
     }
+
+    private async Task<int> VersionAsync(string admin, Guid membre) =>
+        (await LireAsync(Membres, admin)).EnumerateArray().Single(m => m.GetProperty("membreId").GetGuid() == membre).GetProperty("version").GetInt32();
 
     private async Task<Guid> MembreIdAsync(string admin, string email) =>
         (await LireAsync(Membres, admin)).EnumerateArray().Single(m => m.GetProperty("email").GetString() == email).GetProperty("membreId").GetGuid();

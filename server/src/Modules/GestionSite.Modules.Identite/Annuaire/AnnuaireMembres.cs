@@ -27,12 +27,12 @@ internal sealed class AnnuaireMembres(IdentiteDbContext context) : IAnnuaireMemb
         Guid siteId, Droit droit, IReadOnlyCollection<Guid>? compteIds, CancellationToken cancellationToken)
     {
         var roles = MatriceDroits.RolesPour(droit).ToList();
-        var nominatif = MatriceDroits.EstNominatif(droit);
-        // Rôle autorisé sur le site, ou droit nominatif sur le site avec un rôle sur ce site (US-21).
-        var requete = context.Membres.AsNoTracking().Include(m => m.Roles)
-            .Where(m => m.RevoqueLe == null && m.AccepteLe != null && (m.Roles.Any(r => r.SiteId == siteId && roles.Contains(r.Role))
-                || (nominatif && m.Roles.Any(r => r.SiteId == siteId)
-                    && context.DroitsNominatifs.Any(d => d.MembreId == m.Id && d.SiteId == siteId && d.Droit == droit))));
+        var requete = context.Membres.AsNoTracking().Include(m => m.Roles).Where(m => m.RevoqueLe == null && m.AccepteLe != null);
+        // Rôle autorisé sur le site, ou droit nominatif sur le site avec un rôle sur ce site (US-21, même règle qu'Autorisations).
+        requete = MatriceDroits.EstNominatif(droit)
+            ? requete.Where(m => m.Roles.Any(r => r.SiteId == siteId && roles.Contains(r.Role))
+                || (m.Roles.Any(r => r.SiteId == siteId) && context.DroitsNominatifs.Any(d => d.MembreId == m.Id && d.SiteId == siteId && d.Droit == droit)))
+            : requete.Where(m => m.Roles.Any(r => r.SiteId == siteId && roles.Contains(r.Role)));
         if (compteIds is not null)
         {
             requete = requete.Where(m => compteIds.Contains(m.CompteId));

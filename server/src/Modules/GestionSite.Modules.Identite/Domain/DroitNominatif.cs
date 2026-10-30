@@ -10,7 +10,7 @@ internal sealed record DroitJournalise(string Droit, Guid SiteId);
 /// Droit accordé nommément à un membre sur un site, en plus de ses rôles (US-21, décision du porteur du 30/10) :
 /// seul l'administrateur l'attribue, avec un motif, à un membre ayant un rôle sur ce site ; liste blanche
 /// (<c>MatriceDroits.Nominatifs</c>). Sans rôle sur le site, il n'ouvre rien. Le retrait supprime la ligne ; l'historique
-/// est dans le journal des habilitations.
+/// (auteur, motif, droits avant et après) est dans le journal des habilitations.
 /// </summary>
 internal sealed class DroitNominatif : IAppartientAOrganisation
 {
@@ -18,7 +18,7 @@ internal sealed class DroitNominatif : IAppartientAOrganisation
     {
     }
 
-    internal DroitNominatif(Guid id, Membre membre, Droit droit, Site site, Guid? accordeParCompteId, DateTimeOffset accordeLe)
+    internal DroitNominatif(Guid id, Membre membre, Droit droit, Site site, DateTimeOffset accordeLe)
     {
         ArgumentNullException.ThrowIfNull(membre);
         ArgumentNullException.ThrowIfNull(site);
@@ -33,7 +33,6 @@ internal sealed class DroitNominatif : IAppartientAOrganisation
         MembreId = membre.Id;
         SiteId = site.Id;
         Droit = droit;
-        AccordeParCompteId = accordeParCompteId;
         AccordeLe = Horodatage.Valider(accordeLe, nameof(accordeLe));
     }
 
@@ -46,8 +45,6 @@ internal sealed class DroitNominatif : IAppartientAOrganisation
     public Guid SiteId { get; private set; }
 
     public Droit Droit { get; private set; }
-
-    public Guid? AccordeParCompteId { get; private set; }
 
     public DateTimeOffset AccordeLe { get; private set; }
 

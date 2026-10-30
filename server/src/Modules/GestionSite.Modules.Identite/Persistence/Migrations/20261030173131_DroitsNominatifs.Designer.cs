@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GestionSite.Modules.Identite.Persistence.Migrations
 {
     [DbContext(typeof(IdentiteDbContext))]
-    [Migration("20261030105804_DroitsNominatifs")]
+    [Migration("20261030173131_DroitsNominatifs")]
     partial class DroitsNominatifs
     {
         /// <inheritdoc />
@@ -200,10 +200,6 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.Property<DateTimeOffset>("AccordeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("accorde_le");
-
-                    b.Property<Guid?>("AccordeParCompteId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("accorde_par_compte_id");
 
                     b.Property<string>("Droit")
                         .IsRequired()

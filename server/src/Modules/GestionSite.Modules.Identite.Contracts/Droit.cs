@@ -37,7 +37,7 @@ public enum Droit
     LireMontants,
     ModifierInventaire,
     ModifierGrilles,
-    /// <summary>Droit nominatif attribuable par l'administrateur : à venir avec les plans (US-21).</summary>
+    /// <summary>Plans de bâtiment (US-21) : R/D, et droit nominatif attribuable par l'administrateur, site par site.</summary>
     ModifierPlans,
     /// <summary>Lien public et QR code du site (US-08, décision du 28/10) ; l'administrateur y accède pour tous les sites.</summary>
     AfficherLienPublic,

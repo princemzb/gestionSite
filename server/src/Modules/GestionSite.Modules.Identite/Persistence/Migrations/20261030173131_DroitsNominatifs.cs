@@ -36,7 +36,6 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     membre_id = table.Column<Guid>(type: "uuid", nullable: false),
                     site_id = table.Column<Guid>(type: "uuid", nullable: false),
                     droit = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    accorde_par_compte_id = table.Column<Guid>(type: "uuid", nullable: true),
                     accorde_le = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>

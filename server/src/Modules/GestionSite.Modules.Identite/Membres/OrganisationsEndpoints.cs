@@ -55,9 +55,11 @@ internal static class OrganisationsEndpoints
         organisation.MapGet("/members/journal", JournalAsync);
         // Droits nominatifs (US-21) : liste blanche, administrateur seulement ; API sans écran (S21-09).
         organisation.MapPut("/members/{memberId:guid}/rights/{droit}/sites/{siteId:guid}", async (
-            Guid orgId, Guid memberId, string droit, Guid siteId, DemandeDroitNominatif demande, ServiceMembres service, CancellationToken ct) =>
+            Guid orgId, Guid memberId, string droit, Guid siteId,
+            [Microsoft.AspNetCore.Mvc.FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] DemandeDroitNominatif? demande,
+            ServiceMembres service, CancellationToken ct) =>
         {
-            await service.AccorderDroitAsync(orgId, memberId, droit, siteId, demande.Motif, ct).ConfigureAwait(false);
+            await service.AccorderDroitAsync(orgId, memberId, droit, siteId, demande?.Motif, ct).ConfigureAwait(false);
             return Results.NoContent();
         });
         organisation.MapDelete("/members/{memberId:guid}/rights/{droit}/sites/{siteId:guid}", async (
