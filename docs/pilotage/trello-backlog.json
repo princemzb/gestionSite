@@ -2973,6 +2973,28 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
       "trelloId": "6ae443bbf46427f2fa1009e4",
       "trelloShortLink": "qKSrwcYV"
+    },
+    {
+      "id": "S04-01",
+      "name": "[S04-01] Fin du POC tablette : chiffrement par profil, 24 h, révocation, photo interrompue sur la Tab M11",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-04"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Base locale chiffrée par profil (clé liée au PIN et au Keystore), déverrouillage par PIN, verrouillage automatique.",
+        "Expiration des 24 h depuis le dernier contact réussi et révocation (titulaire, administrateur pour son organisation) prouvées sur l'appareil.",
+        "Photo dont l'envoi est interrompu puis repris sans doublon ; coupures réseau réelles et envoi en arrière-plan sur la Tab M11 du porteur.",
+        "Rapport de POC (docs/poc) avec mesures réelles ; essais lancés par l'agent via adb quand la tablette est branchée, recette humaine par le porteur ; échec = choix du client tablette rouvert (ADR-03)."
+      ],
+      "note": "Créée par l'agent dans Trello le 30/10 (décision du porteur : POC séparé d'abord) ; Trello fait foi pour la description.",
+      "trelloId": "6ae4b95dea0bc871756e24da",
+      "trelloShortLink": "COWVSd5I"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
