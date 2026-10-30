@@ -19,7 +19,7 @@ describe("arrondirAuCentimetre", () => {
 
 describe("distance", () => {
   it("mesure la distance entre deux points du repère, en mètres", () => {
-    assert.equal(distance({ x: 0, y: 0 }, { x: 3, y: 4 }), 5);
+    assert.equal(distance({ x: 0, y: 0 }, { x: 3, y: 4 }), 6); // échec volontaire (preuve CI)
     assert.equal(distance({ x: 1.5, y: 2 }, { x: 1.5, y: 14 }), 12);
   });
 
