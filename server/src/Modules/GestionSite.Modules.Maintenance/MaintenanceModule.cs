@@ -34,7 +34,7 @@ public static class MaintenanceModule
             .ValidateOnStart();
         return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>()
             .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>().AddScoped<ServiceInterventions>()
-            .AddScoped<ServicePropositions>().AddScoped<ServicePlans>();
+            .AddScoped<ServicePropositions>().AddScoped<ServicePlans>().AddScoped<ServiceOccurrences>();
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) =>

@@ -318,6 +318,11 @@ internal enum NatureEvenementPlan
     Modification = 2,
     Suspension = 3,
     Reprise = 4,
+
+    /// <summary>Occurrence affectée ou réaffectée (S12-03).</summary>
+    Affectation = 5,
+    Saut = 6,
+    Realisation = 7,
 }
 
 /// <summary>Journal d'un plan, en ajout seul : création, modification (ancienne et nouvelle règle), suspension, reprise.</summary>

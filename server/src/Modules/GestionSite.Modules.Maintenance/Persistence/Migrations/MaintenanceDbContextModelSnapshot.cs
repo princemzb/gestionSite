@@ -55,6 +55,150 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.ToTable("alertes_danger", "maintenance");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ControlePreventif", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<Guid>("BatimentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batiment_id");
+
+                    b.Property<Guid>("CommandeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commande_id");
+
+                    b.Property<Guid?>("ComposantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("composant_id");
+
+                    b.Property<string>("CompteRendu")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("compte_rendu");
+
+                    b.Property<string>("CorpsEtat")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("corps_etat");
+
+                    b.Property<DateOnly>("Echeance")
+                        .HasColumnType("date")
+                        .HasColumnName("echeance");
+
+                    b.Property<Guid?>("EvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<int?>("GrilleVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("grille_version");
+
+                    b.Property<Guid?>("IntervenantCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("intervenant_compte_id");
+
+                    b.Property<string>("LibelleNote")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("libelle_note");
+
+                    b.Property<string>("Mesures")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("mesures");
+
+                    b.Property<string>("Nature")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("nature");
+
+                    b.Property<decimal?>("Note")
+                        .HasPrecision(3, 1)
+                        .HasColumnType("numeric(3,1)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("NumeroAgrement")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("numero_agrement");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("occurrence_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("Points")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("points");
+
+                    b.Property<string>("Prestataire")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("prestataire");
+
+                    b.Property<DateOnly>("RealiseLe")
+                        .HasColumnType("date")
+                        .HasColumnName("realise_le");
+
+                    b.Property<string>("Resultat")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("resultat");
+
+                    b.Property<DateTimeOffset>("SaisiLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saisi_le");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("zone_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_controles_preventifs");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_controles_preventifs_id_organisation_id");
+
+                    b.HasIndex("OccurrenceId", "OrganisationId")
+                        .HasDatabaseName("ix_controles_preventifs_occurrence_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "CommandeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_controles_preventifs_commande");
+
+                    b.HasIndex("OrganisationId", "OccurrenceId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_controles_preventifs_organisation_id_occurrence_id");
+
+                    b.HasIndex("OrganisationId", "SiteId", "RealiseLe")
+                        .HasDatabaseName("ix_controles_preventifs_organisation_id_site_id_realise_le");
+
+                    b.ToTable("controles_preventifs", "maintenance", t =>
+                        {
+                            t.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.EvenementDossier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -258,6 +402,152 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasDatabaseName("ix_interventions_organisation_id_site_id_statut");
 
                     b.ToTable("interventions", "maintenance");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.OccurrencePreventive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AffecteeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("affectee_le");
+
+                    b.Property<string>("CommentaireSaut")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("commentaire_saut");
+
+                    b.Property<Guid?>("ControleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("controle_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<DateOnly>("Echeance")
+                        .HasColumnType("date")
+                        .HasColumnName("echeance");
+
+                    b.Property<Guid?>("IntervenantCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("intervenant_compte_id");
+
+                    b.Property<string>("MotifSaut")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("motif_saut");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("Prestataire")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("prestataire");
+
+                    b.Property<DateOnly?>("RealiseeLe")
+                        .HasColumnType("date")
+                        .HasColumnName("realisee_le");
+
+                    b.Property<Guid?>("ReferentCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("referent_compte_id");
+
+                    b.Property<DateOnly?>("SauteeLe")
+                        .HasColumnType("date")
+                        .HasColumnName("sautee_le");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("statut");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_occurrences_preventives");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_occurrences_preventives_id_organisation_id");
+
+                    b.HasIndex("PlanId", "OrganisationId")
+                        .HasDatabaseName("ix_occurrences_preventives_plan_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "PlanId", "Echeance")
+                        .IsUnique()
+                        .HasDatabaseName("ix_occurrences_preventives_echeance");
+
+                    b.HasIndex("OrganisationId", "SiteId", "Statut")
+                        .HasDatabaseName("ix_occurrences_preventives_organisation_id_site_id_statut");
+
+                    b.ToTable("occurrences_preventives", "maintenance", t =>
+                        {
+                            t.HasCheckConstraint("ck_occurrences_preventives_prestataire", "(prestataire IS NULL) = (referent_compte_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_occurrences_preventives_statut", "(statut = 'Affectee' AND (intervenant_compte_id IS NOT NULL OR prestataire IS NOT NULL)) OR (statut = 'Sautee' AND sautee_le IS NOT NULL AND motif_saut IS NOT NULL) OR (statut IN ('Realisee', 'RealiseeAvecReserves') AND realisee_le IS NOT NULL AND controle_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoControle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<Guid>("ControleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("controle_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int>("Rang")
+                        .HasColumnType("integer")
+                        .HasColumnName("rang");
+
+                    b.Property<int>("Taille")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille");
+
+                    b.HasKey("Id")
+                        .HasName("pk_photos_controles");
+
+                    b.HasIndex("ControleId", "OrganisationId", "Rang")
+                        .IsUnique()
+                        .HasDatabaseName("ix_photos_controles_controle_id_organisation_id_rang");
+
+                    b.ToTable("photos_controles", "maintenance", t =>
+                        {
+                            t.HasCheckConstraint("ck_photos_controles_rang", "rang BETWEEN 1 AND 3");
+                        });
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoIntervention", b =>
@@ -734,6 +1024,17 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasConstraintName("fk_alertes_danger_signalements_signalement_id_organisation_id");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ControlePreventif", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.OccurrencePreventive", null)
+                        .WithMany()
+                        .HasForeignKey("OccurrenceId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_controles_preventifs_occurrences_preventives_occurrence_id_");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.EvenementDossier", b =>
                 {
                     b.HasOne("GestionSite.Modules.Maintenance.Domain.Signalement", null)
@@ -765,6 +1066,28 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_interventions_signalements_dossier_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.OccurrencePreventive", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.PlanPreventif", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_occurrences_preventives_plans_plan_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoControle", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.ControlePreventif", null)
+                        .WithMany()
+                        .HasForeignKey("ControleId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_photos_controles_controles_preventifs_controle_id_organisat");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.PhotoIntervention", b =>
