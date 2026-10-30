@@ -31,9 +31,13 @@ else
             </nav>
         }
     </div>
-    @if (Enregistree is { } version)
+    @if (Enregistree is { } version && HttpMethods.IsGet(Contexte?.Request.Method ?? HttpMethods.Get))
     {
         <p role="status" class="alerte succes">Version @version enregistrée : les prochaines évaluations l'utiliseront.</p>
+    }
+    @if (Information is not null)
+    {
+        <p role="status" class="alerte succes">@Information</p>
     }
     @if (Message is not null)
     {
@@ -68,8 +72,10 @@ else
             @if (PeutModifier)
             {
                 <EditForm Model="Saisie" FormName="grille" OnSubmit="AgirAsync" class="formulaire-grille">
+                    @* Premier bouton du formulaire, masqué : Entrée dans un champ enregistre (jamais monter ni supprimer). *@
+                    <button type="submit" name="Saisie.Action" value="enregistrer" class="visuellement-masque" tabindex="-1" aria-hidden="true">Enregistrer</button>
                     <input type="hidden" name="Saisie.Version" value="@Saisie.Version" />
-                    <button type="submit" name="Saisie.Action" value="defaut" class="bouton-lien lien-discret revenir-defaut" formnovalidate>Revenir à la grille par défaut</button>
+                    <a class="revenir-defaut" href="@($"{Url(g.CorpsEtat)}&defaut=true")">Revenir à la grille par défaut</a>
                     <h3>Points à observer <span class="aide">(1 à 15, 160 caractères chacun)</span></h3>
                     @for (var i = 0; i < Saisie.Points.Count; i++)
                     {
@@ -99,7 +105,6 @@ else
                     {
                         <button type="submit" name="Saisie.Action" value="ajouter-mesure" class="bouton-ajout" formnovalidate>+ Ajouter une mesure</button>
                     }
-                    @* Bouton principal en premier dans le code (Entrée enregistre) ; affiché à droite. *@
                     <div class="actions-grille">
                         <button type="submit" name="Saisie.Action" value="enregistrer" class="bouton-principal">Enregistrer la version @(Saisie.Version + 1)</button>
                         <a class="bouton-secondaire bouton-lien" href="@Url(g.CorpsEtat)">Annuler</a>
@@ -144,10 +149,19 @@ else
 
     [SupplyParameterFromQuery(Name = "enregistree")] private int? Enregistree { get; set; }
 
+    // « Revenir à la grille par défaut » : le formulaire part du contenu par défaut, à enregistrer comme nouvelle version.
+    [SupplyParameterFromQuery(Name = "defaut")] private bool? Defaut { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
     [SupplyParameterFromForm(Name = "Saisie", FormName = "grille")] private SaisieGrille? Formulaire { get; set; }
 
     // Normalisée à chaque lecture : la page est rendue avec la saisie liée avant le traitement de l'envoi.
-    private SaisieGrille Saisie => (Formulaire ??= SaisieGrille.Depuis(Grille!)).Normaliser();
+    private SaisieGrille Saisie => (Formulaire ??= SaisieGrille.Depuis(Grille!, ParDefaut)).Normaliser();
+
+    private ContenuGrilleApi? ParDefaut { get; set; }
+
+    private string? Information { get; set; }
 
     private OrganisationApi? Organisation { get; set; }
 
@@ -175,13 +189,20 @@ else
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
             Sites = Perimetre.SitesInternes(Organisation);
-            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            // Sans site demandé : le premier où l'appelant adapte les grilles, sinon le premier consultable.
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande)
+                ?? Sites.FirstOrDefault(s => Organisation!.Roles.Any(r => r.SiteId == s.Id && r.Role is "Responsable" or "Delegue"))
+                ?? Sites.FirstOrDefault();
             if (SiteCourant is { } site)
             {
                 // Responsable et délégués du site adaptent les grilles (PERMISSIONS) ; l'API reste juge (403 sinon).
                 PeutModifier = Organisation!.Roles.Any(r => r.SiteId == site.Id && r.Role is "Responsable" or "Delegue");
                 Liste = await Session.LireAsync<List<GrilleApi>>(Base, CancellationToken.None);
                 Grille = Liste.FirstOrDefault(g => g.CorpsEtat == CorpsDemande) ?? Liste.FirstOrDefault();
+                if (Defaut == true && PeutModifier && Grille is { } grille)
+                {
+                    ParDefaut = await Session.LireAsync<ContenuGrilleApi>($"{Base}/{grille.CorpsEtat}/default", CancellationToken.None);
+                }
             }
         }
         catch (SessionExpireeException)
@@ -201,6 +222,12 @@ else
     // Monter, descendre, supprimer, ajouter : la page revient avec la saisie modifiée, sans rien enregistrer.
     private async Task AgirAsync()
     {
+        if (Grille is null || SiteCourant is null || !PeutModifier)
+        {
+            Message ??= "Seuls le responsable et les délégués du site adaptent les grilles.";
+            return;
+        }
+
         var saisie = Saisie;
         var (action, rang) = Decomposer(saisie.Action);
         switch (action)
@@ -229,34 +256,11 @@ else
                 saisie.Libelles.Add("");
                 saisie.Unites.Add("");
                 return;
-            case "defaut":
-                await ChargerDefautAsync(saisie);
-                return;
             case "enregistrer":
                 await EnregistrerAsync(saisie);
                 return;
             default:
                 return;
-        }
-    }
-
-    private async Task ChargerDefautAsync(SaisieGrille saisie)
-    {
-        try
-        {
-            var defaut = await Session.LireAsync<ContenuGrilleApi>($"{Base}/{Grille!.CorpsEtat}/default", CancellationToken.None);
-            saisie.Points = [.. defaut.Criteres.Select(c => (string?)c)];
-            saisie.Libelles = [.. defaut.Mesures.Select(m => (string?)m.Libelle)];
-            saisie.Unites = [.. defaut.Mesures.Select(m => (string?)m.Unite)];
-            Message = null;
-        }
-        catch (SessionExpireeException)
-        {
-            Navigation.NavigateTo("/connexion");
-        }
-        catch (RefusApiException)
-        {
-            Message = "Service momentanément indisponible : réessayez dans un instant.";
         }
     }
 
@@ -286,11 +290,21 @@ else
                 {
                     "criteres" => "Points à observer : de 1 à 15, tous différents, 160 caractères au plus chacun.",
                     "mesures" => "Mesures : 8 au plus, toutes différentes, chacune avec un libellé (80 caractères) et une unité (16 caractères).",
-                    _ => refus.Statut == HttpStatusCode.Forbidden
-                        ? "Seuls le responsable et les délégués du site adaptent les grilles."
-                        : "Service momentanément indisponible : réessayez dans un instant.",
+                    "version" => "La version de la grille manque : rechargez la page puis recommencez.",
+                    _ => refus.Statut switch
+                    {
+                        HttpStatusCode.Forbidden => "Seuls le responsable et les délégués du site adaptent les grilles.",
+                        HttpStatusCode.NotFound => "Ce corps d'état ou ce site n'est plus accessible : rechargez la page.",
+                        _ => "Service momentanément indisponible : réessayez dans un instant.",
+                    },
                 },
             };
+            return;
+        }
+
+        if (creee.Version == saisie.Version)
+        {
+            Information = $"Aucune modification : la version {creee.Version} reste en vigueur.";
             return;
         }
 
@@ -330,12 +344,17 @@ else
             return this;
         }
 
-        internal static SaisieGrille Depuis(GrilleApi g) => new()
+        // Contenu de la version en vigueur, ou contenu par défaut proposé (« revenir à la grille par défaut ») ; version lue.
+        internal static SaisieGrille Depuis(GrilleApi g, ContenuGrilleApi? defaut)
         {
-            Version = g.Version,
-            Points = [.. g.Criteres.Select(c => (string?)c)],
-            Libelles = [.. g.Mesures.Select(m => (string?)m.Libelle)],
-            Unites = [.. g.Mesures.Select(m => (string?)m.Unite)],
-        };
+            var (criteres, mesures) = defaut is null ? (g.Criteres, g.Mesures) : (defaut.Criteres, defaut.Mesures);
+            return new()
+            {
+                Version = g.Version,
+                Points = [.. criteres.Select(c => (string?)c)],
+                Libelles = [.. mesures.Select(m => (string?)m.Libelle)],
+                Unites = [.. mesures.Select(m => (string?)m.Unite)],
+            };
+        }
     }
 }

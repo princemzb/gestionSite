@@ -114,17 +114,9 @@ internal sealed class SessionApi(
         return connexion == IssueConnexion.Reussie ? connexion : IssueConnexion.ActiveSansConnexion;
     }
 
-    internal async Task<T> LireAsync<T>(string chemin, CancellationToken annulation)
-    {
-        using var reponse = await EnvoyerAsync(HttpMethod.Get, chemin, corps: null, annulation).ConfigureAwait(false);
-        return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
-    }
+    internal Task<T> LireAsync<T>(string chemin, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Get, chemin, corps: null, annulation);
 
-    internal async Task<T> EcrireAsync<T>(string chemin, object corps, CancellationToken annulation)
-    {
-        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, corps, annulation).ConfigureAwait(false);
-        return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
-    }
+    internal Task<T> EcrireAsync<T>(string chemin, object corps, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Post, chemin, corps, annulation);
 
     /// <summary>Contenu binaire (photo) d'une ressource de l'API, ou null si elle n'existe pas.</summary>
     internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation)
@@ -146,9 +138,12 @@ internal sealed class SessionApi(
     }
 
     /// <summary>Remplacement (PUT) dont la réponse est lue, par exemple la version créée d'une grille.</summary>
-    internal async Task<T> ModifierAvecReponseAsync<T>(string chemin, object corps, CancellationToken annulation)
+    internal Task<T> ModifierAvecReponseAsync<T>(string chemin, object corps, CancellationToken annulation) =>
+        EnvoyerEtLireAsync<T>(HttpMethod.Put, chemin, corps, annulation);
+
+    private async Task<T> EnvoyerEtLireAsync<T>(HttpMethod methode, string chemin, object? corps, CancellationToken annulation)
     {
-        using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
+        using var reponse = await EnvoyerAsync(methode, chemin, corps, annulation).ConfigureAwait(false);
         return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
     }
 

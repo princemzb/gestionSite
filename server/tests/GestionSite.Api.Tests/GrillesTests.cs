@@ -47,7 +47,7 @@ public sealed class GrillesTests(InfrastructureFixture infrastructure) : Inventa
         Assert.Equal(2, (await identique.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetInt32()); // rien de neuf
         Assert.True(lue.GetProperty("adaptee").GetBoolean());
         Assert.NotEqual(JsonValueKind.Null, lue.GetProperty("adapteeLe").ValueKind);
-        Assert.NotEqual(JsonValueKind.Null, lue.GetProperty("auteurCompteId").ValueKind);
+        Assert.False(lue.TryGetProperty("auteurCompteId", out _)); // nom affiché seulement
         var parDefaut = await LireAsync($"{Grilles}/Mobilier/default", technicien);
         Assert.Contains("Pieds stables, patins présents", parDefaut.GetProperty("criteres").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(["Assise intacte", "Pieds stables", "Housse propre"], lue.GetProperty("criteres").EnumerateArray().Select(c => c.GetString()));

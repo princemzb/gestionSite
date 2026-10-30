@@ -92,7 +92,7 @@ internal sealed record MesureGrilleApi(string Libelle, string Unite);
 
 internal sealed record GrilleApi(
     string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures,
-    DateTimeOffset? AdapteeLe = null, Guid? AuteurCompteId = null, string? Auteur = null);
+    DateTimeOffset? AdapteeLe = null, string? Auteur = null);
 
 internal sealed record ContenuGrilleApi(IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures);
 

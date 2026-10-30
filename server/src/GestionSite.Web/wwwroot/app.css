@@ -415,7 +415,7 @@ form.formulaire-inventaire { padding: 0; }
 .editeur-grille h2 { margin: 0; font-size: 20px; }
 .editeur-grille h3 { margin: 4px 0 0; font-size: 14px; color: var(--encre-2); }
 .formulaire-grille { display: flex; flex-direction: column; gap: 10px; }
-.revenir-defaut { align-self: flex-start; padding: 0; height: auto; border: none; background: none; color: var(--lien); font: inherit; font-size: 14px; cursor: pointer; text-decoration: underline; }
+.revenir-defaut { align-self: flex-start; font-size: 14px; }
 .ligne-grille { display: flex; gap: 8px; align-items: center; }
 .ligne-grille input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--bordure-forte); border-radius: 12px; padding: 0 12px; font: inherit; background: var(--champ-fond); color: var(--encre); }
 .ligne-grille input.unite { flex: 0 0 90px; }

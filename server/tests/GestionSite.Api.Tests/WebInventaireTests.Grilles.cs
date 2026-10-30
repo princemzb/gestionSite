@@ -21,7 +21,10 @@ public sealed partial class WebInventaireTests
         var doublon = await LireAsync(await PosterAsync(responsable, page, "grille", Points("enregistrer", "Pieds stables", "pieds stables")));
         var enregistree = await LirePageAsync(responsable, Chemin(await PosterAsync(responsable, page, "grille",
             [.. Points("enregistrer", "Pieds stables", "Assise intacte", "Housse propre"), ("Saisie.Libelles[0]", "Hauteur d'assise"), ("Saisie.Unites[0]", "cm")])));
-        var defaut = await LireAsync(await PosterAsync(responsable, page, "grille", [("Saisie.Version", "2"), ("Saisie.Action", "defaut")]));
+        var defaut = await LirePageAsync(responsable, $"{page}&defaut=true");
+        var inchangee = await LireAsync(await PosterAsync(responsable, page, "grille",
+            [("Saisie.Version", "2"), ("Saisie.Action", "enregistrer"), ("Saisie.Points[0]", "Pieds stables"), ("Saisie.Points[1]", "Assise intacte"),
+                ("Saisie.Points[2]", "Housse propre"), ("Saisie.Libelles[0]", "Hauteur d'assise"), ("Saisie.Unites[0]", "cm")]));
 
         Assert.Contains("Grilles d'évaluation · Site centre", liste, StringComparison.Ordinal);
         Assert.Contains("Grille par défaut (version 1)", liste, StringComparison.Ordinal);
@@ -36,6 +39,8 @@ public sealed partial class WebInventaireTests
         Assert.Contains("value=\"Hauteur d'assise\"", enregistree, StringComparison.Ordinal);
         Assert.Contains("value=\"Empilage ou rangement sans déformation\"", defaut, StringComparison.Ordinal); // contenu par défaut rechargé
         Assert.Contains("Enregistrer la version 3", defaut, StringComparison.Ordinal);
+        Assert.Contains("Aucune modification : la version 2 reste en vigueur.", inchangee, StringComparison.Ordinal);
+        Assert.True(liste.IndexOf("value=\"enregistrer\"", StringComparison.Ordinal) < liste.IndexOf("value=\"ajouter\"", StringComparison.Ordinal)); // Entrée enregistre
     }
 
     [Fact]
