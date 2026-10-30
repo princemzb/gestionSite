@@ -63,7 +63,7 @@ internal sealed class ServiceEvaluations(
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoEvaluation(Guid.CreateVersion7(maintenant), evaluation, rang, jpeg.Length, maintenant), p => p.Cle,
-            photos => { var id = photos[0].Id; return context.PhotosEvaluation.AsNoTracking().AnyAsync(p => p.Id == id); }, cancellationToken).ConfigureAwait(false);
+            photos => { var id = photos[0].Id; return context.PhotosEvaluation.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken).ConfigureAwait(false);
         context.PhotosEvaluation.AddRange(envoi.Photos);
         context.Evaluations.Add(evaluation);
 

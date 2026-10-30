@@ -142,7 +142,7 @@ internal sealed class ServiceDossiers(
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, rang, jpeg.Length), p => p.Cle,
-            photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id); }, cancellationToken)
+            photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
         context.Signalements.Add(dossier);
