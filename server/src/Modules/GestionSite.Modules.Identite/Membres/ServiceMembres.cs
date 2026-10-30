@@ -1,3 +1,5 @@
+using GestionSite.Modules.Identite.Autorisation;
+using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
 using GestionSite.SharedKernel;
@@ -15,9 +17,13 @@ internal sealed record MembreCree(Guid MembreId, Guid CompteId, int Version, Act
 
 internal sealed record MembreRevise(Guid MembreId, int Version);
 
+/// <summary>Droit nominatif accordé à un membre sur un site (US-21).</summary>
+internal sealed record DroitAccorde(string Droit, Guid SiteId);
+
 /// <summary>Membre vu par l'administrateur : invitation en attente tant qu'elle n'est pas acceptée.</summary>
 internal sealed record MembreListe(
-    Guid MembreId, Guid CompteId, string Nom, string? Email, bool InvitationEnAttente, int Version, IReadOnlyList<RoleDemande> Roles);
+    Guid MembreId, Guid CompteId, string Nom, string? Email, bool InvitationEnAttente, int Version, IReadOnlyList<RoleDemande> Roles,
+    IReadOnlyList<DroitAccorde> DroitsNominatifs);
 
 /// <summary>Gestion des membres et des sites par l'administrateur d'organisation (CONTRATS, S06-04).</summary>
 internal sealed class ServiceMembres(
@@ -82,7 +88,13 @@ internal sealed class ServiceMembres(
         }
 
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
-        Journaliser(membre, NatureHabilitation.Revision, motif, avant, horloge.GetUtcNow());
+        // Droits nominatifs d'un site où le membre n'a plus de rôle : retirés avec la révision (ils n'ouvraient plus rien).
+        var droits = await DroitsAsync(membre.Id, cancellationToken).ConfigureAwait(false);
+        var perdus = droits.Where(d => !membre.Roles.Any(r => r.SiteId == d.SiteId)).ToList();
+        context.DroitsNominatifs.RemoveRange(perdus);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+            membre, NatureHabilitation.Revision, auteur.Id, horloge.GetUtcNow(), motif, avant,
+            perdus.Count == 0 ? null : DroitNominatif.Instantane(droits), perdus.Count == 0 ? null : DroitNominatif.Instantane(droits.Except(perdus))));
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new MembreRevise(membre.Id, membre.Version);
@@ -102,7 +114,12 @@ internal sealed class ServiceMembres(
         var maintenant = horloge.GetUtcNow();
         membre.Revoquer(maintenant);
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
-        Journaliser(membre, NatureHabilitation.Revocation, motif, EvenementHabilitation.Instantane(membre), maintenant);
+        // L'adhésion révoquée n'ouvre plus rien ; ses droits nominatifs sont retirés et journalisés avec elle.
+        var droits = await DroitsAsync(membre.Id, cancellationToken).ConfigureAwait(false);
+        context.DroitsNominatifs.RemoveRange(droits);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+            membre, NatureHabilitation.Revocation, auteur.Id, maintenant, motif, EvenementHabilitation.Instantane(membre),
+            droits.Count == 0 ? null : DroitNominatif.Instantane(droits), droits.Count == 0 ? null : []));
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -131,6 +148,7 @@ internal sealed class ServiceMembres(
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var membres = await context.Membres.AsNoTracking().Include(m => m.Roles).Where(m => m.RevoqueLe == null)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var droits = (await context.DroitsNominatifs.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false)).ToLookup(d => d.MembreId);
         var ids = membres.Select(m => m.CompteId).ToList();
         var comptesListes = await context.Users.AsNoTracking().Where(c => ids.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
@@ -138,8 +156,74 @@ internal sealed class ServiceMembres(
             .Select(m => (Membre: m, Compte: comptesListes.GetValueOrDefault(m.CompteId)))
             .Select(x => new MembreListe(
                 x.Membre.Id, x.Membre.CompteId, x.Compte?.NomAffiche ?? string.Empty, x.Compte?.Email, x.Membre.AccepteLe is null,
-                x.Membre.Version, [.. x.Membre.Roles.OrderBy(r => r.Role).Select(r => new RoleDemande(r.Role.ToString(), r.SiteId))]))
+                x.Membre.Version, [.. x.Membre.Roles.OrderBy(r => r.Role).Select(r => new RoleDemande(r.Role.ToString(), r.SiteId))],
+                [.. DroitNominatif.Instantane(droits[x.Membre.Id]).Select(d => new DroitAccorde(d.Droit, d.SiteId))]))
             .OrderBy(m => m.Nom, StringComparer.CurrentCulture)];
+    }
+
+    /// <summary>
+    /// Accorde nommément un droit de la liste blanche sur un site (US-21) : administrateur seulement, motif obligatoire,
+    /// membre actif ayant un rôle sur ce site ; journalisé. Déjà accordé : rien n'est écrit.
+    /// </summary>
+    internal async Task AccorderDroitAsync(Guid organisationId, Guid membreId, string droit, Guid siteId, string? motif, CancellationToken cancellationToken)
+    {
+        await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var nominatif = DroitNominatifDemande(droit);
+        await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
+        var site = await context.Sites.SingleOrDefaultAsync(s => s.Id == siteId, cancellationToken).ConfigureAwait(false)
+            ?? throw RefusException.Invalide("site_inconnu", "Site inconnu dans cette organisation.");
+        if (!membre.EstActif || !membre.Roles.Any(r => r.SiteId == site.Id))
+        {
+            throw RefusException.Invalide("membre_non_eligible", "Ce droit s'accorde à un membre ayant accepté son invitation et un rôle sur ce site.");
+        }
+
+        var droits = await DroitsAsync(membre.Id, cancellationToken).ConfigureAwait(false);
+        if (droits.Exists(d => d.Droit == nominatif && d.SiteId == site.Id))
+        {
+            return;
+        }
+
+        var maintenant = horloge.GetUtcNow();
+        var accorde = new DroitNominatif(Guid.CreateVersion7(maintenant), membre, nominatif, site, auteur.Id, maintenant);
+        context.DroitsNominatifs.Add(accorde);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+            membre, NatureHabilitation.AttributionDroit, auteur.Id, maintenant, motif, avant: null,
+            DroitNominatif.Instantane(droits), DroitNominatif.Instantane([.. droits, accorde])));
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException erreur) when (erreur.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return; // même droit accordé en parallèle : l'autre requête l'a enregistré et journalisé
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Retire un droit nominatif (effet immédiat) : administrateur, motif obligatoire, journalisé. Absent : rien n'est écrit.</summary>
+    internal async Task RetirerDroitAsync(Guid organisationId, Guid membreId, string droit, Guid siteId, string? motif, CancellationToken cancellationToken)
+    {
+        await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var nominatif = DroitNominatifDemande(droit);
+        await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
+        var droits = await DroitsAsync(membre.Id, cancellationToken).ConfigureAwait(false);
+        var retire = droits.Find(d => d.Droit == nominatif && d.SiteId == siteId);
+        if (retire is null)
+        {
+            // Motif exigé même sans effet : la demande est jugée comme si le droit existait.
+            _ = EvenementHabilitation.Pour(membre, NatureHabilitation.RetraitDroit, auteur.Id, horloge.GetUtcNow(), motif, avant: null);
+            return;
+        }
+
+        context.DroitsNominatifs.Remove(retire);
+        context.JournalHabilitations.Add(EvenementHabilitation.Pour(
+            membre, NatureHabilitation.RetraitDroit, auteur.Id, horloge.GetUtcNow(), motif, avant: null,
+            DroitNominatif.Instantane(droits), DroitNominatif.Instantane(droits.Where(d => d != retire))));
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<IReadOnlyList<Site>> ListerSitesAsync(Guid organisationId, CancellationToken cancellationToken)
@@ -259,6 +343,15 @@ internal sealed class ServiceMembres(
             $"SELECT 1 FROM identite.organisations WHERE id = {organisationId} FOR UPDATE", cancellationToken).ConfigureAwait(false);
         return transaction;
     }
+
+    // Droit de la liste blanche, nom exact ; tout autre droit est refusé (422 « droit_non_nominatif »).
+    private static Droit DroitNominatifDemande(string droit) =>
+        NomExact.Essayer<Droit>(droit, out var lu) && MatriceDroits.EstNominatif(lu)
+            ? lu
+            : throw RefusException.Invalide("droit_non_nominatif", "Ce droit ne s'accorde pas nommément.");
+
+    private async Task<List<DroitNominatif>> DroitsAsync(Guid membreId, CancellationToken cancellationToken) =>
+        await context.DroitsNominatifs.Where(d => d.MembreId == membreId).ToListAsync(cancellationToken).ConfigureAwait(false);
 
     private static RefusException DejaMembre() =>
         RefusException.Conflit("deja_membre", "Ce compte est déjà membre de l'organisation.");

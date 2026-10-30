@@ -11,6 +11,12 @@ internal enum NatureHabilitation
     Revocation,
     Acceptation,
     Refus,
+
+    /// <summary>Droit nominatif accordé sur un site (US-21) : motif obligatoire.</summary>
+    AttributionDroit,
+
+    /// <summary>Droit nominatif retiré (US-21) : motif obligatoire, effet immédiat.</summary>
+    RetraitDroit,
 }
 
 /// <summary>Rôle tel qu'enregistré dans le journal (instantané, indépendant des changements ultérieurs).</summary>
@@ -30,24 +36,29 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
     }
 
     /// <summary>
-    /// Seule fabrique d'entrées : les rôles après sont l'état du membre, sauf révocation et refus (aucun).
-    /// Révision et révocation exigent un motif (RG-31 : auteur, motif et valeur précédente).
+    /// Seule fabrique d'entrées : les rôles après sont l'état du membre, sauf révocation et refus (aucun) et droits
+    /// nominatifs (rôles inchangés, non répétés). Révision, révocation, attribution et retrait d'un droit exigent un
+    /// motif (RG-31 : auteur, motif et valeur précédente). Droits nominatifs avant et après : seulement s'ils changent.
     /// </summary>
     internal static EvenementHabilitation Pour(
-        Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif, IReadOnlyCollection<RoleJournalise>? avant)
+        Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif, IReadOnlyCollection<RoleJournalise>? avant,
+        IReadOnlyCollection<DroitJournalise>? droitsAvant = null, IReadOnlyCollection<DroitJournalise>? droitsApres = null)
     {
-        if (nature is NatureHabilitation.Revision or NatureHabilitation.Revocation && string.IsNullOrWhiteSpace(motif))
+        if (nature is NatureHabilitation.Revision or NatureHabilitation.Revocation or NatureHabilitation.AttributionDroit
+            or NatureHabilitation.RetraitDroit && string.IsNullOrWhiteSpace(motif))
         {
             throw new ArgumentException("Un motif est requis pour réviser ou révoquer une habilitation.", nameof(motif));
         }
 
-        var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus ? null : Instantane(membre);
-        return new EvenementHabilitation(membre, nature, auteurCompteId, le, motif, avant, apres);
+        var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus or NatureHabilitation.AttributionDroit
+            or NatureHabilitation.RetraitDroit ? null : Instantane(membre);
+        return new EvenementHabilitation(membre, nature, auteurCompteId, le, motif, avant, apres, droitsAvant, droitsApres);
     }
 
     private EvenementHabilitation(
         Membre membre, NatureHabilitation nature, Guid? auteurCompteId, DateTimeOffset le, string? motif,
-        IReadOnlyCollection<RoleJournalise>? avant, IReadOnlyCollection<RoleJournalise>? apres)
+        IReadOnlyCollection<RoleJournalise>? avant, IReadOnlyCollection<RoleJournalise>? apres,
+        IReadOnlyCollection<DroitJournalise>? droitsAvant, IReadOnlyCollection<DroitJournalise>? droitsApres)
     {
         ArgumentNullException.ThrowIfNull(membre);
         Le = Horodatage.Valider(le, nameof(le));
@@ -60,6 +71,8 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
         Motif = NettoyerMotif(motif);
         RolesAvant = avant is null ? null : JsonSerializer.Serialize(avant);
         RolesApres = apres is null ? null : JsonSerializer.Serialize(apres);
+        DroitsAvant = droitsAvant is null ? null : JsonSerializer.Serialize(droitsAvant);
+        DroitsApres = droitsApres is null ? null : JsonSerializer.Serialize(droitsApres);
     }
 
     public Guid Id { get; private set; }
@@ -84,6 +97,11 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
     public string? RolesAvant { get; private set; }
 
     public string? RolesApres { get; private set; }
+
+    /// <summary>Droits nominatifs du membre avant l'action (JSON), quand elle les change.</summary>
+    public string? DroitsAvant { get; private set; }
+
+    public string? DroitsApres { get; private set; }
 
     // Facultatif ; vide : pas de motif.
     private static string? NettoyerMotif(string? motif) =>

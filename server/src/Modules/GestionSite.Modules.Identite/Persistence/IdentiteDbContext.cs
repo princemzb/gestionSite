@@ -35,6 +35,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
 
     public DbSet<EvenementHabilitation> JournalHabilitations => Set<EvenementHabilitation>();
 
+    public DbSet<DroitNominatif> DroitsNominatifs => Set<DroitNominatif>();
+
     // Lu à chaque requête par les filtres (paramètre EF) : sans organisation, aucune ligne.
     private Guid? OrganisationId => organisationCourante.Id;
 
@@ -74,6 +76,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             evenement.Property(e => e.Motif).HasMaxLength(EvenementHabilitation.MotifMaxLength);
             evenement.Property(e => e.RolesAvant).HasColumnType("jsonb");
             evenement.Property(e => e.RolesApres).HasColumnType("jsonb");
+            evenement.Property(e => e.DroitsAvant).HasColumnType("jsonb");
+            evenement.Property(e => e.DroitsApres).HasColumnType("jsonb");
             evenement.HasIndex(e => new { e.OrganisationId, e.Le });
             evenement.HasOne<Membre>().WithMany()
                 .HasForeignKey(e => new { e.MembreId, e.OrganisationId })
@@ -172,6 +176,24 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             role.HasIndex(r => new { r.MembreId, r.OrganisationId, r.Role, r.SiteId }).IsUnique().AreNullsDistinct(false);
             role.HasOne<Site>().WithMany()
                 .HasForeignKey(r => new { r.SiteId, r.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DroitNominatif>(droit =>
+        {
+            // Liste blanche tenue aussi en base : aucun autre droit ne peut être accordé nommément.
+            droit.ToTable("droits_nominatifs", table => table.HasCheckConstraint("ck_droits_nominatifs_liste_blanche", "droit IN ('ModifierPlans')"));
+            droit.HasKey(d => d.Id);
+            droit.Property(d => d.Id).ValueGeneratedNever();
+            droit.Property(d => d.Droit).HasConversion<string>().HasMaxLength(32);
+            droit.HasIndex(d => new { d.MembreId, d.OrganisationId, d.Droit, d.SiteId }).IsUnique();
+            droit.HasOne<Membre>().WithMany()
+                .HasForeignKey(d => new { d.MembreId, d.OrganisationId })
+                .HasPrincipalKey(m => new { m.Id, m.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            droit.HasOne<Site>().WithMany()
+                .HasForeignKey(d => new { d.SiteId, d.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });

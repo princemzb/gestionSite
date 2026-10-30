@@ -19,7 +19,11 @@ internal sealed record DemandeRevocation(string? Motif);
 
 internal sealed record EntreeJournal(
     Guid Id, Guid MembreId, Guid CompteId, string Nature, Guid? AuteurCompteId, DateTimeOffset Le, string? Motif,
-    IReadOnlyList<RoleJournalise>? RolesAvant, IReadOnlyList<RoleJournalise>? RolesApres);
+    IReadOnlyList<RoleJournalise>? RolesAvant, IReadOnlyList<RoleJournalise>? RolesApres,
+    IReadOnlyList<DroitJournalise>? DroitsAvant, IReadOnlyList<DroitJournalise>? DroitsApres);
+
+/// <summary>Motif d'attribution ou de retrait d'un droit nominatif, dans le corps.</summary>
+internal sealed record DemandeDroitNominatif(string? Motif);
 
 internal sealed record DemandeActivation(string Jeton, string MotDePasse);
 
@@ -49,6 +53,21 @@ internal static class OrganisationsEndpoints
         organisation.MapDelete("/members/{memberId:guid}", RevoquerMembreAsync);
         organisation.MapPost("/members/{memberId:guid}/activation", RenouvelerActivationAsync);
         organisation.MapGet("/members/journal", JournalAsync);
+        // Droits nominatifs (US-21) : liste blanche, administrateur seulement ; API sans écran (S21-09).
+        organisation.MapPut("/members/{memberId:guid}/rights/{droit}/sites/{siteId:guid}", async (
+            Guid orgId, Guid memberId, string droit, Guid siteId, DemandeDroitNominatif demande, ServiceMembres service, CancellationToken ct) =>
+        {
+            await service.AccorderDroitAsync(orgId, memberId, droit, siteId, demande.Motif, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        organisation.MapDelete("/members/{memberId:guid}/rights/{droit}/sites/{siteId:guid}", async (
+            Guid orgId, Guid memberId, string droit, Guid siteId,
+            [Microsoft.AspNetCore.Mvc.FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] DemandeDroitNominatif? demande,
+            ServiceMembres service, CancellationToken ct) =>
+        {
+            await service.RetirerDroitAsync(orgId, memberId, droit, siteId, demande?.Motif, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
         endpoints.MapPost("/auth/activate", ActiverAsync).AllowAnonymous().AddEndpointFilter(TraduireRefus);
         var invitations = endpoints.MapGroup("/me/invitations/{memberId:guid}").RequireAuthorization().AddEndpointFilter(TraduireRefus);
         invitations.MapPost("/accept", async (Guid memberId, ServiceInvitations service, CancellationToken ct) =>
@@ -98,10 +117,11 @@ internal static class OrganisationsEndpoints
     private static async Task<IResult> JournalAsync(
         Guid orgId, int? limite, Guid? avant, ServiceMembres service, CancellationToken cancellationToken) =>
         Results.Ok((await service.JournalAsync(orgId, limite ?? 100, avant, cancellationToken).ConfigureAwait(false)).Select(e => new EntreeJournal(
-            e.Id, e.MembreId, e.CompteId, e.Nature.ToString(), e.AuteurCompteId, e.Le, e.Motif, Lire(e.RolesAvant), Lire(e.RolesApres))));
+            e.Id, e.MembreId, e.CompteId, e.Nature.ToString(), e.AuteurCompteId, e.Le, e.Motif, Lire<RoleJournalise>(e.RolesAvant),
+            Lire<RoleJournalise>(e.RolesApres), Lire<DroitJournalise>(e.DroitsAvant), Lire<DroitJournalise>(e.DroitsApres))));
 
-    private static List<RoleJournalise>? Lire(string? json) =>
-        json is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<RoleJournalise>>(json);
+    private static List<T>? Lire<T>(string? json) =>
+        json is null ? null : System.Text.Json.JsonSerializer.Deserialize<List<T>>(json);
 
     private static async Task<IResult> ActiverAsync(DemandeActivation demande, ServiceActivation service, CancellationToken cancellationToken) =>
         Results.Ok(new ReponseActivation(await service.ActiverAsync(demande.Jeton, demande.MotDePasse, cancellationToken).ConfigureAwait(false)));
