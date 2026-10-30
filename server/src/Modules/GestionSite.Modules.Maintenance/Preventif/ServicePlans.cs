@@ -95,8 +95,14 @@ internal sealed class ServicePlans(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
         var moi = compte.Id;
-        return [.. (await EcheancierAsync(organisationId, siteId, cancellationToken).ConfigureAwait(false))
-            .Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == moi || i.ReferentCompteId == moi))];
+        // Seuls les plans dont une occurrence ouverte est confiée à l'appelant sont relus.
+        var plans = await context.Plans.AsNoTracking()
+            .Where(p => p.SiteId == siteId && context.Occurrences.Any(o => o.PlanId == p.Id && o.Statut == StatutOccurrence.Affectee
+                && (o.IntervenantCompteId == moi || o.ReferentCompteId == moi)))
+            .Select(p => new { Plan = p, Version = EF.Property<uint>(p, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return [.. (await LireAsync(siteId, [.. plans.Select(p => (p.Plan, p.Version))], cancellationToken).ConfigureAwait(false))
+            .Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == moi || i.ReferentCompteId == moi))
+            .OrderBy(p => p.Prochaine!.Echeance).ThenBy(p => p.Libelle, StringComparer.Ordinal)];
     }
 
     /// <summary>Plan saisi par R/D ; même commande rejouée : même plan.</summary>

@@ -58,6 +58,8 @@ internal sealed class ServiceOccurrences(
     internal async Task AffecterAsync(Guid organisationId, Guid siteId, Guid planId, DemandeAffectationControle demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync(planId, Echeance(demande.Echeance), cancellationToken).ConfigureAwait(false);
         var (plan, occurrences, _) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
         var echeance = Courante(plan, occurrences, demande.Echeance);
         var demandee = IntervenantPlan.Valider(demande.IntervenantCompteId, demande.Prestataire, demande.ReferentCompteId);
@@ -97,17 +99,30 @@ internal sealed class ServiceOccurrences(
             referentCompteId = intervenant.ReferentCompteId,
         });
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Saut motivé de l'échéance courante ; en mode glissant, la suivante repart de la date du saut. Rejoué : sans effet.</summary>
+    /// <summary>
+    /// Saut motivé de l'échéance courante ; en mode glissant, la suivante repart de la date du saut. Le même saut rejoué
+    /// par une personne habilitée est sans effet ; un autre motif ou commentaire sur une échéance déjà sautée : 409.
+    /// </summary>
     internal async Task SauterAsync(Guid organisationId, Guid siteId, Guid planId, DemandeSaut demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
         var motif = Saisie.Valeur<MotifSaut>(demande.Motif, "motif");
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync(planId, Echeance(demande.Echeance), cancellationToken).ConfigureAwait(false);
         var (plan, occurrences, _) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
-        if (occurrences.SingleOrDefault(o => o.Echeance == demande.Echeance) is { Statut: StatutOccurrence.Sautee } deja && deja.MotifSaut == motif)
+        if (occurrences.SingleOrDefault(o => o.Echeance == demande.Echeance && o.Resolue) is { } resolue)
         {
-            return; // même saut rejoué
+            await ExigerEnChargeAsync(organisationId, siteId, resolue, cancellationToken).ConfigureAwait(false);
+            var commentaire = Commentaire.Exiger(demande.Commentaire, motif == MotifSaut.Autre);
+            if (resolue.Statut == StatutOccurrence.Sautee && resolue.MotifSaut == motif && resolue.CommentaireSaut == commentaire)
+            {
+                return; // même saut rejoué
+            }
+
+            throw new PlanIncompatibleException("Cette échéance est déjà réalisée ou sautée.");
         }
 
         var echeance = Courante(plan, occurrences, demande.Echeance);
@@ -123,6 +138,7 @@ internal sealed class ServiceOccurrences(
         occurrence.Sauter(motif, demande.Commentaire, JourCivil.Du(maintenant));
         Tracer(plan, NatureEvenementPlan.Saut, maintenant, new { echeance, motif = motif.ToString(), commentaire = occurrence.CommentaireSaut });
         await EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -135,56 +151,81 @@ internal sealed class ServiceOccurrences(
         CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
-        var plan = await context.Plans.AsNoTracking().SingleOrDefaultAsync(p => p.Id == planId && p.SiteId == siteId, cancellationToken).ConfigureAwait(false)
-            ?? throw new PlanIntrouvableException();
+        if (!await context.Plans.AnyAsync(p => p.Id == planId && p.SiteId == siteId, cancellationToken).ConfigureAwait(false))
+        {
+            throw new PlanIntrouvableException();
+        }
+
         var (demande, photos) = await lire().ConfigureAwait(false);
         var commande = demande.CommandeId is { } c && c != Guid.Empty ? c : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
+        var echeanceDemandee = Echeance(demande.Echeance);
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
         var saisie = SaisieDe(commande, demande);
-        if (await DejaRealiseAsync(auteur, plan, demande.Echeance, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
+        if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return deja; // rejeu reconnu avant les contrôles
         }
 
-        var (_, occurrences, cible) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
-        var echeance = Courante(plan, occurrences, demande.Echeance);
+        var (plan, occurrences, cible) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
+        var echeance = Courante(plan, occurrences, echeanceDemandee);
         var occurrence = occurrences.SingleOrDefault(o => o.Echeance == echeance);
         await ExigerEnChargeAsync(organisationId, siteId, occurrence, cancellationToken).ConfigureAwait(false);
 
-        // 1. Contrôles complets (grille en vigueur du corps d'état actuel, saisie) avant toute écriture.
+        // 1. Contrôles complets (grille en vigueur du corps d'état actuel, saisie) avant toute écriture. L'intervenant affecté
+        //    (prestataire ou technicien) est celui du contrôle, même saisi par son référent ou par R/D.
         var grille = plan.Nature == NaturePlan.InspectionInterne
-            ? await inventaire.GrilleAsync(siteId, cible.CorpsEtat!, cancellationToken).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Grille introuvable pour le corps d'état du plan.")
+            ? await inventaire.GrilleAsync(siteId, cible.CorpsEtat ?? string.Empty, cancellationToken).ConfigureAwait(false)
+                ?? throw new PlanIncompatibleException("Le corps d'état de ce composant n'a pas de grille : inspection impossible.")
             : null;
         var maintenant = horloge.GetUtcNow();
         var nouvelle = occurrence ?? new OccurrencePreventive(Guid.CreateVersion7(maintenant), plan, echeance, maintenant);
+        var affecte = occurrence is null ? null : new IntervenantPlan(occurrence.IntervenantCompteId, occurrence.Prestataire, occurrence.ReferentCompteId);
         var controle = ControlePreventif.Creer(
             Guid.CreateVersion7(maintenant), plan, cible, nouvelle,
             grille is null ? null : new GrilleControle(grille.Version, grille.Criteres, [.. grille.Mesures.Select(m => (m.Libelle, m.Unite))]),
-            saisie, auteur, maintenant);
+            saisie, auteur, maintenant, affecte);
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
 
-        // 2. Inspection d'un composant : évaluation US-11 dans la même saisie (décision du 30/10), sans proposition de dossier.
-        if (plan.Nature == NaturePlan.InspectionInterne && plan.ComposantId is { } composantId)
-        {
-            var evaluation = await evaluations.EvaluerAsync(siteId, composantId, new SaisieEvaluationInventaire(
-                Commandes.Derivee(commande, "evaluation"), auteur, controle.GrilleVersion!.Value, [.. controle.PointsLus.Select(p => p.Conforme)],
-                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, [.. photos.Select(p => p.Contenu)]),
-                cancellationToken).ConfigureAwait(false);
-            controle.Evaluer(evaluation.Id, evaluation.Note, evaluation.Libelle);
-        }
-
-        // 3. Photos écrites sous des clés propres au contrôle, retirées si l'enregistrement n'aboutit pas.
+        // 2. Photos écrites sous des clés propres au contrôle, retirées si l'enregistrement n'aboutit pas.
         await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoControle(Guid.CreateVersion7(maintenant), controle, rang, jpeg.Length, maintenant), p => p.Cle,
             enregistrees => { var id = enregistrees[0].Id; return context.PhotosControles.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); },
             cancellationToken).ConfigureAwait(false);
+
+        // 3. Échéance verrouillée (affectation, saut et réalisation concurrents attendent) puis revérifiée : une saisie
+        //    concurrente l'a résolue ou modifiée → 409, avant d'évaluer, sans laisser d'évaluation orpheline.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync(planId, echeance, cancellationToken).ConfigureAwait(false);
+        if (await DejaRealiseAsync(auteur, planId, echeance, saisie, cancellationToken).ConfigureAwait(false) is { } concurrent)
+        {
+            return concurrent;
+        }
+
+        var version = occurrence is null ? (uint?)null : context.Entry(occurrence).Property<uint>("xmin").OriginalValue;
+        var actuelle = await context.Occurrences.AsNoTracking().Where(o => o.PlanId == planId && o.Echeance == echeance)
+            .Select(o => (uint?)EF.Property<uint>(o, "xmin")).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (actuelle != version)
+        {
+            throw new PlanModifieException();
+        }
+
+        // 4. Inspection d'un composant : évaluation US-11 dans la même saisie (décision du 30/10), sans proposition de dossier ;
+        //    photos déjà réencodées transmises telles quelles.
+        if (plan.Nature == NaturePlan.InspectionInterne && plan.ComposantId is { } composantId)
+        {
+            var evaluation = await evaluations.EvaluerAsync(siteId, composantId, new SaisieEvaluationInventaire(
+                Commandes.Derivee(commande, "evaluation"), auteur, controle.GrilleVersion!.Value, [.. controle.PointsLus.Select(p => p.Conforme)],
+                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, jpegs),
+                cancellationToken).ConfigureAwait(false);
+            controle.Evaluer(evaluation.Id, evaluation.Note, evaluation.Libelle);
+        }
+
         if (occurrence is null)
         {
             context.Occurrences.Add(nouvelle); // sinon déjà suivie : réalisée à sa version lue (xmin)
         }
 
-        nouvelle.Realiser(controle, reserves: controle.Defauts > 0);
+        nouvelle.Realiser(controle, reserves: controle.Reserves);
         context.Controles.Add(controle);
         context.PhotosControles.AddRange(envoi.Photos);
         Tracer(plan, NatureEvenementPlan.Realisation, maintenant, new
@@ -199,14 +240,13 @@ internal sealed class ServiceOccurrences(
         try
         {
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             envoi.Confirmer();
         }
-        catch (DbUpdateException concurrent) when (concurrent is DbUpdateConcurrencyException
-            || concurrent.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException conflit) when (conflit is DbUpdateConcurrencyException
+            || conflit.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // Même envoi reçu en parallèle : la même réponse ; sinon l'occurrence vient d'être résolue par une autre saisie.
-            context.ChangeTracker.Clear();
-            return await DejaRealiseAsync(auteur, plan, demande.Echeance, saisie, cancellationToken).ConfigureAwait(false) ?? throw new PlanModifieException();
+            throw new PlanModifieException(); // improbable sous le verrou : écriture hors de ce service
         }
 
         return Resultat(controle, nouvelle.Statut);
@@ -283,7 +323,7 @@ internal sealed class ServiceOccurrences(
         demande.Releves?.Select(r => (r?.Libelle, r?.Unite, r?.Valeur)).ToList(), demande.Prestataire, demande.NumeroAgrement);
 
     // Rejeu : même auteur, même plan et échéance, même résultat et date → même contrôle ; sinon la commande est réutilisée (409).
-    private async Task<ControleEnregistre?> DejaRealiseAsync(Guid auteur, PlanPreventif plan, DateOnly? echeance, SaisieControle saisie, CancellationToken cancellationToken)
+    private async Task<ControleEnregistre?> DejaRealiseAsync(Guid auteur, Guid planId, DateOnly echeance, SaisieControle saisie, CancellationToken cancellationToken)
     {
         var recu = await context.Controles.AsNoTracking().SingleOrDefaultAsync(c => c.CommandeId == saisie.CommandeId, cancellationToken).ConfigureAwait(false);
         if (recu is null)
@@ -291,7 +331,7 @@ internal sealed class ServiceOccurrences(
             return null;
         }
 
-        if (echeance is not { } date || !recu.MemeEnvoi(auteur, plan.Id, date, saisie))
+        if (!recu.MemeEnvoi(auteur, planId, echeance, saisie))
         {
             throw new CommandePreventifReutiliseeException();
         }
@@ -327,6 +367,13 @@ internal sealed class ServiceOccurrences(
 
         return (plan, await context.Occurrences.Where(o => o.PlanId == planId).ToListAsync(cancellationToken).ConfigureAwait(false), cible);
     }
+
+    private static DateOnly Echeance(DateOnly? demandee) => demandee ?? throw new SaisieInvalideException("echeance", "Échéance obligatoire.");
+
+    // Verrou transactionnel sur l'échéance d'un plan : affectation, saut et réalisation simultanés passent l'un après l'autre.
+    private async Task VerrouillerAsync(Guid planId, DateOnly echeance, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({$"occurrence:{planId:N}:{echeance.DayNumber}"}, 0))", cancellationToken).ConfigureAwait(false);
 
     // L'échéance demandée doit être l'échéance courante du plan.
     private static DateOnly Courante(PlanPreventif plan, IReadOnlyCollection<OccurrencePreventive> occurrences, DateOnly? demandee)

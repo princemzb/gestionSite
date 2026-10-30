@@ -56,6 +56,7 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
         var resultat = await realise.Content.ReadFromJsonAsync<JsonElement>();
         using var rejoue = await RealiserAsync(plan, technicien, Inspection("NonConforme"), photo: true);
         using var reutilisee = await RealiserAsync(plan, technicien, Inspection("AvecObservations"), photo: true);
+        using var sansEcheance = await RealiserAsync(plan, technicien, new { commandeId = commande, realiseLe = Aujourdhui, resultat = "NonConforme" });
         var fiche = await LireAsync($"{Preventif}/plans/{plan}", pasteur);
         var controle = await LireAsync($"{Preventif}/controls/{resultat.GetProperty("id").GetGuid()}", pasteur);
         var historique = await LireAsync($"{Preventif}/controls?composantId={tableau}", pasteur);
@@ -78,6 +79,7 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
             resultat.GetProperty("libelle").GetString()));
         Assert.Equal(resultat.GetProperty("id").GetGuid(), (await rejoue.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
         Assert.Equal("commande_reutilisee", await CodeAsync(reutilisee));
+        Assert.Equal("echeance", await ChampAsync(sansEcheance));
         Assert.Single(evaluations); // rejeu : ni second contrôle ni seconde évaluation
         Assert.Equal("Mauvais", evaluations[0].GetProperty("etat").GetString());
         Assert.Equal(resultat.GetProperty("evaluationId").GetGuid(), evaluations[0].GetProperty("id").GetGuid());
@@ -143,6 +145,10 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
         using var sansCommentaire = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/plans/{entretien}/skip", technicien, new { echeance, motif = "Autre" });
         using var saute = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/plans/{entretien}/skip", technicien, new { echeance, motif = "Inaccessible" });
         using var rejoue = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/plans/{entretien}/skip", technicien, new { echeance, motif = "Inaccessible" });
+        using var autreMotif = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/plans/{entretien}/skip", technicien, new { echeance, motif = "HorsService" });
+        await MembreAsync("autre@inventaire.test", Role.Technicien);
+        using var rejeuNonAffecte = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/plans/{entretien}/skip", await JetonAsync("autre@inventaire.test"),
+            new { echeance, motif = "Inaccessible" });
         var fiche = await LireAsync($"{Preventif}/plans/{entretien}", pasteur);
         var suivante = DateOnly.Parse(fiche.GetProperty("plan").GetProperty("prochaine").GetProperty("echeance").GetString()!, Invariante);
 
@@ -173,11 +179,13 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
         Assert.Equal("commentaire", await ChampAsync(sansCommentaire));
         Assert.Equal(HttpStatusCode.NoContent, saute.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, rejoue.StatusCode);
+        Assert.Equal("statut_incompatible", await CodeAsync(autreMotif));
+        Assert.Equal(HttpStatusCode.Forbidden, rejeuNonAffecte.StatusCode); // le rejeu ne contourne pas l'affectation
         Assert.Equal(Aujourdhui.AddYears(1), suivante); // glissant : repart de la date du saut
         Assert.Equal(("Sautee", "Inaccessible"), (fiche.GetProperty("occurrences")[0].GetProperty("statut").GetString(),
             fiche.GetProperty("occurrences")[0].GetProperty("motifSaut").GetString()));
         Assert.Equal("compteRendu", await ChampAsync(sansCompteRendu));
-        Assert.Equal("points", await ChampAsync(avecGrille));
+        Assert.Equal("grilleVersion", await ChampAsync(avecGrille));
         Assert.Equal(HttpStatusCode.OK, fait.StatusCode);
         Assert.Equal(("Électricité Martin", "Isolement"), (controle.GetProperty("prestataire").GetString(), controle.GetProperty("mesures")[0].GetProperty("libelle").GetString()));
         Assert.Equal(JsonValueKind.Null, controle.GetProperty("intervenantCompteId").ValueKind);
@@ -219,6 +227,30 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
         Assert.Equal("statut_incompatible", await CodeAsync(suspendu));
         Assert.Equal(HttpStatusCode.NotFound, inconnu.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnEntryByManagersKeepsTheAssignedIntervener()
+    {
+        var (responsable, technicien, pasteur) = await ComptesAsync();
+        var tableau = await TableauAsync(technicien);
+        var interne = await PlanAsync(responsable, new { type = "Composant", composantId = tableau }, "Entretien");
+        var externe = await PlanAsync(responsable, new { type = "Composant", composantId = tableau }, "VerificationExterieure");
+        var idTechnicien = await CompteAsync("technicien@inventaire.test");
+        using var parTechnicien = await AffecterAsync(interne, responsable, new { echeance = Aujourdhui, intervenantCompteId = idTechnicien, version = 0 });
+        using var parPrestataire = await AffecterAsync(externe, responsable, new { echeance = Aujourdhui, prestataire = "Socotec", referentCompteId = idTechnicien, version = 0 });
+
+        using var saisieRd = await RealiserAsync(interne, responsable, new { commandeId = Guid.NewGuid(), echeance = Aujourdhui, realiseLe = Aujourdhui, resultat = "Conforme", compteRendu = "Fait" });
+        using var saisieReferent = await RealiserAsync(externe, technicien, new { commandeId = Guid.NewGuid(), echeance = Aujourdhui, realiseLe = Aujourdhui, resultat = "NonConforme" });
+        var controleRd = await LireAsync($"{Preventif}/controls/{(await saisieRd.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid()}", pasteur);
+        var resultat = await saisieReferent.Content.ReadFromJsonAsync<JsonElement>();
+        var controleReferent = await LireAsync($"{Preventif}/controls/{resultat.GetProperty("id").GetGuid()}", pasteur);
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NoContent), (parTechnicien.StatusCode, parPrestataire.StatusCode));
+        Assert.Equal(idTechnicien, controleRd.GetProperty("intervenantCompteId").GetGuid()); // saisi par R/D, réalisé par le technicien affecté
+        Assert.Equal("Socotec", controleReferent.GetProperty("prestataire").GetString()); // saisi par le référent, réalisé par le prestataire
+        Assert.Equal(JsonValueKind.Null, controleReferent.GetProperty("intervenantCompteId").ValueKind);
+        Assert.Equal("RealiseeAvecReserves", resultat.GetProperty("statut").GetString()); // « non conforme » sans point : réserves
     }
 
     private async Task<(string Responsable, string Technicien, string Pasteur)> ComptesAsync()

@@ -250,6 +250,9 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
     /// <summary>Points en défaut : chacun est un constat à lever (S12-05).</summary>
     internal int Defauts => PointsLus.Count(p => p.Conforme == false);
 
+    /// <summary>Réalisé avec réserves : un écart constaté, ou un résultat « non conforme » déclaré.</summary>
+    internal bool Reserves => Defauts > 0 || Resultat == ResultatControle.NonConforme;
+
     /// <summary>
     /// Contrôle validé : résultat, date réelle (pas dans le futur, 5 ans au plus), compte rendu exigé pour un entretien ;
     /// inspection : grille en vigueur (version lue), un constat par point au plus (manquants : non vérifiés), danger sur
@@ -257,7 +260,7 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
     /// </summary>
     internal static ControlePreventif Creer(
         Guid id, PlanPreventif plan, CibleDuPlan cible, OccurrencePreventive occurrence, GrilleControle? grille, SaisieControle saisie, Guid auteur,
-        DateTimeOffset le)
+        DateTimeOffset le, IntervenantPlan? affecte = null)
     {
         var controle = new ControlePreventif(id, plan, cible, occurrence, saisie, auteur, le);
         var aujourdhui = JourCivil.Du(le);
@@ -274,8 +277,11 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
             throw new SaisieInvalideException("compteRendu", "Un entretien se termine par un compte rendu.");
         }
 
-        controle.Prestataire = string.IsNullOrWhiteSpace(saisie.Prestataire) ? null : TexteAffichable.Nettoyer(saisie.Prestataire, Intervention.PrestataireMax)
-            ?? throw new SaisieInvalideException("prestataire", $"prestataire : une ligne visible de {Intervention.PrestataireMax} caractères au plus.");
+        // Intervenant : le prestataire saisi, sinon celui de l'affectation ; sinon le technicien affecté, sinon l'auteur.
+        controle.Prestataire = string.IsNullOrWhiteSpace(saisie.Prestataire)
+            ? affecte?.Prestataire
+            : TexteAffichable.Nettoyer(saisie.Prestataire, Intervention.PrestataireMax)
+                ?? throw new SaisieInvalideException("prestataire", $"prestataire : une ligne visible de {Intervention.PrestataireMax} caractères au plus.");
         controle.NumeroAgrement = string.IsNullOrWhiteSpace(saisie.NumeroAgrement) ? null : TexteAffichable.Nettoyer(saisie.NumeroAgrement, AgrementMax)
             ?? throw new SaisieInvalideException("numeroAgrement", $"numeroAgrement : une ligne visible de {AgrementMax} caractères au plus.");
         if (controle.NumeroAgrement is not null && controle.Prestataire is null)
@@ -283,10 +289,10 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
             throw new SaisieInvalideException("numeroAgrement", "Le numéro d'agrément est celui d'un prestataire.");
         }
 
-        controle.IntervenantCompteId = controle.Prestataire is null ? auteur : null;
+        controle.IntervenantCompteId = controle.Prestataire is null ? affecte?.CompteId ?? auteur : null;
         if (plan.Nature == NaturePlan.InspectionInterne)
         {
-            controle.Inspecter(grille ?? throw new InvalidOperationException("Grille requise pour une inspection."), saisie);
+            controle.Inspecter(grille ?? throw new PlanIncompatibleException("Grille requise pour une inspection."), saisie);
         }
         else
         {
@@ -351,14 +357,15 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
         Points = JsonSerializer.Serialize(grille.Criteres.Select((texte, i) => i < points.Count
             ? new PointControle(texte, points[i].Conforme, points[i].Danger)
             : new PointControle(texte, null, false)).ToList());
-        Mesures = JsonSerializer.Serialize(grille.Mesures.Select((m, i) => new MesureControle(m.Libelle, m.Unite, Valeur(i < mesures.Count ? mesures[i] : null))).ToList());
+        Mesures = JsonSerializer.Serialize(grille.Mesures.Select((m, i) => new MesureControle(m.Libelle, m.Unite, Valeur(i < mesures.Count ? mesures[i] : null, "mesures"))).ToList());
     }
 
     private void Relever(SaisieControle saisie)
     {
-        if (saisie.Points is { Count: > 0 } || saisie.Mesures is { Count: > 0 } || saisie.GrilleVersion is not null)
+        var horsGrille = saisie.Points is { Count: > 0 } ? "points" : saisie.Mesures is { Count: > 0 } ? "mesures" : saisie.GrilleVersion is not null ? "grilleVersion" : null;
+        if (horsGrille is not null)
         {
-            throw new SaisieInvalideException("points", "Sans grille : relevés libres seulement.");
+            throw new SaisieInvalideException(horsGrille, "Sans grille : relevés libres seulement.");
         }
 
         var releves = saisie.Releves ?? [];
@@ -370,14 +377,14 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
         Mesures = JsonSerializer.Serialize(releves.Select(r => new MesureControle(
             TexteAffichable.Nettoyer(r.Libelle, LibelleReleveMax) ?? throw new SaisieInvalideException("releves", $"Libellé de relevé de {LibelleReleveMax} caractères au plus."),
             TexteAffichable.Nettoyer(r.Unite, UniteMax) ?? throw new SaisieInvalideException("releves", $"Unité de {UniteMax} caractères au plus."),
-            Valeur(r.Valeur))).ToList());
+            Valeur(r.Valeur, "releves"))).ToList());
     }
 
-    private static decimal? Valeur(decimal? valeur) => valeur switch
+    private static decimal? Valeur(decimal? valeur, string champ) => valeur switch
     {
         null => null,
-        > MesureMax or < -MesureMax => throw new SaisieInvalideException("mesures", $"Mesure entre -{MesureMax} et {MesureMax}."),
-        { } v when Math.Round(v, 3) != v => throw new SaisieInvalideException("mesures", "Mesure : trois décimales au plus."),
+        > MesureMax or < -MesureMax => throw new SaisieInvalideException(champ, $"Mesure entre -{MesureMax} et {MesureMax}."),
+        { } v when Math.Round(v, 3) != v => throw new SaisieInvalideException(champ, "Mesure : trois décimales au plus."),
         { } v => v / 1.000000000000000000000000000m, // zéros de fin retirés
     };
 }

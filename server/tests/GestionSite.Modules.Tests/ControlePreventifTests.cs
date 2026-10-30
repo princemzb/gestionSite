@@ -123,6 +123,25 @@ public sealed class ControlePreventifTests
     }
 
     [Fact]
+    public void TheAssignedIntervenerAndTheDeclaredResultAreKept()
+    {
+        var (plan, occurrence) = Occurrence(NaturePlan.Entretien);
+        var technicien = Guid.NewGuid();
+
+        var parPrestataire = Creer(plan, occurrence, Saisie(grilleVersion: null, compteRendu: "Fait", resultat: ResultatControle.NonConforme),
+            new IntervenantPlan(null, "Socotec", Guid.NewGuid()));
+        var parTechnicien = Creer(plan, occurrence, Saisie(grilleVersion: null, compteRendu: "Fait", resultat: ResultatControle.Conforme),
+            new IntervenantPlan(technicien, null, null));
+
+        Assert.Equal(("Socotec", (Guid?)null), (parPrestataire.Prestataire, parPrestataire.IntervenantCompteId));
+        Assert.True(parPrestataire.Reserves); // « non conforme » déclaré, sans point
+        Assert.Equal(technicien, parTechnicien.IntervenantCompteId);
+        Assert.False(parTechnicien.Reserves);
+        Assert.Equal("releves", Champ(() => Creer(plan, occurrence, Saisie(grilleVersion: null, compteRendu: "Fait", releves: [("Pression", "bar", 2_000_000m)]))));
+        Assert.Equal("grilleVersion", Champ(() => Creer(plan, occurrence, Saisie(grilleVersion: 1, compteRendu: "Fait"))));
+    }
+
+    [Fact]
     public void DerivedCommandsAreStableAndDistinctPerUse()
     {
         var commande = Guid.NewGuid();
@@ -149,9 +168,10 @@ public sealed class ControlePreventifTests
         return (plan, new OccurrencePreventive(Guid.NewGuid(), plan, Aujourdhui, Instant));
     }
 
-    private static ControlePreventif Creer(PlanPreventif plan, OccurrencePreventive occurrence, SaisieControle saisie) => ControlePreventif.Creer(
-        Guid.NewGuid(), plan, new CibleDuPlan(plan.Cible, plan.BatimentId, plan.ZoneId, plan.ComposantId, plan.CorpsEtat), occurrence,
-        plan.Nature == NaturePlan.InspectionInterne ? Grille : null, saisie, Guid.NewGuid(), Instant);
+    private static ControlePreventif Creer(PlanPreventif plan, OccurrencePreventive occurrence, SaisieControle saisie, IntervenantPlan? affecte = null) =>
+        ControlePreventif.Creer(
+            Guid.NewGuid(), plan, new CibleDuPlan(plan.Cible, plan.BatimentId, plan.ZoneId, plan.ComposantId, plan.CorpsEtat), occurrence,
+            plan.Nature == NaturePlan.InspectionInterne ? Grille : null, saisie, Guid.NewGuid(), Instant, affecte);
 
     private static SaisieControle Saisie(
         int? grilleVersion = 2, (bool? Conforme, bool Danger)[]? points = null, decimal?[]? mesures = null, (string?, string?, decimal?)[]? releves = null,
