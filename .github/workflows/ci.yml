@@ -25,17 +25,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
-      - name: Build, format, tests, couverture ≥ 80 %, dépendances
+      # Node.js : tests et couverture du JavaScript de l'éditeur de plans de bâtiment (ADR-11), lancés par verify.sh.
+      - name: Build, format, tests C# et JavaScript, couverture ≥ 80 %, dépendances
         run: server/eng/verify.sh
-      # Fonctions pures de l'éditeur de plans de bâtiment (ADR-11) : node:test, couverture ≥ 80 %.
-      - name: Tests JavaScript (node:test), couverture ≥ 80 %
-        run: server/eng/verify-js.sh
       - name: Rapport de couverture
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: couverture-serveur
-          path: server/artifacts/coverage
+          path: |
+            server/artifacts/coverage
+            server/artifacts/coverage-js
           if-no-files-found: ignore
 
   tooling:
@@ -137,7 +137,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.js" \
+            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.mjs,server/src/GestionSite.Web/wwwroot/lib/**" \
             /d:sonar.cpd.exclusions="server/**/Migrations/**" \
             /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
