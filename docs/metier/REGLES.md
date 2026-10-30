@@ -100,6 +100,32 @@ Décisions du 29/10 (QCM, recommandations de l'agent retenues) :
 - Écrans (maquettes UX-06, choix du porteur du 29/10) : tableau de l'état du site avec la note en tête (couverture, fraîcheur, points critiques) puis une carte par zone, la moins bien notée d'abord (A) ; évaluation sur téléphone pas à pas : points à observer et mesures, état ou répartition, puis photos et remarque (A) ; fiche composant avec dernière évaluation et historique (commune).
 Découpage : S11-01 grilles par défaut et versions ; S11-02 évaluations (état ou répartition, critères, mesures, photos, proposition de dossier) ; S11-03 score (zone, site, couverture, fraîcheur, historique) ; S11-04 écrans web et préproduction (maquettes UX-06 d'abord).
 
+## Préventif et inspections — US-12, V, 30 octobre 2026 (porteur du projet)
+Cadrage complet : docs/pilotage/cadrage/US-12.md. Décisions du 30/10 (QCM, recommandations de l'agent retenues) :
+- Plans réglementaires par défaut : proposés par l'application avec la mention « à confirmer » et leur référence ; R/D les confirment un à un ; une proposition écartée reste visible avec son motif. L'application n'endosse jamais la responsabilité de l'exploitant et n'affiche jamais « conforme ».
+- Inspection interne d'un composant : grille du corps d'état et évaluation US-11 enregistrée dans la même saisie (état, photo pour Mauvais et Critique, score mis à jour).
+- Droits : « Planifier le préventif » R/D ; « Exécuter un contrôle » technicien affecté et R/D ; rapport d'organisme saisi par R/D ou le référent interne ; consultation (rapports compris) T, R/D, P/C du site.
+- Rapport PDF : obligatoire pour une vérification réglementaire faite par un intervenant extérieur, facultatif ailleurs ; 10 Mo au plus ; conservé tant que le bâtiment existe dans l'application.
+- Périmètre : complet, en 7 sous-cartes (S12-01 classement ERP et catalogue, S12-02 plans et échéances, S12-03 exécution, S12-04 vérification extérieure et PDF, S12-05 non-conformités vers dossiers et levée des réserves, S12-06 écrans de planification, S12-07 écrans de terrain ; maquettes validées avant tout code d'écran).
+Règles de l'agent (révisables) : classement ERP porté par chaque bâtiment (type, catégorie déclarée, drapeaux), « salariés présents » sur le site ; échéance glissante par défaut (date réelle + période), fixe en option ; fenêtre « À faire » de 10 % de la période (7 à 30 jours), aucune tolérance après l'échéance (« En retard ») ; échéances calculées à la lecture, sans tâche planifiée ; occurrence enregistrée seulement à l'affectation, la réalisation ou le saut (clé plan + échéance, rejeu sans doublon) ; aucune notification envoyée (US-10).
+
+## Stocks — US-15, V, 30 octobre 2026 (porteur du projet) — en attente d'US-14
+Cadrage : docs/pilotage/cadrage/US-15.md. Décisions du 30/10 (QCM) :
+- Transfert entre sites : un R/D de l'un ou l'autre site fait toutes les étapes (préparation, départ, réception).
+- Visibilité : les R/D de l'organisation voient les quantités (sans le journal des mouvements) de tous les sites, pour savoir à qui demander ; les autres comptes ne voient que leurs sites.
+- Prix : aucun ; quantités seulement (montants et budget : US-17/18).
+- Sortie de stock hors intervention : permise, motivée, par les techniciens et R/D du site (nouveau motif de mouvement, glossaire à compléter).
+- Dépendance : US-15 attend US-14 (synchronisation) — ordre US-13, US-14, puis US-15 d'un seul bloc.
+
+## Plans de bâtiment — US-21, V, 30 octobre 2026 (porteur du projet)
+Cadrage complet : docs/pilotage/cadrage/US-21.md (règles RP-21.1 à RP-21.8, sous-cartes S21-01 à S21-10). Décisions du 30/10 (QCM, recommandations de l'agent retenues) :
+- Droit nominatif « modifier les plans du bâtiment » (en plus de R/D) : attribuable par l'administrateur, site par site, à tout membre interne du site (technicien, pasteur, coordination), avec motif et journal ; révocation immédiate.
+- Documents : import d'images (JPEG, PNG, HEIC) et de PDF (une page choisie) dès la V1, plus le plan vierge sur grille métrique ; pas de DXF ni DWG (export PDF à l'échelle demandé).
+- Objets de valeur (trésor, objets de culte, coffre) : jamais placés sur le plan ; ils restent dans l'inventaire sans marqueur.
+- Recette de l'éditeur : le porteur fournit un croquis coté ou un plan d'un site pilote avant S21-07, utilisé en préproduction seulement, jamais dans le dépôt.
+- Maquettes (S21-06, choix du porteur du 30/10) : éditeur « Atelier » (A : outils à gauche, plan au centre, propriétés de la pièce à droite, sélecteur de niveau) pour l'usage courant, et parcours guidé (C : fond, échelle avec cote de contrôle, pièces zone par zone, composants) pour créer un nouveau plan ; ordinateur et tablette ; B écartée.
+Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtiment sans niveau), géométrie en mètres dans un repère par bâtiment, calibration obligatoire pour un plan importé ; pièces liées aux zones d'US-07 ; chaque enregistrement crée une version immuable, conflit à la version lue (409) ; « plan de bâtiment » partout pour ne pas confondre avec les plans préventifs d'US-12.
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.
