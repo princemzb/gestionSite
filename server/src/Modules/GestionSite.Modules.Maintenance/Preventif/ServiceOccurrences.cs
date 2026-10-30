@@ -38,7 +38,11 @@ internal sealed record ControleLu(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, Guid AuteurCompteId, string? Auteur,
     Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, string? NumeroAgrement, string Resultat, string? CompteRendu, string? CorpsEtat,
     Guid? ComposantId, Guid ZoneId, Guid BatimentId, int? GrilleVersion, IReadOnlyList<PointControle> Points, IReadOnlyList<MesureControle> Mesures,
-    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos, IReadOnlyList<ObservationControle> Observations, RapportLu? Rapport);
+    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos, IReadOnlyList<ObservationControle> Observations, RapportLu? Rapport,
+    IReadOnlyList<ConstatLu>? Constats = null, bool ReservesLevees = false);
+
+/// <summary>Constat du contrôle et le dossier qu'il a ouvert ou auquel il a été rattaché (S12-05).</summary>
+internal sealed record ConstatLu(int Rang, string Libelle, bool Danger, Guid DossierId, bool Rattache, string StatutDossier);
 
 /// <summary>Rapport PDF joint : taille et empreinte SHA-256 (le fichier se télécharge à part).</summary>
 internal sealed record RapportLu(int Taille, string Empreinte);
@@ -262,6 +266,8 @@ internal sealed class ServiceOccurrences(
         nouvelle.Realiser(controle, reserves: controle.Reserves);
         context.Controles.Add(controle);
         context.PhotosControles.AddRange(envoi.Photos);
+        // 5. Non-conformités vers les dossiers (S12-05), dans la même transaction que le contrôle.
+        await Constats.OuvrirAsync(context, inventaire, annuaire, plan, controle, auteur, maintenant, cancellationToken).ConfigureAwait(false);
         Tracer(plan, NatureEvenementPlan.Realisation, maintenant, new
         {
             echeance,
@@ -332,11 +338,19 @@ internal sealed class ServiceOccurrences(
         var photos = await context.PhotosControles.AsNoTracking().Where(p => p.ControleId == id).OrderBy(p => p.Rang).Select(p => p.Rang)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var noms = await annuaire.NomsAsync([.. new[] { (Guid?)c.AuteurCompteId, c.IntervenantCompteId }.OfType<Guid>().Distinct()], cancellationToken).ConfigureAwait(false);
+        var constats = await (
+                from k in context.Constats.AsNoTracking()
+                join s in context.Signalements.AsNoTracking() on k.DossierId equals s.Id
+                where k.ControleId == id
+                orderby k.Rang
+                select new ConstatLu(k.Rang, k.Libelle, k.Danger, k.DossierId, k.Rattache, s.Statut.ToString()))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new ControleLu(
             c.Id, c.PlanId, lu.Plan, c.Nature.ToString(), c.Echeance, c.RealiseLe, c.SaisiLe, c.AuteurCompteId, noms.GetValueOrDefault(c.AuteurCompteId),
             c.IntervenantCompteId, c.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, c.Prestataire, c.NumeroAgrement, c.Resultat.ToString(),
             c.CompteRendu, c.CorpsEtat, c.ComposantId, c.ZoneId, c.BatimentId, c.GrilleVersion, c.PointsLus, c.MesuresLues, c.EvaluationId, c.Note, c.LibelleNote,
-            photos, c.ObservationsLues, c.RapportTaille is { } taille ? new RapportLu(taille, c.RapportEmpreinte!) : null);
+            photos, c.ObservationsLues, c.RapportTaille is { } taille ? new RapportLu(taille, c.RapportEmpreinte!) : null,
+            constats, constats.Count > 0 && constats.All(k => !Signalement.StatutsOuverts.Contains(Enum.Parse<StatutDossier>(k.StatutDossier))));
     }
 
     /// <summary>

@@ -53,6 +53,9 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             signalement.Property(s => s.CommentaireClassement).HasMaxLength(Signalement.CommentaireMax);
             signalement.Property<uint>("xmin").IsRowVersion();
             signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.Statut });
+            // Constats d'inspection (US-12) : dossier ouvert du même critère retrouvé par sa clé.
+            signalement.Property(s => s.CleConstat).HasMaxLength(ConstatControle.CleMax);
+            signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.CleConstat }).HasFilter("cle_constat IS NOT NULL");
             signalement.HasOne<Signalement>().WithMany()
                 .HasForeignKey(s => new { s.DoublonDe, s.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
@@ -69,7 +72,10 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             alerte.ToTable("alertes_danger");
             alerte.HasKey(a => a.Id);
             alerte.Property(a => a.Id).ValueGeneratedNever();
-            alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique();
+            // Une alerte par dossier déclaré avec danger, et une par constat d'inspection dangereux (US-12, T-03.20).
+            alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NULL")
+                .HasDatabaseName("ix_alertes_danger_signalement_id_organisation_id");
+            alerte.HasIndex(a => new { a.ConstatId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NOT NULL");
             alerte.HasOne<Signalement>().WithMany()
                 .HasForeignKey(a => new { a.SignalementId, a.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })

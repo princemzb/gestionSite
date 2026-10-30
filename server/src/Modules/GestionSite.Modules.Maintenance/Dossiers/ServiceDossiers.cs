@@ -14,7 +14,7 @@ namespace GestionSite.Modules.Maintenance.Dossiers;
 
 internal sealed record DossierResume(
     Guid Id, string Titre, string Statut, string? Priorite, Guid? ZoneId, string? Zone, bool Danger, bool ActiviteBloquee, string Origine,
-    DateTimeOffset RecuLe, DateTimeOffset? EcheancePriseEnCharge = null, DateTimeOffset? EcheanceResolution = null);
+    DateTimeOffset RecuLe, DateTimeOffset? EcheancePriseEnCharge = null, DateTimeOffset? EcheanceResolution = null, bool NouveauConstat = false);
 
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
@@ -29,7 +29,8 @@ internal sealed record DossierLu(
     LieuInventaire? Lieu, DateTimeOffset? QualifieLe, Guid? DoublonDe, string? MotifClassement, string? CommentaireClassement,
     DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, DateTimeOffset? AttenteDepuis,
     DateOnly? ReexamenLe, long DureeAttenteSecondes, DateTimeOffset? ClotureLe, IReadOnlyList<InterventionLue> Interventions,
-    IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version);
+    IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version,
+    Guid? ControleId = null, bool NouveauConstat = false);
 
 /// <summary>Dossier absent du site (404).</summary>
 internal sealed class DossierIntrouvableException() : Exception("Dossier introuvable sur ce site.");
@@ -111,7 +112,10 @@ internal sealed class ServiceDossiers(
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,
-            lu.Version);
+            lu.Version,
+            dossier.ControleId,
+            // Marque « nouveau constat » pour R/D : le dernier événement est un constat d'inspection rattaché (US-12).
+            journal.Count > 0 && journal[0].Nature == NatureEvenementDossier.ConstatInspection);
     }
 
     /// <summary>Déclaration d'un compte interne du site (décision du 29/10) ; même commande rejouée : même dossier.</summary>
@@ -263,9 +267,19 @@ internal sealed class ServiceDossiers(
     {
         var zones = await inventaire.ZonesAsync(siteId, [.. dossiers.Where(d => d.ZoneId is not null).Select(d => d.ZoneId!.Value).Distinct()], cancellationToken)
             .ConfigureAwait(false);
+        // Nouveau constat d'inspection rattaché depuis la dernière action sur le dossier (US-12) : le plus récent événement.
+        var ids = dossiers.Select(d => d.Id).ToList();
+        var constats = (await context.Journal.AsNoTracking().Where(e => ids.Contains(e.DossierId) && e.Nature == NatureEvenementDossier.ConstatInspection)
+            .Select(e => new { e.DossierId, e.Le }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .GroupBy(e => e.DossierId).ToDictionary(g => g.Key, g => g.Max(e => e.Le));
+        var derniers = constats.Count == 0
+            ? []
+            : (await context.Journal.AsNoTracking().Where(e => constats.Keys.Contains(e.DossierId)).Select(e => new { e.DossierId, e.Le })
+                .ToListAsync(cancellationToken).ConfigureAwait(false)).GroupBy(e => e.DossierId).ToDictionary(g => g.Key, g => g.Max(e => e.Le));
         return [.. dossiers.Select(d => new DossierResume(
             d.Id, Titre(d), d.Statut.ToString(), d.Priorite?.ToString(), d.ZoneId, d.ZoneId is { } z ? zones.GetValueOrDefault(z) : null, d.Danger,
-            d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe, d.EcheancePriseEnCharge, d.EcheanceResolution))];
+            d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe, d.EcheancePriseEnCharge, d.EcheanceResolution,
+            constats.TryGetValue(d.Id, out var constat) && derniers.GetValueOrDefault(d.Id) == constat))];
     }
 
     private Task<bool> ADesDoublonsAsync(Guid id, CancellationToken cancellationToken) =>

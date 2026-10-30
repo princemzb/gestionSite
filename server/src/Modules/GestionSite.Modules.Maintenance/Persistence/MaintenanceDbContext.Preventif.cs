@@ -12,6 +12,8 @@ internal sealed partial class MaintenanceDbContext
 
     public DbSet<PhotoControle> PhotosControles => Set<PhotoControle>();
 
+    public DbSet<ConstatControle> Constats => Set<ConstatControle>();
+
     private static void ConfigurerPreventif(ModelBuilder modelBuilder)
     {
         ConfigurerExecution(modelBuilder);
@@ -139,6 +141,25 @@ internal sealed partial class MaintenanceDbContext
             controle.HasOne<OccurrencePreventive>().WithMany()
                 .HasForeignKey(c => new { c.OccurrenceId, c.OrganisationId })
                 .HasPrincipalKey(o => new { o.Id, o.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ConstatControle>(constat =>
+        {
+            constat.ToTable("constats_controles");
+            constat.HasKey(c => c.Id);
+            constat.Property(c => c.Id).ValueGeneratedNever();
+            constat.Property(c => c.Libelle).HasMaxLength(ConstatControle.LibelleMax);
+            constat.Property(c => c.Cle).HasMaxLength(ConstatControle.CleMax);
+            constat.HasIndex(c => new { c.ControleId, c.OrganisationId, c.Rang }).IsUnique();
+            constat.HasIndex(c => new { c.OrganisationId, c.OccurrenceId });
+            constat.HasOne<ControlePreventif>().WithMany()
+                .HasForeignKey(c => new { c.ControleId, c.OrganisationId })
+                .HasPrincipalKey(c => new { c.Id, c.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            constat.HasOne<Signalement>().WithMany()
+                .HasForeignKey(c => new { c.DossierId, c.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
