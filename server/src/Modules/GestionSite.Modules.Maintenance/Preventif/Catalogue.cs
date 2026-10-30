@@ -57,11 +57,12 @@ internal static class Catalogue
         var salaries = etablissement.SalariesPresents == true;
         var batiments = etablissement.Batiments.ToDictionary(b => b.Id);
         var propositions = new List<PlanPropose>();
-        foreach (var batiment in etablissement.Batiments)
+        // Un bâtiment sans zone « Parties communes » (créée avec lui, jamais supprimée) n'a pas de lieu pour ses plans.
+        foreach (var batiment in etablissement.Batiments.Where(b => b.PartiesCommunesId is not null))
         {
             var contexte = new Contexte(batiment.Classement, salaries);
             propositions.AddRange(PourBatiment(contexte).Select(m => new PlanPropose(
-                Cle(m, Batiment, batiment.Id), m, CiblePlan.Batiment, batiment.Id, batiment.PartiesCommunesId, null, null, batiment.Nom,
+                Cle(m, Batiment, batiment.Id), m, CiblePlan.Batiment, batiment.Id, batiment.PartiesCommunesId!.Value, null, null, batiment.Nom,
                 Echeance(m, aujourdhui, m.Code == "commission-visite" ? batiment.Classement?.DerniereVisiteCommission : null))));
         }
 
@@ -101,13 +102,16 @@ internal static class Catalogue
                 TypeIntervenant.TechnicienSite, Annuelle);
         }
 
-        // Visite périodique de la commission : catégories 1 à 4, et 5e catégorie avec locaux à sommeil (GE 4).
+        // Visite périodique de la commission : catégories 1 à 4, et 5e catégorie avec locaux à sommeil (GE 4). Type V : 3 ans
+        // en 1re et 2e catégorie, 5 ans ensuite ; autres types (J, O, R, U… souvent plus fréquents) : 3 ans par prudence.
         if (c.Erp1a4 || (c.Erp5 && c.Classement!.LocauxSommeil))
         {
+            var lieuDeCulte = c.Classement!.Type == "V";
             yield return new ModelePlan(
                 "commission-visite", "Visite périodique de la commission de sécurité", NaturePlan.VerificationExterieure, BasePlan.Reglementaire,
-                "CCH, art. R.143-34 et suivants ; arrêté du 25 juin 1980, art. GE 4 : périodicité selon type et catégorie (type V : 3 ans en 1re et 2e catégorie, 5 ans ensuite)" + AConfirmer,
-                TypeIntervenant.CommissionSecurite, c.Classement!.Categorie <= 2 ? Triennale : Quinquennale);
+                "CCH, art. R.143-34 et suivants ; arrêté du 25 juin 1980, art. GE 4 : périodicité selon le type et la catégorie" +
+                (lieuDeCulte ? " (type V : 3 ans en 1re et 2e catégorie, 5 ans ensuite)" : " (3 ans proposés par prudence pour ce type)") + AConfirmer,
+                TypeIntervenant.CommissionSecurite, !lieuDeCulte || c.Classement.Categorie <= 2 ? Triennale : Quinquennale);
         }
 
         if (c.Erp1a4)
@@ -153,9 +157,12 @@ internal static class Catalogue
             "CourantsForts" => Electricite(c),
             "EclairageSecurite" => EclairageVerification(c),
             "SecuriteIncendie" => Incendie(c),
+            // Corps d'état large (chaudière, ventilation, radiateurs) : obligation seulement pour une chaudière, d'où [P] et une
+            // référence qui le dit ; la proposition s'écarte « non concerné » pour un autre équipement.
             "ChauffageVentilation" => new ModelePlan(
-                "chaudiere-entretien", "Entretien annuel de la chaudière", NaturePlan.Entretien, BasePlan.Reglementaire,
-                "Code de l'environnement, art. R.224-41-4 et suivants : chaudières de 4 à 400 kW" + AConfirmer, TypeIntervenant.Entreprise, Annuelle),
+                "chauffage-entretien", "Entretien annuel du chauffage ou de la ventilation", NaturePlan.Entretien, BasePlan.BonnePratique,
+                "Chaudière de 4 à 400 kW : entretien annuel obligatoire (Code de l'environnement, art. R.224-41-4 et suivants)" + AConfirmer,
+                TypeIntervenant.Entreprise, Annuelle),
             "Gaz" => c.Erp
                 ? new ModelePlan(
                     "gaz-verification", "Vérification des installations de gaz", NaturePlan.VerificationExterieure, BasePlan.Reglementaire,

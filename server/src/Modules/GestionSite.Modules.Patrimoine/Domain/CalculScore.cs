@@ -36,8 +36,7 @@ internal sealed class CalculScore
     internal const int MoisHistorique = 12;
 
     // Fuseau des mois de l'historique (Europe/Paris, comme l'affichage web), UTC à défaut de base des fuseaux sur l'hôte.
-    private static readonly TimeZoneInfo Fuseau =
-        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Paris", out var paris) ? paris : TimeZoneInfo.Utc;
+    private static readonly TimeZoneInfo Fuseau = GestionSite.SharedKernel.JourCivil.Fuseau;
 
     private readonly IReadOnlyCollection<Guid> _zones;
     private readonly ILookup<Guid, ComposantSuivi> _composantsParZone;

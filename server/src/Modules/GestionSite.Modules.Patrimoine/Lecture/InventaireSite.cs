@@ -1,13 +1,11 @@
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
-using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Persistence;
-using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Patrimoine.Lecture;
 
-internal sealed class InventaireSite(PatrimoineDbContext context, ServiceGrilles grilles) : IInventaireSite
+internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireSite
 {
     public async Task<LieuInventaire?> LieuAsync(Guid siteId, Guid zoneId, Guid? composantId, bool composantActif, CancellationToken cancellationToken)
     {
@@ -60,20 +58,16 @@ internal sealed class InventaireSite(PatrimoineDbContext context, ServiceGrilles
     {
         var salaries = await context.Etablissements.AsNoTracking().Where(e => e.SiteId == siteId).Select(e => (bool?)e.SalariesPresents)
             .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        var batiments = await (
-                from b in context.Batiments.AsNoTracking()
-                join z in context.Zones.AsNoTracking() on b.Id equals z.BatimentId
-                where b.SiteId == siteId && z.PartiesCommunes
-                orderby b.Nom
-                select new { Batiment = b, Communes = z.Id })
+        // Tout bâtiment, même sans zone « Parties communes » (créée avec lui) : son classement vaut pour ses composants.
+        var batiments = await context.Batiments.AsNoTracking().Where(b => b.SiteId == siteId).OrderBy(b => b.Nom)
+            .Select(b => new
+            {
+                Batiment = b,
+                Communes = context.Zones.Where(z => z.BatimentId == b.Id && z.PartiesCommunes).Select(z => (Guid?)z.Id).FirstOrDefault(),
+            })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new EtablissementInventaire(salaries, [.. batiments.Select(b => new BatimentInventaire(
-            b.Batiment.Id, b.Batiment.Nom, b.Batiment.Classement is { } c
-                ? new ClassementBatiment(
-                    c.Erp, c.Type?.ToString(), [.. c.TypesSecondaires.Select(t => t.ToString())], c.Categorie, c.LocauxSommeil, c.MonumentHistorique,
-                    c.PermisAvant1997.ToString(), c.DerniereVisiteCommission)
-                : null,
-            b.Communes))]);
+            b.Batiment.Id, b.Batiment.Nom, Classements.Lire(b.Batiment.Classement), b.Communes))]);
     }
 
     public async Task<IReadOnlyList<ComposantInventaire>> ComposantsAsync(Guid siteId, IReadOnlyCollection<Guid>? ids, CancellationToken cancellationToken)
@@ -90,16 +84,14 @@ internal sealed class InventaireSite(PatrimoineDbContext context, ServiceGrilles
         return [.. lus.Select(c => new ComposantInventaire(
             c.Id, c.Nom, c.ZoneId, c.Zone, c.BatimentId, c.CorpsEtat.ToString(), c.SoumisAVerification, c.Quantite is not null, c.RetireLe is not null))];
     }
+}
 
-    public async Task<GrilleInventaire?> GrilleAsync(Guid siteId, string corpsEtat, CancellationToken cancellationToken)
-    {
-        if (!NomExact.Essayer<CorpsEtat>(corpsEtat, out var corps))
-        {
-            return null;
-        }
-
-        var grille = await grilles.CouranteAsync(siteId, corps, cancellationToken).ConfigureAwait(false);
-        return new GrilleInventaire(
-            corps.ToString(), grille.Version, grille.Contenu.Criteres, [.. grille.Contenu.Mesures.Select(m => new MesureInventaire(m.Libelle, m.Unite))]);
-    }
+/// <summary>Classement déclaré lu dans la forme du contrat (types et réponses en noms exacts), pour l'API et les autres modules.</summary>
+internal static class Classements
+{
+    internal static ClassementBatiment? Lire(ClassementErp? c) => c is null
+        ? null
+        : new ClassementBatiment(
+            c.Erp, c.Type?.ToString(), [.. c.TypesSecondaires.Select(t => t.ToString())], c.Categorie, c.Effectif, c.LocauxSommeil, c.MonumentHistorique,
+            c.PermisAvant1997.ToString(), c.DerniereVisiteCommission);
 }

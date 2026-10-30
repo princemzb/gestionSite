@@ -1,18 +1,17 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Patrimoine.Composants;
+using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
+using GestionSite.Modules.Patrimoine.Lecture;
 using GestionSite.Modules.Patrimoine.Persistence;
 using GestionSite.Modules.Patrimoine.Structure;
 using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace GestionSite.Modules.Patrimoine.Etablissement;
 
-internal sealed record ClassementLu(
-    bool Erp, string? Type, IReadOnlyList<string> TypesSecondaires, int? Categorie, int? Effectif, bool LocauxSommeil, bool MonumentHistorique,
-    string PermisAvant1997, DateOnly? DerniereVisiteCommission);
-
-internal sealed record BatimentClasse(Guid Id, string Nom, ClassementLu? Classement, uint Version);
+internal sealed record BatimentClasse(Guid Id, string Nom, ClassementBatiment? Classement, uint Version);
 
 internal sealed record EtablissementLu(bool? SalariesPresents, uint Version, IReadOnlyList<BatimentClasse> Batiments);
 
@@ -32,24 +31,24 @@ internal sealed class ServiceEtablissement(PatrimoineDbContext context, IAutoris
             .Select(b => new { Batiment = b, Version = EF.Property<uint>(b, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false);
         return new EtablissementLu(
             site?.SalariesPresents, site?.Version ?? 0,
-            [.. batiments.Select(b => new BatimentClasse(b.Batiment.Id, b.Batiment.Nom, Lire(b.Batiment.Classement), b.Version))]);
+            [.. batiments.Select(b => new BatimentClasse(b.Batiment.Id, b.Batiment.Nom, Classements.Lire(b.Batiment.Classement), b.Version))]);
     }
 
-    /// <summary>Classement d'un bâtiment, à la version lue ; sans changement, rien n'est écrit.</summary>
+    /// <summary>Classement d'un bâtiment, à la version lue (dépassée : 409, même sans changement) ; sans changement, rien n'est écrit.</summary>
     internal async Task ClasserAsync(Guid organisationId, Guid siteId, Guid batimentId, DemandeClassement demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
         var batiment = await context.Batiments.SingleOrDefaultAsync(b => b.Id == batimentId && b.SiteId == siteId, cancellationToken).ConfigureAwait(false)
             ?? throw new ElementIntrouvableException();
-        context.Entry(batiment).Property<uint>("xmin").OriginalValue = SaisieComposant.Version(demande.Version);
+        ExigerVersion(batiment, SaisieComposant.Version(demande.Version));
         var maintenant = horloge.GetUtcNow();
         var classement = ClassementErp.Valider(
             demande.Erp, Facultatif<TypeErp>(demande.Type, "type"),
             demande.TypesSecondaires?.Select(t => SaisieComposant.Valeur<TypeErp>(t, "typesSecondaires")).ToList(),
             demande.Categorie, demande.Effectif, demande.LocauxSommeil, demande.MonumentHistorique,
             Facultatif<ReponseConnue>(demande.PermisAvant1997, "permisAvant1997"), demande.DerniereVisiteCommission, maintenant);
-        var avant = batiment.Classement?.Releve() ?? Vide(classement.Releve());
         var apres = classement.Releve();
+        var avant = batiment.Classement?.Releve() ?? apres.ToDictionary(c => c.Key, _ => (object?)null);
         var changes = apres.Keys.Where(champ => !Equals(avant[champ], apres[champ])).ToList();
         if (changes.Count == 0)
         {
@@ -70,18 +69,18 @@ internal sealed class ServiceEtablissement(PatrimoineDbContext context, IAutoris
         var version = SaisieComposant.Version(demande.Version);
         var maintenant = horloge.GetUtcNow();
         var etablissement = await context.Etablissements.SingleOrDefaultAsync(e => e.SiteId == siteId, cancellationToken).ConfigureAwait(false);
-        if ((etablissement is null) != (version == 0))
-        {
-            throw new ModifieEntreTempsException();
-        }
-
         if (etablissement is null)
         {
+            if (version != 0)
+            {
+                throw new ModifieEntreTempsException();
+            }
+
             context.Etablissements.Add(new EtablissementSite(siteId, context.OrganisationRequise, salaries, maintenant));
         }
         else
         {
-            context.Entry(etablissement).Property<uint>("xmin").OriginalValue = version;
+            ExigerVersion(etablissement, version);
             if (etablissement.SalariesPresents == salaries)
             {
                 return;
@@ -96,22 +95,25 @@ internal sealed class ServiceEtablissement(PatrimoineDbContext context, IAutoris
         {
             await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateException premiere) when (etablissement is null && premiere.InnerException is Npgsql.PostgresException
-        {
-            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation,
-        })
+        catch (DbUpdateException premiere) when (etablissement is null
+            && premiere.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             throw new ModifieEntreTempsException(); // première déclaration enregistrée en parallèle
         }
     }
 
-    internal static ClassementLu? Lire(ClassementErp? c) => c is null
-        ? null
-        : new ClassementLu(
-            c.Erp, c.Type?.ToString(), [.. c.TypesSecondaires.Select(t => t.ToString())], c.Categorie, c.Effectif, c.LocauxSommeil, c.MonumentHistorique,
-            c.PermisAvant1997.ToString(), c.DerniereVisiteCommission);
+    // Version lue comparée explicitement (une demande sans changement est aussi refusée si elle est dépassée), puis
+    // prise comme valeur d'origine de xmin : une écriture concurrente entre-temps est refusée à l'enregistrement.
+    private void ExigerVersion<T>(T entite, uint version) where T : class
+    {
+        var xmin = context.Entry(entite).Property<uint>("xmin");
+        if (xmin.CurrentValue != version)
+        {
+            throw new ModifieEntreTempsException();
+        }
 
-    private static Dictionary<string, object?> Vide(Dictionary<string, object?> champs) => champs.ToDictionary(c => c.Key, _ => (object?)null);
+        xmin.OriginalValue = version;
+    }
 
     private static T? Facultatif<T>(string? texte, string champ) where T : struct, Enum =>
         string.IsNullOrWhiteSpace(texte) ? null : SaisieComposant.Valeur<T>(texte, champ);

@@ -4,6 +4,13 @@ using GestionSite.SharedKernel;
 
 namespace GestionSite.Modules.Maintenance.Preventif;
 
+/// <summary>Proposition en attente de décision, ou écartée avec son motif (elle reste visible).</summary>
+internal enum StatutProposition
+{
+    Proposee = 1,
+    Ecartee = 2,
+}
+
 internal sealed record PeriodeLue(int Valeur, string Unite);
 
 internal sealed record CibleLue(string Type, Guid BatimentId, Guid ZoneId, Guid? ComposantId, string? CorpsEtat, string Libelle);
@@ -24,11 +31,11 @@ internal sealed class ServicePropositions(IAutorisations autorisations, IInventa
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var etablissement = await inventaire.EtablissementAsync(siteId, cancellationToken).ConfigureAwait(false);
         var composants = await inventaire.ComposantsAsync(siteId, ids: null, cancellationToken).ConfigureAwait(false);
-        return [.. Catalogue.Proposer(etablissement, composants, JourCivil.Du(horloge.GetUtcNow())).Select(p => Lire(p, "Proposee"))];
+        return [.. Catalogue.Proposer(etablissement, composants, JourCivil.Du(horloge.GetUtcNow())).Select(p => Lire(p, StatutProposition.Proposee))];
     }
 
-    internal static PropositionLue Lire(PlanPropose p, string statut) => new(
+    internal static PropositionLue Lire(PlanPropose p, StatutProposition statut) => new(
         p.Cle, p.Modele.Code, p.Modele.Libelle, p.Modele.Nature.ToString(), p.Modele.Base.ToString(), p.Modele.Reference, AConfirmer: true,
         p.Modele.Intervenant.ToString(), new PeriodeLue(p.Modele.Periode.Valeur, p.Modele.Periode.Unite.ToString()), p.Modele.Mode.ToString(), p.Echeance,
-        new CibleLue(p.Cible.ToString(), p.BatimentId, p.ZoneId, p.ComposantId, p.CorpsEtat, p.LibelleCible), statut);
+        new CibleLue(p.Cible.ToString(), p.BatimentId, p.ZoneId, p.ComposantId, p.CorpsEtat, p.LibelleCible), statut.ToString());
 }

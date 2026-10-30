@@ -29,6 +29,7 @@ public sealed class EtablissementTests(InfrastructureFixture infrastructure) : I
         using var perime = await ClasserAsync(eglise, responsable, Classement(3, version));
         using var second = await ClasserAsync(eglise, responsable, Classement(3, await VersionAsync(eglise, pasteur)));
         using var inchange = await ClasserAsync(eglise, responsable, Classement(3, await VersionAsync(eglise, pasteur)));
+        using var inchangeDepasse = await ClasserAsync(eglise, responsable, Classement(3, version)); // sans changement mais version dépassée
         var lu = (await LireAsync($"{Base}/establishment", pasteur)).GetProperty("batiments").EnumerateArray().Single();
 
         Assert.Equal(HttpStatusCode.Forbidden, parTechnicien.StatusCode);
@@ -39,6 +40,7 @@ public sealed class EtablissementTests(InfrastructureFixture infrastructure) : I
         Assert.Equal(HttpStatusCode.Conflict, perime.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, inchange.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, inchangeDepasse.StatusCode);
         var classement = lu.GetProperty("classement");
         Assert.Equal(("V", 3, "Inconnu"), (classement.GetProperty("type").GetString(), classement.GetProperty("categorie").GetInt32(),
             classement.GetProperty("permisAvant1997").GetString()));

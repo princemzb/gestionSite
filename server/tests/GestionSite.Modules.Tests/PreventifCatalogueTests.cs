@@ -73,6 +73,28 @@ public sealed class PreventifCatalogueTests
         Assert.Equal(Aujourdhui, premiere.Single(p => p.Modele.Code == "commission-visite").Echeance); // dernière visite inconnue
     }
 
+    [Theory]
+    [InlineData("V", 3, 5)]
+    [InlineData("U", 3, 3)] // autre type que le lieu de culte : 3 ans par prudence
+    [InlineData("L", 4, 3)]
+    public void TheCommissionPeriodDependsOnTheMainType(string type, int categorie, int ans)
+    {
+        var commission = Catalogue.Proposer(Etablissement(Erp(categorie, type: type)), [], Aujourdhui).Single(p => p.Modele.Code == "commission-visite");
+
+        Assert.Equal(ans, commission.Modele.Periode.Valeur);
+    }
+
+    [Fact]
+    public void ABuildingWithoutCommonAreasStillClassifiesItsComponents()
+    {
+        var etablissement = new EtablissementInventaire(false, [new BatimentInventaire(Eglise, "Église", Erp(2), PartiesCommunesId: null)]);
+
+        var propositions = Catalogue.Proposer(etablissement, Composants("CourantsForts"), Aujourdhui);
+
+        Assert.DoesNotContain(propositions, p => p.Cible == CiblePlan.Batiment);
+        Assert.Equal(TypeIntervenant.OrganismeAgree, propositions.Single(p => p.Modele.Code == "electricite-verification").Modele.Intervenant);
+    }
+
     [Fact]
     public void EmployeesBringLabourCodeChecksToANonErpBuilding()
     {
@@ -110,7 +132,7 @@ public sealed class PreventifCatalogueTests
     [Theory]
     [InlineData("EclairageSecurite", new[] { "eclairage-essai" })]
     [InlineData("Ascenseurs", new[] { "inspection-interne", "ascenseur-entretien", "ascenseur-controle-technique" })]
-    [InlineData("ChauffageVentilation", new[] { "inspection-interne", "chaudiere-entretien" })]
+    [InlineData("ChauffageVentilation", new[] { "inspection-interne", "chauffage-entretien" })]
     [InlineData("Gaz", new[] { "inspection-interne", "gaz-verification" })]
     [InlineData("Paratonnerre", new[] { "inspection-interne", "paratonnerre-verification" })]
     [InlineData("Campanaire", new[] { "inspection-interne", "campanaire-entretien" })]
@@ -147,7 +169,7 @@ public sealed class PreventifCatalogueTests
 
         var propositions = Catalogue.Proposer(new EtablissementInventaire(null, []), composants, Aujourdhui);
 
-        Assert.Equal(["inspection-interne", "chaudiere-entretien"], propositions.Select(p => p.Modele.Code));
+        Assert.Equal(["inspection-interne", "chauffage-entretien"], propositions.Select(p => p.Modele.Code));
         Assert.Equal("Chaudière (Annexe · Cave)", propositions[0].LibelleCible);
     }
 
@@ -173,10 +195,10 @@ public sealed class PreventifCatalogueTests
         Assert.Equal(new DateOnly(2026, 9, 30), Periode.Valider(1, UnitePeriode.Mois).Avant(new DateOnly(2026, 10, 30)));
     }
 
-    private static ClassementBatiment Erp(int categorie, bool sommeil = false, DateOnly? visite = null) =>
-        new(true, "V", [], categorie, sommeil, false, "Non", visite);
+    private static ClassementBatiment Erp(int categorie, bool sommeil = false, DateOnly? visite = null, string type = "V") =>
+        new(true, type, [], categorie, null, sommeil, false, "Non", visite);
 
-    private static ClassementBatiment NonErp(string permis) => new(false, null, [], null, false, false, permis, null);
+    private static ClassementBatiment NonErp(string permis) => new(false, null, [], null, null, false, false, permis, null);
 
     private static EtablissementInventaire Etablissement(ClassementBatiment? classement, bool salaries = false) =>
         new(salaries, [new BatimentInventaire(Eglise, "Église", classement, Guid.NewGuid())]);
