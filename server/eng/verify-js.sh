@@ -28,10 +28,10 @@ while IFS= read -r module; do
     non_testes=1
   fi
 done < <(find "$NOYAU" -type f \( -name '*.mjs' -o -name '*.js' \) | sort)
-if [ "$non_testes" -ne 0 ]; then
+if [[ "$non_testes" -ne 0 ]]; then
   exit 1
 fi
 
-# Chemins du rapport relatifs à la racine du dépôt, base de l'analyse Sonar.
-sed -e 's#^SF:src/#SF:server/src/#' "$LCOV" > "$LCOV.tmp" && mv "$LCOV.tmp" "$LCOV"
+# Chemins absolus : l'analyse Sonar rattache le fichier au module GestionSite.Web, dont la base n'est pas la racine.
+sed -e "s#^SF:src/#SF:$(pwd)/src/#" "$LCOV" > "$LCOV.tmp" && mv "$LCOV.tmp" "$LCOV"
 echo "Rapport lcov : server/$LCOV"

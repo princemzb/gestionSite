@@ -141,7 +141,7 @@ jobs:
             /d:sonar.cpd.exclusions="server/**/Migrations/**" \
             /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
-            /d:sonar.javascript.lcov.reportPaths="server/artifacts/coverage-js/lcov.info"
+            /d:sonar.javascript.lcov.reportPaths="$GITHUB_WORKSPACE/server/artifacts/coverage-js/lcov.info"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
