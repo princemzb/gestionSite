@@ -1,5 +1,5 @@
 # Registre des décisions d’architecture
-Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées.
+Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées. ADR-11 proposée (30 octobre 2026), à adopter par le porteur.
 
 | ADR | Décision proposée | Alternatives et compromis | Condition de validation |
 | --- | --- | --- | --- |
@@ -80,3 +80,36 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 **Complément du 28 octobre 2026 (porteur) — adhésion par invitation.** Un administrateur n'ajoute pas directement un compte : il crée une invitation. Pour un compte nouveau, l'activation par le lien vaut acceptation ; pour un compte existant, le titulaire l'accepte ou la refuse après connexion (`/me`). Aucun droit dans l'organisation avant l'acceptation. Un lien d'activation n'est remis que pour un compte créé par l'organisation qui invite. Risque résiduel : l'adresse n'étant pas prouvée tant que les liens passent par l'administrateur, un compte créé et activé par un tiers pour l'adresse d'autrui accepterait aussi ses invitations ; levé quand les liens seront envoyés à l'adresse (service d'e-mail, US-18).
 
 **Conséquences.** L'ouverture d'une organisation et de son premier administrateur passe, pour le pilote, par une commande d'exploitation réservée à la plateforme (interface en US-26). Le hors connexion de 24 h (RG-23) repose sur un déverrouillage local du profil préparé sur la tablette, sans appel à l'API ; la révocation prend effet à la synchronisation suivante (fenêtre d'exposition acceptée, RISQUES).
+
+## ADR-11 — Éditeur de plans de bâtiment : module JavaScript autonome dans le web en rendu serveur statique
+**Statut :** proposée le 30 octobre 2026 par l'agent (S21-01), à adopter par le porteur du projet (tech lead). Cadre US-21 (S21-07 à S21-10).
+
+**Contexte.** US-21 demande un éditeur 2D de plans de bâtiment : calibration, tracé de pièces, ouvertures, escaliers, marqueurs de composants, zoom et pincement sur tablette (Tab M11, navigateur), annuler/rétablir, brouillon local. Le web est un Blazor en rendu serveur statique, sans circuit interactif (ADR-08 : mode interactif incertain avec la mise en veille des conteneurs). La politique de sécurité du contenu est stricte et reste inchangée : `script-src 'self'` (plus Turnstile), aucun script ni style en ligne, ni `unsafe-eval`, ni `wasm-unsafe-eval`, ni `blob:` ; `img-src 'self' data:`. Il n'existait aucun outillage JavaScript : `wwwroot/sites.js` est une simple colle DOM, exclue de la couverture. Un seul développeur, assisté d'agents IA.
+
+**Options évaluées.**
+| Option | Pour | Contre |
+| --- | --- | --- |
+| Blazor interactif serveur | C# seul | Connexion persistante à chaque mouvement de pointeur, latence sur tablette, veille des conteneurs (ADR-08) |
+| Blazor WebAssembly | C# seul, exécution locale | Plusieurs Mo à télécharger, `wasm-unsafe-eval` dans la CSP, interop JS de toute façon nécessaire pour les Pointer Events |
+| Bibliothèque de dessin (Konva, Fabric, etc.) avec chaîne npm | Gain de temps sur le dessin | Chaîne de construction et dépendances à surveiller (chaîne d'approvisionnement), rendu canvas moins accessible, CSP à vérifier |
+| **Module ES natif autonome, rendu SVG, sans construction** | CSP inchangée, aucune dépendance, fonctions pures testables par Node | JavaScript à maintenir (environ 2 500 à 4 000 lignes estimées), performances SVG à mesurer |
+
+**Choix proposé.**
+- L'éditeur est un ensemble de modules ES servis par le web depuis `wwwroot/plans/`, chargés par `<script type="module" src="…">` : la directive `script-src 'self'` suffit. Aucune construction (ni bundler, ni transpilation) : le code livré est le code relu.
+- Rendu en SVG (`viewBox` en mètres dans le repère du bâtiment, RP-21.2), interactions par Pointer Events. Le fond de plan est une `<image href>` servie par le BFF (`img-src 'self'`), jamais une URL `blob:`.
+- La page Razor rend le conteneur et passe ses paramètres par des attributs `data-*` (adresses relatives, identifiants, version lue, jeton antifalsification) ; le module dialogue en JSON avec des routes du BFF de même origine, le jeton antifalsification étant renvoyé en en-tête. Aucun attribut `style` (classes CSS et attributs SVG seulement), `textContent` pour tout nom saisi.
+- Séparation imposée :
+  - `wwwroot/plans/noyau/` : fonctions pures (géométrie, calibration, validation, annuler/rétablir), sans DOM, sans réseau ni stockage. Elles sont testées par `node:test` (`server/tests/js/**/*.test.mjs`), avec une couverture d'au moins 80 % en lignes, branches et fonctions, vérifiée en CI et importée dans Sonar (lcov) ;
+  - `wwwroot/plans/*.js` : colle DOM mince, exclue de la couverture Sonar comme `wwwroot/*.js`, vérifiée dans un navigateur réel (critères de S21-07, aucune violation de CSP constatée).
+- Aucune bibliothèque externe, sauf copie épinglée dans le dépôt, relue, sous licence MIT, BSD ou Apache-2.0, et notée dans le GUIDE. Aucun `package.json` ni dépendance npm : `node:test` et la couverture sont intégrés à Node.js 22 LTS, outil de développement et de CI seulement, absent de l'image du conteneur.
+- Le serveur reste la seule autorité : il revalide toute géométrie (S21-02), quels que soient les contrôles de l'éditeur.
+
+**Conséquences.**
+- JavaScript devient un troisième langage, limité à l'éditeur de plans et à la colle DOM existante ; Node.js 22 rejoint les prérequis (GUIDE). La vérification `server/eng/verify-js.sh` tourne dans les vérifications obligatoires « Serveur .NET (porte qualité) » et « SonarQube Cloud » : un test JS en échec bloque la fusion, et la couverture JS du nouveau code compte dans la porte Sonar.
+- Pas de vérification de types : si le noyau grossit, ajouter `// @ts-check` et des annotations JSDoc sans construction.
+- Navigateurs visés : versions récentes de Chrome Android (tablette) et des navigateurs de bureau, Safari iPadOS 16 ou plus (modules ES, Pointer Events).
+- L'application tablette Flutter (US-13/14) ne réutilise pas cet éditeur : elle lit le JSON des versions de plan.
+
+**Coût.** Nul en services ; temps de développement chiffré dans les sous-cartes S21-07 à S21-10.
+
+**Preuves attendues et révision.** Fournies par S21-01 : un test JS en échec fait échouer la CI, et la couverture lcov apparaît dans l'analyse Sonar de la PR. À fournir par S21-07 : aucune violation de CSP dans un navigateur réel et fluidité mesurée sur la Tab M11 (fond de 4 096 px, environ 1 000 sommets). Réviser si ces performances sont insuffisantes (repli sur canvas, ou bibliothèque épinglée relue) ou si l'éditeur dépasse nettement l'estimation.

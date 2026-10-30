@@ -22,8 +22,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
       - name: Build, format, tests, couverture ≥ 80 %, dépendances
         run: server/eng/verify.sh
+      # Fonctions pures de l'éditeur de plans de bâtiment (ADR-11) : node:test, couverture ≥ 80 %.
+      - name: Tests JavaScript (node:test), couverture ≥ 80 %
+        run: server/eng/verify-js.sh
       - name: Rapport de couverture
         if: always()
         uses: actions/upload-artifact@v4
@@ -120,7 +126,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Analyse et porte qualité Sonar (dépôt entier, C# et scripts)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - name: Analyse et porte qualité Sonar (dépôt entier, C#, JavaScript et scripts)
         run: |
           dotnet tool restore
           dotnet sonarscanner begin \
@@ -128,10 +137,11 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/**" \
+            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.js" \
             /d:sonar.cpd.exclusions="server/**/Migrations/**" \
             /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
-            /d:sonar.python.coverage.reportPaths="coverage-python.xml"
+            /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
+            /d:sonar.javascript.lcov.reportPaths="server/artifacts/coverage-js/lcov.info"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
@@ -139,4 +149,5 @@ jobs:
           dotnet test server/GestionSite.slnx --no-build --configuration Release \
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          server/eng/verify-js.sh
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

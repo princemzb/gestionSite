@@ -12,6 +12,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 | Flutter | 3.47.1 (fixée par `mobile/pubspec.yaml`) | Application terrain |
 | SDK Android + `adb` | outils récents | Compilation et installation sur tablette |
 | Python | 3.9 ou plus | Outillage Trello (`scripts/trello`) |
+| Node.js | 22 LTS (22.16.0 en CI) | Tests et couverture du JavaScript de l'éditeur de plans de bâtiment (ADR-11), sans dépendance npm |
 | `gh` (GitHub CLI) | 2.x | PR et CI |
 
 ### Première mise en route
@@ -28,6 +29,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
 - `python3 -m unittest discover -s scripts/trello` : outillage Trello.
+- `server/eng/verify-js.sh` : tests `node:test` des fonctions pures de l'éditeur de plans de bâtiment (`server/tests/js/**/*.test.mjs`, code sous `wwwroot/plans/noyau/`), couverture ≥ 80 % en lignes, branches et fonctions, rapport lcov `server/artifacts/coverage-js/lcov.info` importé dans Sonar (ADR-11, exécuté le 30 octobre 2026 avec Node.js 22.16.0).
 - Application Flutter : voir `mobile/README.md`.
 
 ### Base de données et migrations (S06-01, S06-02)
@@ -85,7 +87,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - Jamais de secret dans le dépôt : jetons Trello et Sonar dans le Trousseau macOS du porteur ; jeton CI dans le secret GitHub `SONAR_TOKEN` ; signature Android dans `mobile/android/key.properties` (non versionné).
 
 ### Intégration continue
-Six vérifications obligatoires sur `main` : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis », « Application Flutter (analyse et tests) », « Application Flutter (dépendances vulnérables) ». Deux projets Sonar : `princemzb_gestionSite` (C#, scripts, CI) et `princemzb_gestionSite_mobile` (Dart et code natif).
+Six vérifications obligatoires sur `main` : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis », « Application Flutter (analyse et tests) », « Application Flutter (dépendances vulnérables) ». Deux projets Sonar : `princemzb_gestionSite` (C#, JavaScript, scripts, CI) et `princemzb_gestionSite_mobile` (Dart et code natif). Les tests JavaScript (`server/eng/verify-js.sh`) tournent dans « Serveur .NET (porte qualité) » et leur couverture lcov est importée par « SonarQube Cloud » ; la colle DOM (`wwwroot/*.js`, `wwwroot/plans/*.js`) est exclue de la couverture, le noyau `wwwroot/plans/noyau/` ne l'est pas.
 
 ### Frontières des modules
 Un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l'API ou un hôte ; les tests d'architecture le vérifient sur chaque fichier projet, interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.
