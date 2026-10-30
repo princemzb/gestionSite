@@ -27,7 +27,7 @@ internal sealed class EvaluationsInventaire(PatrimoineDbContext context, Service
             var evaluation = await evaluations.EnregistrerAsync(
                 siteId, composant,
                 new SaisieEvaluation(saisie.CommandeId, saisie.GrilleVersion, saisie.Constats, saisie.Mesures, etat, repartition, saisie.Remarque, saisie.Photos.Count),
-                [.. saisie.Photos.Select(p => new PhotoRecue(p))], saisie.EvaluateurCompteId, cancellationToken).ConfigureAwait(false);
+                [.. saisie.Photos.Select(p => new PhotoRecue(p))], saisie.EvaluateurCompteId, cancellationToken, saisie.ObserveLe).ConfigureAwait(false);
             return new EvaluationInventaire(evaluation.Id, Echelle.Arrondie(evaluation.Note), Echelle.Libelle(evaluation.Note).ToString());
         }
         catch (ElementIntrouvableException)

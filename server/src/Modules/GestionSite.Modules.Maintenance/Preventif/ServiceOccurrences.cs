@@ -177,7 +177,22 @@ internal sealed class ServiceOccurrences(
         }
 
         var (plan, occurrences, cible) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
-        var echeance = Courante(plan, occurrences, echeanceDemandee);
+        DateOnly echeance;
+        try
+        {
+            echeance = Courante(plan, occurrences, echeanceDemandee);
+        }
+        catch (EcheanceInattendueException)
+        {
+            // Même envoi enregistré entre-temps par une requête concurrente (l'échéance courante a avancé) : même réponse.
+            if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } concurrente)
+            {
+                return concurrente;
+            }
+
+            throw;
+        }
+
         var occurrence = occurrences.SingleOrDefault(o => o.Echeance == echeance);
         await ExigerEnChargeAsync(organisationId, siteId, occurrence, cancellationToken).ConfigureAwait(false);
 
@@ -255,7 +270,7 @@ internal sealed class ServiceOccurrences(
         {
             var evaluation = await evaluations.EvaluerAsync(siteId, composantId, new SaisieEvaluationInventaire(
                 Commandes.Derivee(commande, "evaluation"), auteur, controle.GrilleVersion!.Value, [.. controle.PointsLus.Select(p => p.Conforme)],
-                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, jpegs),
+                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, jpegs, ObservationDu(controle.RealiseLe, maintenant)),
                 cancellationToken).ConfigureAwait(false);
             controle.Evaluer(evaluation.Id, evaluation.Note, evaluation.Libelle);
         }
@@ -430,6 +445,19 @@ internal sealed class ServiceOccurrences(
         }
 
         return (plan, await context.Occurrences.Where(o => o.PlanId == planId).ToListAsync(cancellationToken).ConfigureAwait(false), cible);
+    }
+
+    // Évaluation d'une inspection datée de sa réalisation (choix de l'agent) : l'heure de saisie le jour même, sinon midi
+    // (heure de Paris) du jour réel ; jamais après la saisie.
+    private static DateTimeOffset ObservationDu(DateOnly realiseLe, DateTimeOffset maintenant)
+    {
+        if (realiseLe >= JourCivil.Du(maintenant))
+        {
+            return maintenant;
+        }
+
+        var midi = realiseLe.ToDateTime(new TimeOnly(12, 0));
+        return new DateTimeOffset(midi, JourCivil.Fuseau.GetUtcOffset(midi)).ToUniversalTime();
     }
 
     private static DateOnly Echeance(DateOnly? demandee) => demandee ?? throw new SaisieInvalideException("echeance", "Échéance obligatoire.");

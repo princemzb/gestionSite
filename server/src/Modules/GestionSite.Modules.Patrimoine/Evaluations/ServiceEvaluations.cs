@@ -52,10 +52,12 @@ internal sealed class ServiceEvaluations(
 
     /// <summary>
     /// Évaluation contrôlée puis enregistrée pour un composant du site (accès déjà vérifié par l'appelant : API d'US-11 ou
-    /// inspection d'US-12) ; un rejeu de la même commande rend l'évaluation déjà enregistrée.
+    /// inspection d'US-12) ; un rejeu de la même commande rend l'évaluation déjà enregistrée. <paramref name="evalueLe"/> :
+    /// instant de l'observation quand il est connu (inspection saisie après coup), sinon l'heure du serveur.
     /// </summary>
     internal async Task<Evaluation> EnregistrerAsync(
-        Guid siteId, Composant composant, SaisieEvaluation saisie, IReadOnlyList<PhotoRecue> photos, Guid evaluateur, CancellationToken cancellationToken)
+        Guid siteId, Composant composant, SaisieEvaluation saisie, IReadOnlyList<PhotoRecue> photos, Guid evaluateur, CancellationToken cancellationToken,
+        DateTimeOffset? evalueLe = null)
     {
         if (await DejaEvalueeAsync(evaluateur, composant.Id, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
@@ -66,7 +68,7 @@ internal sealed class ServiceEvaluations(
         var courante = await grilles.CouranteAsync(siteId, composant.CorpsEtat, cancellationToken).ConfigureAwait(false);
         var grille = new GrilleEvaluee(courante.Version, courante.Contenu.Criteres, courante.Contenu.Mesures);
         var maintenant = horloge.GetUtcNow();
-        var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, maintenant);
+        var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, evalueLe ?? maintenant);
 
         // 2. Photos préparées puis écrites avant l'enregistrement, sous des clés propres à cette évaluation ; retirées si
         //    l'enregistrement n'aboutit pas (conflit, envoi concurrent perdant).
@@ -79,7 +81,9 @@ internal sealed class ServiceEvaluations(
 
         // 3. Lot : répartition de l'inventaire reprise de l'évaluation, toujours à la version lue du composant (xmin), même
         //    inchangée : une évaluation ou une modification concurrente du lot est refusée (409) au lieu d'être écrasée.
-        if (evaluation.Repartition is { } repartition)
+        // Une évaluation antérieure à la dernière connue (inspection saisie après coup) ne réécrit pas l'inventaire.
+        if (evaluation.Repartition is { } repartition && !await context.Evaluations.AnyAsync(
+            e => e.ComposantId == composant.Id && e.EvalueLe > evaluation.EvalueLe, cancellationToken).ConfigureAwait(false))
         {
             var avant = SaisieComposant.Releve(composant.Lot?.Repartition);
             composant.Repartir(repartition);
