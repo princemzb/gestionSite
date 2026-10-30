@@ -2585,6 +2585,27 @@
       "trelloShortLink": "Xbdgu77w"
     },
     {
+      "id": "S11-05",
+      "name": "[S11-05] Écran des grilles d'évaluation pour R/D (maquette A)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-11"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Maquette A retenue par le porteur le 30/10 : liste des 20 corps d'état (version, adaptée) et éditeur ligne à ligne (monter, descendre, supprimer, ajouter des points et des mesures).",
+        "Responsable et délégué du site modifient ; les autres comptes internes consultent ; chaque enregistrement crée une version, version lue exigée.",
+        "Date et auteur de l'adaptation affichés ; « Revenir à la grille par défaut » recharge le contenu par défaut, enregistré comme nouvelle version.",
+        "Finition : case « Non vérifié » de même taille que les autres sur téléphone ; préproduction et vérification navigateur."
+      ],
+      "trelloId": "6ae424c183463b28ec0e1842",
+      "trelloShortLink": "Cgatp5zK"
+    },
+    {
       "id": "UX-06",
       "name": "[UX-06] Maquettes US-11 : tableau du site, évaluation, grille sur téléphone",
       "type": "sous_carte",

@@ -1,6 +1,6 @@
 // Vérification de la préproduction pour US-11 (navigateur réel, Chromium sans interface via Playwright 1.55.0) :
 // évaluation pas à pas sur téléphone (points, mesure, état « Critique » avec photo), proposition de dossier prérempli,
-// lot réparti par état, état du site (note, couverture, points critiques, zones) ; captures Jour et Nuit ; aucune
+// lot réparti par état, grille adaptée par une responsable (version 2), état du site (note, couverture, points critiques, zones) ; captures Jour et Nuit ; aucune
 // violation de la politique de sécurité du contenu.
 // Usage, dans un dossier où playwright est installé (captures écrites dans ce dossier) :
 //   VERIF_URL=<adresse publique> VERIF_ORG=<organisation> VERIF_JETON=<jeton d'activation> node us11.mjs
@@ -25,17 +25,21 @@ const activer = async (p, lien) => {
 };
 const cliquer = async (p, selecteur) => { await Promise.all([p.waitForNavigation(), p.click(selecteur)]); };
 
-// 1. Administrateur : activation, invitation d'un technicien, qui active son compte sur téléphone
+// 1. Administrateur : activation, invitation d'un technicien (téléphone) et d'une responsable (grilles)
 const admin = await page();
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
-await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-await admin.fill("input[name='Saisie.Nom']", "Marc Technicien");
-await admin.fill("input[name='Saisie.Email']", `technicien-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
-await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-await admin.selectOption("main select >> nth=0", "Technicien");
-await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-const lien = (await admin.textContent("code.lien-activation")).trim();
-ok("invitation du technicien créée", lien.startsWith(`${base}/activation?jeton=`));
+const inviter = async (nom, role) => {
+  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
+  await admin.fill("input[name='Saisie.Nom']", nom);
+  await admin.fill("input[name='Saisie.Email']", `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
+  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
+  await admin.selectOption("main select >> nth=0", role);
+  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
+  return (await admin.textContent("code.lien-activation")).trim();
+};
+const lien = await inviter("Marc Technicien", "Technicien");
+const lienResponsable = await inviter("Rose Responsable", "Responsable");
+ok("invitations créées (technicien, responsable)", lien.startsWith(`${base}/activation?jeton=`) && lienResponsable.startsWith(`${base}/activation?jeton=`));
 const tel = await page(390, 844);
 await activer(tel, lien);
 
@@ -94,7 +98,22 @@ await cliquer(tel, "button[value='suivant']");
 await cliquer(tel, "button[value='enregistrer']");
 ok("lot évalué : note 8,2 et répartition reprise", (await tel.textContent(".fiche-composant")).includes("Évaluation : bon 40 → 32, dégradé 0 → 8"));
 
-// 5. État du site : note, couverture, point critique nommé, zones ; captures Jour, Nuit et téléphone
+// 5. Responsable : grille Mobilier adaptée (maquette A), utilisée par la prochaine évaluation
+const resp = await page();
+await activer(resp, lienResponsable);
+await resp.goto(`${base}/organisations/${org}/grilles?corps=Mobilier`);
+ok("grilles : liste des corps d'état et grille par défaut", (await resp.textContent("main")).includes("Grille par défaut (version 1)"));
+await cliquer(resp, "button[value='ajouter']");
+await resp.fill("input[name='Saisie.Points[3]']", "Housse ignifugée en bon état");
+await cliquer(resp, "button[value='monter:3']");
+await resp.screenshot({ path: "us11-grilles-jour.png", fullPage: true });
+await cliquer(resp, "button.bouton-principal[value='enregistrer']");
+ok("grille enregistrée en version 2 par la responsable", (await resp.textContent("main")).includes("Version 2 enregistrée") && (await resp.textContent(".liste-grilles")).includes("v2 adaptée"));
+await tel.goto(ficheChaises);
+await cliquer(tel, ".fiche-composant a:has-text('Évaluer')");
+ok("le technicien évalue avec la grille v2", (await tel.textContent("main")).includes("Housse ignifugée en bon état") && (await tel.textContent("main")).includes("grille v2"));
+
+// 6. État du site : note, couverture, point critique nommé, zones ; captures Jour, Nuit et téléphone
 await tel.goto(`${base}/organisations/${org}/etat`);
 await tel.screenshot({ path: "us11-etat-site-tel.png", fullPage: true });
 const etat = await tel.textContent("main");
