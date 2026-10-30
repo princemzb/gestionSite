@@ -44,6 +44,33 @@ public sealed partial class WebInventaireTests
     }
 
     [Fact]
+    public async Task TheEditorMovesRemovesAndExplainsRefusals()
+    {
+        await MembreAsync("delegue@inventaire-web.test", "Denis D.", Role.Delegue);
+        using var delegue = await ConnecterAsync("delegue@inventaire-web.test");
+        var page = $"/organisations/{_organisation}/grilles?corps=Gaz";
+        (string Nom, string Valeur)[] Champs(string version, string action, params (string Nom, string Valeur)[] autres) =>
+            [("Saisie.Version", version), ("Saisie.Action", action), ("Saisie.Points[0]", "Aucune odeur de gaz"), ("Saisie.Points[1]", "Robinet accessible"), .. autres];
+
+        var descendu = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "descendre:0")));
+        var supprime = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "supprimer:1")));
+        var mesure = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "ajouter-mesure", ("Saisie.Libelles[0]", "Pression"), ("Saisie.Unites[0]", "mbar"))));
+        var sansMesure = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "supprimer-mesure:0", ("Saisie.Libelles[0]", "Pression"), ("Saisie.Unites[0]", "mbar"))));
+        var sansUnite = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "enregistrer", ("Saisie.Libelles[0]", "Pression"), ("Saisie.Unites[0]", ""))));
+        Chemin(await PosterAsync(delegue, page, "grille", Champs("1", "enregistrer")));
+        var perimee = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("1", "enregistrer", ("Saisie.Points[2]", "Flexibles à jour"))));
+        var inconnue = await LireAsync(await PosterAsync(delegue, page, "grille", Champs("2", "inconnue")));
+
+        Assert.True(descendu.IndexOf("value=\"Robinet accessible\"", StringComparison.Ordinal) < descendu.IndexOf("value=\"Aucune odeur de gaz\"", StringComparison.Ordinal));
+        Assert.DoesNotContain("value=\"Robinet accessible\"", supprime, StringComparison.Ordinal);
+        Assert.Contains("name=\"Saisie.Libelles[1]\" value=\"\"", mesure, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"Pression\"", sansMesure, StringComparison.Ordinal);
+        Assert.Contains("Mesures : 8 au plus, toutes différentes, chacune avec un libellé", sansUnite, StringComparison.Ordinal);
+        Assert.Contains("Quelqu'un vient de modifier cette grille", perimee, StringComparison.Ordinal);
+        Assert.Contains("value=\"Robinet accessible\"", inconnue, StringComparison.Ordinal); // action inconnue : saisie inchangée
+    }
+
+    [Fact]
     public async Task ATechnicianReadsGridsWithoutEditing()
     {
         using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
