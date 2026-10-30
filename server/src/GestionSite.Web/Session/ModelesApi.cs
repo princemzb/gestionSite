@@ -90,7 +90,13 @@ internal sealed record NumeroApi(int Numero);
 
 internal sealed record MesureGrilleApi(string Libelle, string Unite);
 
-internal sealed record GrilleApi(string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures);
+internal sealed record GrilleApi(
+    string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures,
+    DateTimeOffset? AdapteeLe = null, Guid? AuteurCompteId = null, string? Auteur = null);
+
+internal sealed record ContenuGrilleApi(IReadOnlyList<string> Criteres, IReadOnlyList<MesureGrilleApi> Mesures);
+
+internal sealed record VersionCreeeApi(int Version);
 
 internal sealed record PointEvalueApi(string Texte, bool? Conforme);
 

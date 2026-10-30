@@ -23,6 +23,8 @@ internal static class GrillesEndpoints
             Results.Ok(await service.ListerAsync(orgId, siteId, ct).ConfigureAwait(false)));
         grilles.MapGet("/{corpsEtat}", async (Guid orgId, Guid siteId, string corpsEtat, ServiceGrilles service, CancellationToken ct) =>
             Results.Ok(await service.LireAsync(orgId, siteId, corpsEtat, ct).ConfigureAwait(false)));
+        grilles.MapGet("/{corpsEtat}/default", async (Guid orgId, Guid siteId, string corpsEtat, ServiceGrilles service, CancellationToken ct) =>
+            Results.Ok(await service.ParDefautAsync(orgId, siteId, corpsEtat, ct).ConfigureAwait(false)));
         grilles.MapPut("/{corpsEtat}", async (Guid orgId, Guid siteId, string corpsEtat, DemandeGrille demande, ServiceGrilles service, CancellationToken ct) =>
             Results.Ok(new VersionCreee(await service.ModifierAsync(orgId, siteId, corpsEtat, demande, ct).ConfigureAwait(false))));
         return endpoints;

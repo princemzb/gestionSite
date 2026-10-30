@@ -397,7 +397,7 @@ form.formulaire-inventaire { padding: 0; }
 /* Défaut surligné dès qu'il est coché (sans script), comme après l'envoi. */
 .point-observe.defaut, .point-observe:has(input[value="non"]:checked) { border: 2px solid var(--etat-degrade); background: var(--alerte-fond); }
 .choix-constat { min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 10px; background: var(--etape-fond); font-size: 13px; cursor: pointer; }
-.choix-constat input, .choix-etat input { width: 20px; height: 20px; }
+.choix-constat input, .choix-etat input { width: 20px; height: 20px; flex: none; }
 .choix-etats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .choix-etat { min-height: 64px; border: 1px solid var(--bordure-forte); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 2px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; padding: 6px 2px; }
@@ -405,6 +405,26 @@ form.formulaire-inventaire { padding: 0; }
 .actions-evaluation { display: flex; flex-direction: row-reverse; gap: 8px; } /* bouton principal premier dans le code : Entrée avance */
 .actions-evaluation > * { flex: 1; }
 .actions-evaluation .bouton-principal { flex: 2; }
+
+/* Grilles d'évaluation (US-11, maquette A retenue le 30/10) : liste des corps d'état et éditeur ligne à ligne. */
+.grilles { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.liste-grilles { flex: 0 0 300px; padding: 8px; display: flex; flex-direction: column; }
+.liste-grilles a { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 14px; text-decoration: none; color: var(--encre); min-height: 44px; box-sizing: border-box; }
+.liste-grilles a[aria-current="page"] { background: var(--selection); font-weight: 600; }
+.editeur-grille { flex: 1 1 520px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.editeur-grille h2 { margin: 0; font-size: 20px; }
+.editeur-grille h3 { margin: 4px 0 0; font-size: 14px; color: var(--encre-2); }
+.formulaire-grille { display: flex; flex-direction: column; gap: 10px; }
+.revenir-defaut { align-self: flex-start; padding: 0; height: auto; border: none; background: none; color: var(--lien); font: inherit; font-size: 14px; cursor: pointer; text-decoration: underline; }
+.ligne-grille { display: flex; gap: 8px; align-items: center; }
+.ligne-grille input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--bordure-forte); border-radius: 12px; padding: 0 12px; font: inherit; background: var(--champ-fond); color: var(--encre); }
+.ligne-grille input.unite { flex: 0 0 90px; }
+.bouton-icone { flex: none; width: 44px; height: 44px; border: 1px solid var(--bordure-forte); border-radius: 12px; background: var(--surface); color: var(--encre); font: inherit; cursor: pointer; }
+.bouton-icone:disabled { opacity: 0.35; cursor: default; }
+.bouton-icone.supprimer { color: var(--danger); }
+.bouton-ajout { align-self: flex-start; height: 40px; padding: 0 16px; border: 1px dashed var(--bordure-forte); border-radius: 999px; background: transparent; color: var(--encre); font: inherit; cursor: pointer; }
+.actions-grille { display: flex; flex-direction: row-reverse; gap: 8px; justify-content: flex-start; border-top: 1px solid var(--bordure); padding-top: 14px; }
+.points-grille { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 
 /* Fiche composant : dernière évaluation et courbe des notes (US-11, maquette commune). */
 .note-composant { margin: 0; font-size: 15px; }

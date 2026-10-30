@@ -22,6 +22,7 @@ public sealed class GrillesTests(InfrastructureFixture infrastructure) : Inventa
         Assert.Equal(20, grilles.GetArrayLength());
         Assert.All(grilles.EnumerateArray(), g => Assert.Equal(1, g.GetProperty("version").GetInt32()));
         Assert.False(electricite.GetProperty("adaptee").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, electricite.GetProperty("adapteeLe").ValueKind);
         Assert.Contains("Bouton test du différentiel 30 mA : déclenche", electricite.GetProperty("criteres").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal("°C", electricite.GetProperty("mesures")[0].GetProperty("unite").GetString());
     }
@@ -45,6 +46,10 @@ public sealed class GrillesTests(InfrastructureFixture infrastructure) : Inventa
         Assert.Equal(HttpStatusCode.Conflict, perimee.StatusCode);
         Assert.Equal(2, (await identique.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetInt32()); // rien de neuf
         Assert.True(lue.GetProperty("adaptee").GetBoolean());
+        Assert.NotEqual(JsonValueKind.Null, lue.GetProperty("adapteeLe").ValueKind);
+        Assert.NotEqual(JsonValueKind.Null, lue.GetProperty("auteurCompteId").ValueKind);
+        var parDefaut = await LireAsync($"{Grilles}/Mobilier/default", technicien);
+        Assert.Contains("Pieds stables, patins présents", parDefaut.GetProperty("criteres").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(["Assise intacte", "Pieds stables", "Housse propre"], lue.GetProperty("criteres").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM patrimoine.grilles"));
     }

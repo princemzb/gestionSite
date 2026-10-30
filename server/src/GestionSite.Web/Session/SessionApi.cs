@@ -145,6 +145,13 @@ internal sealed class SessionApi(
         using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
     }
 
+    /// <summary>Remplacement (PUT) dont la réponse est lue, par exemple la version créée d'une grille.</summary>
+    internal async Task<T> ModifierAvecReponseAsync<T>(string chemin, object corps, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Put, chemin, corps, annulation).ConfigureAwait(false);
+        return (await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false))!;
+    }
+
     /// <summary>
     /// Formulaire multipart (partie « demande » en JSON et photos), réponse lue en <typeparamref name="T"/> ou ignorée (204).
     /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.

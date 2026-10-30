@@ -9,7 +9,13 @@ namespace GestionSite.Modules.Patrimoine.Grilles;
 
 internal sealed record MesureLue(string Libelle, string Unite);
 
-internal sealed record GrilleLue(string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureLue> Mesures);
+// Adaptation : date et auteur de la version en vigueur (null pour la grille par défaut ; auteur : nom affiché du membre).
+internal sealed record GrilleLue(
+    string CorpsEtat, int Version, bool Adaptee, IReadOnlyList<string> Criteres, IReadOnlyList<MesureLue> Mesures, DateTimeOffset? AdapteeLe,
+    Guid? AuteurCompteId, string? Auteur);
+
+/// <summary>Contenu par défaut d'une grille, proposé à R/D pour « revenir à la grille par défaut » (nouvelle version).</summary>
+internal sealed record ContenuLu(IReadOnlyList<string> Criteres, IReadOnlyList<MesureLue> Mesures);
 
 /// <summary>Grille utilisée par une évaluation : corps d'état, version, contenu.</summary>
 internal sealed record GrilleCourante(CorpsEtat CorpsEtat, int Version, ContenuGrille Contenu);
@@ -19,19 +25,29 @@ internal sealed record GrilleCourante(CorpsEtat CorpsEtat, int Version, ContenuG
 /// la dernière version enregistrée par R/D du site. Lecture par les comptes internes du site ; une modification crée
 /// une version (PERMISSIONS), refusée si la version lue est dépassée.
 /// </summary>
-internal sealed class ServiceGrilles(PatrimoineDbContext context, IAutorisations autorisations, CompteCourant compte, TimeProvider horloge)
+internal sealed class ServiceGrilles(
+    PatrimoineDbContext context, IAutorisations autorisations, IAnnuaireMembres annuaire, CompteCourant compte, TimeProvider horloge)
 {
     internal async Task<IReadOnlyList<GrilleLue>> ListerAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var adaptees = (await DernieresVersions(siteId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(g => g.CorpsEtat);
-        return [.. GrillesParDefaut.CorpsEtats.Select(c => Lire(Courante(c, adaptees.GetValueOrDefault(c))))];
+        return await LireAsync([.. GrillesParDefaut.CorpsEtats.Select(c => (c, adaptees.GetValueOrDefault(c)))], cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<GrilleLue> LireAsync(Guid organisationId, Guid siteId, string corpsEtat, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
-        return Lire(await CouranteAsync(siteId, Corps(corpsEtat), cancellationToken).ConfigureAwait(false));
+        var corps = Corps(corpsEtat);
+        var adaptee = await DernieresVersions(siteId).FirstOrDefaultAsync(g => g.CorpsEtat == corps, cancellationToken).ConfigureAwait(false);
+        return (await LireAsync([(corps, adaptee)], cancellationToken).ConfigureAwait(false))[0];
+    }
+
+    internal async Task<ContenuLu> ParDefautAsync(Guid organisationId, Guid siteId, string corpsEtat, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        var contenu = GrillesParDefaut.Pour(Corps(corpsEtat));
+        return new ContenuLu(contenu.Criteres, [.. contenu.Mesures.Select(m => new MesureLue(m.Libelle, m.Unite))]);
     }
 
     /// <summary>Nouvelle version à partir de la version lue ; sans changement, rien n'est écrit.</summary>
@@ -78,9 +94,21 @@ internal sealed class ServiceGrilles(PatrimoineDbContext context, IAutorisations
     private static GrilleCourante Courante(CorpsEtat corps, VersionGrille? adaptee) =>
         adaptee is null ? new GrilleCourante(corps, 1, GrillesParDefaut.Pour(corps)) : new GrilleCourante(corps, adaptee.Version, adaptee.Contenu);
 
-    private static GrilleLue Lire(GrilleCourante grille) => new(
-        grille.CorpsEtat.ToString(), grille.Version, grille.Version > 1, grille.Contenu.Criteres,
-        [.. grille.Contenu.Mesures.Select(m => new MesureLue(m.Libelle, m.Unite))]);
+    // Grilles lues avec le nom de l'auteur de chaque adaptation (une seule lecture de l'annuaire).
+    private async Task<IReadOnlyList<GrilleLue>> LireAsync(IReadOnlyList<(CorpsEtat Corps, VersionGrille? Adaptee)> grilles, CancellationToken cancellationToken)
+    {
+        var auteurs = await annuaire.NomsAsync(
+            [.. grilles.Select(g => g.Adaptee?.AuteurCompteId).OfType<Guid>().Distinct()], cancellationToken).ConfigureAwait(false);
+        return [.. grilles.Select(g =>
+        {
+            var courante = Courante(g.Corps, g.Adaptee);
+            var auteur = g.Adaptee?.AuteurCompteId;
+            return new GrilleLue(
+                courante.CorpsEtat.ToString(), courante.Version, courante.Version > 1, courante.Contenu.Criteres,
+                [.. courante.Contenu.Mesures.Select(m => new MesureLue(m.Libelle, m.Unite))], g.Adaptee?.CreeLe, auteur,
+                auteur is { } id ? auteurs.GetValueOrDefault(id) : null);
+        })];
+    }
 
     private static CorpsEtat Corps(string corpsEtat) =>
         NomExact.Essayer<CorpsEtat>(corpsEtat, out var corps) ? corps : throw new ElementIntrouvableException();

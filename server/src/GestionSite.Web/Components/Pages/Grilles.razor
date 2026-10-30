@@ -1,0 +1,341 @@
+@page "/organisations/{OrganisationId:guid}/grilles"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Inventaire
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="grilles" />
+<main class="admin-contenu">
+<PageTitle>Grilles d'évaluation · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Grille is null)
+{
+    <div class="entete"><div><h1>Grilles d'évaluation</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    var g = Grille;
+    <div class="entete">
+        <div>
+            <h1>Grilles d'évaluation · @SiteCourant.Nom</h1>
+            <p>Points que le technicien observe pour choisir un état. Chaque enregistrement crée une version ; les évaluations passées gardent la leur.</p>
+        </div>
+        @if (Sites.Count > 1)
+        {
+            <nav class="onglets" aria-label="Site">
+                @foreach (var site in Sites)
+                {
+                    <a href="@($"/organisations/{OrganisationId}/grilles?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                }
+            </nav>
+        }
+    </div>
+    @if (Enregistree is { } version)
+    {
+        <p role="status" class="alerte succes">Version @version enregistrée : les prochaines évaluations l'utiliseront.</p>
+    }
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <div class="grilles">
+        <section class="carte liste-grilles" aria-label="Corps d'état">
+            @foreach (var grille in Liste)
+            {
+                <a href="@Url(grille.CorpsEtat)" aria-current="@(grille.CorpsEtat == g.CorpsEtat ? "page" : null)">
+                    @Libelles.CorpsEtat(grille.CorpsEtat)
+                    @if (grille.Adaptee)
+                    {
+                        <span class="badge verification">v@(grille.Version) adaptée</span>
+                    }
+                    else
+                    {
+                        <span class="vide">v1</span>
+                    }
+                </a>
+            }
+        </section>
+
+        <section class="carte editeur-grille" aria-label="Grille">
+            <div class="entete-grille">
+                <div>
+                    <h2>@Libelles.CorpsEtat(g.CorpsEtat)</h2>
+                    <span class="note">@Origine(g)</span>
+                </div>
+            </div>
+            @if (PeutModifier)
+            {
+                <EditForm Model="Saisie" FormName="grille" OnSubmit="AgirAsync" class="formulaire-grille">
+                    <input type="hidden" name="Saisie.Version" value="@Saisie.Version" />
+                    <button type="submit" name="Saisie.Action" value="defaut" class="bouton-lien lien-discret revenir-defaut" formnovalidate>Revenir à la grille par défaut</button>
+                    <h3>Points à observer <span class="aide">(1 à 15, 160 caractères chacun)</span></h3>
+                    @for (var i = 0; i < Saisie.Points.Count; i++)
+                    {
+                        var rang = i;
+                        <div class="ligne-grille">
+                            <input name="@($"Saisie.Points[{rang}]")" value="@Saisie.Points[rang]" maxlength="160" aria-label="@($"Point {rang + 1}")" />
+                            <button type="submit" name="Saisie.Action" value="@($"monter:{rang}")" class="bouton-icone" disabled="@(rang == 0)" aria-label="@($"Monter le point {rang + 1}")" formnovalidate>↑</button>
+                            <button type="submit" name="Saisie.Action" value="@($"descendre:{rang}")" class="bouton-icone" disabled="@(rang == Saisie.Points.Count - 1)" aria-label="@($"Descendre le point {rang + 1}")" formnovalidate>↓</button>
+                            <button type="submit" name="Saisie.Action" value="@($"supprimer:{rang}")" class="bouton-icone supprimer" aria-label="@($"Supprimer le point {rang + 1}")" formnovalidate>✕</button>
+                        </div>
+                    }
+                    @if (Saisie.Points.Count < PointsMax)
+                    {
+                        <button type="submit" name="Saisie.Action" value="ajouter" class="bouton-ajout" formnovalidate>+ Ajouter un point</button>
+                    }
+                    <h3>Mesures facultatives <span class="aide">(8 au plus : libellé et unité)</span></h3>
+                    @for (var i = 0; i < Saisie.Libelles.Count; i++)
+                    {
+                        var rang = i;
+                        <div class="ligne-grille">
+                            <input name="@($"Saisie.Libelles[{rang}]")" value="@Saisie.Libelles[rang]" maxlength="80" aria-label="@($"Mesure {rang + 1}")" />
+                            <input name="@($"Saisie.Unites[{rang}]")" value="@Saisie.Unite(rang)" maxlength="16" class="unite" aria-label="@($"Unité de la mesure {rang + 1}")" />
+                            <button type="submit" name="Saisie.Action" value="@($"supprimer-mesure:{rang}")" class="bouton-icone supprimer" aria-label="@($"Supprimer la mesure {rang + 1}")" formnovalidate>✕</button>
+                        </div>
+                    }
+                    @if (Saisie.Libelles.Count < MesuresMax)
+                    {
+                        <button type="submit" name="Saisie.Action" value="ajouter-mesure" class="bouton-ajout" formnovalidate>+ Ajouter une mesure</button>
+                    }
+                    @* Bouton principal en premier dans le code (Entrée enregistre) ; affiché à droite. *@
+                    <div class="actions-grille">
+                        <button type="submit" name="Saisie.Action" value="enregistrer" class="bouton-principal">Enregistrer la version @(Saisie.Version + 1)</button>
+                        <a class="bouton-secondaire bouton-lien" href="@Url(g.CorpsEtat)">Annuler</a>
+                    </div>
+                </EditForm>
+            }
+            else
+            {
+                <h3>Points à observer</h3>
+                <ol class="points-grille">
+                    @foreach (var point in g.Criteres)
+                    {
+                        <li>@point</li>
+                    }
+                </ol>
+                @if (g.Mesures.Count > 0)
+                {
+                    <h3>Mesures facultatives</h3>
+                    <ul class="points-grille">
+                        @foreach (var m in g.Mesures)
+                        {
+                            <li>@m.Libelle (@m.Unite)</li>
+                        }
+                    </ul>
+                }
+                <p class="note">Seuls le responsable et les délégués du site adaptent les grilles.</p>
+            }
+        </section>
+    </div>
+}
+</main>
+
+@code {
+    private const int PointsMax = 15;
+    private const int MesuresMax = 8;
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "corps")] private string? CorpsDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "enregistree")] private int? Enregistree { get; set; }
+
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "grille")] private SaisieGrille? Formulaire { get; set; }
+
+    // Normalisée à chaque lecture : la page est rendue avec la saisie liée avant le traitement de l'envoi.
+    private SaisieGrille Saisie => (Formulaire ??= SaisieGrille.Depuis(Grille!)).Normaliser();
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<GrilleApi> Liste { get; set; } = [];
+
+    private GrilleApi? Grille { get; set; }
+
+    private bool PeutModifier { get; set; }
+
+    private string? Message { get; set; }
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/inventory/grids";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                // Responsable et délégués du site adaptent les grilles (PERMISSIONS) ; l'API reste juge (403 sinon).
+                PeutModifier = Organisation!.Roles.Any(r => r.SiteId == site.Id && r.Role is "Responsable" or "Delegue");
+                Liste = await Session.LireAsync<List<GrilleApi>>(Base, CancellationToken.None);
+                Grille = Liste.FirstOrDefault(g => g.CorpsEtat == CorpsDemande) ?? Liste.FirstOrDefault();
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas les grilles de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    // Monter, descendre, supprimer, ajouter : la page revient avec la saisie modifiée, sans rien enregistrer.
+    private async Task AgirAsync()
+    {
+        var saisie = Saisie;
+        var (action, rang) = Decomposer(saisie.Action);
+        switch (action)
+        {
+            case "monter" when rang > 0 && rang < saisie.Points.Count:
+                (saisie.Points[rang - 1], saisie.Points[rang]) = (saisie.Points[rang], saisie.Points[rang - 1]);
+                return;
+            case "descendre" when rang >= 0 && rang < saisie.Points.Count - 1:
+                (saisie.Points[rang + 1], saisie.Points[rang]) = (saisie.Points[rang], saisie.Points[rang + 1]);
+                return;
+            case "supprimer" when rang >= 0 && rang < saisie.Points.Count:
+                saisie.Points.RemoveAt(rang);
+                return;
+            case "supprimer-mesure" when rang >= 0 && rang < saisie.Libelles.Count:
+                saisie.Libelles.RemoveAt(rang);
+                if (rang < saisie.Unites.Count)
+                {
+                    saisie.Unites.RemoveAt(rang);
+                }
+
+                return;
+            case "ajouter" when saisie.Points.Count < PointsMax:
+                saisie.Points.Add("");
+                return;
+            case "ajouter-mesure" when saisie.Libelles.Count < MesuresMax:
+                saisie.Libelles.Add("");
+                saisie.Unites.Add("");
+                return;
+            case "defaut":
+                await ChargerDefautAsync(saisie);
+                return;
+            case "enregistrer":
+                await EnregistrerAsync(saisie);
+                return;
+            default:
+                return;
+        }
+    }
+
+    private async Task ChargerDefautAsync(SaisieGrille saisie)
+    {
+        try
+        {
+            var defaut = await Session.LireAsync<ContenuGrilleApi>($"{Base}/{Grille!.CorpsEtat}/default", CancellationToken.None);
+            saisie.Points = [.. defaut.Criteres.Select(c => (string?)c)];
+            saisie.Libelles = [.. defaut.Mesures.Select(m => (string?)m.Libelle)];
+            saisie.Unites = [.. defaut.Mesures.Select(m => (string?)m.Unite)];
+            Message = null;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task EnregistrerAsync(SaisieGrille saisie)
+    {
+        VersionCreeeApi creee;
+        try
+        {
+            creee = await Session.ModifierAvecReponseAsync<VersionCreeeApi>($"{Base}/{Grille!.CorpsEtat}", new
+            {
+                criteres = saisie.Points,
+                mesures = saisie.Libelles.Select((libelle, i) => new { libelle, unite = saisie.Unite(i) }),
+                version = saisie.Version,
+            }, CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Code switch
+            {
+                "modifie_entre_temps" => "Quelqu'un vient de modifier cette grille : rechargez la page puis recommencez.",
+                _ => refus.Champ switch
+                {
+                    "criteres" => "Points à observer : de 1 à 15, tous différents, 160 caractères au plus chacun.",
+                    "mesures" => "Mesures : 8 au plus, toutes différentes, chacune avec un libellé (80 caractères) et une unité (16 caractères).",
+                    _ => refus.Statut == HttpStatusCode.Forbidden
+                        ? "Seuls le responsable et les délégués du site adaptent les grilles."
+                        : "Service momentanément indisponible : réessayez dans un instant.",
+                },
+            };
+            return;
+        }
+
+        Navigation.NavigateTo($"{Url(Grille.CorpsEtat)}&enregistree={creee.Version}");
+    }
+
+    private string Url(string corpsEtat) => $"/organisations/{OrganisationId}/grilles?site={SiteCourant?.Id}&corps={corpsEtat}";
+
+    private static (string? Action, int Rang) Decomposer(string? action) =>
+        action?.Split(':') is [var nom, var rang] && int.TryParse(rang, out var valeur) ? (nom, valeur) : (action, -1);
+
+    // « Version 3 · adaptée le 12/10/2026 par Rose R. · par défaut : version 1 ».
+    private static string Origine(GrilleApi g) => g.Adaptee
+        ? $"Version {g.Version} · adaptée le {Perimetre.Date(g.AdapteeLe!.Value)}{(g.Auteur is { } auteur ? $" par {auteur}" : "")} · par défaut : version 1"
+        : "Grille par défaut (version 1), rédigée pour le terrain";
+
+    private sealed class SaisieGrille
+    {
+        public int Version { get; set; }
+
+        public string? Action { get; set; }
+
+        // Listes absentes du formulaire (toutes les lignes supprimées) : laissées nulles par la liaison, lues comme vides.
+        public List<string?> Points { get; set; } = [];
+
+        public List<string?> Libelles { get; set; } = [];
+
+        public List<string?> Unites { get; set; } = [];
+
+        internal string? Unite(int rang) => rang < Unites.Count ? Unites[rang] : null;
+
+        internal SaisieGrille Normaliser()
+        {
+            Points ??= [];
+            Libelles ??= [];
+            Unites ??= [];
+            return this;
+        }
+
+        internal static SaisieGrille Depuis(GrilleApi g) => new()
+        {
+            Version = g.Version,
+            Points = [.. g.Criteres.Select(c => (string?)c)],
+            Libelles = [.. g.Mesures.Select(m => (string?)m.Libelle)],
+            Unites = [.. g.Mesures.Select(m => (string?)m.Unite)],
+        };
+    }
+}
