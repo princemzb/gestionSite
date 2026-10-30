@@ -26,7 +26,7 @@ public sealed class MaintenancePersistenceTests
         using var module = new RuntimeContext();
         var entites = module.Context.Model.GetEntityTypes().ToList();
 
-        Assert.Equal(12, entites.Count); // signalements (dossiers), alertes, photos, journal des dossiers, interventions, photos des interventions, plans, propositions écartées, journal du préventif, occurrences, contrôles, photos des contrôles
+        Assert.Equal(13, entites.Count); // signalements (dossiers), alertes, photos, journal des dossiers, interventions, photos des interventions, plans, propositions écartées, journal du préventif, occurrences, contrôles, photos des contrôles, constats des contrôles
         Assert.All(entites, t => Assert.True(typeof(IAppartientAOrganisation).IsAssignableFrom(t.ClrType)));
         Assert.All(entites, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
         Assert.All(entites, t => Assert.Equal("maintenance", t.GetSchema()));
