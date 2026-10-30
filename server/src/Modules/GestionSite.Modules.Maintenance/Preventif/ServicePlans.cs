@@ -12,8 +12,17 @@ namespace GestionSite.Modules.Maintenance.Preventif;
 
 internal sealed record IntervenantLu(Guid? CompteId, string? Nom, string? Prestataire, Guid? ReferentCompteId, string? Referent);
 
-/// <summary>Échéance courante d'un plan : date, ouverture de la fenêtre « À faire », position et statut enregistré éventuel.</summary>
-internal sealed record EcheanceLue(DateOnly Echeance, DateOnly OuvertureFenetre, string Etat, string? Statut);
+/// <summary>
+/// Échéance courante d'un plan : date, ouverture de la fenêtre « À faire », position ; matérialisée (affectée), son
+/// occurrence, son intervenant et sa version (0 sinon, valeur attendue par l'affectation).
+/// </summary>
+internal sealed record EcheanceLue(
+    DateOnly Echeance, DateOnly OuvertureFenetre, string Etat, string? Statut, Guid? OccurrenceId = null, IntervenantLu? Intervenant = null, uint Version = 0);
+
+/// <summary>Occurrence matérialisée d'un plan (affectée, réalisée ou sautée), la plus récente d'abord.</summary>
+internal sealed record OccurrenceLue(
+    Guid Id, DateOnly Echeance, string Statut, IntervenantLu? Intervenant, DateTimeOffset? AffecteeLe, DateOnly? RealiseeLe, DateOnly? SauteeLe,
+    string? MotifSaut, string? CommentaireSaut, Guid? ControleId, uint Version);
 
 internal sealed record PlanLu(
     Guid Id, string Libelle, string Nature, string Base, string? Reference, string? Modele, string? PropositionCle, string? TypeIntervenant, CibleLue Cible,
@@ -22,7 +31,7 @@ internal sealed record PlanLu(
 
 internal sealed record EvenementPlanLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
-internal sealed record FichePlan(PlanLu Plan, IReadOnlyList<EvenementPlanLu> Historique);
+internal sealed record FichePlan(PlanLu Plan, IReadOnlyList<OccurrenceLue> Occurrences, IReadOnlyList<EvenementPlanLu> Historique);
 
 /// <summary>Plan absent du site (404).</summary>
 internal sealed class PlanIntrouvableException() : Exception("Plan introuvable sur ce site.");
@@ -66,8 +75,34 @@ internal sealed class ServicePlans(
         var auteurs = await annuaire.NomsAsync([.. journal.Where(e => e.AuteurCompteId is not null).Select(e => e.AuteurCompteId!.Value).Distinct()], cancellationToken)
             .ConfigureAwait(false);
         var plan = (await LireAsync(siteId, [(lu.Plan, lu.Version)], cancellationToken).ConfigureAwait(false)).Single();
-        return new FichePlan(plan, [.. journal.Select(e => new EvenementPlanLu(
-            e.Le, e.Nature.ToString(), e.AuteurCompteId, e.AuteurCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, Json(e.Detail)))]);
+        var occurrences = await OccurrencesAsync([id], cancellationToken).ConfigureAwait(false);
+        var noms = await NomsAsync(occurrences.Select(o => (o.Occurrence.IntervenantCompteId, o.Occurrence.ReferentCompteId)), cancellationToken).ConfigureAwait(false);
+        return new FichePlan(
+            plan,
+            [.. occurrences.OrderByDescending(o => o.Occurrence.Echeance).Select(l =>
+            {
+                var o = l.Occurrence;
+                return new OccurrenceLue(
+                    o.Id, o.Echeance, o.Statut.ToString(), Intervenant(o.IntervenantCompteId, o.Prestataire, o.ReferentCompteId, noms), o.AffecteeLe, o.RealiseeLe,
+                    o.SauteeLe, o.MotifSaut?.ToString(), o.CommentaireSaut, o.ControleId, l.Version);
+            })],
+            [.. journal.Select(e => new EvenementPlanLu(
+                e.Le, e.Nature.ToString(), e.AuteurCompteId, e.AuteurCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, Json(e.Detail)))]);
+    }
+
+    /// <summary>Échéances affectées à l'appelant (technicien, ou référent d'un prestataire), par échéance.</summary>
+    internal async Task<IReadOnlyList<PlanLu>> MesControlesAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
+        var moi = compte.Id;
+        // Seuls les plans dont une occurrence ouverte est confiée à l'appelant sont relus.
+        var plans = await context.Plans.AsNoTracking()
+            .Where(p => p.SiteId == siteId && context.Occurrences.Any(o => o.PlanId == p.Id && o.Statut == StatutOccurrence.Affectee
+                && (o.IntervenantCompteId == moi || o.ReferentCompteId == moi)))
+            .Select(p => new { Plan = p, Version = EF.Property<uint>(p, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return [.. (await LireAsync(siteId, [.. plans.Select(p => (p.Plan, p.Version))], cancellationToken).ConfigureAwait(false))
+            .Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == moi || i.ReferentCompteId == moi))
+            .OrderBy(p => p.Prochaine!.Echeance).ThenBy(p => p.Libelle, StringComparer.Ordinal)];
     }
 
     /// <summary>Plan saisi par R/D ; même commande rejouée : même plan.</summary>
@@ -372,8 +407,10 @@ internal sealed class ServicePlans(
             .ConfigureAwait(false)).ToDictionary(c => c.Id);
         var zones = await inventaire.ZonesAsync(siteId, [.. plans.Select(p => p.Plan.ZoneId).Distinct()], cancellationToken).ConfigureAwait(false);
         var batiments = (await inventaire.EtablissementAsync(siteId, cancellationToken).ConfigureAwait(false)).Batiments.ToDictionary(b => b.Id, b => b.Nom);
-        var noms = await annuaire.NomsAsync(
-            [.. plans.SelectMany(p => new[] { p.Plan.IntervenantCompteId, p.Plan.ReferentCompteId }).Where(c => c is not null).Select(c => c!.Value).Distinct()],
+        var occurrences = (await OccurrencesAsync([.. plans.Select(p => p.Plan.Id)], cancellationToken).ConfigureAwait(false)).ToLookup(o => o.Occurrence.PlanId);
+        var noms = await NomsAsync(
+            plans.Select(p => (p.Plan.IntervenantCompteId, p.Plan.ReferentCompteId))
+                .Concat(occurrences.SelectMany(g => g).Select(o => (o.Occurrence.IntervenantCompteId, o.Occurrence.ReferentCompteId))),
             cancellationToken).ConfigureAwait(false);
         var aujourdhui = JourCivil.Du(horloge.GetUtcNow());
         return [.. plans.Select(l =>
@@ -399,27 +436,43 @@ internal sealed class ServicePlans(
                 new CibleLue(
                     p.Cible.ToString(), composant?.BatimentId ?? p.BatimentId, composant?.ZoneId ?? p.ZoneId, p.ComposantId, composant?.CorpsEtat ?? p.CorpsEtat,
                     libelle),
-                p.IntervenantCompteId is null && p.Prestataire is null
-                    ? null
-                    : new IntervenantLu(p.IntervenantCompteId, p.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, p.Prestataire, p.ReferentCompteId,
-                        p.ReferentCompteId is { } r ? noms.GetValueOrDefault(r) : null),
+                Intervenant(p.IntervenantCompteId, p.Prestataire, p.ReferentCompteId, noms),
                 p.DonneurOrdre?.ToString(), p.Periode is { } periode ? new PeriodeLue(periode.Valeur, periode.Unite.ToString()) : null, p.Mode.ToString(),
                 p.PremiereEcheance, suspendu, p.MotifSuspension ?? automatique, automatique is not null && !p.Suspendu,
-                suspendu ? null : Prochaine(p, [], aujourdhui), l.Version);
+                suspendu ? null : Prochaine(p, [.. occurrences[p.Id]], noms, aujourdhui), l.Version);
         })];
     }
 
-    private static EcheanceLue? Prochaine(PlanPreventif plan, IReadOnlyCollection<OccurrenceConnue> occurrences, DateOnly aujourdhui)
+    // Occurrences matérialisées des plans, avec leur version (xmin) : l'échéance courante en dépend.
+    private async Task<List<(OccurrencePreventive Occurrence, uint Version)>> OccurrencesAsync(IReadOnlyCollection<Guid> planIds, CancellationToken cancellationToken) =>
+        [.. (await context.Occurrences.AsNoTracking().Where(o => planIds.Contains(o.PlanId))
+            .Select(o => new { Occurrence = o, Version = EF.Property<uint>(o, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Select(o => (o.Occurrence, o.Version))];
+
+    private Task<IReadOnlyDictionary<Guid, string>> NomsAsync(IEnumerable<(Guid? Intervenant, Guid? Referent)> comptes, CancellationToken cancellationToken) =>
+        annuaire.NomsAsync([.. comptes.SelectMany(c => new[] { c.Intervenant, c.Referent }).Where(c => c is not null).Select(c => c!.Value).Distinct()], cancellationToken);
+
+    private static IntervenantLu? Intervenant(Guid? compteId, string? prestataire, Guid? referentId, IReadOnlyDictionary<Guid, string> noms) =>
+        compteId is null && prestataire is null
+            ? null
+            : new IntervenantLu(compteId, compteId is { } i ? noms.GetValueOrDefault(i) : null, prestataire, referentId, referentId is { } r ? noms.GetValueOrDefault(r) : null);
+
+    private static EcheanceLue? Prochaine(
+        PlanPreventif plan, IReadOnlyList<(OccurrencePreventive Occurrence, uint Version)> occurrences, IReadOnlyDictionary<Guid, string> noms, DateOnly aujourdhui)
     {
-        if (Echeancier.Prochaine(plan.Calendrier, occurrences) is not { } echeance)
+        if (Echeancier.Prochaine(plan.Calendrier, [.. occurrences.Select(o => o.Occurrence.Connue)]) is not { } echeance)
         {
             return null;
         }
 
         var fenetre = Echeancier.Fenetre(plan.Periode, echeance);
-        var materialisee = occurrences.FirstOrDefault(o => o.Echeance == echeance);
-        return new EcheanceLue(echeance, echeance.AddDays(-fenetre), Echeancier.Etat(echeance, fenetre, aujourdhui).ToString(), materialisee?.Statut.ToString());
+        var etat = Echeancier.Etat(echeance, fenetre, aujourdhui).ToString();
+        return occurrences.FirstOrDefault(o => o.Occurrence.Echeance == echeance) is { Occurrence: { } materialisee } lue
+            ? new EcheanceLue(echeance, echeance.AddDays(-fenetre), etat, materialisee.Statut.ToString(), materialisee.Id,
+                Intervenant(materialisee.IntervenantCompteId, materialisee.Prestataire, materialisee.ReferentCompteId, noms), lue.Version)
+            : new EcheanceLue(echeance, echeance.AddDays(-fenetre), etat, null);
     }
+
 
     private static JsonElement? Json(string? json)
     {

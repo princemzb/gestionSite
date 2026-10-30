@@ -6,8 +6,15 @@ namespace GestionSite.Modules.Maintenance.Persistence;
 /// <summary>Modèle du préventif (US-12) : plans, propositions écartées et journal des plans.</summary>
 internal sealed partial class MaintenanceDbContext
 {
+    public DbSet<OccurrencePreventive> Occurrences => Set<OccurrencePreventive>();
+
+    public DbSet<ControlePreventif> Controles => Set<ControlePreventif>();
+
+    public DbSet<PhotoControle> PhotosControles => Set<PhotoControle>();
+
     private static void ConfigurerPreventif(ModelBuilder modelBuilder)
     {
+        ConfigurerExecution(modelBuilder);
         modelBuilder.Entity<PlanPreventif>(plan =>
         {
             plan.ToTable("plans_preventifs", table =>
@@ -34,7 +41,7 @@ internal sealed partial class MaintenanceDbContext
             plan.Property(p => p.Mode).HasConversion<string>().HasMaxLength(16);
             plan.Property(p => p.MotifSuspension).HasMaxLength(Signalement.CommentaireMax);
             plan.Property<uint>("xmin").IsRowVersion();
-            plan.HasAlternateKey(p => new { p.Id, p.OrganisationId });
+            plan.HasAlternateKey(p => new { p.Id, p.OrganisationId }).HasName("ak_plans_preventifs_id_organisation_id");
             plan.HasIndex(p => new { p.OrganisationId, p.CommandeId }).IsUnique().HasDatabaseName(PlanPreventif.ContrainteCommande);
             // Une proposition confirmée ne donne qu'un plan, même confirmée deux fois en parallèle.
             plan.HasIndex(p => new { p.OrganisationId, p.SiteId, p.PropositionCle }).IsUnique().HasFilter("proposition_cle IS NOT NULL")
@@ -64,6 +71,77 @@ internal sealed partial class MaintenanceDbContext
             evenement.HasOne<PlanPreventif>().WithMany()
                 .HasForeignKey(e => new { e.PlanId, e.OrganisationId })
                 .HasPrincipalKey(p => new { p.Id, p.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    // Exécution (S12-03) : occurrences matérialisées, contrôles réalisés et leurs photos.
+    private static void ConfigurerExecution(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OccurrencePreventive>(occurrence =>
+        {
+            occurrence.ToTable("occurrences_preventives", table =>
+            {
+                table.HasCheckConstraint(
+                    "ck_occurrences_preventives_statut",
+                    "(statut = 'Affectee' AND (intervenant_compte_id IS NOT NULL OR prestataire IS NOT NULL)) " +
+                    "OR (statut = 'Sautee' AND sautee_le IS NOT NULL AND motif_saut IS NOT NULL) " +
+                    "OR (statut IN ('Realisee', 'RealiseeAvecReserves') AND realisee_le IS NOT NULL AND controle_id IS NOT NULL)");
+                table.HasCheckConstraint("ck_occurrences_preventives_prestataire", "(prestataire IS NULL) = (referent_compte_id IS NULL)");
+            });
+            occurrence.HasKey(o => o.Id);
+            occurrence.Property(o => o.Id).ValueGeneratedNever();
+            occurrence.Property(o => o.Statut).HasConversion<string>().HasMaxLength(24);
+            occurrence.Property(o => o.Prestataire).HasMaxLength(Intervention.PrestataireMax);
+            occurrence.Property(o => o.MotifSaut).HasConversion<string>().HasMaxLength(16);
+            occurrence.Property(o => o.CommentaireSaut).HasMaxLength(Signalement.CommentaireMax);
+            occurrence.Property<uint>("xmin").IsRowVersion();
+            occurrence.HasAlternateKey(o => new { o.Id, o.OrganisationId });
+            // Une occurrence par plan et échéance prévue : un rejeu ou deux saisies simultanées n'en créent jamais deux.
+            occurrence.HasIndex(o => new { o.OrganisationId, o.PlanId, o.Echeance }).IsUnique().HasDatabaseName(OccurrencePreventive.ContrainteEcheance);
+            occurrence.HasIndex(o => new { o.OrganisationId, o.SiteId, o.Statut });
+            occurrence.HasOne<PlanPreventif>().WithMany()
+                .HasForeignKey(o => new { o.PlanId, o.OrganisationId })
+                .HasPrincipalKey(p => new { p.Id, p.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ControlePreventif>(controle =>
+        {
+            controle.ToTable("controles_preventifs", table =>
+                table.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)"));
+            controle.HasKey(c => c.Id);
+            controle.Property(c => c.Id).ValueGeneratedNever();
+            controle.Property(c => c.Nature).HasConversion<string>().HasMaxLength(24);
+            controle.Property(c => c.CorpsEtat).HasMaxLength(32);
+            controle.Property(c => c.Prestataire).HasMaxLength(Intervention.PrestataireMax);
+            controle.Property(c => c.NumeroAgrement).HasMaxLength(ControlePreventif.AgrementMax);
+            controle.Property(c => c.Resultat).HasConversion<string>().HasMaxLength(24);
+            controle.Property(c => c.CompteRendu).HasMaxLength(ControlePreventif.CompteRenduMax);
+            controle.Property(c => c.Points).HasColumnType("jsonb");
+            controle.Property(c => c.Mesures).HasColumnType("jsonb");
+            controle.Property(c => c.Note).HasPrecision(3, 1);
+            controle.Property(c => c.LibelleNote).HasMaxLength(16);
+            controle.HasAlternateKey(c => new { c.Id, c.OrganisationId });
+            controle.HasIndex(c => new { c.OrganisationId, c.CommandeId }).IsUnique().HasDatabaseName(ControlePreventif.ContrainteCommande);
+            controle.HasIndex(c => new { c.OrganisationId, c.OccurrenceId }).IsUnique();
+            controle.HasIndex(c => new { c.OrganisationId, c.SiteId, c.RealiseLe });
+            controle.HasOne<OccurrencePreventive>().WithMany()
+                .HasForeignKey(c => new { c.OccurrenceId, c.OrganisationId })
+                .HasPrincipalKey(o => new { o.Id, o.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PhotoControle>(photo =>
+        {
+            photo.ToTable("photos_controles", table => table.HasCheckConstraint("ck_photos_controles_rang", "rang BETWEEN 1 AND 3"));
+            photo.HasKey(p => p.Id);
+            photo.Property(p => p.Id).ValueGeneratedNever();
+            photo.Property(p => p.Cle).HasMaxLength(PhotoControle.CleMax);
+            photo.HasIndex(p => new { p.ControleId, p.OrganisationId, p.Rang }).IsUnique();
+            photo.HasOne<ControlePreventif>().WithMany()
+                .HasForeignKey(p => new { p.ControleId, p.OrganisationId })
+                .HasPrincipalKey(c => new { c.Id, c.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

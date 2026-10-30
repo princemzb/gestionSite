@@ -47,9 +47,19 @@ internal sealed class ServiceEvaluations(
             commandeId, demande.GrilleVersion, demande.Constats, demande.Mesures,
             string.IsNullOrWhiteSpace(demande.Etat) ? null : SaisieComposant.Valeur<EtatComposant>(demande.Etat, "etat"),
             SaisieComposant.Repartition(demande.Repartition), demande.Remarque, photos.Count);
+        return Resultat(await EnregistrerAsync(siteId, composant, saisie, photos, evaluateur, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Évaluation contrôlée puis enregistrée pour un composant du site (accès déjà vérifié par l'appelant : API d'US-11 ou
+    /// inspection d'US-12) ; un rejeu de la même commande rend l'évaluation déjà enregistrée.
+    /// </summary>
+    internal async Task<Evaluation> EnregistrerAsync(
+        Guid siteId, Composant composant, SaisieEvaluation saisie, IReadOnlyList<PhotoRecue> photos, Guid evaluateur, CancellationToken cancellationToken)
+    {
         if (await DejaEvalueeAsync(evaluateur, composant.Id, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
-            return Resultat(deja); // rejeu reconnu avant les contrôles : une grille modifiée depuis l'envoi ne le refuse pas
+            return deja; // rejeu reconnu avant les contrôles : une grille modifiée depuis l'envoi ne le refuse pas
         }
 
         // 1. Contrôles complets (grille en vigueur, saisie, photo exigée) avant tout décodage d'image.
@@ -100,10 +110,10 @@ internal sealed class ServiceEvaluations(
                 throw;
             }
 
-            return Resultat(enregistree);
+            return enregistree;
         }
 
-        return Resultat(evaluation);
+        return evaluation;
     }
 
     /// <summary>Évaluations du composant, la plus récente d'abord (retiré compris).</summary>

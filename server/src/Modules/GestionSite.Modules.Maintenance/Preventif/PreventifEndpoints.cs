@@ -1,6 +1,8 @@
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Dossiers;
+using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -65,6 +67,39 @@ internal static class PreventifEndpoints
             await service.ReprendreAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false);
             return Results.NoContent();
         });
+        return endpoints.MapExecution(preventif);
+    }
+
+    // Exécution des occurrences (S12-03) : affectation, saut, réalisation, contrôles et leurs photos.
+    private static IEndpointRouteBuilder MapExecution(this IEndpointRouteBuilder endpoints, RouteGroupBuilder preventif)
+    {
+        preventif.MapGet("/mine", async (Guid orgId, Guid siteId, ServicePlans service, CancellationToken ct) =>
+            Results.Ok(await service.MesControlesAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        preventif.MapPost("/plans/{id:guid}/assign", async (
+            Guid orgId, Guid siteId, Guid id, DemandeAffectationControle demande, ServiceOccurrences service, CancellationToken ct) =>
+        {
+            await service.AffecterAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        preventif.MapPost("/plans/{id:guid}/skip", async (Guid orgId, Guid siteId, Guid id, DemandeSaut demande, ServiceOccurrences service, CancellationToken ct) =>
+        {
+            await service.SauterAsync(orgId, siteId, id, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        preventif.MapPost("/plans/{id:guid}/perform", async (Guid orgId, Guid siteId, Guid id, HttpRequest requete, ServiceOccurrences service, CancellationToken ct) =>
+            Results.Ok(await service.RealiserAsync(orgId, siteId, id, () => FormulaireAvecPhotos.LireAsync<DemandeRealisation>(requete, ct), ct)
+                .ConfigureAwait(false)))
+            .AvecPhotos();
+        preventif.MapGet("/controls", async (
+            Guid orgId, Guid siteId, Guid? planId, Guid? composantId, Guid? batimentId, ServiceOccurrences service, CancellationToken ct) =>
+            Results.Ok(await service.ListerAsync(orgId, siteId, planId, composantId, batimentId, ct).ConfigureAwait(false)));
+        preventif.MapGet("/controls/{id:guid}", async (Guid orgId, Guid siteId, Guid id, ServiceOccurrences service, CancellationToken ct) =>
+            Results.Ok(await service.LireAsync(orgId, siteId, id, ct).ConfigureAwait(false)));
+        preventif.MapGet("/controls/{id:guid}/photos/{rang:int}", async (
+            Guid orgId, Guid siteId, Guid id, int rang, ServiceOccurrences service, CancellationToken ct) =>
+            await service.PhotoAsync(orgId, siteId, id, rang, ct).ConfigureAwait(false) is { } photo
+                ? Results.File(photo, TraitementPhotos.TypeContenu)
+                : Results.NotFound());
         return endpoints;
     }
 
@@ -75,9 +110,21 @@ internal static class PreventifEndpoints
         {
             return await next(context).ConfigureAwait(false);
         }
-        catch (PlanIntrouvableException)
+        catch (Exception introuvable) when (introuvable is PlanIntrouvableException or ControleIntrouvableException)
         {
             return Results.NotFound();
+        }
+        catch (EcheanceInattendueException)
+        {
+            return RefusCommuns.SaisieInvalide("echeance");
+        }
+        catch (GrilleControleModifieeException modifiee)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, modifiee.Message, "grille_modifiee");
+        }
+        catch (RefusInventaireException refus)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, refus.Message, refus.Code);
         }
         catch (PlanModifieException modifie)
         {

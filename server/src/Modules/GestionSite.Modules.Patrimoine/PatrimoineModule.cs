@@ -20,7 +20,7 @@ public static class PatrimoineModule
 {
     public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
         services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
-            .AddScoped<IInventaireSite, InventaireSite>()
+            .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()
             .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>()
             .AddScoped<ServiceEtablissement>();
 
