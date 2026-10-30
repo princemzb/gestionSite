@@ -123,6 +123,7 @@ Cadrage complet : docs/pilotage/cadrage/US-21.md (règles RP-21.1 à RP-21.8, so
 - Documents : import d'images (JPEG, PNG, HEIC) et de PDF (une page choisie) dès la V1, plus le plan vierge sur grille métrique ; pas de DXF ni DWG (export PDF à l'échelle demandé).
 - Objets de valeur (trésor, objets de culte, coffre) : jamais placés sur le plan ; ils restent dans l'inventaire sans marqueur.
 - Recette de l'éditeur : le porteur fournit un croquis coté ou un plan d'un site pilote avant S21-07, utilisé en préproduction seulement, jamais dans le dépôt.
+- Maquettes (S21-06, choix du porteur du 30/10) : éditeur « Atelier » (A : outils à gauche, plan au centre, propriétés de la pièce à droite, sélecteur de niveau) pour l'usage courant, et parcours guidé (C : fond, échelle avec cote de contrôle, pièces zone par zone, composants) pour créer un nouveau plan ; ordinateur et tablette ; B écartée.
 Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtiment sans niveau), géométrie en mètres dans un repère par bâtiment, calibration obligatoire pour un plan importé ; pièces liées aux zones d'US-07 ; chaque enregistrement crée une version immuable, conflit à la version lue (409) ; « plan de bâtiment » partout pour ne pas confondre avec les plans préventifs d'US-12.
 
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
