@@ -31,7 +31,7 @@ internal sealed class ServiceGrilles(
     internal async Task<IReadOnlyList<GrilleLue>> ListerAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
-        var adaptees = (await DernieresVersions(siteId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(g => g.CorpsEtat);
+        var adaptees = (await GrillesEnVigueur.DernieresVersions(context, siteId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(g => g.CorpsEtat);
         return await LireAsync([.. GrillesParDefaut.CorpsEtats.Select(c => (c, adaptees.GetValueOrDefault(c)))], cancellationToken).ConfigureAwait(false);
     }
 
@@ -39,7 +39,7 @@ internal sealed class ServiceGrilles(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var corps = Corps(corpsEtat);
-        return (await LireAsync([(corps, await AdapteeAsync(siteId, corps, cancellationToken).ConfigureAwait(false))], cancellationToken)
+        return (await LireAsync([(corps, await GrillesEnVigueur.AdapteeAsync(context, siteId, corps, cancellationToken).ConfigureAwait(false))], cancellationToken)
             .ConfigureAwait(false))[0];
     }
 
@@ -79,23 +79,8 @@ internal sealed class ServiceGrilles(
     /// Grille en vigueur sur un site pour un corps d'état. L'appelant a vérifié l'accès au site, ce qui fixe
     /// l'organisation courante ; sans elle, l'appel échoue au lieu de rendre la grille par défaut.
     /// </summary>
-    internal async Task<GrilleCourante> CouranteAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
-        Courante(corps, await AdapteeAsync(siteId, corps, cancellationToken).ConfigureAwait(false));
-
-    // Dernière version adaptée sur le site pour un corps d'état, ou null (grille par défaut) ; organisation exigée.
-    private async Task<VersionGrille?> AdapteeAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken)
-    {
-        _ = context.OrganisationRequise;
-        return await DernieresVersions(siteId).FirstOrDefaultAsync(g => g.CorpsEtat == corps, cancellationToken).ConfigureAwait(false);
-    }
-
-    // Dernière version de chaque corps d'état adapté sur le site, calculée en base (index ix_grilles_version).
-    private IQueryable<VersionGrille> DernieresVersions(Guid siteId) =>
-        context.Grilles.AsNoTracking().Where(g => g.SiteId == siteId
-            && !context.Grilles.Any(suivante => suivante.SiteId == siteId && suivante.CorpsEtat == g.CorpsEtat && suivante.Version > g.Version));
-
-    private static GrilleCourante Courante(CorpsEtat corps, VersionGrille? adaptee) =>
-        adaptee is null ? new GrilleCourante(corps, 1, GrillesParDefaut.Pour(corps)) : new GrilleCourante(corps, adaptee.Version, adaptee.Contenu);
+    internal Task<GrilleCourante> CouranteAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
+        GrillesEnVigueur.CouranteAsync(context, siteId, corps, cancellationToken);
 
     // Grilles lues avec le nom de l'auteur de chaque adaptation (une seule lecture de l'annuaire).
     private async Task<IReadOnlyList<GrilleLue>> LireAsync(IReadOnlyList<(CorpsEtat Corps, VersionGrille? Adaptee)> grilles, CancellationToken cancellationToken)
@@ -104,7 +89,7 @@ internal sealed class ServiceGrilles(
             [.. grilles.Select(g => g.Adaptee?.AuteurCompteId).OfType<Guid>().Distinct()], cancellationToken).ConfigureAwait(false);
         return [.. grilles.Select(g =>
         {
-            var courante = Courante(g.Corps, g.Adaptee);
+            var courante = GrillesEnVigueur.Courante(g.Corps, g.Adaptee);
             var auteur = g.Adaptee?.AuteurCompteId;
             return new GrilleLue(
                 courante.CorpsEtat.ToString(), courante.Version, courante.Version > 1, courante.Contenu.Criteres,
