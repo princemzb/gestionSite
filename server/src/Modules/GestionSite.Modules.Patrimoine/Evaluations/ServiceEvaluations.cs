@@ -52,7 +52,8 @@ internal sealed class ServiceEvaluations(
 
     /// <summary>
     /// Évaluation contrôlée puis enregistrée pour un composant du site (accès déjà vérifié par l'appelant : API d'US-11 ou
-    /// inspection d'US-12) ; un rejeu de la même commande rend l'évaluation déjà enregistrée.
+    /// inspection d'US-12) ; un rejeu de la même commande rend l'évaluation déjà enregistrée. Datée de l'observation quand
+    /// elle est connue (inspection saisie après coup, <see cref="SaisieEvaluation.ObserveLe"/>), sinon de l'heure du serveur.
     /// </summary>
     internal async Task<Evaluation> EnregistrerAsync(
         Guid siteId, Composant composant, SaisieEvaluation saisie, IReadOnlyList<PhotoRecue> photos, Guid evaluateur, CancellationToken cancellationToken)
@@ -66,7 +67,7 @@ internal sealed class ServiceEvaluations(
         var courante = await grilles.CouranteAsync(siteId, composant.CorpsEtat, cancellationToken).ConfigureAwait(false);
         var grille = new GrilleEvaluee(courante.Version, courante.Contenu.Criteres, courante.Contenu.Mesures);
         var maintenant = horloge.GetUtcNow();
-        var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, maintenant);
+        var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, saisie.ObserveLe ?? maintenant);
 
         // 2. Photos préparées puis écrites avant l'enregistrement, sous des clés propres à cette évaluation ; retirées si
         //    l'enregistrement n'aboutit pas (conflit, envoi concurrent perdant).
@@ -79,7 +80,9 @@ internal sealed class ServiceEvaluations(
 
         // 3. Lot : répartition de l'inventaire reprise de l'évaluation, toujours à la version lue du composant (xmin), même
         //    inchangée : une évaluation ou une modification concurrente du lot est refusée (409) au lieu d'être écrasée.
-        if (evaluation.Repartition is { } repartition)
+        //    Une observation antérieure (inspection saisie après coup) ne réécrit pas un lot évalué ou modifié depuis.
+        if (evaluation.Repartition is { } repartition && (saisie.ObserveLe is not { } observe || !await PlusRecentAsync(siteId, composant.Id, observe, cancellationToken)
+            .ConfigureAwait(false)))
         {
             var avant = SaisieComposant.Releve(composant.Lot?.Repartition);
             composant.Repartir(repartition);
@@ -115,6 +118,12 @@ internal sealed class ServiceEvaluations(
 
         return evaluation;
     }
+
+    // Évaluation ou changement de l'inventaire (création, modification, évaluation) du composant postérieur à l'observation.
+    private async Task<bool> PlusRecentAsync(Guid siteId, Guid composantId, DateTimeOffset observe, CancellationToken cancellationToken) =>
+        await context.Evaluations.AnyAsync(e => e.SiteId == siteId && e.ComposantId == composantId && e.EvalueLe > observe, cancellationToken).ConfigureAwait(false)
+        || await context.Journal.AnyAsync(e => e.SiteId == siteId && e.Cible == CibleInventaire.Composant && e.CibleId == composantId && e.Le > observe, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>Évaluations du composant, la plus récente d'abord (retiré compris).</summary>
     internal async Task<IReadOnlyList<EvaluationLue>> ListerAsync(Guid organisationId, Guid siteId, Guid composantId, CancellationToken cancellationToken)
