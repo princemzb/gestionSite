@@ -36,6 +36,24 @@ public sealed class PhotosStockeesTests
     }
 
     [Fact]
+    public async Task FilesOfAnUploadAlreadySavedOrUncertainAreKept()
+    {
+        var stockage = new StockageMemoire();
+
+        await using (await EcrireAsync(stockage, enregistrees: true))
+        {
+        }
+
+        await using (await PhotosStockees.EcrireAsync(
+            stockage, [[9]], (rang, _) => $"doute-{rang}", photo => photo, _ => throw new TimeoutException("base injoignable"), CancellationToken.None))
+        {
+        }
+
+        Assert.Equal(["doute-1", "photo-1", "photo-2"], stockage.Fichiers.Keys.Order());
+        Assert.Empty(stockage.Suppressions);
+    }
+
+    [Fact]
     public async Task APartialWriteIsRemovedBeforeTheErrorAndAFailedDeleteNeverHidesIt()
     {
         var stockage = new StockageMemoire { EchecEcriture = "photo-2", EchecSuppression = "photo-2" };
@@ -47,8 +65,8 @@ public sealed class PhotosStockeesTests
         Assert.Equal(["photo-1", "photo-2"], stockage.Suppressions.Order());
     }
 
-    private static Task<EnvoiPhotos<string>> EcrireAsync(StockageMemoire stockage) =>
-        PhotosStockees.EcrireAsync(stockage, DeuxPhotos, (rang, _) => $"photo-{rang}", photo => photo, CancellationToken.None);
+    private static Task<EnvoiPhotos<string>> EcrireAsync(StockageMemoire stockage, bool enregistrees = false) =>
+        PhotosStockees.EcrireAsync(stockage, DeuxPhotos, (rang, _) => $"photo-{rang}", photo => photo, _ => Task.FromResult(enregistrees), CancellationToken.None);
 
     private sealed class StockageMemoire : IStockageFichiers
     {
@@ -60,15 +78,16 @@ public sealed class PhotosStockeesTests
 
         internal string? EchecSuppression { get; init; }
 
-        public Task EcrireAsync(string cle, byte[] contenu, string typeContenu, CancellationToken cancellationToken)
+        // Échec rendu comme une tâche en erreur, comme un envoi S3 refusé pendant que les autres aboutissent.
+        public async Task EcrireAsync(string cle, byte[] contenu, string typeContenu, CancellationToken cancellationToken)
         {
+            await Task.Yield();
             if (cle == EchecEcriture)
             {
                 throw new IOException("écriture refusée");
             }
 
             Fichiers[cle] = contenu;
-            return Task.CompletedTask;
         }
 
         public Task<(byte[] Contenu, string TypeContenu)?> LireAsync(string cle, CancellationToken cancellationToken) =>

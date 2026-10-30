@@ -70,7 +70,8 @@ internal sealed class ServiceDepotPublic(
         // la base, envoi concurrent perdant), jamais les photos d'un autre signalement remplacées.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         await using var envoi = await PhotosStockees.EcrireAsync(
-            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpeg.Length), p => p.Cle, cancellationToken)
+            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpeg.Length), p => p.Cle,
+            photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id); }, cancellationToken)
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
 

@@ -161,7 +161,7 @@ internal sealed class ServiceInterventions(
         var maintenant = horloge.GetUtcNow();
         await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoIntervention(Guid.CreateVersion7(maintenant), interventionLue, rang, jpeg.Length, maintenant), p => p.Cle,
-            cancellationToken).ConfigureAwait(false);
+            photos => { var id = photos[0].Id; return context.PhotosIntervention.AsNoTracking().AnyAsync(p => p.Id == id); }, cancellationToken).ConfigureAwait(false);
         var enregistrees = envoi.Photos;
 
         // 3. Écriture sous verrou, à la version lue : statut et version revérifiés.

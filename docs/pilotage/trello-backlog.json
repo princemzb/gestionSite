@@ -2236,7 +2236,7 @@
         "Les photos écrites avant l'enregistrement (dépôt public, déclaration, clôture, évaluation) sont retirées si l'enregistrement n'aboutit pas : échec de la base, envoi concurrent perdant, rejeu, écriture partielle.",
         "Un échec de suppression ne masque jamais l'erreur d'origine ; tests unitaires du mécanisme."
       ],
-      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description.",
+      "note": "Créée par l'agent dans Trello (SP-005) ; Trello fait foi pour la description.",
       "trelloId": "6ae42995e74a63b8bc057dd2",
       "trelloShortLink": "bTsAhX4b"
     },
