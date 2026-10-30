@@ -55,7 +55,8 @@ internal sealed record IntervenantPlan(Guid? CompteId, string? Prestataire, Guid
 /// </summary>
 internal sealed record CalendrierPlan(Periode? Periode, ModeEcheance Mode, DateOnly PremiereEcheance)
 {
-    internal static CalendrierPlan Valider(Periode? periode, ModeEcheance? mode, DateOnly? premiere, DateOnly aujourdhui)
+    /// <summary>Calendrier contrôlé ; <paramref name="actuelle"/> : première échéance d'un plan existant, gardée sans contrôle de fenêtre.</summary>
+    internal static CalendrierPlan Valider(Periode? periode, ModeEcheance? mode, DateOnly? premiere, DateOnly aujourdhui, DateOnly? actuelle = null)
     {
         var choisi = mode ?? ModeEcheance.Glissant;
         if (!Enum.IsDefined(choisi))
@@ -69,7 +70,7 @@ internal sealed record CalendrierPlan(Periode? Periode, ModeEcheance Mode, DateO
         }
 
         var date = premiere ?? throw new SaisieInvalideException("premiereEcheance", "Première échéance obligatoire.");
-        if (date < aujourdhui.AddYears(-5) || date > aujourdhui.AddYears(10))
+        if (date != actuelle && (date < aujourdhui.AddYears(-5) || date > aujourdhui.AddYears(10)))
         {
             throw new SaisieInvalideException("premiereEcheance", "Première échéance entre 5 ans avant et 10 ans après aujourd'hui.");
         }
@@ -191,8 +192,6 @@ internal sealed class PlanPreventif : IAppartientAOrganisation
 
     internal CalendrierPlan Calendrier => new(Periode, Mode, PremiereEcheance);
 
-    internal CibleDuPlan CibleDuPlan => new(Cible, BatimentId, ZoneId, ComposantId, CorpsEtat);
-
     internal string? Modele => PropositionCle?.Split(':')[0];
 
     internal void Modifier(DefinitionPlan definition) => Appliquer(definition);
@@ -219,10 +218,6 @@ internal sealed class PlanPreventif : IAppartientAOrganisation
         Suspendu = false;
         MotifSuspension = null;
     }
-
-    /// <summary>Même envoi rejoué : même auteur, même proposition ou même cible, même nature et même libellé.</summary>
-    internal bool MemeEnvoi(PlanPreventif autre) =>
-        (CreeParCompteId, PropositionCle, CibleDuPlan, Nature, Libelle) == (autre.CreeParCompteId, autre.PropositionCle, autre.CibleDuPlan, autre.Nature, autre.Libelle);
 
     /// <summary>Valeurs relevées pour le journal (ancienne règle tracée à chaque modification).</summary>
     internal Dictionary<string, object?> Releve() => new()

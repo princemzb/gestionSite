@@ -1,6 +1,5 @@
 using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
-using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Dossiers;
 using GestionSite.Modules.Maintenance.Persistence;
@@ -43,8 +42,6 @@ internal sealed class ServicePlans(
     MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IAnnuaireMembres annuaire, CompteCourant compte,
     TimeProvider horloge)
 {
-    private const string Technicien = "Technicien";
-
     internal async Task<IReadOnlyList<PlanLu>> ListerAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
@@ -78,15 +75,41 @@ internal sealed class ServicePlans(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
         var commande = Commande(demande.CommandeId);
-        var cible = await CibleAsync(siteId, demande.Cible ?? throw new SaisieInvalideException("cible", "Cible obligatoire."), cancellationToken)
-            .ConfigureAwait(false);
-        var definition = await DefinitionAsync(siteId, demande, base_: SaisiePreventif.Valeur<BasePlan>(demande.Base, "base"), cancellationToken)
+        var demandee = demande.Cible ?? throw new SaisieInvalideException("cible", "Cible obligatoire.");
+        var nature = Saisie.Valeur<NaturePlan>(demande.Nature, "nature");
+        var auteur = Auteur;
+        bool MemeDemande(PlanPreventif recu) => recu.SiteId == siteId && recu.CreeParCompteId == auteur && recu.PropositionCle is null
+            && recu.Nature == nature && recu.Cible.ToString() == demandee.Type && recu.ComposantId == demandee.ComposantId
+            && (recu.Cible != CiblePlan.ZoneCorpsEtat || (recu.ZoneId == demandee.ZoneId && recu.CorpsEtat == demandee.CorpsEtat))
+            && (recu.Cible != CiblePlan.Batiment || recu.BatimentId == demandee.BatimentId);
+
+        // Rejeu reconnu avant toute revalidation : un inventaire changé depuis l'envoi ne le refuse pas.
+        if (await DejaCreeAsync(commande, MemeDemande, cancellationToken).ConfigureAwait(false) is { } deja)
+        {
+            return deja;
+        }
+
+        var cible = await CibleAsync(siteId, demandee, cancellationToken).ConfigureAwait(false);
+        var definition = await DefinitionAsync(siteId, demande, Saisie.Valeur<BasePlan>(demande.Base, "base"), actuelle: null, cancellationToken)
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var plan = new PlanPreventif(
-            Guid.CreateVersion7(maintenant), organisationId, siteId, commande, propositionCle: null, cible,
-            SaisiePreventif.Valeur<NaturePlan>(demande.Nature, "nature"), typeIntervenant: null, definition, Auteur, maintenant);
-        return await AjouterAsync(plan, maintenant, cancellationToken).ConfigureAwait(false);
+            Guid.CreateVersion7(maintenant), organisationId, siteId, commande, propositionCle: null, cible, nature, typeIntervenant: null, definition, auteur, maintenant);
+        context.Plans.Add(plan);
+        TracerCreation(plan, maintenant);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Même commande reçue en parallèle : l'autre requête l'a enregistrée ; même réponse que pour un rejeu.
+            context.ChangeTracker.Clear();
+            return await DejaCreeAsync(commande, MemeDemande, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Doublon signalé par la base mais introuvable.", doublon);
+        }
+
+        return plan.Id;
     }
 
     /// <summary>
@@ -97,31 +120,60 @@ internal sealed class ServicePlans(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
         var commande = Commande(demande.CommandeId);
+        var auteur = Auteur;
+        bool MemeDemande(PlanPreventif recu) => recu.SiteId == siteId && recu.CreeParCompteId == auteur && recu.PropositionCle == demande.Cle;
+        if (await DejaCreeAsync(commande, MemeDemande, cancellationToken).ConfigureAwait(false) is { } deja)
+        {
+            return deja; // rejeu reconnu avant toute revalidation
+        }
+
         var aujourdhui = JourCivil.Du(horloge.GetUtcNow());
         var proposition = await PropositionAsync(siteId, demande.Cle, aujourdhui, cancellationToken).ConfigureAwait(false);
         var modele = proposition.Modele;
         var intervenant = await IntervenantAsync(siteId, demande.IntervenantCompteId, demande.Prestataire, demande.ReferentCompteId, cancellationToken)
             .ConfigureAwait(false);
+        // Échéance suggérée très ancienne (commission jamais revenue) : ramenée à la borne, toujours en retard.
+        var premiere = demande.PremiereEcheance ?? (proposition.Echeance < aujourdhui.AddYears(-5) ? aujourdhui.AddYears(-5) : proposition.Echeance);
         var definition = new DefinitionPlan(
             modele.Libelle, modele.Base, modele.Reference, intervenant, SaisiePreventif.Facultatif<DonneurOrdre>(demande.DonneurOrdre, "donneurOrdre"),
-            CalendrierPlan.Valider(modele.Periode, modele.Mode, demande.PremiereEcheance ?? proposition.Echeance, aujourdhui));
+            CalendrierPlan.Valider(modele.Periode, modele.Mode, premiere, aujourdhui));
         var maintenant = horloge.GetUtcNow();
         var plan = new PlanPreventif(
             Guid.CreateVersion7(maintenant), organisationId, siteId, commande, proposition.Cle,
             new CibleDuPlan(proposition.Cible, proposition.BatimentId, proposition.ZoneId, proposition.ComposantId, proposition.CorpsEtat),
-            modele.Nature, modele.Intervenant, definition, Auteur, maintenant);
-        return await AjouterAsync(plan, maintenant, cancellationToken).ConfigureAwait(false);
+            modele.Nature, modele.Intervenant, definition, auteur, maintenant);
+
+        // Proposition verrouillée le temps de la transaction : confirmation et écart simultanés ne se croisent pas.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync(siteId, proposition.Cle, cancellationToken).ConfigureAwait(false);
+        if (await DejaCreeAsync(commande, MemeDemande, cancellationToken).ConfigureAwait(false) is { } concurrent)
+        {
+            return concurrent; // même commande enregistrée pendant l'attente du verrou
+        }
+
+        if (await context.Plans.AnyAsync(p => p.SiteId == siteId && p.PropositionCle == proposition.Cle, cancellationToken).ConfigureAwait(false))
+        {
+            throw new PropositionDejaPlanifieeException();
+        }
+
+        context.Plans.Add(plan);
+        TracerCreation(plan, maintenant);
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return plan.Id;
     }
 
-    /// <summary>Proposition écartée avec son motif ; elle reste visible. Déjà écartée : rien ne change.</summary>
+    /// <summary>Proposition écartée avec son motif ; elle reste visible. Déjà écartée : rien ne change ; déjà confirmée : 409.</summary>
     internal async Task EcarterAsync(Guid organisationId, Guid siteId, DemandeEcart demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var proposition = await PropositionAsync(siteId, demande.Cle, JourCivil.Du(maintenant), cancellationToken).ConfigureAwait(false);
         var ecart = new PropositionEcartee(
-            Guid.CreateVersion7(maintenant), organisationId, siteId, proposition.Cle, SaisiePreventif.Valeur<MotifEcart>(demande.Motif, "motif"),
+            Guid.CreateVersion7(maintenant), organisationId, siteId, proposition.Cle, Saisie.Valeur<MotifEcart>(demande.Motif, "motif"),
             demande.Commentaire, Auteur, maintenant);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await VerrouillerAsync(siteId, proposition.Cle, cancellationToken).ConfigureAwait(false);
         if (await context.Plans.AnyAsync(p => p.SiteId == siteId && p.PropositionCle == proposition.Cle, cancellationToken).ConfigureAwait(false))
         {
             throw new PropositionDejaPlanifieeException();
@@ -133,14 +185,8 @@ internal sealed class ServicePlans(
         }
 
         context.PropositionsEcartees.Add(ecart);
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            context.ChangeTracker.Clear(); // écartée en parallèle : même résultat
-        }
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Définition modifiée à la version lue ; seules les échéances non matérialisées en dépendent. Sans changement, rien n'est écrit.</summary>
@@ -148,7 +194,8 @@ internal sealed class ServicePlans(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
         var plan = await PlanAVersionAsync(siteId, id, demande.Version, cancellationToken).ConfigureAwait(false);
-        var definition = await DefinitionAsync(siteId, demande, SaisiePreventif.Valeur<BasePlan>(demande.Base, "base"), cancellationToken).ConfigureAwait(false);
+        var definition = await DefinitionAsync(siteId, demande, Saisie.Valeur<BasePlan>(demande.Base, "base"), plan.PremiereEcheance, cancellationToken)
+            .ConfigureAwait(false);
         var avant = plan.Releve();
         plan.Modifier(definition);
         var apres = plan.Releve();
@@ -189,54 +236,34 @@ internal sealed class ServicePlans(
     private static Guid Commande(Guid? commandeId) =>
         commandeId is { } commande && commande != Guid.Empty ? commande : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
 
-    // Plan neuf, tracé ; rejeu de la même commande (ou course parallèle perdue) : le plan déjà enregistré.
-    private async Task<Guid> AjouterAsync(PlanPreventif plan, DateTimeOffset maintenant, CancellationToken cancellationToken)
+    private void TracerCreation(PlanPreventif plan, DateTimeOffset maintenant) => Tracer(plan, NatureEvenementPlan.Creation, maintenant, new
     {
-        if (await DejaCreeAsync(plan, cancellationToken).ConfigureAwait(false) is { } deja)
-        {
-            return deja;
-        }
+        proposition = plan.PropositionCle,
+        nature = plan.Nature.ToString(),
+        cible = plan.Cible.ToString(),
+        composantId = plan.ComposantId,
+        zoneId = plan.ZoneId,
+        batimentId = plan.BatimentId,
+        corpsEtat = plan.CorpsEtat,
+        regle = plan.Releve(),
+    });
 
-        context.Plans.Add(plan);
-        Tracer(plan, NatureEvenementPlan.Creation, maintenant, new
+    // Même commande : le plan enregistré si c'est le même envoi (même auteur, même demande), sinon 409.
+    private async Task<Guid?> DejaCreeAsync(Guid commande, Func<PlanPreventif, bool> memeDemande, CancellationToken cancellationToken)
+    {
+        var recu = await context.Plans.AsNoTracking().SingleOrDefaultAsync(p => p.CommandeId == commande, cancellationToken).ConfigureAwait(false);
+        return recu switch
         {
-            proposition = plan.PropositionCle,
-            nature = plan.Nature.ToString(),
-            cible = plan.Cible.ToString(),
-            composantId = plan.ComposantId,
-            zoneId = plan.ZoneId,
-            batimentId = plan.BatimentId,
-            corpsEtat = plan.CorpsEtat,
-            regle = plan.Releve(),
-        });
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            context.ChangeTracker.Clear();
-            return await DejaCreeAsync(plan, cancellationToken).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Doublon signalé par la base mais introuvable.", doublon);
-        }
-
-        return plan.Id;
+            null => null,
+            _ when memeDemande(recu) => recu.Id,
+            _ => throw new CommandePreventifReutiliseeException(),
+        };
     }
 
-    // Même commande : même plan si même envoi, sinon 409 ; proposition déjà confirmée par une autre commande : 409.
-    private async Task<Guid?> DejaCreeAsync(PlanPreventif envoye, CancellationToken cancellationToken)
-    {
-        var recu = await context.Plans.AsNoTracking().SingleOrDefaultAsync(p => p.CommandeId == envoye.CommandeId, cancellationToken).ConfigureAwait(false);
-        if (recu is not null)
-        {
-            return recu.SiteId == envoye.SiteId && recu.MemeEnvoi(envoye) ? recu.Id : throw new CommandeReutiliseeException();
-        }
-
-        return envoye.PropositionCle is { } cle
-            && await context.Plans.AnyAsync(p => p.SiteId == envoye.SiteId && p.PropositionCle == cle, cancellationToken).ConfigureAwait(false)
-            ? throw new PropositionDejaPlanifieeException()
-            : null;
-    }
+    // Verrou transactionnel sur la proposition (site et clé), relâché à la fin de la transaction.
+    private async Task VerrouillerAsync(Guid siteId, string cle, CancellationToken cancellationToken) =>
+        await context.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({$"{siteId:N}:{cle}"}, 0))", cancellationToken)
+            .ConfigureAwait(false);
 
     private async Task<PlanPropose> PropositionAsync(Guid siteId, string? cle, DateOnly aujourdhui, CancellationToken cancellationToken)
     {
@@ -251,7 +278,8 @@ internal sealed class ServicePlans(
             ?? throw new SaisieInvalideException("cle", "Proposition inconnue sur ce site (classement ou composant changé ?).");
     }
 
-    private async Task<DefinitionPlan> DefinitionAsync(Guid siteId, DemandePlan demande, BasePlan base_, CancellationToken cancellationToken)
+    // Première échéance inchangée (modification d'un plan ancien) : jamais refusée par la fenêtre autour d'aujourd'hui.
+    private async Task<DefinitionPlan> DefinitionAsync(Guid siteId, DemandePlan demande, BasePlan base_, DateOnly? actuelle, CancellationToken cancellationToken)
     {
         var intervenant = await IntervenantAsync(siteId, demande.IntervenantCompteId, demande.Prestataire, demande.ReferentCompteId, cancellationToken)
             .ConfigureAwait(false);
@@ -259,35 +287,22 @@ internal sealed class ServicePlans(
         return new DefinitionPlan(
             demande.Libelle, base_, demande.Reference, intervenant, SaisiePreventif.Facultatif<DonneurOrdre>(demande.DonneurOrdre, "donneurOrdre"),
             CalendrierPlan.Valider(periode, SaisiePreventif.Facultatif<ModeEcheance>(demande.Mode, "mode"), demande.PremiereEcheance,
-                JourCivil.Du(horloge.GetUtcNow())));
+                JourCivil.Du(horloge.GetUtcNow()), actuelle));
     }
 
     // Intervenant interne : un technicien du site ; référent d'un prestataire : technicien, responsable ou délégué du site.
     private async Task<IntervenantPlan> IntervenantAsync(Guid siteId, Guid? compteId, string? prestataire, Guid? referentId, CancellationToken cancellationToken)
     {
         var intervenant = IntervenantPlan.Valider(compteId, prestataire, referentId);
-        var demandes = new[] { intervenant.CompteId, intervenant.ReferentCompteId }.Where(c => c is not null).Select(c => c!.Value).ToList();
-        if (demandes.Count == 0)
-        {
-            return intervenant;
-        }
-
-        var terrain = (await annuaire.MembresAyantDroitAsync(siteId, Droit.ExecuterControle, demandes, cancellationToken).ConfigureAwait(false))
-            .ToDictionary(m => m.CompteId);
-        if (intervenant.CompteId is { } interne && !(terrain.TryGetValue(interne, out var membre) && membre.Roles.Contains(Technicien)))
-        {
-            throw new SaisieInvalideException("intervenantCompteId", "Un technicien de ce site.");
-        }
-
-        return intervenant.ReferentCompteId is { } referent && !terrain.ContainsKey(referent)
-            ? throw new SaisieInvalideException("referentCompteId", "Technicien, responsable ou délégué de ce site.")
-            : intervenant;
+        await Intervenants.ExigerAsync(annuaire, siteId, Droit.ExecuterControle, intervenant.CompteId, intervenant.ReferentCompteId, cancellationToken)
+            .ConfigureAwait(false);
+        return intervenant;
     }
 
     // Cible désignée dans le corps : absente du site, c'est une saisie invalide (422), pas une ressource introuvable.
     private async Task<CibleDuPlan> CibleAsync(Guid siteId, DemandeCible cible, CancellationToken cancellationToken)
     {
-        switch (SaisiePreventif.Valeur<CiblePlan>(cible.Type, "cible.type"))
+        switch (Saisie.Valeur<CiblePlan>(cible.Type, "cible.type"))
         {
             case CiblePlan.Composant:
                 var id = cible.ComposantId ?? throw new SaisieInvalideException("cible.composantId", "Composant obligatoire.");
@@ -380,7 +395,10 @@ internal sealed class ServicePlans(
             var suspendu = p.Suspendu || automatique is not null;
             return new PlanLu(
                 p.Id, p.Libelle, p.Nature.ToString(), p.Base.ToString(), p.Reference, p.Modele, p.PropositionCle, p.TypeIntervenant?.ToString(),
-                new CibleLue(p.Cible.ToString(), p.BatimentId, composant?.ZoneId ?? p.ZoneId, p.ComposantId, p.CorpsEtat, libelle),
+                // Composant : son lieu et son corps d'état actuels (il a pu être déplacé ou corrigé depuis la création du plan).
+                new CibleLue(
+                    p.Cible.ToString(), composant?.BatimentId ?? p.BatimentId, composant?.ZoneId ?? p.ZoneId, p.ComposantId, composant?.CorpsEtat ?? p.CorpsEtat,
+                    libelle),
                 p.IntervenantCompteId is null && p.Prestataire is null
                     ? null
                     : new IntervenantLu(p.IntervenantCompteId, p.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, p.Prestataire, p.ReferentCompteId,
@@ -415,11 +433,12 @@ internal sealed class ServicePlans(
     }
 }
 
-/// <summary>Valeurs d'énumération reçues en texte (nom exact) : obligatoires ou facultatives.</summary>
+/// <summary>Valeur d'énumération facultative reçue en texte (nom exact) ; vide : absente.</summary>
 internal static class SaisiePreventif
 {
-    internal static T Valeur<T>(string? texte, string champ) where T : struct, Enum => Saisie.Valeur<T>(texte, champ);
-
     internal static T? Facultatif<T>(string? texte, string champ) where T : struct, Enum =>
         string.IsNullOrWhiteSpace(texte) ? null : Saisie.Valeur<T>(texte, champ);
 }
+
+/// <summary>Identifiant d'envoi déjà utilisé pour une autre saisie du préventif (409 « commande_reutilisee »).</summary>
+internal sealed class CommandePreventifReutiliseeException() : Exception("Cet identifiant d'envoi a déjà servi pour une autre saisie du préventif.");

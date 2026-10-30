@@ -46,6 +46,14 @@ public sealed class PlansPreventifsTests(InfrastructureFixture infrastructure) :
         Assert.Equal("AFaire", lu.GetProperty("prochaine").GetProperty("etat").GetString());
         Assert.Equal(tableau, lu.GetProperty("cible").GetProperty("composantId").GetGuid());
         Assert.Equal(["Creation"], fiche.GetProperty("historique").EnumerateArray().Select(e => e.GetProperty("nature").GetString()));
+
+        // Réponse perdue puis composant retiré : le même envoi rejoué rend toujours le plan (reconnu avant toute revalidation).
+        using var retrait = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components/{tableau}/withdraw", technicien,
+            new { motif = "Remplacé", version = (await LireAsync($"{Base}/components/{tableau}", technicien)).GetProperty("composant").GetProperty("version").GetUInt32() });
+        Assert.Equal(HttpStatusCode.NoContent, retrait.StatusCode);
+        Assert.Equal(plan, await CreeAsync($"{Preventif}/proposals/confirm", responsable, new { commandeId = commande, cle }));
+        using var autreCle = await EnvoyerAsync(HttpMethod.Post, $"{Preventif}/proposals/confirm", responsable, new { commandeId = commande, cle = "autre:cle" });
+        Assert.Equal("commande_reutilisee", await CodeAsync(autreCle));
         Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM maintenance.plans_preventifs"));
     }
 

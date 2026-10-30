@@ -31,7 +31,7 @@ internal sealed class ServiceGrilles(
     internal async Task<IReadOnlyList<GrilleLue>> ListerAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
-        var adaptees = (await DernieresVersions(siteId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(g => g.CorpsEtat);
+        var adaptees = (await GrillesEnVigueur.DernieresVersions(context, siteId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(g => g.CorpsEtat);
         return await LireAsync([.. GrillesParDefaut.CorpsEtats.Select(c => (c, adaptees.GetValueOrDefault(c)))], cancellationToken).ConfigureAwait(false);
     }
 
@@ -39,7 +39,7 @@ internal sealed class ServiceGrilles(
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var corps = Corps(corpsEtat);
-        return (await LireAsync([(corps, await AdapteeAsync(siteId, corps, cancellationToken).ConfigureAwait(false))], cancellationToken)
+        return (await LireAsync([(corps, await GrillesEnVigueur.AdapteeAsync(context, siteId, corps, cancellationToken).ConfigureAwait(false))], cancellationToken)
             .ConfigureAwait(false))[0];
     }
 
@@ -82,13 +82,6 @@ internal sealed class ServiceGrilles(
     internal Task<GrilleCourante> CouranteAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
         GrillesEnVigueur.CouranteAsync(context, siteId, corps, cancellationToken);
 
-    private Task<VersionGrille?> AdapteeAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
-        GrillesEnVigueur.AdapteeAsync(context, siteId, corps, cancellationToken);
-
-    private IQueryable<VersionGrille> DernieresVersions(Guid siteId) => GrillesEnVigueur.DernieresVersions(context, siteId);
-
-    private static GrilleCourante Courante(CorpsEtat corps, VersionGrille? adaptee) => GrillesEnVigueur.Courante(corps, adaptee);
-
     // Grilles lues avec le nom de l'auteur de chaque adaptation (une seule lecture de l'annuaire).
     private async Task<IReadOnlyList<GrilleLue>> LireAsync(IReadOnlyList<(CorpsEtat Corps, VersionGrille? Adaptee)> grilles, CancellationToken cancellationToken)
     {
@@ -96,7 +89,7 @@ internal sealed class ServiceGrilles(
             [.. grilles.Select(g => g.Adaptee?.AuteurCompteId).OfType<Guid>().Distinct()], cancellationToken).ConfigureAwait(false);
         return [.. grilles.Select(g =>
         {
-            var courante = Courante(g.Corps, g.Adaptee);
+            var courante = GrillesEnVigueur.Courante(g.Corps, g.Adaptee);
             var auteur = g.Adaptee?.AuteurCompteId;
             return new GrilleLue(
                 courante.CorpsEtat.ToString(), courante.Version, courante.Version > 1, courante.Contenu.Criteres,

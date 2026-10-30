@@ -1,4 +1,3 @@
-using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Dossiers;
 using GestionSite.SharedKernel;
@@ -92,7 +91,7 @@ internal static class PreventifEndpoints
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, deja.Message, "deja_planifiee");
         }
-        catch (CommandeReutiliseeException reutilisee)
+        catch (CommandePreventifReutiliseeException reutilisee)
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilisee.Message, "commande_reutilisee");
         }

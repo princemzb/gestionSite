@@ -106,6 +106,8 @@ public sealed class EcheancierTests
         Assert.Equal(["mode", "premiereEcheance", "premiereEcheance", "mode"], new[] { fixeSansPeriode.Champ, sansDate.Champ, tropLoin.Champ, modeInconnu.Champ });
         Assert.Equal(ModeEcheance.Glissant, CalendrierPlan.Valider(Annuelle, null, Aujourdhui, Aujourdhui).Mode);
         Assert.Equal(ModeEcheance.Glissant, CalendrierPlan.Valider(null, ModeEcheance.Glissant, Aujourdhui.AddYears(-5), Aujourdhui).Mode);
+        var ancienne = new DateOnly(2018, 1, 31); // plan ancien modifié sans toucher à sa première échéance
+        Assert.Equal(ancienne, CalendrierPlan.Valider(Annuelle, null, ancienne, Aujourdhui, actuelle: ancienne).PremiereEcheance);
     }
 
     [Fact]
@@ -130,7 +132,6 @@ public sealed class EcheancierTests
         Assert.NotNull(deuxFois);
         Assert.False(plan.Suspendu);
         Assert.Throws<PlanIncompatibleException>(plan.Reprendre);
-        Assert.True(plan.MemeEnvoi(plan));
         Assert.Equal("2026-10-30", plan.Releve()["premiereEcheance"]);
     }
 

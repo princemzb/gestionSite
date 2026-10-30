@@ -25,9 +25,6 @@ internal sealed class ServiceInterventions(
     MaintenanceDbContext context, IAutorisations autorisations, IAnnuaireMembres annuaire, IInventaireSite inventaire, IStockageFichiers stockage,
     CompteCourant compte, TimeProvider horloge)
 {
-    // Intervenant interne : un technicien du site (décision du 29/10) ; référent d'un prestataire : tout membre de terrain.
-    private const string Technicien = "Technicien";
-
     /// <summary>Membres du site qui peuvent recevoir ou suivre une intervention (droit de documenter une intervention).</summary>
     internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
@@ -39,19 +36,8 @@ internal sealed class ServiceInterventions(
     internal async Task<int> AffecterAsync(Guid organisationId, Guid siteId, Guid dossierId, DemandeAffectation demande, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        var demandes = new[] { demande.IntervenantCompteId, demande.ReferentCompteId }.Where(c => c is not null).Select(c => c!.Value).ToList();
-        var terrain = (await annuaire.MembresAyantDroitAsync(siteId, Droit.DocumenterIntervention, demandes, cancellationToken).ConfigureAwait(false))
-            .ToDictionary(m => m.CompteId);
-        if (demande.IntervenantCompteId is { } intervenant && !(terrain.TryGetValue(intervenant, out var membre) && membre.Roles.Contains(Technicien)))
-        {
-            throw new SaisieInvalideException("intervenantCompteId", "Un technicien de ce site.");
-        }
-
-        if (demande.ReferentCompteId is { } referent && !terrain.ContainsKey(referent))
-        {
-            throw new SaisieInvalideException("referentCompteId", "Technicien, responsable ou délégué de ce site.");
-        }
-
+        await Intervenants.ExigerAsync(annuaire, siteId, Droit.DocumenterIntervention, demande.IntervenantCompteId, demande.ReferentCompteId, cancellationToken)
+            .ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var dossier = await context.DossierAVersionAsync(siteId, dossierId, demande.Version, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
