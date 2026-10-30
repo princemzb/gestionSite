@@ -9,7 +9,7 @@ namespace GestionSite.Modules.Maintenance.Persistence;
 /// Données du module Maintenance, schéma « maintenance ». Mêmes barrières qu'Identité (ADR-10) : filtre sur
 /// l'organisation courante, refus d'écrire pour une autre, RLS forcée en base (migration).
 /// </summary>
-internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext> options, OrganisationCourante organisationCourante)
+internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext> options, OrganisationCourante organisationCourante)
     : ContexteOrganisation(options, organisationCourante)
 {
     internal const string Schema = "maintenance";
@@ -26,6 +26,12 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
     public DbSet<Intervention> Interventions => Set<Intervention>();
 
     public DbSet<PhotoIntervention> PhotosIntervention => Set<PhotoIntervention>();
+
+    public DbSet<PlanPreventif> Plans => Set<PlanPreventif>();
+
+    public DbSet<PropositionEcartee> PropositionsEcartees => Set<PropositionEcartee>();
+
+    public DbSet<EvenementPlan> JournalPreventif => Set<EvenementPlan>();
 
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
@@ -117,6 +123,8 @@ internal sealed class MaintenanceDbContext(DbContextOptions<MaintenanceDbContext
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        ConfigurerPreventif(modelBuilder);
 
         modelBuilder.Entity<PhotoSignalement>(photo =>
         {

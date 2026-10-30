@@ -1,6 +1,8 @@
 using GestionSite.Modules.Identite.Contracts;
+using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
+using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Maintenance.Preventif;
 
@@ -15,23 +17,39 @@ internal sealed record PeriodeLue(int Valeur, string Unite);
 
 internal sealed record CibleLue(string Type, Guid BatimentId, Guid ZoneId, Guid? ComposantId, string? CorpsEtat, string Libelle);
 
+internal sealed record EcartLu(string Motif, string? Commentaire, DateTimeOffset Le, Guid AuteurCompteId, string? Auteur);
+
 internal sealed record PropositionLue(
     string Cle, string Modele, string Libelle, string Nature, string Base, string Reference, bool AConfirmer, string Intervenant, PeriodeLue Periode,
-    string Mode, DateOnly Echeance, CibleLue Cible, string Statut);
+    string Mode, DateOnly Echeance, CibleLue Cible, string Statut, EcartLu? Ecart = null);
 
 /// <summary>
-/// Plans proposés d'un site (US-12, S12-01) : catalogue appliqué au classement déclaré des bâtiments et aux composants
-/// soumis à vérification, lus par le contrat de l'inventaire. Consultés par les comptes internes du site ; chaque
-/// proposition reste « à confirmer » (décision du 30/10), rien n'est créé sans confirmation de R/D.
+/// Plans proposés d'un site (US-12) : catalogue appliqué au classement déclaré des bâtiments et aux composants soumis
+/// à vérification, lus par le contrat de l'inventaire. Une proposition confirmée disparaît (le plan existe) ; écartée,
+/// elle reste visible avec son motif (décision du 30/10). Consultés par les comptes internes du site ; rien n'est créé
+/// sans confirmation de R/D.
 /// </summary>
-internal sealed class ServicePropositions(IAutorisations autorisations, IInventaireSite inventaire, TimeProvider horloge)
+internal sealed class ServicePropositions(
+    MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IAnnuaireMembres annuaire, TimeProvider horloge)
 {
     internal async Task<IReadOnlyList<PropositionLue>> ListerAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
         var etablissement = await inventaire.EtablissementAsync(siteId, cancellationToken).ConfigureAwait(false);
         var composants = await inventaire.ComposantsAsync(siteId, ids: null, cancellationToken).ConfigureAwait(false);
-        return [.. Catalogue.Proposer(etablissement, composants, JourCivil.Du(horloge.GetUtcNow())).Select(p => Lire(p, StatutProposition.Proposee))];
+        var planifiees = (await context.Plans.AsNoTracking().Where(p => p.SiteId == siteId && p.PropositionCle != null).Select(p => p.PropositionCle!)
+            .ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        var ecarts = await context.PropositionsEcartees.AsNoTracking().Where(e => e.SiteId == siteId)
+            .ToDictionaryAsync(e => e.Cle, StringComparer.Ordinal, cancellationToken).ConfigureAwait(false);
+        var auteurs = await annuaire.NomsAsync([.. ecarts.Values.Select(e => e.AuteurCompteId).Distinct()], cancellationToken).ConfigureAwait(false);
+        return [.. Catalogue.Proposer(etablissement, composants, JourCivil.Du(horloge.GetUtcNow()))
+            .Where(p => !planifiees.Contains(p.Cle))
+            .Select(p => ecarts.TryGetValue(p.Cle, out var e)
+                ? Lire(p, StatutProposition.Ecartee) with
+                {
+                    Ecart = new EcartLu(e.Motif.ToString(), e.Commentaire, e.EcarteeLe, e.AuteurCompteId, auteurs.GetValueOrDefault(e.AuteurCompteId)),
+                }
+                : Lire(p, StatutProposition.Proposee))];
     }
 
     internal static PropositionLue Lire(PlanPropose p, StatutProposition statut) => new(

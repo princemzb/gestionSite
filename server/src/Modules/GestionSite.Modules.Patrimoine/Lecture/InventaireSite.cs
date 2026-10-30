@@ -1,6 +1,8 @@
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.Modules.Patrimoine.Domain;
+using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Patrimoine.Lecture;
@@ -13,7 +15,7 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
                 from z in context.Zones.AsNoTracking()
                 join b in context.Batiments.AsNoTracking() on z.BatimentId equals b.Id
                 where z.Id == zoneId && z.SiteId == siteId
-                select new { z.Id, z.Nom, Batiment = b.Nom })
+                select new { z.Id, z.Nom, Batiment = b.Nom, BatimentId = b.Id })
             .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (zone is null)
         {
@@ -22,7 +24,7 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
 
         if (composantId is not { } id)
         {
-            return new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null);
+            return new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null, BatimentId: zone.BatimentId);
         }
 
         // Nouveau rattachement : composant actif de cette zone seulement (un composant retiré ne reçoit plus de dossier).
@@ -32,11 +34,11 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
             .Select(c => new { c.Id, c.Nom, c.CorpsEtat }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (composant is null)
         {
-            return composantActif ? null : new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null);
+            return composantActif ? null : new LieuInventaire(zone.Id, zone.Nom, zone.Batiment, null, null, null, BatimentId: zone.BatimentId);
         }
 
         return new LieuInventaire(
-            zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString(), CorpsEtats.PhotoApresIntervention(composant.CorpsEtat));
+            zone.Id, zone.Nom, zone.Batiment, composant.Id, composant.Nom, composant.CorpsEtat.ToString(), CorpsEtats.PhotoApresIntervention(composant.CorpsEtat), zone.BatimentId);
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> ZonesAsync(Guid siteId, IReadOnlyCollection<Guid> zoneIds, CancellationToken cancellationToken)
@@ -83,6 +85,18 @@ internal sealed class InventaireSite(PatrimoineDbContext context) : IInventaireS
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return [.. lus.Select(c => new ComposantInventaire(
             c.Id, c.Nom, c.ZoneId, c.Zone, c.BatimentId, c.CorpsEtat.ToString(), c.SoumisAVerification, c.Quantite is not null, c.RetireLe is not null))];
+    }
+
+    public async Task<GrilleInventaire?> GrilleAsync(Guid siteId, string corpsEtat, CancellationToken cancellationToken)
+    {
+        if (!NomExact.Essayer<CorpsEtat>(corpsEtat, out var corps))
+        {
+            return null;
+        }
+
+        var grille = await GrillesEnVigueur.CouranteAsync(context, siteId, corps, cancellationToken).ConfigureAwait(false);
+        return new GrilleInventaire(
+            corps.ToString(), grille.Version, grille.Contenu.Criteres, [.. grille.Contenu.Mesures.Select(m => new MesureInventaire(m.Libelle, m.Unite))]);
     }
 }
 

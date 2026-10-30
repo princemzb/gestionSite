@@ -79,23 +79,15 @@ internal sealed class ServiceGrilles(
     /// Grille en vigueur sur un site pour un corps d'état. L'appelant a vérifié l'accès au site, ce qui fixe
     /// l'organisation courante ; sans elle, l'appel échoue au lieu de rendre la grille par défaut.
     /// </summary>
-    internal async Task<GrilleCourante> CouranteAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
-        Courante(corps, await AdapteeAsync(siteId, corps, cancellationToken).ConfigureAwait(false));
+    internal Task<GrilleCourante> CouranteAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
+        GrillesEnVigueur.CouranteAsync(context, siteId, corps, cancellationToken);
 
-    // Dernière version adaptée sur le site pour un corps d'état, ou null (grille par défaut) ; organisation exigée.
-    private async Task<VersionGrille?> AdapteeAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken)
-    {
-        _ = context.OrganisationRequise;
-        return await DernieresVersions(siteId).FirstOrDefaultAsync(g => g.CorpsEtat == corps, cancellationToken).ConfigureAwait(false);
-    }
+    private Task<VersionGrille?> AdapteeAsync(Guid siteId, CorpsEtat corps, CancellationToken cancellationToken) =>
+        GrillesEnVigueur.AdapteeAsync(context, siteId, corps, cancellationToken);
 
-    // Dernière version de chaque corps d'état adapté sur le site, calculée en base (index ix_grilles_version).
-    private IQueryable<VersionGrille> DernieresVersions(Guid siteId) =>
-        context.Grilles.AsNoTracking().Where(g => g.SiteId == siteId
-            && !context.Grilles.Any(suivante => suivante.SiteId == siteId && suivante.CorpsEtat == g.CorpsEtat && suivante.Version > g.Version));
+    private IQueryable<VersionGrille> DernieresVersions(Guid siteId) => GrillesEnVigueur.DernieresVersions(context, siteId);
 
-    private static GrilleCourante Courante(CorpsEtat corps, VersionGrille? adaptee) =>
-        adaptee is null ? new GrilleCourante(corps, 1, GrillesParDefaut.Pour(corps)) : new GrilleCourante(corps, adaptee.Version, adaptee.Contenu);
+    private static GrilleCourante Courante(CorpsEtat corps, VersionGrille? adaptee) => GrillesEnVigueur.Courante(corps, adaptee);
 
     // Grilles lues avec le nom de l'auteur de chaque adaptation (une seule lecture de l'annuaire).
     private async Task<IReadOnlyList<GrilleLue>> LireAsync(IReadOnlyList<(CorpsEtat Corps, VersionGrille? Adaptee)> grilles, CancellationToken cancellationToken)

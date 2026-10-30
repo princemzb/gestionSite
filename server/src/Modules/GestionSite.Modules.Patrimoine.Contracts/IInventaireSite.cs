@@ -8,8 +8,10 @@ namespace GestionSite.Modules.Patrimoine.Contracts;
 /// <param name="Composant"></param>
 /// <param name="CorpsEtat"></param>
 /// <param name="PhotoApresIntervention">Le corps d'état du composant exige une photo à la clôture d'une intervention.</param>
+/// <param name="BatimentId">Bâtiment de la zone.</param>
 public sealed record LieuInventaire(
-    Guid ZoneId, string Zone, string Batiment, Guid? ComposantId, string? Composant, string? CorpsEtat, bool PhotoApresIntervention = false)
+    Guid ZoneId, string Zone, string Batiment, Guid? ComposantId, string? Composant, string? CorpsEtat, bool PhotoApresIntervention = false,
+    Guid? BatimentId = null)
 {
     /// <summary>« Bâtiment · Zone ».</summary>
     public string Libelle => $"{Batiment} · {Zone}";
@@ -78,4 +80,19 @@ public interface IInventaireSite
     /// demandés qui existent sur le site, retirés compris (relecture d'un plan).
     /// </summary>
     Task<IReadOnlyList<ComposantInventaire>> ComposantsAsync(Guid siteId, IReadOnlyCollection<Guid>? ids, CancellationToken cancellationToken);
+
+    /// <summary>Grille en vigueur sur le site pour le corps d'état (nom exact), ou null si ce corps d'état est inconnu.</summary>
+    Task<GrilleInventaire?> GrilleAsync(Guid siteId, string corpsEtat, CancellationToken cancellationToken);
 }
+
+/// <summary>Mesure d'une grille d'évaluation.</summary>
+/// <param name="Libelle"></param>
+/// <param name="Unite"></param>
+public sealed record MesureInventaire(string Libelle, string Unite);
+
+/// <summary>Grille d'évaluation en vigueur sur le site pour un corps d'état (US-11), version et contenu.</summary>
+/// <param name="CorpsEtat"></param>
+/// <param name="Version"></param>
+/// <param name="Criteres"></param>
+/// <param name="Mesures"></param>
+public sealed record GrilleInventaire(string CorpsEtat, int Version, IReadOnlyList<string> Criteres, IReadOnlyList<MesureInventaire> Mesures);
