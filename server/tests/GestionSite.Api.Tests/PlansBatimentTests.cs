@@ -94,11 +94,15 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         using var sansMotif = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/1/restore", responsable, new { commandeId = Guid.NewGuid(), version = 2 });
         using var inconnue = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/9/restore", responsable, new { commandeId = Guid.NewGuid(), version = 2, motif = "Retour" });
         using var restauree = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/1/restore", responsable, new { commandeId = Guid.NewGuid(), version = 2, motif = "Erreur de relevé" });
+        // Objet de valeur retiré ensuite : sa position ne réapparaît pas (fermé par défaut, revue de sécurité).
+        using var retraitCoffre = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components/{coffre}/withdraw", technicien,
+            new { motif = "Déposé", version = await XminAsync(coffre) });
         var v1 = await LireAsync($"{Plans}/{plan}/versions/1", responsable);
         var v3 = await LireAsync($"{Plans}/{plan}", responsable);
 
         Assert.Equal(HttpStatusCode.NoContent, retrait.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, reclasse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, retraitCoffre.StatusCode);
         Assert.Equal("motif", await ChampAsync(sansMotif));
         Assert.Equal(HttpStatusCode.NotFound, inconnue.StatusCode);
         Assert.Equal(HttpStatusCode.OK, restauree.StatusCode);

@@ -142,15 +142,17 @@ internal sealed class ServicePlansBatiment(
 
         var contenu = lue.ContenuLu;
         var ids = contenu.Composants.Select(m => m.ComposantId).ToList();
-        var actuels = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == siteId && c.RetireLe == null)
-            .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat }).ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
+        // Retirés compris : un composant retiré ou introuvable n'est jamais servi s'il est (ou devient) objet de valeur.
+        var composants = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == siteId)
+            .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat, Retire = c.RetireLe != null }).ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
         var obsoletes = contenu.Composants
-            .Where(m => !actuels.TryGetValue(m.ComposantId, out var c) || c.ZoneId != m.ZoneId || ValidationPlan.ObjetDeValeur(c.CorpsEtat))
+            .Where(m => !composants.TryGetValue(m.ComposantId, out var c) || c.Retire || c.ZoneId != m.ZoneId || ValidationPlan.ObjetDeValeur(c.CorpsEtat))
             .Select(m => m.ComposantId).ToList();
-        // Composant reclassé en objet de valeur depuis : sa position n'est plus servie, même dans une ancienne version.
+        // Fermé par défaut : position servie seulement pour un composant connu du site qui n'est pas un objet de valeur,
+        // même dans une ancienne version (reclassé depuis, retiré ensuite ou non).
         contenu = contenu with
         {
-            Composants = [.. contenu.Composants.Where(m => !(actuels.TryGetValue(m.ComposantId, out var c) && ValidationPlan.ObjetDeValeur(c.CorpsEtat)))],
+            Composants = [.. contenu.Composants.Where(m => composants.TryGetValue(m.ComposantId, out var c) && !ValidationPlan.ObjetDeValeur(c.CorpsEtat))],
         };
         var noms = await annuaire.NomsAsync([lue.AuteurCompteId], cancellationToken).ConfigureAwait(false);
         return new VersionPlanLue(
