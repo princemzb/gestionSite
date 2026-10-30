@@ -66,6 +66,7 @@ public sealed class ConstatsInspectionTests(InfrastructureFixture infrastructure
         Assert.True(apres[0].GetProperty("nouveauConstat").GetBoolean());
         Assert.Equal("ConstatInspection", rattache.GetProperty("historique")[0].GetProperty("nature").GetString());
         Assert.True(rattache.GetProperty("nouveauConstat").GetBoolean());
+        Assert.True(rattache.GetProperty("danger").GetBoolean()); // le danger du constat rattaché se voit sur le dossier
         Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM maintenance.alertes_danger WHERE constat_id IS NOT NULL"));
         Assert.Equal(2, await Database.CountAsync("SELECT count(*) FROM maintenance.constats_controles"));
         var constat = controle.GetProperty("constats").EnumerateArray().Single();
@@ -111,6 +112,7 @@ public sealed class ConstatsInspectionTests(InfrastructureFixture infrastructure
         Assert.Equal("RealiseeAvecReserves", resultat.GetProperty("statut").GetString());
         Assert.Equal(2, dossiers.Count);
         Assert.True(parZone[sacristie].GetProperty("danger").GetBoolean());
+        Assert.All(dossiers, d => Assert.False(d.GetProperty("nouveauConstat").GetBoolean())); // doublon d'un même rapport : pas de marque
         Assert.Contains(communes, parZone.Keys);
         Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM maintenance.alertes_danger"));
 

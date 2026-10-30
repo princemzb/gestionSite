@@ -134,6 +134,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("REVOKE ALL ON maintenance.constats_controles FROM gestionsite_app;");
+            // Alertes des constats retirées avant le retour à une alerte par dossier (RLS levée le temps de la requête).
+            migrationBuilder.Sql("ALTER TABLE maintenance.alertes_danger NO FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql("DELETE FROM maintenance.alertes_danger WHERE constat_id IS NOT NULL;");
+            migrationBuilder.Sql("ALTER TABLE maintenance.alertes_danger FORCE ROW LEVEL SECURITY;");
             migrationBuilder.DropTable(
                 name: "constats_controles",
                 schema: "maintenance");

@@ -268,18 +268,22 @@ internal sealed class ServiceDossiers(
         var zones = await inventaire.ZonesAsync(siteId, [.. dossiers.Where(d => d.ZoneId is not null).Select(d => d.ZoneId!.Value).Distinct()], cancellationToken)
             .ConfigureAwait(false);
         // Nouveau constat d'inspection rattaché depuis la dernière action sur le dossier (US-12) : le plus récent événement.
-        var ids = dossiers.Select(d => d.Id).ToList();
-        var constats = (await context.Journal.AsNoTracking().Where(e => ids.Contains(e.DossierId) && e.Nature == NatureEvenementDossier.ConstatInspection)
-            .Select(e => new { e.DossierId, e.Le }).ToListAsync(cancellationToken).ConfigureAwait(false))
-            .GroupBy(e => e.DossierId).ToDictionary(g => g.Key, g => g.Max(e => e.Le));
-        var derniers = constats.Count == 0
+        var ids = dossiers.Where(d => d.CleConstat is not null).Select(d => d.Id).ToList();
+        var marques = ids.Count == 0
             ? []
-            : (await context.Journal.AsNoTracking().Where(e => constats.Keys.Contains(e.DossierId)).Select(e => new { e.DossierId, e.Le })
-                .ToListAsync(cancellationToken).ConfigureAwait(false)).GroupBy(e => e.DossierId).ToDictionary(g => g.Key, g => g.Max(e => e.Le));
+            : (await context.Journal.AsNoTracking().Where(e => ids.Contains(e.DossierId)).GroupBy(e => e.DossierId)
+                .Select(g => new
+                {
+                    g.Key,
+                    Dernier = g.Max(e => e.Le),
+                    Constat = g.Where(e => e.Nature == NatureEvenementDossier.ConstatInspection).Max(e => (DateTimeOffset?)e.Le),
+                })
+                .ToListAsync(cancellationToken).ConfigureAwait(false))
+                .Where(m => m.Constat == m.Dernier).Select(m => m.Key).ToHashSet();
         return [.. dossiers.Select(d => new DossierResume(
             d.Id, Titre(d), d.Statut.ToString(), d.Priorite?.ToString(), d.ZoneId, d.ZoneId is { } z ? zones.GetValueOrDefault(z) : null, d.Danger,
             d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe, d.EcheancePriseEnCharge, d.EcheanceResolution,
-            constats.TryGetValue(d.Id, out var constat) && derniers.GetValueOrDefault(d.Id) == constat))];
+            marques.Contains(d.Id)))];
     }
 
     private Task<bool> ADesDoublonsAsync(Guid id, CancellationToken cancellationToken) =>

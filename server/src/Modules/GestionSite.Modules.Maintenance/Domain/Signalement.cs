@@ -294,6 +294,9 @@ internal sealed class Signalement : IAppartientAOrganisation
         return true;
     }
 
+    /// <summary>Danger relevé par un constat d'inspection rattaché (US-12, T-03.20) : visible sur le dossier ensuite.</summary>
+    internal void SignalerDanger() => Danger = true;
+
     /// <summary>Une intervention est affectée (R/D) : le dossier qualifié passe « Affecté » à la première (DEC-03).</summary>
     internal void Affecter(DateTimeOffset maintenant)
     {

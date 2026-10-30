@@ -230,6 +230,8 @@ internal sealed class ServiceOccurrences(
         await using var rapport = await PhotosStockees.EcrireAsync(
             stockage, recu.Document is { } document ? [document] : [], RapportControle.TypeContenu, (_, _) => controle.RapportCle!, cle => cle, _ => context.Controles.AsNoTracking().AnyAsync(c => c.Id == controle.Id, CancellationToken.None), cancellationToken).ConfigureAwait(false);
 
+        var libelles = await Constats.LibellesAsync(inventaire, annuaire, controle, auteur, cancellationToken).ConfigureAwait(false);
+
         // 3. Échéance verrouillée (affectation, saut et réalisation concurrents attendent) puis revérifiée : une saisie
         //    concurrente l'a résolue ou modifiée → 409, avant d'évaluer, sans laisser d'évaluation orpheline.
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
@@ -267,7 +269,7 @@ internal sealed class ServiceOccurrences(
         context.Controles.Add(controle);
         context.PhotosControles.AddRange(envoi.Photos);
         // 5. Non-conformités vers les dossiers (S12-05), dans la même transaction que le contrôle.
-        await Constats.OuvrirAsync(context, inventaire, annuaire, plan, controle, auteur, maintenant, cancellationToken).ConfigureAwait(false);
+        await Constats.OuvrirAsync(context, plan, controle, libelles, auteur, maintenant, cancellationToken).ConfigureAwait(false);
         Tracer(plan, NatureEvenementPlan.Realisation, maintenant, new
         {
             echeance,
@@ -350,7 +352,7 @@ internal sealed class ServiceOccurrences(
             c.IntervenantCompteId, c.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, c.Prestataire, c.NumeroAgrement, c.Resultat.ToString(),
             c.CompteRendu, c.CorpsEtat, c.ComposantId, c.ZoneId, c.BatimentId, c.GrilleVersion, c.PointsLus, c.MesuresLues, c.EvaluationId, c.Note, c.LibelleNote,
             photos, c.ObservationsLues, c.RapportTaille is { } taille ? new RapportLu(taille, c.RapportEmpreinte!) : null,
-            constats, constats.Count > 0 && constats.All(k => !Signalement.StatutsOuverts.Contains(Enum.Parse<StatutDossier>(k.StatutDossier))));
+            constats, (await Constats.LeveesAsync(context, [c.OccurrenceId], cancellationToken).ConfigureAwait(false)).Contains(c.OccurrenceId));
     }
 
     /// <summary>
