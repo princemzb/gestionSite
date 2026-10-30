@@ -48,6 +48,7 @@ public sealed class ValidationPlanTests
         Assert.Equal([Nef, Sacristie], plan.Contenu.Pieces.Select(p => p.ZoneId));
         Assert.Equal(new PointPlan(10.01, 0), plan.Contenu.Pieces[0].Contour[1]); // 10,006 m
         Assert.Equal(12.5, plan.Contenu.Nord);
+        Assert.Equal(1, plan.Contenu.Schema);
         Assert.Equal(3.2, plan.Contenu.HauteurSousPlafond);
         Assert.Equal("Porte", plan.Contenu.Ouvertures[0].Type);
         Assert.Equal(Etage, plan.Contenu.Escaliers[0].VersNiveauId);
@@ -66,6 +67,10 @@ public sealed class ValidationPlanTests
         Assert.Equal(attendu, arrondi);
         Assert.False(double.IsNegative(arrondi) && arrondi == 0); // jamais -0
     }
+
+    [Fact]
+    public void NorthJustBelow360DegreesWrapsToZero() =>
+        Assert.Equal(0, ValidationPlan.Valider(Plan() with { Nord = 359.97 }, Cadre).Contenu.Nord);
 
     [Fact]
     public void MarkersOutsideTheirZoneAreWarnedNotRefused()
@@ -118,6 +123,7 @@ public sealed class ValidationPlanTests
         { "auto-sécant", "contenu.pieces[0].contour" },
         { "sommet répété", "contenu.pieces[0].contour" },
         { "trop petite", "contenu.pieces[0].contour" },
+        { "trop étroite", "contenu.pieces[1].contour" },
         { "hors bornes", "contenu.pieces[0].contour[2]" },
         { "coordonnée absente", "contenu.pieces[0].contour[1]" },
         { "pièce absente", "contenu.pieces[1]" },
@@ -158,6 +164,11 @@ public sealed class ValidationPlanTests
             "auto-sécant" => plan with { Pieces = [Piece(Nef, (0, 0), (10, 10), (10, 0), (0, 10))], Ouvertures = [] },
             "sommet répété" => plan with { Pieces = [Piece(Nef, (0, 0), (10, 0), (10, 0.001), (0, 8))], Ouvertures = [] },
             "trop petite" => plan with { Pieces = [Piece(Nef, (0, 0), (0.4, 0), (0.4, 0.4), (0, 0.4))], Ouvertures = [] },
+            "trop étroite" => plan with
+            {
+                Pieces = [Piece(Nef, (0, 0), (10, 0), (10, 8), (0, 8)), Piece(Sacristie, (1, 1), (8, 1), (8, 1.04), (1, 1.04))],
+                Ouvertures = [],
+            },
             "hors bornes" => plan with { Pieces = [Piece(Nef, (0, 0), (10, 0), (5_000.01, 8))], Ouvertures = [] },
             "coordonnée absente" => plan with { Pieces = [new SaisiePiece(Nef, [new(0, 0), new(10, null), new(10, 8)])], Ouvertures = [] },
             "pièce absente" => plan with { Pieces = [plan.Pieces![0], null], Ouvertures = [] },

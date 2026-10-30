@@ -23,13 +23,13 @@ internal sealed record MarqueurPlan(Guid ComposantId, Guid ZoneId, PointPlan Pos
 
 /// <summary>
 /// Contenu d'une version de plan de bâtiment, schéma 1 : JSON stocké tel quel et rendu tel quel (lisible par le web et
-/// par l'application tablette). Nord en degrés depuis l'axe Y du repère, altitude du niveau et hauteur sous plafond en mètres.
+/// par l'application tablette), renvoyable tel quel pour enregistrer la suivante. Nord en degrés depuis l'axe Y du repère, altitude du niveau et hauteur sous plafond en mètres.
 /// </summary>
 internal sealed record ContenuPlan(
-    double? Nord, double? Altitude, double? HauteurSousPlafond, IReadOnlyList<PiecePlan> Pieces, IReadOnlyList<OuverturePlan> Ouvertures,
+    int Schema, double? Nord, double? Altitude, double? HauteurSousPlafond, IReadOnlyList<PiecePlan> Pieces, IReadOnlyList<OuverturePlan> Ouvertures,
     IReadOnlyList<LiaisonPlan> Escaliers, IReadOnlyList<MarqueurPlan> Composants)
 {
-    internal static ContenuPlan Vide { get; } = new(null, null, null, [], [], [], []);
+    internal static ContenuPlan Vide { get; } = new(VersionPlanBatiment.SchemaCourant, null, null, null, [], [], [], []);
 }
 
 /// <summary>Avertissement d'un enregistrement accepté (marqueur hors du contour de sa zone, par exemple).</summary>

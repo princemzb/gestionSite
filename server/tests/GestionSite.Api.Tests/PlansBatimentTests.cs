@@ -37,10 +37,10 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         Assert.Equal("Rose Responsable", conflit.GetProperty("auteur").GetString());
         Assert.NotEqual(JsonValueKind.Null, conflit.GetProperty("modifieLe").ValueKind);
         Assert.Equal(2, await VersionAsync(renvoi)); // même envoi : même version, rien de neuf
-        Assert.Equal(2, await VersionAsync(identique)); // contenu identique sans motif : rien n'est écrit
-        Assert.Equal(2, await Database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
+        Assert.Equal(3, await VersionAsync(identique)); // chaque enregistrement crée une version, même sans changement
+        Assert.Equal(3, await Database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
 
-        var courante = await LireAsync($"{Plans}/{plan}", responsable);
+        var courante = await LireAsync($"{Plans}/{plan}/versions/2", responsable);
         var historique = await LireAsync($"{Plans}/{plan}/versions", responsable);
         var page = await LireAsync($"{Plans}/{plan}/versions?avant=2&limite=1", responsable);
         var ancienne = await LireAsync($"{Plans}/{plan}/versions/1", responsable);
@@ -48,11 +48,12 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         Assert.Equal(1, courante.GetProperty("schema").GetInt32());
         Assert.Equal("Relevé du 30/10", courante.GetProperty("motif").GetString());
         Assert.Equal(12, courante.GetProperty("contenu").GetProperty("pieces")[0].GetProperty("contour")[1].GetProperty("x").GetDouble());
-        Assert.Equal([2, 1], historique.EnumerateArray().Select(v => v.GetProperty("version").GetInt32()));
+        Assert.Equal(1, courante.GetProperty("contenu").GetProperty("schema").GetInt32()); // contenu renvoyable tel quel
+        Assert.Equal([3, 2, 1], historique.EnumerateArray().Select(v => v.GetProperty("version").GetInt32()));
         Assert.Equal([1], page.EnumerateArray().Select(v => v.GetProperty("version").GetInt32()));
         Assert.Equal(10, ancienne.GetProperty("contenu").GetProperty("pieces")[0].GetProperty("contour")[1].GetProperty("x").GetDouble());
         var plans = await LireAsync(Plans, responsable);
-        Assert.Equal(2, plans.EnumerateArray().Single().GetProperty("version").GetInt32());
+        Assert.Equal(3, plans.EnumerateArray().Single().GetProperty("version").GetInt32());
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         var reponses = await Task.WhenAll(
             EnregistrerAsync(plan, responsable, 0, Nef(lieux, largeur: 10)), EnregistrerAsync(plan, responsable, 0, Nef(lieux, largeur: 11)));
 
-        Assert.Equal([HttpStatusCode.Conflict, HttpStatusCode.OK], reponses.Select(r => r.StatusCode).Order());
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.Conflict], reponses.Select(r => r.StatusCode).Order());
         Assert.Equal(1, await Database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
         foreach (var reponse in reponses)
         {
@@ -78,11 +79,17 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         var (responsable, lieux) = await PreparerAsync();
         var technicien = await JetonAsync("technicien@inventaire.test");
         var banc = await CreerAsync($"{Base}/components", new { nom = "Banc", corpsEtat = "Mobilier", zoneId = lieux.Nef }, technicien);
+        var coffre = await CreerAsync($"{Base}/components", new { nom = "Coffre", corpsEtat = "Mobilier", zoneId = lieux.Nef }, technicien);
         var plan = await CreerAsync(Plans, new { batimentId = lieux.Eglise, niveauId = lieux.Rdc }, responsable);
-        var avecBanc = Nef(lieux, largeur: 10) with { Composants = [new { composantId = banc, position = new { x = 2, y = 2 } }] };
+        var avecBanc = Nef(lieux, largeur: 10) with
+        {
+            Composants = [new { composantId = banc, position = new { x = 2, y = 2 } }, new { composantId = coffre, position = new { x = 3, y = 3 } }],
+        };
         using var premiere = await EnregistrerAsync(plan, responsable, version: 0, avecBanc);
         using var deuxieme = await EnregistrerAsync(plan, responsable, version: 1, Nef(lieux, largeur: 12));
         using var retrait = await EnvoyerAsync(HttpMethod.Post, $"{Base}/components/{banc}/withdraw", technicien, new { motif = "Cédé", version = await XminAsync(banc) });
+        using var reclasse = await EnvoyerAsync(HttpMethod.Put, $"{Base}/components/{coffre}", technicien,
+            new { nom = "Coffre", corpsEtat = "EquipementsCulte", zoneId = lieux.Nef, soumisAVerification = false, version = await XminAsync(coffre) });
 
         using var sansMotif = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/1/restore", responsable, new { commandeId = Guid.NewGuid(), version = 2 });
         using var inconnue = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/9/restore", responsable, new { commandeId = Guid.NewGuid(), version = 2, motif = "Retour" });
@@ -91,13 +98,16 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         var v3 = await LireAsync($"{Plans}/{plan}", responsable);
 
         Assert.Equal(HttpStatusCode.NoContent, retrait.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, reclasse.StatusCode);
         Assert.Equal("motif", await ChampAsync(sansMotif));
         Assert.Equal(HttpStatusCode.NotFound, inconnue.StatusCode);
         Assert.Equal(HttpStatusCode.OK, restauree.StatusCode);
         var resultat = await restauree.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(3, resultat.GetProperty("version").GetInt32());
-        Assert.Equal(["marqueur_retire"], resultat.GetProperty("avertissements").EnumerateArray().Select(a => a.GetProperty("code").GetString()));
-        Assert.Equal([banc], v1.GetProperty("marqueursObsoletes").EnumerateArray().Select(m => m.GetGuid())); // composant retiré depuis
+        Assert.Equal(["marqueur_retire", "marqueur_retire"], resultat.GetProperty("avertissements").EnumerateArray().Select(a => a.GetProperty("code").GetString()));
+        // Retiré, ou devenu objet de valeur : signalé ; la position de l'objet de valeur n'est plus servie.
+        Assert.Equal([banc, coffre], v1.GetProperty("marqueursObsoletes").EnumerateArray().Select(m => m.GetGuid()));
+        Assert.Equal([banc], v1.GetProperty("contenu").GetProperty("composants").EnumerateArray().Select(m => m.GetProperty("composantId").GetGuid()));
         Assert.Equal(1, v3.GetProperty("restaureDe").GetInt32());
         Assert.Equal("Erreur de relevé", v3.GetProperty("motif").GetString());
         Assert.Equal(v1.GetProperty("contenu").GetProperty("pieces").GetRawText(), v3.GetProperty("contenu").GetProperty("pieces").GetRawText());

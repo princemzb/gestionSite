@@ -81,6 +81,11 @@ internal static class ValidationPlan
         }
 
         var nord = Facultatif(contenu.Nord, "contenu.nord", n => n is >= 0 and < 360, 10);
+        if (nord >= 360)
+        {
+            nord = 0; // 359,97° s'arrondit au dixième à 360°, soit 0°
+        }
+
         var altitude = Facultatif(contenu.Altitude, "contenu.altitude", a => a is >= -100 and <= 1_000, 100);
         var hauteur = Facultatif(contenu.HauteurSousPlafond, "contenu.hauteurSousPlafond", h => h is > 0 and <= 30, 100);
         var points = 0;
@@ -89,7 +94,7 @@ internal static class ValidationPlan
         var ouvertures = Ouvertures(Liste(contenu.Ouvertures, OuverturesMax, "contenu.ouvertures"), pieces);
         var (marqueurs, avertissements) = Marqueurs(Liste(contenu.Composants, MarqueursMax, "contenu.composants"), cadre, pieces);
         return new PlanValide(
-            new ContenuPlan(nord, altitude, hauteur, [.. pieces.Select(p => p.Piece)], ouvertures, escaliers, marqueurs), avertissements);
+            new ContenuPlan(VersionPlanBatiment.SchemaCourant, nord, altitude, hauteur, [.. pieces.Select(p => p.Piece)], ouvertures, escaliers, marqueurs), avertissements);
     }
 
     /// <summary>Arrondi au centimètre, le demi-centimètre s'éloignant de zéro, jamais -0 (même règle que l'éditeur, ADR-11).</summary>
@@ -101,10 +106,11 @@ internal static class ValidationPlan
         return arrondi == 0 ? 0 : arrondi;
     }
 
+    // Valeur saisie contrôlée dans son domaine, puis arrondie.
     private static double? Facultatif(double? valeur, string champ, Func<double, bool> permise, int parUnite) => valeur switch
     {
         null => null,
-        { } v when double.IsFinite(v) && permise(Arrondi(v, parUnite)) => Arrondi(v, parUnite),
+        { } v when double.IsFinite(v) && permise(v) => Arrondi(v, parUnite),
         _ => throw Refus(champ),
     };
 
@@ -143,7 +149,14 @@ internal static class ValidationPlan
         }
 
         // Chevauchement de plus de 5 cm entre deux pièces : chacune réduite de 2,5 cm, leurs intérieurs se rencontrent encore.
+        // Une pièce plus étroite que 5 cm partout disparaîtrait à la réduction et échapperait au contrôle : refusée.
         var reduites = pieces.Select(p => p.Forme.Buffer(-ChevauchementMax / 2)).ToList();
+        var etroite = reduites.FindIndex(r => r.IsEmpty);
+        if (etroite >= 0)
+        {
+            throw Refus($"contenu.pieces[{etroite}].contour");
+        }
+
         for (var i = 0; i < pieces.Count; i++)
         {
             for (var j = i + 1; j < pieces.Count; j++)

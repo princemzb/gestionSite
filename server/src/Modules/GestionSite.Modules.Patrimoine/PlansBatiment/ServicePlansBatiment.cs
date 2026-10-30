@@ -12,8 +12,9 @@ namespace GestionSite.Modules.Patrimoine.PlansBatiment;
 internal sealed record PlanLu(Guid Id, Guid BatimentId, Guid? NiveauId, int Version, DateTimeOffset? ModifieLe, string? Auteur);
 
 /// <summary>
-/// Version lue d'un plan : 0 tant que rien n'est enregistré (contenu vide). Marqueurs obsolètes : composants retirés ou
-/// changés de zone depuis cette version, à retirer de la suivante (RP-21.7).
+/// Version lue d'un plan : 0 tant que rien n'est enregistré (contenu vide). Marqueurs obsolètes : composants retirés,
+/// changés de zone ou devenus objets de valeur depuis cette version, à retirer de la suivante (RP-21.7) ; ceux d'un objet
+/// de valeur ne sont jamais rendus.
 /// </summary>
 internal sealed record VersionPlanLue(
     Guid PlanId, Guid BatimentId, Guid? NiveauId, int Version, int Schema, DateTimeOffset? Le, string? Auteur, string? Motif, int? RestaureDe,
@@ -22,6 +23,9 @@ internal sealed record VersionPlanLue(
 internal sealed record VersionResumee(int Version, DateTimeOffset Le, string? Auteur, string? Motif, int? RestaureDe);
 
 internal sealed record VersionEnregistree(int Version, IReadOnlyList<AvertissementPlan> Avertissements);
+
+/// <summary>Numéro, auteur et date de la dernière version, sans son contenu.</summary>
+internal sealed record EnTeteVersion(int Version, Guid AuteurCompteId, DateTimeOffset CreeLe);
 
 /// <summary>Un plan existe déjà pour ce niveau (ou ce plan masse) : 409 « plan_existant », avec son identifiant.</summary>
 internal sealed class PlanExistantException(Guid planId) : Exception("Ce niveau a déjà un plan de bâtiment.")
@@ -139,8 +143,15 @@ internal sealed class ServicePlansBatiment(
         var contenu = lue.ContenuLu;
         var ids = contenu.Composants.Select(m => m.ComposantId).ToList();
         var actuels = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == siteId && c.RetireLe == null)
-            .Select(c => new { c.Id, c.ZoneId }).ToDictionaryAsync(c => c.Id, c => c.ZoneId, cancellationToken).ConfigureAwait(false);
-        var obsoletes = contenu.Composants.Where(m => !actuels.TryGetValue(m.ComposantId, out var zone) || zone != m.ZoneId).Select(m => m.ComposantId).ToList();
+            .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat }).ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
+        var obsoletes = contenu.Composants
+            .Where(m => !actuels.TryGetValue(m.ComposantId, out var c) || c.ZoneId != m.ZoneId || ValidationPlan.ObjetDeValeur(c.CorpsEtat))
+            .Select(m => m.ComposantId).ToList();
+        // Composant reclassé en objet de valeur depuis : sa position n'est plus servie, même dans une ancienne version.
+        contenu = contenu with
+        {
+            Composants = [.. contenu.Composants.Where(m => !(actuels.TryGetValue(m.ComposantId, out var c) && ValidationPlan.ObjetDeValeur(c.CorpsEtat)))],
+        };
         var noms = await annuaire.NomsAsync([lue.AuteurCompteId], cancellationToken).ConfigureAwait(false);
         return new VersionPlanLue(
             plan.Id, plan.BatimentId, plan.NiveauId, lue.Version, lue.Schema, lue.CreeLe, noms.GetValueOrDefault(lue.AuteurCompteId), lue.Motif,
@@ -167,10 +178,7 @@ internal sealed class ServicePlansBatiment(
         return [.. versions.Select(v => new VersionResumee(v.Version, v.CreeLe, noms.GetValueOrDefault(v.AuteurCompteId), v.Motif, v.RestaureDe))];
     }
 
-    /// <summary>
-    /// Nouvelle version à partir de la version lue (0 pour la première) ; contenu identique à la dernière version et sans
-    /// motif : rien n'est écrit.
-    /// </summary>
+    /// <summary>Nouvelle version à partir de la version lue (0 pour la première), même si le contenu n'a pas changé (RP-21.8).</summary>
     internal async Task<VersionEnregistree> EnregistrerAsync(
         Guid organisationId, Guid siteId, Guid planId, Guid? commandeId, int? versionLue, string? motif, SaisieContenuPlan? contenu,
         CancellationToken cancellationToken)
@@ -188,31 +196,27 @@ internal sealed class ServicePlansBatiment(
         var courante = await CouranteAsync(plan.Id, cancellationToken).ConfigureAwait(false);
         await ExigerCouranteAsync(courante, lue, cancellationToken).ConfigureAwait(false);
         var valide = ValidationPlan.Valider(contenu, await CadreAsync(plan, contenu?.Composants, cancellationToken).ConfigureAwait(false));
-        if (courante is not null && texte is null
-            && JsonSerializer.Serialize(courante.ContenuLu, VersionPlanBatiment.Json) == JsonSerializer.Serialize(valide.Contenu, VersionPlanBatiment.Json))
-        {
-            return new VersionEnregistree(courante.Version, valide.Avertissements);
-        }
-
         return await AjouterAsync(plan, courante, envoi, valide, texte, restaureDe: null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Restauration (RP-21.8) : la version demandée est recopiée dans une nouvelle version, motif obligatoire. Les
-    /// marqueurs de composants retirés ou changés de niveau depuis sont retirés (avertissement « marqueur_retire »).
+    /// marqueurs de composants retirés, changés de niveau ou devenus objets de valeur depuis sont retirés (avertissement
+    /// « marqueur_retire »).
     /// </summary>
     internal async Task<VersionEnregistree> RestaurerAsync(
         Guid organisationId, Guid siteId, Guid planId, int source, Guid? commandeId, int? versionLue, string? motif, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ModifierPlans, cancellationToken).ConfigureAwait(false);
         var plan = await PlanAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
-        var ancienne = await context.VersionsPlanBatiment.AsNoTracking().SingleOrDefaultAsync(v => v.PlanId == plan.Id && v.Version == source, cancellationToken)
-            .ConfigureAwait(false) ?? throw new ElementIntrouvableException();
         var envoi = Envoi(commandeId);
         if (await DejaRecuAsync(plan.Id, envoi, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return deja;
         }
+
+        var ancienne = await context.VersionsPlanBatiment.AsNoTracking().SingleOrDefaultAsync(v => v.PlanId == plan.Id && v.Version == source, cancellationToken)
+            .ConfigureAwait(false) ?? throw new ElementIntrouvableException();
 
         var lue = versionLue ?? throw new SaisieInvalideException("version", "Version lue obligatoire.");
         var texte = Motif(motif, obligatoire: true);
@@ -221,7 +225,7 @@ internal sealed class ServicePlansBatiment(
         var contenu = ancienne.ContenuLu;
         var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], cancellationToken).ConfigureAwait(false);
         var gardes = contenu.Composants.Where(m => cadre.Composants.TryGetValue(m.ComposantId, out var c) && !c.Retire
-            && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
+            && !ValidationPlan.ObjetDeValeur(c.CorpsEtat) && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
         var valide = ValidationPlan.Valider(Saisie(contenu with { Composants = gardes }), cadre);
         var retires = contenu.Composants.Except(gardes).Select(m => new AvertissementPlan(MarqueurRetire, m.ComposantId));
         return await AjouterAsync(plan, courante, envoi, valide with { Avertissements = [.. retires, .. valide.Avertissements] }, texte, source, cancellationToken)
@@ -229,7 +233,7 @@ internal sealed class ServicePlansBatiment(
     }
 
     private async Task<VersionEnregistree> AjouterAsync(
-        PlanBatiment plan, VersionPlanBatiment? courante, Guid envoi, PlanValide valide, string? motif, int? restaureDe, CancellationToken cancellationToken)
+        PlanBatiment plan, EnTeteVersion? courante, Guid envoi, PlanValide valide, string? motif, int? restaureDe, CancellationToken cancellationToken)
     {
         var maintenant = horloge.GetUtcNow();
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
@@ -258,7 +262,7 @@ internal sealed class ServicePlansBatiment(
         return new VersionEnregistree(version.Version, valide.Avertissements);
     }
 
-    private async Task ExigerCouranteAsync(VersionPlanBatiment? courante, int lue, CancellationToken cancellationToken)
+    private async Task ExigerCouranteAsync(EnTeteVersion? courante, int lue, CancellationToken cancellationToken)
     {
         var numero = courante?.Version ?? 0;
         if (numero == lue)
@@ -298,8 +302,9 @@ internal sealed class ServicePlansBatiment(
         return new CadrePlan(plan.NiveauId, zones, niveaux.ToHashSet(), composants);
     }
 
-    private Task<VersionPlanBatiment?> CouranteAsync(Guid planId, CancellationToken cancellationToken) =>
-        context.VersionsPlanBatiment.AsNoTracking().Where(v => v.PlanId == planId).OrderByDescending(v => v.Version).FirstOrDefaultAsync(cancellationToken);
+    private Task<EnTeteVersion?> CouranteAsync(Guid planId, CancellationToken cancellationToken) =>
+        context.VersionsPlanBatiment.AsNoTracking().Where(v => v.PlanId == planId).OrderByDescending(v => v.Version)
+            .Select(v => new EnTeteVersion(v.Version, v.AuteurCompteId, v.CreeLe)).FirstOrDefaultAsync(cancellationToken);
 
     private async Task<PlanBatiment> PlanAsync(Guid siteId, Guid planId, CancellationToken cancellationToken) =>
         await context.PlansBatiment.AsNoTracking().SingleOrDefaultAsync(p => p.Id == planId && p.SiteId == siteId, cancellationToken).ConfigureAwait(false)
@@ -320,7 +325,7 @@ internal sealed class ServicePlansBatiment(
 
     // Contenu enregistré remis sous forme de saisie : une restauration repasse par la validation en vigueur.
     private static SaisieContenuPlan Saisie(ContenuPlan contenu) => new(
-        VersionPlanBatiment.SchemaCourant, contenu.Nord, contenu.Altitude, contenu.HauteurSousPlafond,
+        contenu.Schema, contenu.Nord, contenu.Altitude, contenu.HauteurSousPlafond,
         [.. contenu.Pieces.Select(p => new SaisiePiece(p.ZoneId, Points(p.Contour)))],
         [.. contenu.Ouvertures.Select(o => new SaisieOuverture(o.Type, Point(o.De), Point(o.A), o.Zones))],
         [.. contenu.Escaliers.Select(e => new SaisieLiaison(e.Type, Points(e.Contour), e.VersNiveauId))],
