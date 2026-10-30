@@ -1,5 +1,6 @@
 using GestionSite.Modules.Patrimoine.Composants;
 using GestionSite.Modules.Patrimoine.Contracts;
+using GestionSite.Modules.Patrimoine.Etablissement;
 using GestionSite.Modules.Patrimoine.Evaluations;
 using GestionSite.Modules.Patrimoine.Grilles;
 using GestionSite.Modules.Patrimoine.Lecture;
@@ -20,8 +21,9 @@ public static class PatrimoineModule
     public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
         services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>()
-            .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>();
+            .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>()
+            .AddScoped<ServiceEtablissement>();
 
     public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations().MapScore();
+        endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations().MapScore().MapEtablissement();
 }

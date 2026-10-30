@@ -37,6 +37,8 @@ internal static class MatriceDroits
         [Droit.ModifierInventaire] = Terrain,
         [Droit.ModifierGrilles] = Encadrement,
         [Droit.EvaluerComposant] = Terrain,
+        [Droit.PlanifierPreventif] = Encadrement,
+        [Droit.ExecuterControle] = Terrain,
         [Droit.ModifierPlans] = Encadrement,
         [Droit.AfficherLienPublic] = Encadrement,
         [Droit.GererComptes] = [Role.Administrateur],

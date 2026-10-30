@@ -37,7 +37,45 @@ internal sealed class Batiment : IAppartientAOrganisation
 
     public DateTimeOffset CreeLe { get; private set; }
 
+    /// <summary>Classement déclaré (US-12) ; null tant qu'il n'est pas renseigné.</summary>
+    public bool? Erp { get; private set; }
+
+    public TypeErp? TypeEtablissement { get; private set; }
+
+    public string? TypesSecondaires { get; private set; }
+
+    public int? Categorie { get; private set; }
+
+    public int? EffectifDeclare { get; private set; }
+
+    public bool LocauxSommeil { get; private set; }
+
+    public bool MonumentHistorique { get; private set; }
+
+    public ReponseConnue? PermisAvant1997 { get; private set; }
+
+    public DateOnly? DerniereVisiteCommission { get; private set; }
+
+    internal ClassementErp? Classement => Erp is { } erp && PermisAvant1997 is { } permis
+        ? new ClassementErp(erp, TypeEtablissement, ClassementErp.Separer(TypesSecondaires), Categorie, EffectifDeclare, LocauxSommeil, MonumentHistorique,
+            permis, DerniereVisiteCommission)
+        : null;
+
     internal void Renommer(string? nom) => Nom = Domain.Nom.Exiger(nom);
+
+    /// <summary>Classement déjà contrôlé (ClassementErp.Valider).</summary>
+    internal void Classer(ClassementErp classement)
+    {
+        Erp = classement.Erp;
+        TypeEtablissement = classement.Type;
+        TypesSecondaires = ClassementErp.Joindre(classement.TypesSecondaires);
+        Categorie = classement.Categorie;
+        EffectifDeclare = classement.Effectif;
+        LocauxSommeil = classement.LocauxSommeil;
+        MonumentHistorique = classement.MonumentHistorique;
+        PermisAvant1997 = classement.PermisAvant1997;
+        DerniereVisiteCommission = classement.DerniereVisiteCommission;
+    }
 }
 
 /// <summary>Niveau (étage) d'un bâtiment ; l'ordre range les niveaux de bas en haut (sous-sol négatif).</summary>
@@ -133,6 +171,9 @@ internal enum CibleInventaire
     Niveau = 2,
     Zone = 3,
     Composant = 4,
+
+    /// <summary>Données du site pour le préventif (US-12 : salariés présents).</summary>
+    Site = 5,
 }
 
 internal enum NatureEvenementInventaire

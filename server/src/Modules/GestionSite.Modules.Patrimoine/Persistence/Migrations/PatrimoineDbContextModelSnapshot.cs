@@ -29,9 +29,33 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("Categorie")
+                        .HasColumnType("integer")
+                        .HasColumnName("categorie");
+
                     b.Property<DateTimeOffset>("CreeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");
+
+                    b.Property<DateOnly?>("DerniereVisiteCommission")
+                        .HasColumnType("date")
+                        .HasColumnName("derniere_visite_commission");
+
+                    b.Property<int?>("EffectifDeclare")
+                        .HasColumnType("integer")
+                        .HasColumnName("effectif_declare");
+
+                    b.Property<bool?>("Erp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("erp");
+
+                    b.Property<bool>("LocauxSommeil")
+                        .HasColumnType("boolean")
+                        .HasColumnName("locaux_sommeil");
+
+                    b.Property<bool>("MonumentHistorique")
+                        .HasColumnType("boolean")
+                        .HasColumnName("monument_historique");
 
                     b.Property<string>("Nom")
                         .IsRequired()
@@ -43,9 +67,24 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
 
+                    b.Property<string>("PermisAvant1997")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("permis_avant1997");
+
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
+
+                    b.Property<string>("TypeEtablissement")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("type_etablissement");
+
+                    b.Property<string>("TypesSecondaires")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("types_secondaires");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
@@ -63,7 +102,10 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_batiments_nom_par_site");
 
-                    b.ToTable("batiments", "patrimoine");
+                    b.ToTable("batiments", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_batiments_classement", "(erp IS NULL AND permis_avant1997 IS NULL AND type_etablissement IS NULL AND categorie IS NULL) OR (erp AND permis_avant1997 IS NOT NULL AND type_etablissement IS NOT NULL AND categorie BETWEEN 1 AND 5) OR (NOT erp AND permis_avant1997 IS NOT NULL AND type_etablissement IS NULL AND types_secondaires IS NULL AND categorie IS NULL AND effectif_declare IS NULL AND NOT locaux_sommeil AND derniere_visite_commission IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Composant", b =>
@@ -203,6 +245,36 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_composants_retrait", "(retire_le IS NULL) = (motif_retrait IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.EtablissementSite", b =>
+                {
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<DateTimeOffset>("ModifieLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("modifie_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<bool>("SalariesPresents")
+                        .HasColumnType("boolean")
+                        .HasColumnName("salaries_presents");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("SiteId")
+                        .HasName("pk_etablissements");
+
+                    b.ToTable("etablissements", "patrimoine");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Evaluation", b =>

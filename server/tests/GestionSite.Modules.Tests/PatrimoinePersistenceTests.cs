@@ -27,7 +27,7 @@ public sealed class PatrimoinePersistenceTests
         using var module = new RuntimeContext();
         var entites = module.Context.Model.GetEntityTypes().ToList();
 
-        Assert.Equal(8, entites.Count); // bâtiments, niveaux, zones, composants, journal, grilles, évaluations, photos
+        Assert.Equal(9, entites.Count); // bâtiments, niveaux, zones, composants, journal, grilles, évaluations, photos, établissements
         Assert.All(entites, t => Assert.True(typeof(IAppartientAOrganisation).IsAssignableFrom(t.ClrType)));
         Assert.All(entites, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
         Assert.All(entites, t => Assert.Equal("patrimoine", t.GetSchema()));
