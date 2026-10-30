@@ -15,7 +15,8 @@ public sealed class InspectionsAnterieuresTests(InfrastructureFixture infrastruc
 {
     private string Preventif => Base.Replace("/inventory", "/preventive", StringComparison.Ordinal);
 
-    private static DateOnly Aujourdhui => JourCivil.Du(DateTimeOffset.UtcNow);
+    // Jour fixé une fois pour la classe de test : pas d'écart si le test passe minuit.
+    private static readonly DateOnly Aujourdhui = JourCivil.Du(DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task ABackdatedInspectionNeverHidesAMoreRecentEvaluation()

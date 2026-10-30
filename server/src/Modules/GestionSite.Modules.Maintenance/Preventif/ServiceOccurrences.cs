@@ -447,17 +447,13 @@ internal sealed class ServiceOccurrences(
         return (plan, await context.Occurrences.Where(o => o.PlanId == planId).ToListAsync(cancellationToken).ConfigureAwait(false), cible);
     }
 
-    // Évaluation d'une inspection datée de sa réalisation (choix de l'agent) : l'heure de saisie le jour même, sinon midi
-    // (heure de Paris) du jour réel ; jamais après la saisie.
+    // Évaluation d'une inspection datée de sa réalisation (choix de l'agent) : début du jour réel (heure de Paris), sans
+    // heure connue ; elle ne masque donc jamais une évaluation enregistrée le même jour, ni après la saisie.
     private static DateTimeOffset ObservationDu(DateOnly realiseLe, DateTimeOffset maintenant)
     {
-        if (realiseLe >= JourCivil.Du(maintenant))
-        {
-            return maintenant;
-        }
-
-        var midi = realiseLe.ToDateTime(new TimeOnly(12, 0));
-        return new DateTimeOffset(midi, JourCivil.Fuseau.GetUtcOffset(midi)).ToUniversalTime();
+        var debut = realiseLe.ToDateTime(TimeOnly.MinValue);
+        var instant = new DateTimeOffset(debut, JourCivil.Fuseau.GetUtcOffset(debut)).ToUniversalTime();
+        return instant < maintenant ? instant : maintenant;
     }
 
     private static DateOnly Echeance(DateOnly? demandee) => demandee ?? throw new SaisieInvalideException("echeance", "Échéance obligatoire.");
