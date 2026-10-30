@@ -2222,6 +2222,25 @@
       "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description."
     },
     {
+      "id": "SOC-03",
+      "name": "[SOC-03] Socle : aucune photo orpheline si l'enregistrement échoue",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-005",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Le stockage sait supprimer un fichier (S3/R2).",
+        "Les photos écrites avant l'enregistrement (dépôt public, déclaration, clôture, évaluation) sont retirées si l'enregistrement n'aboutit pas : échec de la base, envoi concurrent perdant, rejeu, écriture partielle.",
+        "Un échec de suppression ne masque jamais l'erreur d'origine ; tests unitaires du mécanisme."
+      ],
+      "note": "Créée directement dans Trello (SP-003) ; Trello fait foi pour la description.",
+      "trelloId": "6ae42995e74a63b8bc057dd2",
+      "trelloShortLink": "bTsAhX4b"
+    },
+    {
       "id": "UX-04",
       "name": "[UX-04] Maquettes US-07 : inventaire d'un site (structure, composants, lots)",
       "type": "sous_carte",

@@ -25,6 +25,10 @@ internal sealed class StockageFichiersS3(IAmazonS3 client, IOptions<ObjectStorag
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    // S3 et R2 : supprimer une clé absente réussit (204), aucun cas particulier.
+    public Task SupprimerAsync(string cle, CancellationToken cancellationToken) =>
+        client.DeleteObjectAsync(options.Value.Bucket, cle, cancellationToken);
+
     public async Task<(byte[] Contenu, string TypeContenu)?> LireAsync(string cle, CancellationToken cancellationToken)
     {
         try

@@ -58,11 +58,13 @@ internal sealed class ServiceEvaluations(
         var maintenant = horloge.GetUtcNow();
         var evaluation = Evaluation.Creer(Guid.CreateVersion7(maintenant), composant, grille, saisie, evaluateur, maintenant);
 
-        // 2. Photos préparées puis écrites avant l'enregistrement, sous des clés propres à cette évaluation.
+        // 2. Photos préparées puis écrites avant l'enregistrement, sous des clés propres à cette évaluation ; retirées si
+        //    l'enregistrement n'aboutit pas (conflit, envoi concurrent perdant).
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        context.PhotosEvaluation.AddRange(await PhotosStockees.EcrireAsync(
+        await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoEvaluation(Guid.CreateVersion7(maintenant), evaluation, rang, jpeg.Length, maintenant), p => p.Cle,
-            cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false);
+        context.PhotosEvaluation.AddRange(envoi.Photos);
         context.Evaluations.Add(evaluation);
 
         // 3. Lot : répartition de l'inventaire reprise de l'évaluation, toujours à la version lue du composant (xmin), même
@@ -84,6 +86,7 @@ internal sealed class ServiceEvaluations(
         try
         {
             await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+            envoi.Confirmer();
         }
         catch (Exception concurrent) when (concurrent is ModifieEntreTempsException
             || (concurrent is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation }

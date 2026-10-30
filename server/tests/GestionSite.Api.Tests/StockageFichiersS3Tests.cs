@@ -28,9 +28,34 @@ public sealed class StockageFichiersS3Tests
         Assert.Equal(("essai", "organisations/x/photo.jpg", "image/jpeg"), (envoi.BucketName, envoi.Key, envoi.ContentType));
     }
 
+    [Fact]
+    public async Task DeletionTargetsTheConfiguredBucket()
+    {
+        using var client = new ClientCapturant();
+        var stockage = new StockageFichiersS3(client, Options.Create(new ObjectStorageOptions
+        {
+            ServiceUrl = "http://localhost:8333",
+            Bucket = "essai",
+            AccessKey = "cle",
+            SecretKey = "secret",
+        }));
+
+        await stockage.SupprimerAsync("organisations/x/photo.jpg", CancellationToken.None);
+
+        Assert.Equal([("essai", "organisations/x/photo.jpg")], client.Suppressions);
+    }
+
     private sealed class ClientCapturant() : AmazonS3Client(new AnonymousAWSCredentials(), new AmazonS3Config { ServiceURL = "http://localhost:8333" })
     {
         internal List<PutObjectRequest> Envois { get; } = [];
+
+        internal List<(string Compartiment, string Cle)> Suppressions { get; } = [];
+
+        public override Task<DeleteObjectResponse> DeleteObjectAsync(string bucketName, string key, CancellationToken cancellationToken = default)
+        {
+            Suppressions.Add((bucketName, key));
+            return Task.FromResult(new DeleteObjectResponse());
+        }
 
         public override Task<PutObjectResponse> PutObjectAsync(PutObjectRequest request, CancellationToken cancellationToken = default)
         {
