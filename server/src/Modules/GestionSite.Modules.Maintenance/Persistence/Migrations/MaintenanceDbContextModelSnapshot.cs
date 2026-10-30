@@ -129,6 +129,13 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("character varying(60)")
                         .HasColumnName("numero_agrement");
 
+                    b.Property<string>("Observations")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("observations")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<Guid>("OccurrenceId")
                         .HasColumnType("uuid")
                         .HasColumnName("occurrence_id");
@@ -150,6 +157,20 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("prestataire");
+
+                    b.Property<string>("RapportCle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rapport_cle");
+
+                    b.Property<string>("RapportEmpreinte")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("rapport_empreinte");
+
+                    b.Property<int?>("RapportTaille")
+                        .HasColumnType("integer")
+                        .HasColumnName("rapport_taille");
 
                     b.Property<DateOnly>("RealiseLe")
                         .HasColumnType("date")
@@ -196,6 +217,8 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.ToTable("controles_preventifs", "maintenance", t =>
                         {
                             t.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)");
+
+                            t.HasCheckConstraint("ck_controles_preventifs_rapport", "(rapport_cle IS NULL) = (rapport_taille IS NULL) AND (rapport_cle IS NULL) = (rapport_empreinte IS NULL) AND (rapport_taille IS NULL OR rapport_taille BETWEEN 1 AND 10485760)");
                         });
                 });
 

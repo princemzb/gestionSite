@@ -109,7 +109,17 @@ internal sealed partial class MaintenanceDbContext
         modelBuilder.Entity<ControlePreventif>(controle =>
         {
             controle.ToTable("controles_preventifs", table =>
-                table.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)"));
+            {
+                table.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)");
+                // Rapport PDF (S12-04) : complet ou absent, 10 Mo au plus.
+                table.HasCheckConstraint(
+                    "ck_controles_preventifs_rapport",
+                    "(rapport_cle IS NULL) = (rapport_taille IS NULL) AND (rapport_cle IS NULL) = (rapport_empreinte IS NULL) " +
+                    $"AND (rapport_taille IS NULL OR rapport_taille BETWEEN 1 AND {SharedKernel.Photos.FormulaireAvecPhotos.DocumentMax})");
+            });
+            controle.Property(c => c.Observations).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
+            controle.Property(c => c.RapportCle).HasMaxLength(PhotoControle.CleMax);
+            controle.Property(c => c.RapportEmpreinte).HasMaxLength(64);
             controle.HasKey(c => c.Id);
             controle.Property(c => c.Id).ValueGeneratedNever();
             controle.Property(c => c.Nature).HasConversion<string>().HasMaxLength(24);

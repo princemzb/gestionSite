@@ -87,9 +87,9 @@ internal static class PreventifEndpoints
             return Results.NoContent();
         });
         preventif.MapPost("/plans/{id:guid}/perform", async (Guid orgId, Guid siteId, Guid id, HttpRequest requete, ServiceOccurrences service, CancellationToken ct) =>
-            Results.Ok(await service.RealiserAsync(orgId, siteId, id, () => FormulaireAvecPhotos.LireAsync<DemandeRealisation>(requete, ct), ct)
+            Results.Ok(await service.RealiserAsync(orgId, siteId, id, () => FormulaireAvecPhotos.LireAvecDocumentAsync<DemandeRealisation>(requete, "rapport", ct), ct)
                 .ConfigureAwait(false)))
-            .AvecPhotos();
+            .AvecPhotosEtDocument();
         preventif.MapGet("/controls", async (
             Guid orgId, Guid siteId, Guid? planId, Guid? composantId, Guid? batimentId, ServiceOccurrences service, CancellationToken ct) =>
             Results.Ok(await service.ListerAsync(orgId, siteId, planId, composantId, batimentId, ct).ConfigureAwait(false)));
@@ -100,6 +100,19 @@ internal static class PreventifEndpoints
             await service.PhotoAsync(orgId, siteId, id, rang, ct).ConfigureAwait(false) is { } photo
                 ? Results.File(photo, TraitementPhotos.TypeContenu)
                 : Results.NotFound());
+        // Rapport téléchargé (pièce jointe, jamais affiché dans l'origine de l'application), sans mise en cache partagée.
+        preventif.MapGet("/controls/{id:guid}/report", async (Guid orgId, Guid siteId, Guid id, HttpResponse reponse, ServiceOccurrences service, CancellationToken ct) =>
+        {
+            if (await service.RapportAsync(orgId, siteId, id, ct).ConfigureAwait(false) is not { } pdf)
+            {
+                return Results.NotFound();
+            }
+
+            reponse.Headers.CacheControl = "private, no-store";
+            reponse.Headers.XContentTypeOptions = "nosniff";
+            reponse.Headers.ContentSecurityPolicy = "sandbox";
+            return Results.File(pdf, RapportControle.TypeContenu, $"rapport-{id:N}.pdf");
+        });
         return endpoints;
     }
 

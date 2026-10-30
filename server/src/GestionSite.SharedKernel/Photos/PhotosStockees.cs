@@ -13,8 +13,14 @@ public static class PhotosStockees
     /// envoi concurrent perdant, rejeu. En cas de doute (base injoignable), les fichiers sont gardés : jamais une photo
     /// d'une ligne enregistrée supprimée.
     /// </summary>
-    public static async Task<EnvoiPhotos<T>> EcrireAsync<T>(
+    public static Task<EnvoiPhotos<T>> EcrireAsync<T>(
         IStockageFichiers stockage, IReadOnlyList<byte[]> jpegs, Func<int, byte[], T> creer, Func<T, string> cle,
+        Func<IReadOnlyList<T>, Task<bool>> enregistrees, CancellationToken cancellationToken) =>
+        EcrireAsync(stockage, jpegs, TraitementPhotos.TypeContenu, creer, cle, enregistrees, cancellationToken);
+
+    /// <summary>Même écriture pour des fichiers d'un autre type (rapport PDF d'une vérification, S12-04).</summary>
+    public static async Task<EnvoiPhotos<T>> EcrireAsync<T>(
+        IStockageFichiers stockage, IReadOnlyList<byte[]> jpegs, string typeContenu, Func<int, byte[], T> creer, Func<T, string> cle,
         Func<IReadOnlyList<T>, Task<bool>> enregistrees, CancellationToken cancellationToken)
     {
         var photos = jpegs.Select((jpeg, i) => creer(i + 1, jpeg)).ToList();
@@ -23,7 +29,7 @@ public static class PhotosStockees
         {
             // Chaque écriture dans sa tâche : une erreur levée d'emblée attend les autres, retirées ensuite avec elles.
             await Task.WhenAll(photos.Select(async (photo, i) =>
-                await stockage.EcrireAsync(cle(photo), jpegs[i], TraitementPhotos.TypeContenu, cancellationToken).ConfigureAwait(false)))
+                await stockage.EcrireAsync(cle(photo), jpegs[i], typeContenu, cancellationToken).ConfigureAwait(false)))
                 .ConfigureAwait(false);
         }
         catch

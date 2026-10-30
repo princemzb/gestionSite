@@ -147,7 +147,7 @@ internal sealed record MesureControle(string Libelle, string Unite, decimal? Val
 internal sealed record SaisieControle(
     Guid CommandeId, DateOnly? RealiseLe, ResultatControle? Resultat, string? CompteRendu, int? GrilleVersion,
     IReadOnlyList<(bool? Conforme, bool Danger)>? Points, IReadOnlyList<decimal?>? Mesures, IReadOnlyList<(string? Libelle, string? Unite, decimal? Valeur)>? Releves,
-    string? Prestataire, string? NumeroAgrement);
+    string? Prestataire, string? NumeroAgrement, IReadOnlyList<(string? Libelle, Guid? ZoneId, bool Danger)>? Observations = null);
 
 /// <summary>Grille présentée pour une inspection : version et contenu en vigueur sur le site.</summary>
 internal sealed record GrilleControle(int Version, IReadOnlyList<string> Criteres, IReadOnlyList<(string Libelle, string Unite)> Mesures);
@@ -247,8 +247,20 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
 
     internal IReadOnlyList<MesureControle> MesuresLues => JsonSerializer.Deserialize<List<MesureControle>>(Mesures) ?? [];
 
+    /// <summary>Observations du rapport (vérification extérieure), chacune un écart à lever.</summary>
+    public string Observations { get; private set; } = "[]";
+
+    /// <summary>Rapport PDF (S12-04) : clé de stockage, taille et empreinte SHA-256 ; null sans rapport.</summary>
+    public string? RapportCle { get; private set; }
+
+    public int? RapportTaille { get; private set; }
+
+    public string? RapportEmpreinte { get; private set; }
+
+    internal IReadOnlyList<ObservationControle> ObservationsLues => JsonSerializer.Deserialize<List<ObservationControle>>(Observations) ?? [];
+
     /// <summary>Points en défaut : chacun est un constat à lever (S12-05).</summary>
-    internal int Defauts => PointsLus.Count(p => p.Conforme == false);
+    internal int Defauts => PointsLus.Count(p => p.Conforme == false) + ObservationsLues.Count;
 
     /// <summary>Réalisé avec réserves : un écart constaté, ou un résultat « non conforme » déclaré.</summary>
     internal bool Reserves => Defauts > 0 || Resultat == ResultatControle.NonConforme;
@@ -299,12 +311,40 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
             controle.Relever(saisie);
         }
 
+        controle.Observer(plan.Nature, cible.ZoneId, saisie.Observations ?? []);
         if (controle.Defauts > 0 && controle.Resultat == ResultatControle.Conforme)
         {
-            throw new SaisieInvalideException("resultat", "Un point en défaut exclut le résultat « Conforme ».");
+            throw new SaisieInvalideException("resultat", "Un point en défaut ou une observation exclut le résultat « Conforme ».");
         }
 
         return controle;
+    }
+
+    /// <summary>Rapport PDF déjà contrôlé (RapportControle.Valider), stocké sous une clé propre à ce contrôle.</summary>
+    internal void Joindre(Guid fichierId, int taille, string empreinte)
+    {
+        RapportCle = RapportControle.Cle(OrganisationId, Id, fichierId);
+        RapportTaille = taille;
+        RapportEmpreinte = empreinte;
+    }
+
+    // Observations d'un rapport de vérification : libellé, zone (celle du plan à défaut), danger ; une par écart à lever.
+    private void Observer(NaturePlan nature, Guid zoneParDefaut, IReadOnlyList<(string? Libelle, Guid? ZoneId, bool Danger)> observations)
+    {
+        if (observations.Count > 0 && nature != NaturePlan.VerificationExterieure)
+        {
+            throw new SaisieInvalideException("observations", "Les observations sont celles d'un rapport de vérification extérieure.");
+        }
+
+        if (observations.Count > RapportControle.ObservationsMax)
+        {
+            throw new SaisieInvalideException("observations", $"{RapportControle.ObservationsMax} observations au plus.");
+        }
+
+        Observations = JsonSerializer.Serialize(observations.Select(o => new ObservationControle(
+            TexteAffichable.Nettoyer(o.Libelle, RapportControle.LibelleObservationMax, multiligne: true)
+                ?? throw new SaisieInvalideException("observations", $"Observation : texte visible de {RapportControle.LibelleObservationMax} caractères au plus."),
+            o.ZoneId ?? zoneParDefaut, o.Danger)).ToList());
     }
 
     /// <summary>Évaluation US-11 enregistrée avec l'inspection d'un composant.</summary>
