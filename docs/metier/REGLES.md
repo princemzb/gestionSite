@@ -109,6 +109,14 @@ Cadrage complet : docs/pilotage/cadrage/US-12.md. Décisions du 30/10 (QCM, reco
 - Périmètre : complet, en 7 sous-cartes (S12-01 classement ERP et catalogue, S12-02 plans et échéances, S12-03 exécution, S12-04 vérification extérieure et PDF, S12-05 non-conformités vers dossiers et levée des réserves, S12-06 écrans de planification, S12-07 écrans de terrain ; maquettes validées avant tout code d'écran).
 Règles de l'agent (révisables) : classement ERP porté par chaque bâtiment (type, catégorie déclarée, drapeaux), « salariés présents » sur le site ; échéance glissante par défaut (date réelle + période), fixe en option ; fenêtre « À faire » de 10 % de la période (7 à 30 jours), aucune tolérance après l'échéance (« En retard ») ; échéances calculées à la lecture, sans tâche planifiée ; occurrence enregistrée seulement à l'affectation, la réalisation ou le saut (clé plan + échéance, rejeu sans doublon) ; aucune notification envoyée (US-10).
 
+## Stocks — US-15, V, 30 octobre 2026 (porteur du projet) — en attente d'US-14
+Cadrage : docs/pilotage/cadrage/US-15.md. Décisions du 30/10 (QCM) :
+- Transfert entre sites : un R/D de l'un ou l'autre site fait toutes les étapes (préparation, départ, réception).
+- Visibilité : les R/D de l'organisation voient les quantités (sans le journal des mouvements) de tous les sites, pour savoir à qui demander ; les autres comptes ne voient que leurs sites.
+- Prix : aucun ; quantités seulement (montants et budget : US-17/18).
+- Sortie de stock hors intervention : permise, motivée, par les techniciens et R/D du site (nouveau motif de mouvement, glossaire à compléter).
+- Dépendance : US-15 attend US-14 (synchronisation) — ordre US-13, US-14, puis US-15 d'un seul bloc.
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.
