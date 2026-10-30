@@ -34,7 +34,7 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Justificatifs financiers (factures, devis, décisions finance) | R/D, P/C des sites autorisés | R/D |
 | Inventaire (bâtiments, niveaux, zones, composants, lots) | Comptes internes du site | R/D ; techniciens du site (ajout et correction tracés) |
 | Grilles d’évaluation | Comptes internes du site | R/D ; chaque modification crée une version |
-| Plans 2D | Comptes internes du site | R/D ; droit attribuable nominativement par A ; chaque modification crée une version |
+| Plans 2D | Comptes internes du site | R/D ; droit attribuable nominativement par A à tout membre interne du site (T, P, C), site par site (US-21, V 30/10) ; chaque modification crée une version |
 | QR code et lien public d’un site (US-08, V 28/10) | A (tous les sites) ; R/D (leurs sites) | — (dérivés du site) |
 | Dépôts publics reçus, liste en lecture (US-08, V 28/10) | T, R/D, P/C du site | — (traitement : US-09) |
 

@@ -117,6 +117,14 @@ Cadrage : docs/pilotage/cadrage/US-15.md. Décisions du 30/10 (QCM) :
 - Sortie de stock hors intervention : permise, motivée, par les techniciens et R/D du site (nouveau motif de mouvement, glossaire à compléter).
 - Dépendance : US-15 attend US-14 (synchronisation) — ordre US-13, US-14, puis US-15 d'un seul bloc.
 
+## Plans de bâtiment — US-21, V, 30 octobre 2026 (porteur du projet)
+Cadrage complet : docs/pilotage/cadrage/US-21.md (règles RP-21.1 à RP-21.8, sous-cartes S21-01 à S21-10). Décisions du 30/10 (QCM, recommandations de l'agent retenues) :
+- Droit nominatif « modifier les plans du bâtiment » (en plus de R/D) : attribuable par l'administrateur, site par site, à tout membre interne du site (technicien, pasteur, coordination), avec motif et journal ; révocation immédiate.
+- Documents : import d'images (JPEG, PNG, HEIC) et de PDF (une page choisie) dès la V1, plus le plan vierge sur grille métrique ; pas de DXF ni DWG (export PDF à l'échelle demandé).
+- Objets de valeur (trésor, objets de culte, coffre) : jamais placés sur le plan ; ils restent dans l'inventaire sans marqueur.
+- Recette de l'éditeur : le porteur fournit un croquis coté ou un plan d'un site pilote avant S21-07, utilisé en préproduction seulement, jamais dans le dépôt.
+Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtiment sans niveau), géométrie en mètres dans un repère par bâtiment, calibration obligatoire pour un plan importé ; pièces liées aux zones d'US-07 ; chaque enregistrement crée une version immuable, conflit à la version lue (409) ; « plan de bâtiment » partout pour ne pas confondre avec les plans préventifs d'US-12.
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.

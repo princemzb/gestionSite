@@ -2743,6 +2743,196 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
       "trelloId": "6ae42c52183f964f5e60c577",
       "trelloShortLink": "QDPicIfs"
+    },
+    {
+      "id": "S21-01",
+      "name": "[S21-01] ADR éditeur JS autonome en SSR statique et outillage JS",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "ADR : module ES dans wwwroot/plans/, SVG, CSP inchangée, aucune bibliothèque externe non épinglée ; tests node:test en CI ; couverture JS dans Sonar."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b752c8b0e6a2f38010",
+      "trelloShortLink": "wFyopkEP"
+    },
+    {
+      "id": "S21-02",
+      "name": "[S21-02] Plans de bâtiment : modèle, versions et API",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Plan, versions immuables, fond de plan (Patrimoine, RLS) ; schéma v1 (pièces, ouvertures, escaliers, composants, nord, hauteurs) ; validation géométrique ; 409 à la version lue ; historique et restauration ; isolation et droits testés."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b7327ff7a54134ecdd",
+      "trelloShortLink": "IfnPnqRJ"
+    },
+    {
+      "id": "S21-03",
+      "name": "[S21-03] Droit nominatif « modifier les plans du bâtiment »",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Attribué et révoqué par l'administrateur, site par site, à tout interne du site, avec motif et journal ; union rôles + droits nominatifs dans l'autorisation ; /code-review max et /security-review."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b8d272c60c32ff473e",
+      "trelloShortLink": "UzNy2VPw"
+    },
+    {
+      "id": "S21-04",
+      "name": "[S21-04] Import d'images de plan",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "JPEG/PNG/HEIC réencodés sans métadonnées (8 000 px, dérivé 4 096 px), refus SVG/DWG/extension trompeuse/> 25 Mo/dimensions excessives avant décodage ; lecture par les internes du site ; quota par organisation ; aucun fichier orphelin."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b845d80df3461f78ee",
+      "trelloShortLink": "mWN0q6VQ"
+    },
+    {
+      "id": "S21-05",
+      "name": "[S21-05] Import PDF de plan (une page)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Rendu d'une page choisie dans un processus enfant borné ; PDF chiffré ou corrompu refusé ; échelle déclarée proposée ; original conservé en privé ; test de fumée dans le conteneur réel."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b9de196e5edb994d1e",
+      "trelloShortLink": "4aSiaEQX"
+    },
+    {
+      "id": "S21-06",
+      "name": "[S21-06] Maquettes de l'éditeur de plans (arrêt pour validation)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Plusieurs propositions (ordinateur et tablette) : consultation, éditeur, calibration, import, plan absent, déclaration depuis une pièce, attribution du droit ; aucun code d'écran avant validation du porteur."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443b95c2be83c335ea28c",
+      "trelloShortLink": "LEP2xTLZ"
+    },
+    {
+      "id": "S21-07",
+      "name": "[S21-07] Éditeur : noyau et calibration",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Vue SVG, pointeurs et pincement, annuler/rétablir, calibration avec cote de contrôle (< 1 %), sélecteur de niveau, brouillon cloisonné ; aucune violation CSP en navigateur réel."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443ba21b7bacc2931cb9f",
+      "trelloShortLink": "dRf2A5bA"
+    },
+    {
+      "id": "S21-08",
+      "name": "[S21-08] Éditeur : pièces, ouvertures et escaliers",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Tracé avec accrochage, lien ou création de zone (deux droits), portes et baies, escaliers ; Parties communes listées à côté du plan."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443ba2bd375103fd4e36f",
+      "trelloShortLink": "ColdUyE1"
+    },
+    {
+      "id": "S21-09",
+      "name": "[S21-09] Éditeur : composants, historique et écran du droit",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Marqueurs de composants (jamais d'objets de valeur), restauration depuis l'écran, attribution et révocation du droit dans Membres ; lecture seule pour les lecteurs."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443bbd3b6936901e82ab4",
+      "trelloShortLink": "qtZDi0Qk"
+    },
+    {
+      "id": "S21-10",
+      "name": "[S21-10] Déclaration depuis le plan et préproduction",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-21"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Déclarer depuis une pièce (zone, version, point) ; déploiement préprod et deploy/verification/us21.mjs."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description.",
+      "trelloId": "6ae443bbf46427f2fa1009e4",
+      "trelloShortLink": "qKSrwcYV"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
