@@ -127,6 +127,18 @@ Cadrage complet : docs/pilotage/cadrage/US-21.md (règles RP-21.1 à RP-21.8, so
 - Maquettes (S21-06, choix du porteur du 30/10) : éditeur « Atelier » (A : outils à gauche, plan au centre, propriétés de la pièce à droite, sélecteur de niveau) pour l'usage courant, et parcours guidé (C : fond, échelle avec cote de contrôle, pièces zone par zone, composants) pour créer un nouveau plan ; ordinateur et tablette ; B écartée.
 Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtiment sans niveau), géométrie en mètres dans un repère par bâtiment, calibration obligatoire pour un plan importé ; pièces liées aux zones d'US-07 ; chaque enregistrement crée une version immuable, conflit à la version lue (409) ; « plan de bâtiment » partout pour ne pas confondre avec les plans préventifs d'US-12.
 
+## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
+Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
+- Plateformes (DEC-06) : Android (version minimale proposée : Android 11), distribution par un test interne Google Play ; l'achat du compte développeur (25 $, unique) est fait par le porteur ; iPad reporté.
+- US-04 : le POC tablette est terminé d'abord, dans une carte séparée (base chiffrée par profil, déverrouillage, expiration des 24 h, révocation, photo interrompue, coupures réelles et envoi en arrière-plan sur la Tab M11), avant tout travail sur US-13.
+- Les 24 h hors connexion (RG-23) partent du dernier contact réussi du profil (renouvellement accepté, adhésion relue) : une synchronisation prolonge le délai sans mot de passe.
+- Contacts des déclarants : copiés sur la tablette comme en ligne (DEC-04), dans les limites des droits du profil.
+- Inventaire modifiable hors connexion : ajouts libres, modifications contrôlées champ par champ au retour du réseau.
+- Clôture hors connexion d'un dossier changé entre-temps : acceptée tant que l'intervention reste confiée à son auteur ; conflit seulement après réaffectation, clôture ou classement du dossier (RG-24).
+- Saisies d'un compte qui a perdu son droit avant l'envoi : quarantaine visible par les R/D du site (auteur, heure), ressaisie possible sous leur nom avec « repris de la saisie de … » ; l'auteur garde la lecture des siennes ; l'administrateur seulement s'il est aussi R/D du site.
+- Tablette perdue : le titulaire révoque sa session sur l'appareil (toutes organisations) ; l'administrateur coupe l'accès de son organisation sur l'appareil (synchronisation refusée, données effacées au prochain contact), jamais la session du compte.
+Règle de l'agent (révisable, conséquence de RG-23) : déverrouillage par PIN à 6 chiffres propre à chaque profil, biométrie exclue sur une tablette partagée.
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.
