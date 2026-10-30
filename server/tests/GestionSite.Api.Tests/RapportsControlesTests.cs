@@ -40,13 +40,21 @@ public sealed class RapportsControlesTests(InfrastructureFixture infrastructure)
         using var tropGros = await RealiserAsync(plan, responsable, Verification(Guid.NewGuid()), rapport: [.. Pdf, .. new byte[10 * 1024 * 1024]]);
         using var zoneInconnue = await RealiserAsync(plan, responsable, Verification(Guid.NewGuid(), observations: [new { libelle = "Fissure", zoneId = Guid.NewGuid() }]), Pdf);
         using var conformeAvecObservation = await RealiserAsync(plan, responsable, Verification(Guid.NewGuid(), resultat: "Conforme"), Pdf);
-        using var realise = await RealiserAsync(plan, responsable, Verification(Guid.NewGuid(), observations:
+        var commande = Guid.NewGuid();
+        using var realise = await RealiserAsync(plan, responsable, Verification(commande, observations:
         [
             new { libelle = "Absence de repérage des circuits au tableau", danger = false },
             new { libelle = "Prise arrachée dans la sacristie", zoneId = communes, danger = true },
         ]), Pdf);
         var resultat = await realise.Content.ReadFromJsonAsync<JsonElement>();
         var id = resultat.GetProperty("id").GetGuid();
+        object Meme() => Verification(commande, observations:
+        [
+            new { libelle = "Absence de repérage des circuits au tableau", danger = false },
+            new { libelle = "Prise arrachée dans la sacristie", zoneId = communes, danger = true },
+        ]);
+        using var rejoue = await RealiserAsync(plan, responsable, Meme(), Pdf);
+        using var sansLeRapport = await RealiserAsync(plan, responsable, Meme());
         var controle = await LireAsync($"{Preventif}/controls/{id}", pasteur);
         using var telechargement = await EnvoyerAsync(HttpMethod.Get, $"{Preventif}/controls/{id}/report", pasteur);
         using var autreSite = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/sites/{Guid.NewGuid()}/preventive/controls/{id}/report", pasteur);
@@ -59,6 +67,8 @@ public sealed class RapportsControlesTests(InfrastructureFixture infrastructure)
         Assert.Equal("resultat", await ChampAsync(conformeAvecObservation));
         Assert.Equal(HttpStatusCode.OK, realise.StatusCode);
         Assert.Equal("RealiseeAvecReserves", resultat.GetProperty("statut").GetString());
+        Assert.Equal(id, (await rejoue.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.Conflict, sansLeRapport.StatusCode); // même commande, autre contenu : commande_reutilisee
         Assert.Equal(Pdf.Length, controle.GetProperty("rapport").GetProperty("taille").GetInt32());
         Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Pdf)), controle.GetProperty("rapport").GetProperty("empreinte").GetString());
         Assert.Equal(("Bureau Véritas", "AG-2026-17"), (controle.GetProperty("prestataire").GetString(), controle.GetProperty("numeroAgrement").GetString()));
@@ -114,6 +124,14 @@ public sealed class RapportsControlesTests(InfrastructureFixture infrastructure)
             premiereEcheance = Aujourdhui,
         });
         var entretien = (await observationEntretien.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        using var rapportEntretien = await RealiserAsync(entretien, responsable, new
+        {
+            commandeId = Guid.NewGuid(),
+            echeance = Aujourdhui,
+            realiseLe = Aujourdhui,
+            resultat = "Conforme",
+            compteRendu = "Nettoyé",
+        }, Pdf);
         using var refusee = await RealiserAsync(entretien, responsable, new
         {
             commandeId = Guid.NewGuid(),
@@ -130,6 +148,7 @@ public sealed class RapportsControlesTests(InfrastructureFixture infrastructure)
         Assert.Equal(HttpStatusCode.NotFound, sansRapport.StatusCode);
         Assert.Equal(HttpStatusCode.OK, interne.StatusCode); // réglementaire mais faite par un compte interne : facultatif
         Assert.Equal("observations", await ChampAsync(refusee));
+        Assert.Equal("rapport", await ChampAsync(rapportEntretien)); // un rapport accompagne une vérification extérieure
     }
 
     private async Task<(string Responsable, string Technicien, string Pasteur)> ComptesAsync()

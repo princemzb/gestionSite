@@ -147,7 +147,8 @@ internal sealed record MesureControle(string Libelle, string Unite, decimal? Val
 internal sealed record SaisieControle(
     Guid CommandeId, DateOnly? RealiseLe, ResultatControle? Resultat, string? CompteRendu, int? GrilleVersion,
     IReadOnlyList<(bool? Conforme, bool Danger)>? Points, IReadOnlyList<decimal?>? Mesures, IReadOnlyList<(string? Libelle, string? Unite, decimal? Valeur)>? Releves,
-    string? Prestataire, string? NumeroAgrement, IReadOnlyList<(string? Libelle, Guid? ZoneId, bool Danger)>? Observations = null);
+    string? Prestataire, string? NumeroAgrement, IReadOnlyList<(string? Libelle, Guid? ZoneId, bool Danger)>? Observations = null,
+    string? EmpreinteRapport = null);
 
 /// <summary>Grille présentée pour une inspection : version et contenu en vigueur sur le site.</summary>
 internal sealed record GrilleControle(int Version, IReadOnlyList<string> Criteres, IReadOnlyList<(string Libelle, string Unite)> Mesures);
@@ -243,7 +244,11 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
 
     public string? LibelleNote { get; private set; }
 
-    internal IReadOnlyList<PointControle> PointsLus => JsonSerializer.Deserialize<List<PointControle>>(Points) ?? [];
+    // Listes lues une fois par instance (Defauts, Reserves et la liste des contrôles y reviennent souvent).
+    private List<PointControle>? _points;
+    private List<ObservationControle>? _observations;
+
+    internal IReadOnlyList<PointControle> PointsLus => _points ??= JsonSerializer.Deserialize<List<PointControle>>(Points) ?? [];
 
     internal IReadOnlyList<MesureControle> MesuresLues => JsonSerializer.Deserialize<List<MesureControle>>(Mesures) ?? [];
 
@@ -257,7 +262,7 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
 
     public string? RapportEmpreinte { get; private set; }
 
-    internal IReadOnlyList<ObservationControle> ObservationsLues => JsonSerializer.Deserialize<List<ObservationControle>>(Observations) ?? [];
+    internal IReadOnlyList<ObservationControle> ObservationsLues => _observations ??= JsonSerializer.Deserialize<List<ObservationControle>>(Observations) ?? [];
 
     /// <summary>Points en défaut : chacun est un constat à lever (S12-05).</summary>
     internal int Defauts => PointsLus.Count(p => p.Conforme == false) + ObservationsLues.Count;
@@ -355,9 +360,13 @@ internal sealed class ControlePreventif : IAppartientAOrganisation
         LibelleNote = libelle;
     }
 
-    /// <summary>Même envoi rejoué : même auteur, même occurrence (plan et échéance), même résultat et même date réelle.</summary>
+    /// <summary>
+    /// Même envoi rejoué : même auteur, même occurrence (plan et échéance), même résultat, même date réelle, autant
+    /// d'observations et le même rapport (ou aucun).
+    /// </summary>
     internal bool MemeEnvoi(Guid auteur, Guid planId, DateOnly echeance, SaisieControle saisie) =>
-        (AuteurCompteId, PlanId, Echeance, (ResultatControle?)Resultat, (DateOnly?)RealiseLe) == (auteur, planId, echeance, saisie.Resultat, saisie.RealiseLe);
+        (AuteurCompteId, PlanId, Echeance, (ResultatControle?)Resultat, (DateOnly?)RealiseLe, ObservationsLues.Count, RapportEmpreinte)
+        == (auteur, planId, echeance, saisie.Resultat, saisie.RealiseLe, saisie.Observations?.Count ?? 0, saisie.EmpreinteRapport);
 
     private void Inspecter(GrilleControle grille, SaisieControle saisie)
     {

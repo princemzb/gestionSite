@@ -19,6 +19,9 @@ internal static class RapportControle
 
     private static ReadOnlySpan<byte> Signature => "%PDF-"u8;
 
+    /// <summary>Empreinte SHA-256 (hexadécimal) d'un rapport reçu.</summary>
+    internal static string Empreinte(byte[] contenu) => Convert.ToHexStringLower(SHA256.HashData(contenu));
+
     /// <summary>Contenu contrôlé et son empreinte SHA-256 (hexadécimal), ou une saisie invalide (champ « rapport »).</summary>
     internal static string Valider(byte[] contenu)
     {
@@ -32,7 +35,7 @@ internal static class RapportControle
             throw new SaisieInvalideException("rapport", "Le rapport doit être un fichier PDF.");
         }
 
-        return Convert.ToHexStringLower(SHA256.HashData(contenu));
+        return Empreinte(contenu);
     }
 
     /// <summary>Rapport exigé : vérification réglementaire faite par un prestataire (intervenant extérieur).</summary>

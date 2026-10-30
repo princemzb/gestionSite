@@ -165,7 +165,8 @@ internal sealed class ServiceOccurrences(
         var commande = demande.CommandeId is { } c && c != Guid.Empty ? c : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
         var echeanceDemandee = Echeance(demande.Echeance);
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
-        var saisie = SaisieDe(commande, demande);
+        // Empreinte calculée d'emblée : un rejeu doit porter le même rapport (ou aucun) pour être reconnu.
+        var saisie = SaisieDe(commande, demande) with { EmpreinteRapport = recu.Document is { } joint ? RapportControle.Empreinte(joint) : null };
         if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return deja; // rejeu reconnu avant les contrôles
@@ -189,15 +190,26 @@ internal sealed class ServiceOccurrences(
             Guid.CreateVersion7(maintenant), plan, cible, nouvelle,
             grille is null ? null : new GrilleControle(grille.Version, grille.Criteres, [.. grille.Mesures.Select(m => (m.Libelle, m.Unite))]),
             saisie, auteur, maintenant, affecte);
-        var zonesObservees = controle.ObservationsLues.Select(o => o.ZoneId).Distinct().ToList();
+        // Seules les zones fournies sont vérifiées (celle du plan, par défaut, est connue).
+        var zonesObservees = (saisie.Observations ?? []).Where(o => o.ZoneId is not null).Select(o => o.ZoneId!.Value).Distinct().ToList();
         if (zonesObservees.Count > 0 && (await inventaire.ZonesAsync(siteId, zonesObservees, cancellationToken).ConfigureAwait(false)).Count != zonesObservees.Count)
         {
             throw new SaisieInvalideException("observations", "Zone d'observation inconnue sur ce site.");
         }
 
-        // Rapport PDF (décision du 30/10) : reconnu par sa signature, exigé pour une vérification réglementaire extérieure.
-        var empreinte = recu.Document is { } pdf ? RapportControle.Valider(pdf) : null;
-        if (empreinte is null && RapportControle.Exige(plan.Nature, plan.Base, controle.Prestataire))
+        // Rapport PDF (décision du 30/10) : celui d'une vérification extérieure seulement, reconnu par sa signature, exigé
+        // pour une vérification réglementaire faite par un intervenant extérieur.
+        if (recu.Document is { } pdf)
+        {
+            if (plan.Nature != NaturePlan.VerificationExterieure)
+            {
+                throw new SaisieInvalideException("rapport", "Un rapport PDF accompagne une vérification extérieure.");
+            }
+
+            RapportControle.Valider(pdf);
+            controle.Joindre(Guid.CreateVersion7(maintenant), pdf.Length, saisie.EmpreinteRapport!);
+        }
+        else if (RapportControle.Exige(plan.Nature, plan.Base, controle.Prestataire))
         {
             throw new SaisieInvalideException("rapport", "Rapport PDF obligatoire pour une vérification réglementaire par un intervenant extérieur.");
         }
@@ -212,13 +224,7 @@ internal sealed class ServiceOccurrences(
 
         // Rapport PDF écrit de même, hors verrou, sous une clé propre au contrôle.
         await using var rapport = await PhotosStockees.EcrireAsync(
-            stockage, recu.Document is { } document ? [document] : [], RapportControle.TypeContenu,
-            (_, contenu) =>
-            {
-                controle.Joindre(Guid.CreateVersion7(maintenant), contenu.Length, empreinte!);
-                return controle.RapportCle!;
-            },
-            cle => cle, _ => context.Controles.AsNoTracking().AnyAsync(c => c.Id == controle.Id, CancellationToken.None), cancellationToken).ConfigureAwait(false);
+            stockage, recu.Document is { } document ? [document] : [], RapportControle.TypeContenu, (_, _) => controle.RapportCle!, cle => cle, _ => context.Controles.AsNoTracking().AnyAsync(c => c.Id == controle.Id, CancellationToken.None), cancellationToken).ConfigureAwait(false);
 
         // 3. Échéance verrouillée (affectation, saut et réalisation concurrents attendent) puis revérifiée : une saisie
         //    concurrente l'a résolue ou modifiée → 409, avant d'évaluer, sans laisser d'évaluation orpheline.

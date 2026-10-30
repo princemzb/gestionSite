@@ -83,7 +83,10 @@ public static class FormulaireAvecPhotos
         }
         catch (BadHttpRequestException tropGros) when (tropGros.StatusCode == StatusCodes.Status413PayloadTooLarge)
         {
-            throw new SaisieInvalideException("photos", "Trois photos au plus, de 10 Mo chacune.");
+            // Corps trop gros : avec un document attendu, c'est le plus souvent lui (rapport scanné) qui dépasse.
+            throw document is null
+                ? new SaisieInvalideException("photos", "Trois photos au plus, de 10 Mo chacune.")
+                : new SaisieInvalideException(document, "Un document de 10 Mo au plus et trois photos de 10 Mo au plus.");
         }
         catch (Exception illisible) when (illisible is JsonException or InvalidOperationException or InvalidDataException or IOException)
         {
