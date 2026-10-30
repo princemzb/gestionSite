@@ -156,12 +156,13 @@ internal sealed class ServiceInterventions(
         interventionLue.VerifierCloture(photos.Count, photoExigee);
 
         // 2. Photos préparées puis écrites hors transaction, sous des clés propres à cet envoi : le verrou du dossier n'est pas
-        //    tenu pendant le téléversement ; un échec ensuite laisse au pire des fichiers orphelins, jamais ceux d'un autre envoi.
+        //    tenu pendant le téléversement ; retirées si la clôture n'aboutit pas, jamais celles d'un autre envoi.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
         var maintenant = horloge.GetUtcNow();
-        var enregistrees = await PhotosStockees.EcrireAsync(
+        await using var envoi = await PhotosStockees.EcrireAsync(
             stockage, jpegs, (rang, jpeg) => new PhotoIntervention(Guid.CreateVersion7(maintenant), interventionLue, rang, jpeg.Length, maintenant), p => p.Cle,
-            cancellationToken).ConfigureAwait(false);
+            photos => { var id = photos[0].Id; return context.PhotosIntervention.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken).ConfigureAwait(false);
+        var enregistrees = envoi.Photos;
 
         // 3. Écriture sous verrou, à la version lue : statut et version revérifiés.
         context.ChangeTracker.Clear();
@@ -180,6 +181,7 @@ internal sealed class ServiceInterventions(
 
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        envoi.Confirmer();
     }
 
     /// <summary>Photo après intervention (JPEG), ou null si elle n'existe pas pour cette intervention de ce dossier du site.</summary>

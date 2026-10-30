@@ -11,4 +11,7 @@ public interface IStockageFichiers
 
     /// <summary>Contenu et type du fichier, ou null s'il n'existe pas.</summary>
     Task<(byte[] Contenu, string TypeContenu)?> LireAsync(string cle, CancellationToken cancellationToken);
+
+    /// <summary>Supprime le fichier ; sans effet s'il n'existe pas.</summary>
+    Task SupprimerAsync(string cle, CancellationToken cancellationToken);
 }

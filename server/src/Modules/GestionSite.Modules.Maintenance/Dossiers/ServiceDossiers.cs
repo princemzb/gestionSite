@@ -137,11 +137,14 @@ internal sealed class ServiceDossiers(
             return deja;
         }
 
-        // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier.
+        // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier ;
+        // retirées si l'enregistrement n'aboutit pas.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        context.Photos.AddRange(await PhotosStockees.EcrireAsync(
-            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, rang, jpeg.Length), p => p.Cle, cancellationToken)
-            .ConfigureAwait(false));
+        await using var envoi = await PhotosStockees.EcrireAsync(
+            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), dossier, rang, jpeg.Length), p => p.Cle,
+            photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
+            .ConfigureAwait(false);
+        context.Photos.AddRange(envoi.Photos);
         context.Signalements.Add(dossier);
         if (dossier.Danger)
         {
@@ -152,6 +155,7 @@ internal sealed class ServiceDossiers(
         try
         {
             await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+            envoi.Confirmer();
         }
         catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

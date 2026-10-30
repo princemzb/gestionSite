@@ -66,12 +66,14 @@ internal sealed class ServiceDepotPublic(
         limites.Exiger(site.SiteId);
 
         // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant
-        // l'enregistrement, sous des clés propres à ce signalement : un échec de la base (ou un envoi concurrent
-        // perdant) laisse au pire des fichiers orphelins, jamais les photos d'un autre signalement remplacées.
+        // l'enregistrement, sous des clés propres à ce signalement ; retirées si l'enregistrement n'aboutit pas (échec de
+        // la base, envoi concurrent perdant), jamais les photos d'un autre signalement remplacées.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
-        context.Photos.AddRange(await PhotosStockees.EcrireAsync(
-            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpeg.Length), p => p.Cle, cancellationToken)
-            .ConfigureAwait(false));
+        await using var envoi = await PhotosStockees.EcrireAsync(
+            stockage, jpegs, (rang, jpeg) => new PhotoSignalement(Guid.CreateVersion7(maintenant), signalement, rang, jpeg.Length), p => p.Cle,
+            photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
+            .ConfigureAwait(false);
+        context.Photos.AddRange(envoi.Photos);
 
         context.Signalements.Add(signalement);
         context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));
@@ -83,6 +85,7 @@ internal sealed class ServiceDepotPublic(
         try
         {
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            envoi.Confirmer();
         }
         catch (DbUpdateException doublon) when (doublon.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
