@@ -12,11 +12,12 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 | Flutter | 3.47.1 (fixée par `mobile/pubspec.yaml`) | Application terrain |
 | SDK Android + `adb` | outils récents | Compilation et installation sur tablette |
 | Python | 3.9 ou plus | Outillage Trello (`scripts/trello`) |
+| Node.js | 22 LTS (22.16.0 en CI) | Tests et couverture du JavaScript de l'éditeur de plans de bâtiment (ADR-11), sans dépendance npm |
 | `gh` (GitHub CLI) | 2.x | PR et CI |
 
 ### Première mise en route
 1. `git clone https://github.com/princemzb/gestionSite.git && cd gestionSite`
-2. Serveur : `server/eng/verify.sh` (restaure les outils, compile, vérifie le format, lance les tests, couverture ≥ 80 %, dépendances vulnérables).
+2. Serveur : `server/eng/verify.sh` (restaure les outils, compile, vérifie le format, lance les tests, couverture ≥ 80 %, dépendances vulnérables, puis tests JavaScript de l'éditeur de plans, Node.js 22 requis).
 3. Environnement local : `docker compose -f server/compose.yaml up -d --wait` (PostgreSQL 17.6 sur le port 55433, stockage SeaweedFS compatible S3 sur le port 58333, compartiment `gestionsite-local` créé au démarrage).
 4. API : `dotnet run --project server/src/GestionSite.Api --launch-profile http`, puis `curl http://localhost:5280/health` (vivacité) et `curl http://localhost:5280/health/ready` (base et stockage joignables, 503 sinon ; résultat positif mis en cache 10 s).
 5. Application terrain : `mobile/eng/verify.sh`, puis `cd mobile && flutter build apk --debug` et, tablette branchée en débogage USB, `adb install -r build/app/outputs/flutter-apk/app-debug.apk`.
@@ -28,6 +29,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - `dotnet format server/GestionSite.slnx --verify-no-changes` : mise en forme.
 - `dotnet list server/GestionSite.slnx package --vulnerable --include-transitive` : dépendances vulnérables.
 - `python3 -m unittest discover -s scripts/trello` : outillage Trello.
+- `server/eng/verify-js.sh` (aussi lancé à la fin de `server/eng/verify.sh`) : tests `node:test` des fonctions pures de l'éditeur de plans de bâtiment (`server/tests/js/**/*.test.mjs`, code sous `wwwroot/plans/noyau/*.mjs`), couverture ≥ 80 % en lignes, branches et fonctions, échec si un module du noyau n'est chargé par aucun test, rapport lcov `server/artifacts/coverage-js/lcov.info` importé dans Sonar (ADR-11, exécuté le 30 octobre 2026 avec Node.js 22.16.0).
 - Application Flutter : voir `mobile/README.md`.
 
 ### Base de données et migrations (S06-01, S06-02)
@@ -85,7 +87,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 - Jamais de secret dans le dépôt : jetons Trello et Sonar dans le Trousseau macOS du porteur ; jeton CI dans le secret GitHub `SONAR_TOKEN` ; signature Android dans `mobile/android/key.properties` (non versionné).
 
 ### Intégration continue
-Six vérifications obligatoires sur `main` : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis », « Application Flutter (analyse et tests) », « Application Flutter (dépendances vulnérables) ». Deux projets Sonar : `princemzb_gestionSite` (C#, scripts, CI) et `princemzb_gestionSite_mobile` (Dart et code natif).
+Six vérifications obligatoires sur `main` : « Serveur .NET (porte qualité) », « Outillage Trello (tests) », « SonarQube Cloud », « SonarCloud Code Analysis », « Application Flutter (analyse et tests) », « Application Flutter (dépendances vulnérables) ». Deux projets Sonar : `princemzb_gestionSite` (C#, JavaScript, scripts, CI) et `princemzb_gestionSite_mobile` (Dart et code natif). Les tests JavaScript (`server/eng/verify-js.sh`) tournent dans « Serveur .NET (porte qualité) » et leur couverture lcov est importée par « SonarQube Cloud » ; la colle DOM (`wwwroot/*.js`, `wwwroot/plans/*.mjs`) et les copies de bibliothèques (`wwwroot/lib/`) sont exclues de la couverture, le noyau `wwwroot/plans/noyau/` ne l'est pas.
 
 ### Frontières des modules
 Un module `GestionSite.Modules.X` ne référence que des contrats `GestionSite.Modules.Y.Contracts` ou `GestionSite.SharedKernel`, jamais une autre implémentation, l'API ou un hôte ; les tests d'architecture le vérifient sur chaque fichier projet, interdisent les références injectées par fichiers partagés et contrôlent les assemblages compilés.

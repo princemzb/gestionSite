@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Porte qualité locale et CI du serveur (ADR-09) : mêmes contrôles partout.
+# Porte qualité locale et CI du serveur (ADR-09) : mêmes contrôles partout (C#, puis JavaScript du web, ADR-11).
 # Usage : server/eng/verify.sh   (depuis n'importe quel répertoire)
 set -euo pipefail
 
@@ -37,3 +37,6 @@ if grep -qiE "has the following vulnerable|comporte les packages vulnérables su
   exit 1
 fi
 echo "Aucune dépendance vulnérable."
+
+# JavaScript de l'éditeur de plans de bâtiment (ADR-11) : tests node:test, couverture ≥ 80 %, rapport lcov.
+eng/verify-js.sh
