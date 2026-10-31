@@ -1,0 +1,283 @@
+@page "/organisations/{OrganisationId:guid}/preventif/plan"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Globalization
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu preventif">
+<PageTitle>Plan préventif · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Fiche is null)
+{
+    <div class="entete"><div><h1>Plan préventif</h1><p>@(Message ?? "Plan introuvable sur ce site.")</p></div></div>
+}
+else
+{
+    var p = Fiche.Plan;
+    <a class="retour" href="@($"/organisations/{OrganisationId}/preventif?site={SiteCourant.Id}")">← Préventif</a>
+    <div class="entete">
+        <div>
+            <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · @LibellesPreventif.Base(p.Base)@(p.Reference is null ? "" : " (à confirmer)")</span>
+            <h1>@p.Libelle</h1>
+        </div>
+    </div>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <div class="echeancier">
+        <section class="carte fiche-plan" aria-label="Échéance">
+            @if (p.Suspendu)
+            {
+                <p class="alerte">Plan suspendu : @p.MotifSuspension</p>
+            }
+            else if (p.Prochaine is { } e)
+            {
+                <h2>Prochaine échéance : @LibellesPreventif.Date(e.Echeance) <span class="@($"echeance {LibellesPreventif.ClasseEtat(e.Etat)}")">@LibellesPreventif.Etat(e.Etat)</span></h2>
+                <p class="note">Fenêtre « À faire » ouverte le @LibellesPreventif.Date(e.OuvertureFenetre) · @LibellesPreventif.Periode(p.Periode)@(p.Mode == "Fixe" ? ", date fixe" : ", glissante") · aucune tolérance après l'échéance.</p>
+                @if (e.Intervenant is { } i)
+                {
+                    <p>Affectée à @(i.Nom ?? i.Prestataire)@(i.Prestataire is not null && i.Referent is not null ? $" (référent : {i.Referent})" : "")</p>
+                }
+
+                @if (Planificateur)
+                {
+                    <EditForm id="affecter" Model="Affectation" FormName="affectation" OnSubmit="AffecterAsync" class="formulaire-inventaire panneau-action">
+                        <h2>Affecter l'échéance</h2>
+                        <input type="hidden" name="Affectation.Echeance" value="@e.Echeance.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                        <input type="hidden" name="Affectation.Version" value="@e.Version" />
+                        <div class="grille-champs">
+                            <label class="champ">Technicien du site
+                                <select name="Affectation.IntervenantCompteId">
+                                    <option value="">— prestataire —</option>
+                                    @foreach (var m in Membres.Where(m => m.Roles.Contains("Technicien")))
+                                    {
+                                        <option value="@m.CompteId" selected="@(e.Intervenant?.CompteId == m.CompteId)">@m.Nom</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="champ">ou prestataire <span class="aide">(raison sociale)</span><input name="Affectation.Prestataire" maxlength="120" value="@e.Intervenant?.Prestataire" /></label>
+                            <label class="champ">Référent interne du prestataire
+                                <select name="Affectation.ReferentCompteId">
+                                    <option value="">—</option>
+                                    @foreach (var m in Membres)
+                                    {
+                                        <option value="@m.CompteId" selected="@(e.Intervenant?.ReferentCompteId == m.CompteId)">@m.Nom</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+                        <div class="actions"><button type="submit" class="bouton-secondaire">Affecter</button></div>
+                    </EditForm>
+                }
+            }
+            else
+            {
+                <p>Plan ponctuel réalisé : plus d'échéance.</p>
+            }
+
+            <h2>Plan</h2>
+            <dl class="detail-plan">
+                <dt>Cible</dt><dd>@p.Cible.Libelle</dd>
+                <dt>Récurrence</dt><dd>@LibellesPreventif.Periode(p.Periode), échéance @(p.Mode == "Fixe" ? "fixe" : "glissante") (première le @LibellesPreventif.Date(p.PremiereEcheance))</dd>
+                <dt>Intervenant habituel</dt><dd>@LibellesPreventif.Intervenant(p.TypeIntervenant)@(p.Intervenant is { } d ? $" · {d.Nom ?? d.Prestataire}" : "")</dd>
+                @if (p.DonneurOrdre is { } donneur)
+                {
+                    <dt>Donneur d'ordre</dt><dd>@donneur</dd>
+                }
+                @if (p.Reference is { } reference)
+                {
+                    <dt>Référence</dt><dd>@reference</dd>
+                }
+            </dl>
+            @if (Planificateur && !p.SuspensionAutomatique)
+            {
+                <form method="post" action="@Action(p.Suspendu ? "reprendre" : "suspendre")" class="formulaire-inventaire">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="version" value="@p.Version" />
+                    @if (!p.Suspendu)
+                    {
+                        <label class="champ">Motif de suspension<input name="motif" maxlength="500" required /></label>
+                    }
+                    <button type="submit" class="bouton-secondaire">@(p.Suspendu ? "Reprendre le plan" : "Suspendre le plan")</button>
+                </form>
+            }
+        </section>
+
+        <aside class="carte historique-plan" aria-label="Historique du plan">
+            <h2>Historique du plan</h2>
+            @if (Controles.Count == 0 && Fiche.Occurrences.All(o => o.Statut != "Sautee"))
+            {
+                <p class="note">Aucun contrôle enregistré.</p>
+            }
+            <ul class="liste-echeances">
+                @foreach (var o in Fiche.Occurrences.Where(o => o.Statut != "Affectee"))
+                {
+                    var controle = Controles.FirstOrDefault(c => c.Id == o.ControleId);
+                    <li>
+                        <strong>@LibellesPreventif.Date(o.RealiseeLe ?? o.SauteeLe ?? o.Echeance)</strong> · @LibellesPreventif.Etat(o.Statut)
+                        @if (controle is not null)
+                        {
+                            @($" · {LibellesPreventif.Resultat(controle.Resultat)}{(controle.Defauts > 0 ? $" ({controle.Defauts} écart{(controle.Defauts > 1 ? "s" : "")})" : "")}")
+                            @if (controle.Rapport)
+                            {
+                                <a href="@($"/organisations/{OrganisationId}/sites/{SiteCourant.Id}/preventif/controles/{controle.Id}/rapport")"> rapport PDF</a>
+                            }
+                        }
+                        @if (o.MotifSaut is { } motif)
+                        {
+                            @($" · {LibellesPreventif.MotifSaut(motif)}{(o.CommentaireSaut is null ? "" : $" — {o.CommentaireSaut}")}")
+                        }
+                    </li>
+                }
+            </ul>
+            <h2>Journal</h2>
+            <ul class="liste-echeances">
+                @foreach (var ev in Fiche.Historique)
+                {
+                    <li>@Perimetre.Date(ev.Le, avecHeure: true) · @Journal(ev.Nature)@(ev.Auteur is null ? "" : $" · {ev.Auteur}")</li>
+                }
+            </ul>
+        </aside>
+    </div>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "plan")] private Guid? PlanDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "issue")] private string? Issue { get; set; }
+
+    [SupplyParameterFromForm(Name = "Affectation", FormName = "affectation")] private SaisieAffectation? FormulaireAffectation { get; set; }
+
+    private SaisieAffectation Affectation => FormulaireAffectation ??= new();
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private FichePlanApi? Fiche { get; set; }
+
+    private IReadOnlyList<ControleResumeApi> Controles { get; set; } = [];
+
+    private IReadOnlyList<IntervenantApi> Membres { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    private bool Planificateur => Perimetre.ARole(Organisation, SiteCourant?.Id, "Responsable", "Delegue");
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/preventive";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Message = ActionsPreventifEndpoints.Message(Issue);
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            SiteCourant = Perimetre.SitesInternes(Organisation).FirstOrDefault(s => s.Id == SiteDemande);
+            if (SiteCourant is null || PlanDemande is null)
+            {
+                return;
+            }
+
+            await ChargerAsync();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Plan introuvable sur ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task ChargerAsync()
+    {
+        Fiche = await Session.LireAsync<FichePlanApi>($"{Base}/plans/{PlanDemande}", CancellationToken.None);
+        Controles = await Session.LireAsync<List<ControleResumeApi>>($"{Base}/controls?planId={PlanDemande}", CancellationToken.None);
+        if (Planificateur)
+        {
+            Membres = await Session.LireAsync<List<IntervenantApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/cases/assignees", CancellationToken.None);
+        }
+    }
+
+    private async Task AffecterAsync()
+    {
+        try
+        {
+            await Session.ExecuterAsync($"{Base}/plans/{PlanDemande}/assign", new
+            {
+                echeance = Affectation.Echeance,
+                intervenantCompteId = Affectation.IntervenantCompteId,
+                prestataire = Affectation.IntervenantCompteId is null ? Affectation.Prestataire : null,
+                referentCompteId = Affectation.IntervenantCompteId is null ? Affectation.ReferentCompteId : null,
+                version = Affectation.Version,
+            }, CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Champ switch
+            {
+                "intervenantCompteId" => "Choisissez un technicien du site, ou un prestataire et son référent.",
+                "referentCompteId" => "Un prestataire est suivi par un référent interne du site.",
+                "prestataire" => "Nom du prestataire : une ligne visible de 120 caractères au plus.",
+                "echeance" => "Cette échéance n'est plus l'échéance courante : la fiche est rechargée.",
+                { } => "Saisie refusée : vérifiez le formulaire.",
+                null => ActionsPreventifEndpoints.Message(refus.Code ?? (refus.Statut == HttpStatusCode.Forbidden ? "interdit" : "indisponible")),
+            };
+            await ChargerAsync();
+            return;
+        }
+
+        Navigation.NavigateTo($"/organisations/{OrganisationId}/preventif/plan?site={SiteCourant!.Id}&plan={PlanDemande}");
+    }
+
+    private string Action(string action) => $"/organisations/{OrganisationId}/sites/{SiteCourant?.Id}/preventif/plans/{PlanDemande}/{action}";
+
+    private static string Journal(string nature) => nature switch
+    {
+        "Creation" => "Plan créé",
+        "Modification" => "Règle modifiée",
+        "Suspension" => "Plan suspendu",
+        "Reprise" => "Plan repris",
+        "Affectation" => "Échéance affectée",
+        "Saut" => "Échéance sautée",
+        "Realisation" => "Contrôle enregistré",
+        _ => nature,
+    };
+
+    private sealed class SaisieAffectation
+    {
+        public DateOnly? Echeance { get; set; }
+
+        public uint Version { get; set; }
+
+        public Guid? IntervenantCompteId { get; set; }
+
+        public string? Prestataire { get; set; }
+
+        public Guid? ReferentCompteId { get; set; }
+    }
+}

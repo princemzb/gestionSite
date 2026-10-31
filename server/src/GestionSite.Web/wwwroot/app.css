@@ -435,6 +435,43 @@ form.formulaire-inventaire { padding: 0; }
 .courbe-notes { width: 100%; height: 48px; display: block; }
 .courbe-notes polyline { fill: none; stroke: #1E6CFF; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 
+/* Préventif (US-12, maquette B) : calendrier mensuel des échéances, panneau des retards, plans proposés, fiche du plan. */
+.preventif .retour { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+.echeancier { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.echeancier > section { flex: 1 1 520px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.echeancier > aside { flex: 0 1 340px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.echeancier h2 { margin: 8px 0 0; font-size: 17px; }
+.calendrier-entete { display: flex; justify-content: space-between; align-items: center; }
+.calendrier-entete h2 { margin: 0; font-size: 24px; }
+.calendrier-navigation { display: flex; gap: 8px; }
+.calendrier-navigation a { width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--bordure-forte); display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--encre); }
+.calendrier-jours, .calendrier-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.calendrier-jours { font-size: 12px; color: var(--encre-2); }
+.calendrier-grille { margin: 0; padding: 0; list-style: none; }
+.calendrier-grille li { min-height: 72px; border-radius: 10px; border: 1px solid var(--bordure); padding: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.calendrier-grille li.hors-mois { border-color: transparent; background: var(--etape-fond); color: var(--encre-3); }
+.calendrier-grille li.aujourdhui { border: 2px solid var(--alerte); }
+.numero-jour { font-weight: 600; }
+.echeance { display: block; margin-top: 4px; padding: 3px 6px; border-radius: 6px; text-decoration: none; background: var(--etape-fond); color: var(--lien); }
+.echeance.echeance-a-faire { background: var(--alerte-fond); color: var(--alerte); }
+.echeance.echeance-en-retard { background: var(--danger-fond); color: var(--danger); font-weight: 600; }
+.echeance.echeance-prevue { background: transparent; border: 1px dashed var(--bordure-forte); color: var(--encre-2); }
+.legende { display: flex; flex-wrap: wrap; gap: 8px; }
+.legende .echeance { display: inline-block; margin: 0; }
+.liste-echeances { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.panneau-echeances .liste-echeances:first-of-type li { padding: 10px 12px; border-radius: 12px; background: var(--danger-fond); border-left: 4px solid var(--danger); }
+.propositions .proposition { padding: 14px 0; border-top: 1px solid var(--bordure); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.proposition > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 260px; }
+.proposition.ecartee { opacity: 0.7; }
+.proposition details summary { cursor: pointer; font-size: 14px; color: var(--lien); }
+.actions-proposition { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.ecarter summary.bouton-secondaire { display: inline-flex; align-items: center; list-style: none; }
+.ecarter[open] form { margin-top: 12px; }
+.detail-plan { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 14px; }
+.detail-plan dt { color: var(--encre-2); }
+.detail-plan dd { margin: 0; }
+.fiche-plan .echeance { display: inline-block; margin: 0 0 0 6px; font-size: 13px; }
+
 /* Téléphone (US-09 : « Mes interventions » du technicien) : navigation compacte en haut, le contenu reste au premier écran. */
 @media (max-width: 640px) {
   .admin { align-content: flex-start; } /* les lignes ne s'étirent pas sur la hauteur de l'écran */
@@ -445,4 +482,7 @@ form.formulaire-inventaire { padding: 0; }
   .admin-nav form { margin: 0 0 0 auto; }
   .admin-nav button { padding: 8px 10px; font-size: 14px; }
   .admin-contenu { padding: 16px 12px; }
+  .calendrier-grille li { min-height: 48px; padding: 4px; }
+  .calendrier-grille .echeance { font-size: 0; padding: 0; height: 6px; } /* pastille de couleur ; le libellé reste lu par les lecteurs d'écran */
+  .detail-plan { grid-template-columns: 1fr; }
 }

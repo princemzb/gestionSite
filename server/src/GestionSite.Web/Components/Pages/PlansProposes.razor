@@ -1,0 +1,354 @@
+@page "/organisations/{OrganisationId:guid}/preventif/propositions"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Globalization
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu preventif">
+<PageTitle>Plans proposés · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Etablissement is null)
+{
+    <div class="entete"><div><h1>Plans proposés</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    <a class="retour" href="@($"/organisations/{OrganisationId}/preventif?site={SiteCourant.Id}")">← Préventif</a>
+    <div class="entete">
+        <div>
+            <h1>Plans proposés · @SiteCourant.Nom</h1>
+            <p>Périodicités et références proposées par l'application, <strong>à confirmer</strong> par un bureau de contrôle ou le SDIS. L'application n'affiche jamais « conforme ».</p>
+        </div>
+    </div>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <div class="echeancier">
+        <section class="carte classement" aria-label="Classement ERP">
+            @if (Etablissement.Batiments.Count > 1)
+            {
+                <nav class="onglets" aria-label="Bâtiment">
+                    @foreach (var b in Etablissement.Batiments)
+                    {
+                        <a href="@Url(b.Id)" aria-current="@(b.Id == Batiment?.Id ? "page" : null)">@b.Nom</a>
+                    }
+                </nav>
+            }
+            @if (Batiment is null)
+            {
+                <p class="note">Aucun bâtiment : décrivez le site dans l'inventaire.</p>
+            }
+            else
+            {
+                var c = Batiment.Classement;
+                <h2>Classement ERP · @Batiment.Nom</h2>
+                <p class="note">Déclaré par le responsable ou le délégué ; ajuste les plans proposés. L'application ne calcule ni l'effectif ni la catégorie.</p>
+                @if (Planificateur)
+                {
+                    <EditForm Model="Classement" FormName="classement" OnSubmit="ClasserAsync" class="formulaire-inventaire">
+                        <input type="hidden" name="Classement.BatimentId" value="@Batiment.Id" />
+                        <input type="hidden" name="Classement.Version" value="@Batiment.Version" />
+                        <label class="champ"><input type="checkbox" name="Classement.Erp" value="true" checked="@(Classement.Erp)" /> Établissement recevant du public (ERP)</label>
+                        <div class="grille-champs">
+                            <label class="champ">Type principal
+                                <select name="Classement.Type">
+                                    @foreach (var (valeur, libelle) in LibellesPreventif.TypesErp)
+                                    {
+                                        <option value="@valeur" selected="@(Classement.Type == valeur)">@libelle</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="champ">Catégorie déclarée
+                                <select name="Classement.Categorie">
+                                    <option value="">—</option>
+                                    @for (var i = 1; i <= 5; i++)
+                                    {
+                                        <option value="@i" selected="@(Classement.Categorie == i)">@Categorie(i)</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="champ">Effectif déclaré <span class="aide">(facultatif)</span>
+                                <input type="number" min="0" max="100000" name="Classement.Effectif" value="@Classement.Effectif" />
+                            </label>
+                            <label class="champ">Dernière visite de la commission <span class="aide">(facultative)</span>
+                                <input type="date" name="Classement.Visite" value="@Classement.Visite?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                            </label>
+                        </div>
+                        <label class="champ"><input type="checkbox" name="Classement.LocauxSommeil" value="true" checked="@(Classement.LocauxSommeil)" /> Locaux à sommeil</label>
+                        <label class="champ"><input type="checkbox" name="Classement.Monument" value="true" checked="@(Classement.Monument)" /> Classé ou inscrit Monuments historiques</label>
+                        <label class="champ">Permis de construire avant le 01/07/1997
+                            <select name="Classement.Permis">
+                                @foreach (var (valeur, libelle) in LibellesPreventif.Permis)
+                                {
+                                    <option value="@valeur" selected="@(Classement.Permis == valeur)">@libelle</option>
+                                }
+                            </select>
+                        </label>
+                        <div class="actions"><button type="submit" class="bouton-principal">Enregistrer le classement</button></div>
+                    </EditForm>
+                }
+                else if (c is null)
+                {
+                    <p>Classement non déclaré.</p>
+                }
+                else
+                {
+                    <p>@(c.Erp ? $"ERP de type {c.Type}, {Categorie(c.Categorie)}" : "Hors ERP")@(c.LocauxSommeil ? " · locaux à sommeil" : "")@(c.MonumentHistorique ? " · monument historique" : "") · permis avant 1997 : @c.PermisAvant1997.ToLowerInvariant()</p>
+                }
+
+                <h2>Site</h2>
+                @if (Planificateur)
+                {
+                    <EditForm Model="Salaries" FormName="salaries" OnSubmit="DeclarerAsync" class="formulaire-inventaire">
+                        <input type="hidden" name="Salaries.Version" value="@Etablissement.Version" />
+                        <label class="champ"><input type="checkbox" name="Salaries.Presents" value="true" checked="@(Etablissement.SalariesPresents == true)" /> Salariés présents sur le site (obligations du Code du travail)</label>
+                        <div class="actions"><button type="submit" class="bouton-secondaire">Enregistrer</button></div>
+                    </EditForm>
+                }
+                else
+                {
+                    <p>Salariés présents : @(Etablissement.SalariesPresents switch { true => "oui", false => "non", _ => "non déclaré" })</p>
+                }
+            }
+        </section>
+
+        <section class="carte propositions" aria-label="Plans proposés">
+            <h2>Plans proposés à confirmer · @Propositions.Count(p => p.Statut == "Proposee")</h2>
+            @if (Propositions.Count == 0)
+            {
+                <p class="note">Aucune proposition : déclarez le classement des bâtiments et les composants soumis à vérification.</p>
+            }
+            @foreach (var p in Propositions)
+            {
+                <div class="@($"proposition {(p.Statut == "Ecartee" ? "ecartee" : null)}")">
+                    <div>
+                        <strong>@p.Libelle</strong>
+                        <span class="note">@LibellesPreventif.Nature(p.Nature) · @LibellesPreventif.Periode(p.Periode) · @LibellesPreventif.Intervenant(p.Intervenant) · @LibellesPreventif.Base(p.Base), à confirmer</span>
+                        <span class="note">@(p.Cible.Type == "Batiment" ? "Bâtiment" : "Composant") : @p.Cible.Libelle · première échéance proposée le @LibellesPreventif.Date(p.Echeance)</span>
+                        <details><summary>Référence</summary><p class="note">@p.Reference</p></details>
+                        @if (p.Ecart is { } e)
+                        {
+                            <span class="note">Écartée le @Perimetre.Date(e.Le) par @(e.Auteur ?? "un compte") : « @LibellesPreventif.MotifEcart(e.Motif)@(e.Commentaire is null ? "" : $" — {e.Commentaire}") »</span>
+                        }
+                    </div>
+                    @if (Planificateur)
+                    {
+                        <div class="actions-proposition">
+                            <form method="post" action="@Action("confirmer")">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="cle" value="@p.Cle" />
+                                <input type="hidden" name="batiment" value="@Batiment?.Id" />
+                                <input type="hidden" name="commandeId" value="@Guid.NewGuid()" />
+                                <button type="submit" class="bouton-principal">@(p.Statut == "Ecartee" ? "Revoir et confirmer" : "Confirmer")</button>
+                            </form>
+                            @if (p.Statut == "Proposee")
+                            {
+                                <details class="ecarter">
+                                    <summary class="bouton-secondaire">Écarter…</summary>
+                                    <form method="post" action="@Action("ecarter")" class="formulaire-inventaire">
+                                        <AntiforgeryToken />
+                                        <input type="hidden" name="cle" value="@p.Cle" />
+                                        <input type="hidden" name="batiment" value="@Batiment?.Id" />
+                                        <label class="champ">Motif
+                                            <select name="motif" required>
+                                                <option value="">— choisir —</option>
+                                                @foreach (var (valeur, libelle) in LibellesPreventif.MotifsEcart)
+                                                {
+                                                    <option value="@valeur">@libelle</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label class="champ">Commentaire <span class="aide">(obligatoire pour « Autre »)</span><input name="commentaire" maxlength="500" /></label>
+                                        <button type="submit" class="bouton-secondaire">Écarter la proposition</button>
+                                    </form>
+                                </details>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "batiment")] private Guid? BatimentDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "issue")] private string? Issue { get; set; }
+
+    [SupplyParameterFromForm(Name = "Classement", FormName = "classement")] private SaisieClassement? FormulaireClassement { get; set; }
+
+    [SupplyParameterFromForm(Name = "Salaries", FormName = "salaries")] private SaisieSalaries? FormulaireSalaries { get; set; }
+
+    private SaisieClassement Classement => FormulaireClassement ??= SaisieClassement.Depuis(Batiment?.Classement);
+
+    private SaisieSalaries Salaries => FormulaireSalaries ??= new();
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private EtablissementApi? Etablissement { get; set; }
+
+    private BatimentClasseApi? Batiment { get; set; }
+
+    private IReadOnlyList<PropositionApi> Propositions { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    private bool Planificateur => Perimetre.ARole(Organisation, SiteCourant?.Id, "Responsable", "Delegue");
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Message = ActionsPreventifEndpoints.Message(Issue);
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            var sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = sites.FirstOrDefault(s => s.Id == SiteDemande) ?? sites.FirstOrDefault();
+            if (SiteCourant is null)
+            {
+                return;
+            }
+
+            await ChargerAsync();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas le préventif de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private async Task ChargerAsync()
+    {
+        Etablissement = await Session.LireAsync<EtablissementApi>($"{Base}/inventory/establishment", CancellationToken.None);
+        Batiment = Etablissement.Batiments.FirstOrDefault(b => b.Id == (FormulaireClassement?.BatimentId ?? BatimentDemande)) ?? Etablissement.Batiments.FirstOrDefault();
+        Propositions = await Session.LireAsync<List<PropositionApi>>($"{Base}/preventive/proposals", CancellationToken.None);
+    }
+
+    private Task ClasserAsync() => EcrireAsync(() => Session.ModifierAsync($"{Base}/inventory/buildings/{Classement.BatimentId}/classification", new
+    {
+        erp = Classement.Erp,
+        type = Classement.Erp ? Classement.Type : null,
+        // Types secondaires non saisis à l'écran : ceux déjà déclarés sont conservés.
+        // Un type devenu principal sort des types secondaires (l'API refuse le doublon).
+        typesSecondaires = Classement.Erp ? (Batiment?.Classement?.TypesSecondaires ?? []).Where(t => t != Classement.Type).ToArray() : [],
+        categorie = Classement.Erp ? Classement.Categorie : null,
+        effectif = Classement.Erp ? Classement.Effectif : null,
+        locauxSommeil = Classement.Erp && Classement.LocauxSommeil,
+        monumentHistorique = Classement.Monument,
+        permisAvant1997 = Classement.Permis,
+        derniereVisiteCommission = Classement.Erp ? Classement.Visite : null,
+        version = Classement.Version,
+    }, CancellationToken.None), Classement.BatimentId);
+
+    private Task DeclarerAsync() => EcrireAsync(() => Session.ModifierAsync($"{Base}/inventory/establishment", new
+    {
+        salariesPresents = Salaries.Presents,
+        version = Salaries.Version,
+    }, CancellationToken.None), Batiment?.Id);
+
+    private async Task EcrireAsync(Func<Task> ecriture, Guid? batiment)
+    {
+        try
+        {
+            await ecriture();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            Message = refus.Champ switch
+            {
+                "categorie" => "Un ERP a une catégorie déclarée (1 à 5).",
+                "erp" => "Hors ERP : ni type, ni catégorie, ni effectif, ni locaux à sommeil, ni visite de la commission.",
+                "derniereVisiteCommission" => "Date de la dernière visite de la commission : passée.",
+                "effectif" => "Effectif déclaré : de 0 à 100 000.",
+                { } => "Saisie refusée : vérifiez le formulaire.",
+                null => refus.Code == "modifie_entre_temps"
+                    ? "Quelqu'un d'autre vient de modifier ce classement : rechargez puis recommencez."
+                    : refus.Statut == HttpStatusCode.Forbidden ? "Vous n'avez pas le droit de déclarer le classement." : "Service momentanément indisponible : réessayez.",
+            };
+            await ChargerAsync();
+            return;
+        }
+
+        Navigation.NavigateTo(Url(batiment));
+    }
+
+    private string Url(Guid? batiment) => $"/organisations/{OrganisationId}/preventif/propositions?site={SiteCourant?.Id}{(batiment is { } b ? $"&batiment={b}" : "")}";
+
+    private static string Categorie(int? categorie) => categorie switch
+    {
+        null => "catégorie non déclarée",
+        1 => "1re catégorie",
+        _ => $"{categorie}e catégorie",
+    };
+
+    private string Action(string action) => $"/organisations/{OrganisationId}/sites/{SiteCourant?.Id}/preventif/propositions/{action}";
+
+    private sealed class SaisieClassement
+    {
+        public Guid BatimentId { get; set; }
+
+        public uint Version { get; set; }
+
+        public bool Erp { get; set; }
+
+        public string? Type { get; set; } = "V";
+
+        public int? Categorie { get; set; }
+
+        public int? Effectif { get; set; }
+
+        public bool LocauxSommeil { get; set; }
+
+        public bool Monument { get; set; }
+
+        public string Permis { get; set; } = "Inconnu";
+
+        public DateOnly? Visite { get; set; }
+
+        internal static SaisieClassement Depuis(ClassementApi? c) => c is null
+            ? new()
+            : new()
+            {
+                Erp = c.Erp, Type = c.Type ?? "V", Categorie = c.Categorie, Effectif = c.Effectif, LocauxSommeil = c.LocauxSommeil,
+                Monument = c.MonumentHistorique, Permis = c.PermisAvant1997, Visite = c.DerniereVisiteCommission,
+            };
+    }
+
+    private sealed class SaisieSalaries
+    {
+        public bool Presents { get; set; }
+
+        public uint Version { get; set; }
+    }
+}
