@@ -134,6 +134,37 @@ public sealed partial class WebInventaireTests
     }
 
     [Fact]
+    public async Task RefusedEntriesKeepTheScreenWithTheirMessageAndEmployeesAreDeclared()
+    {
+        await MembreAsync("responsable@inventaire-web.test", "Rose L.", Role.Responsable);
+        using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
+        Chemin(await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église")));
+        using var responsable = await ConnecterAsync("responsable@inventaire-web.test");
+        var propositions = $"/organisations/{_organisation}/preventif/propositions";
+        var avant = await LirePageAsync(responsable, propositions);
+
+        var sansCategorie = await LireAsync(await PosterAsync(responsable, propositions, "classement",
+            ("Classement.BatimentId", BatimentClasse().Match(avant).Groups[1].Value), ("Classement.Version", VersionClassement().Match(avant).Groups[1].Value),
+            ("Classement.Erp", "true"), ("Classement.Type", "V"), ("Classement.Permis", "Inconnu")));
+        var salaries = await LirePageAsync(responsable, Chemin(await PosterAsync(responsable, propositions, "salaries",
+            ("Salaries.Presents", "true"), ("Salaries.Version", VersionSalaries().Match(avant).Groups[1].Value))));
+
+        Assert.Contains("Un ERP a une catégorie déclarée (1 à 5).", sansCategorie, StringComparison.Ordinal);
+        Assert.Contains("name=\"Salaries.Presents\" value=\"true\" checked", salaries, StringComparison.Ordinal);
+
+        Assert.EndsWith("&issue=ok", await ActionAsync(responsable, propositions, "propositions/confirmer",
+            ("cle", Cle("cheneaux-nettoyage", salaries)), ("commandeId", Guid.NewGuid().ToString())), StringComparison.Ordinal);
+        var fiche = LienPlan().Match(await LirePageAsync(responsable, $"/organisations/{_organisation}/preventif")).Groups[1].Value
+            .Replace("&amp;", "&", StringComparison.Ordinal);
+        var plan = await LirePageAsync(responsable, fiche);
+        var sansIntervenant = await LireAsync(await PosterAsync(responsable, fiche, "affectation",
+            ("Affectation.Echeance", EcheanceAffectee().Match(plan).Groups[1].Value), ("Affectation.Version", VersionAffectee().Match(plan).Groups[1].Value)));
+
+        Assert.Contains("Choisissez un technicien du site, ou un prestataire et son référent.", sansIntervenant, StringComparison.Ordinal);
+        Assert.Contains("Nettoyage des chéneaux", sansIntervenant, StringComparison.Ordinal); // la fiche reste affichée
+    }
+
+    [Fact]
     public async Task APlanOfAnotherSiteOrAForgedActionIsRefused()
     {
         using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
@@ -176,6 +207,9 @@ public sealed partial class WebInventaireTests
 
     [GeneratedRegex("name=\"Classement.Version\" value=\"(\\d+)\"")]
     private static partial Regex VersionClassement();
+
+    [GeneratedRegex("name=\"Salaries.Version\" value=\"(\\d+)\"")]
+    private static partial Regex VersionSalaries();
 
     [GeneratedRegex("href=\"(/organisations/[^\"]+/preventif/plan\\?site=[^\"#]+)\"")]
     private static partial Regex LienPlan();
