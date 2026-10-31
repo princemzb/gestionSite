@@ -37,25 +37,7 @@ internal sealed record EvenementPlanApi(DateTimeOffset Le, string Nature, Guid? 
 
 internal sealed record FichePlanApi(PlanApi Plan, IReadOnlyList<OccurrenceApi> Occurrences, IReadOnlyList<EvenementPlanApi> Historique);
 
-internal sealed record PointControleApi(string Texte, bool? Conforme, bool Danger);
-
-internal sealed record MesureControleApi(string Libelle, string Unite, decimal? Valeur);
-
-internal sealed record ObservationApi(string Libelle, Guid ZoneId, bool Danger);
-
-internal sealed record RapportApi(int Taille, string Empreinte);
-
-internal sealed record ConstatApi(int Rang, string Libelle, bool Danger, Guid DossierId, bool Rattache, string StatutDossier);
-
-internal sealed record ControleApi(
-    Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, Guid AuteurCompteId, string? Auteur,
-    Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, string? NumeroAgrement, string Resultat, string? CompteRendu, string? CorpsEtat,
-    Guid? ComposantId, Guid ZoneId, Guid BatimentId, int? GrilleVersion, IReadOnlyList<PointControleApi> Points, IReadOnlyList<MesureControleApi> Mesures,
-    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos, IReadOnlyList<ObservationApi> Observations, RapportApi? Rapport,
-    IReadOnlyList<ConstatApi>? Constats, bool ReservesLevees);
-
 internal sealed record ControleResumeApi(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, string Resultat, Guid? ComposantId, Guid BatimentId, int Defauts,
     decimal? Note, bool Rapport);
 
-internal sealed record ControleEnregistreApi(Guid Id, string Statut, Guid? EvaluationId, decimal? Note, string? Libelle);
