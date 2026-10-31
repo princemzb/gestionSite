@@ -139,9 +139,17 @@ public sealed partial class WebInventaireTests
         await MembreAsync("responsable@inventaire-web.test", "Rose L.", Role.Responsable);
         using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
         Chemin(await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église")));
+        Chemin(await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Presbytère")));
         using var responsable = await ConnecterAsync("responsable@inventaire-web.test");
         var propositions = $"/organisations/{_organisation}/preventif/propositions";
         var avant = await LirePageAsync(responsable, propositions);
+        var effectifHorsBornes = await LireAsync(await PosterAsync(responsable, propositions, "classement",
+            ("Classement.BatimentId", BatimentClasse().Match(avant).Groups[1].Value), ("Classement.Version", VersionClassement().Match(avant).Groups[1].Value),
+            ("Classement.Erp", "true"), ("Classement.Type", "V"), ("Classement.Categorie", "3"), ("Classement.Effectif", "200000"),
+            ("Classement.Permis", "Inconnu")));
+
+        Assert.Contains(">Presbytère</a>", avant, StringComparison.Ordinal); // choix du bâtiment
+        Assert.Contains("Effectif déclaré : de 0 à 100 000.", effectifHorsBornes, StringComparison.Ordinal);
 
         var sansCategorie = await LireAsync(await PosterAsync(responsable, propositions, "classement",
             ("Classement.BatimentId", BatimentClasse().Match(avant).Groups[1].Value), ("Classement.Version", VersionClassement().Match(avant).Groups[1].Value),
@@ -161,6 +169,14 @@ public sealed partial class WebInventaireTests
             ("Affectation.Echeance", EcheanceAffectee().Match(plan).Groups[1].Value), ("Affectation.Version", VersionAffectee().Match(plan).Groups[1].Value)));
 
         Assert.Contains("Choisissez un technicien du site, ou un prestataire et son référent.", sansIntervenant, StringComparison.Ordinal);
+        var sansReferent = await LireAsync(await PosterAsync(responsable, fiche, "affectation",
+            ("Affectation.Echeance", EcheanceAffectee().Match(plan).Groups[1].Value), ("Affectation.Version", VersionAffectee().Match(plan).Groups[1].Value),
+            ("Affectation.Prestataire", "Couverture Martin")));
+        var echeancePerimee = await LireAsync(await PosterAsync(responsable, fiche, "affectation",
+            ("Affectation.Echeance", "2020-01-01"), ("Affectation.Version", VersionAffectee().Match(plan).Groups[1].Value),
+            ("Affectation.IntervenantCompteId", Technicien().Match(plan).Groups[1].Value)));
+        Assert.Contains("Un prestataire est suivi par un référent interne du site.", sansReferent, StringComparison.Ordinal);
+        Assert.Contains("Cette échéance n'est plus l'échéance courante : la fiche est rechargée.", echeancePerimee, StringComparison.Ordinal);
         Assert.Contains("Nettoyage des chéneaux", sansIntervenant, StringComparison.Ordinal); // la fiche reste affichée
     }
 
