@@ -31,7 +31,7 @@ public sealed partial class WebInventaireTests
         Assert.Contains("Vérification extérieure · tous les 5 ans · commission de sécurité · réglementaire, à confirmer", classe, StringComparison.Ordinal);
         Assert.Contains("Maintenance du défibrillateur (DAE)", classe, StringComparison.Ordinal);
         Assert.Contains("<option value=\"3\" selected", classe, StringComparison.Ordinal);
-        Assert.DoesNotContain("conforme", classe, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Conforme", classe, StringComparison.Ordinal); // seul l'avertissement « jamais conforme » le mentionne
 
         var confirme = await ActionAsync(responsable, propositions, "propositions/confirmer",
             ("cle", Cle("registre-securite", classe)), ("commandeId", Guid.NewGuid().ToString()));
