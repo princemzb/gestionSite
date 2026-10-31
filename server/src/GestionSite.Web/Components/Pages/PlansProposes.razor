@@ -52,7 +52,7 @@ else
                 {
                     <EditForm Model="Classement" FormName="classement" OnSubmit="ClasserAsync" class="formulaire-inventaire">
                         <input type="hidden" name="Classement.BatimentId" value="@Batiment.Id" />
-                        <input type="hidden" name="Classement.Version" value="@Batiment.Version" />
+                        <input type="hidden" name="Classement.Version" value="@Classement.Version" />
                         <label class="champ"><input type="checkbox" name="Classement.Erp" value="true" checked="@(Classement.Erp)" /> Établissement recevant du public (ERP)</label>
                         <div class="grille-champs">
                             <label class="champ">Type principal
@@ -190,7 +190,7 @@ else
 
     [SupplyParameterFromForm(Name = "Salaries", FormName = "salaries")] private SaisieSalaries? FormulaireSalaries { get; set; }
 
-    private SaisieClassement Classement => FormulaireClassement ??= SaisieClassement.Depuis(Batiment?.Classement);
+    private SaisieClassement Classement => FormulaireClassement ??= SaisieClassement.Depuis(Batiment);
 
     private SaisieSalaries Salaries => FormulaireSalaries ??= new();
 
@@ -272,6 +272,23 @@ else
         version = Salaries.Version,
     }, CancellationToken.None), Batiment?.Id);
 
+    // Après un refus : la page est relue ; si la relecture échoue aussi, l'écran affiché reste, avec le message du refus.
+    private async Task RechargerAsync()
+    {
+        try
+        {
+            await ChargerAsync();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            // Message du refus conservé.
+        }
+    }
+
     private async Task EcrireAsync(Func<Task> ecriture, Guid? batiment)
     {
         try
@@ -296,7 +313,12 @@ else
                     ? "Quelqu'un d'autre vient de modifier ce classement : rechargez puis recommencez."
                     : refus.Statut == HttpStatusCode.Forbidden ? "Vous n'avez pas le droit de déclarer le classement." : "Service momentanément indisponible : réessayez.",
             };
-            await ChargerAsync();
+            if (refus.Code == "modifie_entre_temps")
+            {
+                FormulaireClassement = null; // saisie dépassée : le classement enregistré et sa version sont réaffichés
+            }
+
+            await RechargerAsync();
             return;
         }
 
@@ -336,11 +358,11 @@ else
 
         public DateOnly? Visite { get; set; }
 
-        internal static SaisieClassement Depuis(ClassementApi? c) => c is null
-            ? new()
+        internal static SaisieClassement Depuis(BatimentClasseApi? batiment) => batiment?.Classement is not { } c
+            ? new() { Version = batiment?.Version ?? 0 }
             : new()
             {
-                Erp = c.Erp, Type = c.Type ?? "V", Categorie = c.Categorie, Effectif = c.Effectif, LocauxSommeil = c.LocauxSommeil,
+                Version = batiment.Version, Erp = c.Erp, Type = c.Type ?? "V", Categorie = c.Categorie, Effectif = c.Effectif, LocauxSommeil = c.LocauxSommeil,
                 Monument = c.MonumentHistorique, Permis = c.PermisAvant1997, Visite = c.DerniereVisiteCommission,
             };
     }

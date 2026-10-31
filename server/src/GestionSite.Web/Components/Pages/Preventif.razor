@@ -100,7 +100,7 @@ else
                 </ul>
             }
 
-            <h2>Plans proposés · @Proposes</h2>
+            <h2>Plans proposés · @(Proposes?.ToString(CultureInfo.InvariantCulture) ?? "—")</h2>
             <p class="note">À confirmer par le responsable avant d'apparaître au calendrier.</p>
             <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/propositions?site={SiteCourant.Id}")">Voir les plans proposés</a>
 
@@ -144,7 +144,7 @@ else
 
     private Dictionary<DateOnly, List<EcheanceCalendrier>> ParJour { get; set; } = [];
 
-    private int Proposes { get; set; }
+    private int? Proposes { get; set; }
 
     private DateOnly Aujourdhui { get; set; }
 
@@ -176,14 +176,13 @@ else
 
             var racine = $"/organizations/{OrganisationId}/sites/{site.Id}/preventive";
             Plans = await Session.LireAsync<List<PlanApi>>($"{racine}/plans", CancellationToken.None);
-            var propositions = await Session.LireAsync<List<PropositionApi>>($"{racine}/proposals", CancellationToken.None);
-            Proposes = propositions.Count(p => p.Statut == "Proposee");
             // « Mes contrôles » : échéance courante confiée à l'appelant (technicien ou référent), comme GET mine.
             MesControles = [.. Plans.Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == compte || i.ReferentCompteId == compte))
                 .OrderBy(p => p.Prochaine!.Echeance)];
             EnRetard = [.. Plans.Where(p => p.Prochaine?.Etat == "EnRetard").OrderBy(p => p.Prochaine!.Echeance)];
             var jours = Jours().ToList();
-            ParJour = EcheancesProjetees.Projeter(Plans, jours[0], jours[^1]);
+            ParJour = EcheancesProjetees.Projeter(Plans, jours[0], jours[^1], Aujourdhui);
+            Proposes = await ProposesAsync(racine);
         }
         catch (SessionExpireeException)
         {
@@ -196,6 +195,20 @@ else
         catch (RefusApiException)
         {
             Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    // Nombre affiché seulement : un échec de lecture des propositions ne masque ni le calendrier ni les retards.
+    private async Task<int?> ProposesAsync(string racine)
+    {
+        try
+        {
+            var propositions = await Session.LireAsync<List<PropositionApi>>($"{racine}/proposals", CancellationToken.None);
+            return propositions.Count(p => p.Statut == "Proposee");
+        }
+        catch (RefusApiException)
+        {
+            return null;
         }
     }
 

@@ -20,7 +20,7 @@ else
     <a class="retour" href="@($"/organisations/{OrganisationId}/preventif?site={SiteCourant.Id}")">← Préventif</a>
     <div class="entete">
         <div>
-            <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · @LibellesPreventif.Base(p.Base)@(p.Reference is null ? "" : " (à confirmer)")</span>
+            <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · @LibellesPreventif.Base(p.Base)@(p.PropositionCle is null ? "" : " (à confirmer)")</span>
             <h1>@p.Libelle</h1>
         </div>
     </div>
@@ -218,6 +218,23 @@ else
         }
     }
 
+    // Après un refus : la fiche est relue ; si la relecture échoue aussi, la fiche affichée reste, avec le message du refus.
+    private async Task RechargerAsync()
+    {
+        try
+        {
+            await ChargerAsync();
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            // Message du refus conservé.
+        }
+    }
+
     private async Task AffecterAsync()
     {
         try
@@ -247,7 +264,7 @@ else
                 { } => "Saisie refusée : vérifiez le formulaire.",
                 null => ActionsPreventifEndpoints.Message(refus.Code ?? (refus.Statut == HttpStatusCode.Forbidden ? "interdit" : "indisponible")),
             };
-            await ChargerAsync();
+            await RechargerAsync();
             return;
         }
 

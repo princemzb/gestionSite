@@ -111,6 +111,29 @@ public sealed partial class WebInventaireTests
     }
 
     [Fact]
+    public async Task AClassificationChangedMeanwhileIsShownAgainInsteadOfTheStaleEntry()
+    {
+        await MembreAsync("responsable@inventaire-web.test", "Rose L.", Role.Responsable);
+        using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
+        Chemin(await PosterAsync(technicien, $"{_page}?action=batiment", "structure", ("StructureSaisie.Type", "batiment"), ("StructureSaisie.Nom", "Église")));
+        using var responsable = await ConnecterAsync("responsable@inventaire-web.test");
+        var propositions = $"/organisations/{_organisation}/preventif/propositions";
+        var avant = await LirePageAsync(responsable, propositions);
+        var batiment = BatimentClasse().Match(avant).Groups[1].Value;
+        var version = VersionClassement().Match(avant).Groups[1].Value;
+        (string, string)[] Classement(string categorie) =>
+            [("Classement.BatimentId", batiment), ("Classement.Version", version), ("Classement.Erp", "true"), ("Classement.Type", "V"),
+             ("Classement.Categorie", categorie), ("Classement.Permis", "Inconnu")];
+
+        Chemin(await PosterAsync(responsable, propositions, "classement", Classement("3")));
+        var depasse = await LireAsync(await PosterAsync(responsable, propositions, "classement", Classement("5")));
+
+        Assert.Contains("Quelqu'un d'autre vient de modifier ce classement", depasse, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"3\" selected", depasse, StringComparison.Ordinal); // le classement enregistré, pas la saisie dépassée
+        Assert.NotEqual(version, VersionClassement().Match(depasse).Groups[1].Value);
+    }
+
+    [Fact]
     public async Task APlanOfAnotherSiteOrAForgedActionIsRefused()
     {
         using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
