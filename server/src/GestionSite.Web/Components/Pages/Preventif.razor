@@ -54,16 +54,16 @@ else
                     var echeances = ParJour.TryGetValue(jour, out var liste) ? liste : [];
                     <li class="@ClasseJour(jour)">
                         <span class="numero-jour">@jour.Day</span>
-                        @foreach (var p in echeances)
+                        @foreach (var e in echeances)
                         {
-                            <a class="@($"echeance {LibellesPreventif.ClasseEtat(p.Prochaine!.Etat)}")" href="@FichePlan(p.Id)">
-                                <span class="visuellement-masque">@LibellesPreventif.Etat(p.Prochaine.Etat) : </span>@p.Libelle
+                            <a class="@($"echeance {LibellesPreventif.ClasseEtat(e.Etat)}{(e.Prevue ? " echeance-prevue" : "")}")" href="@FichePlan(e.Plan.Id)">
+                                <span class="visuellement-masque">@(e.Prevue ? "Prévue" : LibellesPreventif.Etat(e.Etat)) : </span>@e.Plan.Libelle
                             </a>
                         }
                     </li>
                 }
             </ol>
-            <p class="note legende"><span class="echeance echeance-a-faire">À faire</span> <span class="echeance echeance-en-retard">En retard</span> <span class="echeance echeance-a-venir">À venir</span></p>
+            <p class="note legende"><span class="echeance echeance-a-faire">À faire</span> <span class="echeance echeance-en-retard">En retard</span> <span class="echeance echeance-a-venir">À venir</span> <span class="echeance echeance-a-venir echeance-prevue">Prévue (périodicité)</span></p>
         </section>
 
         <aside class="carte panneau-echeances" aria-label="À traiter">
@@ -142,7 +142,7 @@ else
 
     private IReadOnlyList<PlanApi> EnRetard { get; set; } = [];
 
-    private Dictionary<DateOnly, List<PlanApi>> ParJour { get; set; } = [];
+    private Dictionary<DateOnly, List<EcheanceCalendrier>> ParJour { get; set; } = [];
 
     private int Proposes { get; set; }
 
@@ -152,19 +152,19 @@ else
 
     private string? Message { get; set; }
 
-    private bool Planificateur => Organisation?.Roles.Any(r => r.SiteId == SiteCourant?.Id && r.Role is "Responsable" or "Delegue") == true;
-
-    private bool Terrain => Organisation?.Roles.Any(r => r.SiteId == SiteCourant?.Id && r.Role is "Technicien" or "Responsable" or "Delegue") == true;
+    private bool Planificateur => Perimetre.ARole(Organisation, SiteCourant?.Id, "Responsable", "Delegue");
 
     protected override async Task OnInitializedAsync()
     {
         Aujourdhui = Perimetre.Jour(Horloge.GetUtcNow());
-        Mois = DateOnly.TryParseExact(MoisDemande, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var mois)
+        // Mois borné (2000 à 2100) : la navigation d'un mois à l'autre reste dans le calendrier.
+        Mois = DateOnly.TryParseExact(MoisDemande, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var mois) && mois.Year is >= 2000 and <= 2100
             ? mois
             : new DateOnly(Aujourdhui.Year, Aujourdhui.Month, 1);
         try
         {
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            var compte = moi.CompteId;
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
             Sites = Perimetre.SitesInternes(Organisation);
@@ -178,13 +178,12 @@ else
             Plans = await Session.LireAsync<List<PlanApi>>($"{racine}/plans", CancellationToken.None);
             var propositions = await Session.LireAsync<List<PropositionApi>>($"{racine}/proposals", CancellationToken.None);
             Proposes = propositions.Count(p => p.Statut == "Proposee");
-            if (Terrain)
-            {
-                MesControles = await Session.LireAsync<List<PlanApi>>($"{racine}/mine", CancellationToken.None);
-            }
-
+            // « Mes contrôles » : échéance courante confiée à l'appelant (technicien ou référent), comme GET mine.
+            MesControles = [.. Plans.Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == compte || i.ReferentCompteId == compte))
+                .OrderBy(p => p.Prochaine!.Echeance)];
             EnRetard = [.. Plans.Where(p => p.Prochaine?.Etat == "EnRetard").OrderBy(p => p.Prochaine!.Echeance)];
-            ParJour = Plans.Where(p => p.Prochaine is not null).GroupBy(p => p.Prochaine!.Echeance).ToDictionary(g => g.Key, g => g.ToList());
+            var jours = Jours().ToList();
+            ParJour = EcheancesProjetees.Projeter(Plans, jours[0], jours[^1]);
         }
         catch (SessionExpireeException)
         {

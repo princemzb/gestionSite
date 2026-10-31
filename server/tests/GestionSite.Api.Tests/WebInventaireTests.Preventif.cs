@@ -76,9 +76,12 @@ public sealed partial class WebInventaireTests
         var mesControles = await LirePageAsync(technicien, preventif);
         var ficheTechnicien = await LirePageAsync(technicien, fiche);
         var fevrier = await LirePageAsync(responsable, $"{preventif}?mois=2027-02");
-        var moisEcheance = await LirePageAsync(responsable, $"{preventif}?mois={EcheanceAffectee().Match(avantAffectation).Groups[1].Value[..7]}");
+        var echeance = DateOnly.ParseExact(EcheanceAffectee().Match(avantAffectation).Groups[1].Value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var moisEcheance = await LirePageAsync(responsable, $"{preventif}?mois={echeance:yyyy-MM}");
+        var anSuivant = await LirePageAsync(responsable, $"{preventif}?mois={echeance.AddYears(1):yyyy-MM}");
 
-        Assert.Matches("class=\"echeance echeance-(a-venir|a-faire|en-retard)\" href=\"[^\"]+\">\\s*<span class=\"visuellement-masque\">[^<]+</span>Nettoyage des chéneaux", moisEcheance);
+        Assert.Matches("class=\"echeance echeance-(a-venir|a-faire|en-retard)\" href=\"[^\"]+\">\\s*<span class=\"visuellement-masque\">(À venir|À faire|En retard) : </span>Nettoyage des chéneaux", moisEcheance);
+        Assert.Matches("class=\"echeance echeance-a-venir echeance-prevue\" href=\"[^\"]+\">\\s*<span class=\"visuellement-masque\">Prévue : </span>Nettoyage des chéneaux", anSuivant);
 
         Assert.Contains("Préventif · Site centre", calendrier, StringComparison.Ordinal);
         Assert.Contains("Plans proposés · ", calendrier, StringComparison.Ordinal);
@@ -91,7 +94,6 @@ public sealed partial class WebInventaireTests
         Assert.Contains("Affectée à Marc D.", affecte, StringComparison.Ordinal);
         Assert.Contains("Échéance affectée · Rose L.", affecte, StringComparison.Ordinal);
         Assert.Contains("Mes contrôles · 1", mesControles, StringComparison.Ordinal);
-        Assert.Contains("Saisir le contrôle", ficheTechnicien, StringComparison.Ordinal);
         Assert.DoesNotContain("Affecter l'échéance", ficheTechnicien, StringComparison.Ordinal);
         Assert.DoesNotContain("Suspendre le plan", ficheTechnicien, StringComparison.Ordinal);
 

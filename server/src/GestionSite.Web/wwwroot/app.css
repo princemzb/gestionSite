@@ -455,6 +455,7 @@ form.formulaire-inventaire { padding: 0; }
 .echeance { display: block; margin-top: 4px; padding: 3px 6px; border-radius: 6px; text-decoration: none; background: var(--etape-fond); color: var(--lien); }
 .echeance.echeance-a-faire { background: var(--alerte-fond); color: var(--alerte); }
 .echeance.echeance-en-retard { background: var(--danger-fond); color: var(--danger); font-weight: 600; }
+.echeance.echeance-prevue { background: transparent; border: 1px dashed var(--bordure-forte); color: var(--encre-2); }
 .legende { display: flex; flex-wrap: wrap; gap: 8px; }
 .legende .echeance { display: inline-block; margin: 0; }
 .liste-echeances { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }

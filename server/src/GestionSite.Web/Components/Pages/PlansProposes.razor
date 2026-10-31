@@ -1,6 +1,7 @@
 @page "/organisations/{OrganisationId:guid}/preventif/propositions"
 @layout AdminLayout
 @attribute [Authorize]
+@using System.Globalization
 @using GestionSite.Web.Preventif
 @inject SessionApi Session
 @inject NavigationManager Navigation
@@ -75,7 +76,7 @@ else
                                 <input type="number" min="0" max="100000" name="Classement.Effectif" value="@Classement.Effectif" />
                             </label>
                             <label class="champ">Dernière visite de la commission <span class="aide">(facultative)</span>
-                                <input type="date" name="Classement.Visite" value="@Classement.Visite" />
+                                <input type="date" name="Classement.Visite" value="@Classement.Visite?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
                             </label>
                         </div>
                         <label class="champ"><input type="checkbox" name="Classement.LocauxSommeil" value="true" checked="@(Classement.LocauxSommeil)" /> Locaux à sommeil</label>
@@ -141,6 +142,7 @@ else
                             <form method="post" action="@Action("confirmer")">
                                 <AntiforgeryToken />
                                 <input type="hidden" name="cle" value="@p.Cle" />
+                                <input type="hidden" name="batiment" value="@Batiment?.Id" />
                                 <input type="hidden" name="commandeId" value="@Guid.NewGuid()" />
                                 <button type="submit" class="bouton-principal">@(p.Statut == "Ecartee" ? "Revoir et confirmer" : "Confirmer")</button>
                             </form>
@@ -151,8 +153,10 @@ else
                                     <form method="post" action="@Action("ecarter")" class="formulaire-inventaire">
                                         <AntiforgeryToken />
                                         <input type="hidden" name="cle" value="@p.Cle" />
+                                        <input type="hidden" name="batiment" value="@Batiment?.Id" />
                                         <label class="champ">Motif
                                             <select name="motif" required>
+                                                <option value="">— choisir —</option>
                                                 @foreach (var (valeur, libelle) in LibellesPreventif.MotifsEcart)
                                                 {
                                                     <option value="@valeur">@libelle</option>
@@ -204,7 +208,7 @@ else
 
     private string? Message { get; set; }
 
-    private bool Planificateur => Organisation?.Roles.Any(r => r.SiteId == SiteCourant?.Id && r.Role is "Responsable" or "Delegue") == true;
+    private bool Planificateur => Perimetre.ARole(Organisation, SiteCourant?.Id, "Responsable", "Delegue");
 
     private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}";
 
@@ -251,7 +255,8 @@ else
         erp = Classement.Erp,
         type = Classement.Erp ? Classement.Type : null,
         // Types secondaires non saisis à l'écran : ceux déjà déclarés sont conservés.
-        typesSecondaires = Classement.Erp ? Batiment?.Classement?.TypesSecondaires ?? [] : [],
+        // Un type devenu principal sort des types secondaires (l'API refuse le doublon).
+        typesSecondaires = Classement.Erp ? (Batiment?.Classement?.TypesSecondaires ?? []).Where(t => t != Classement.Type).ToArray() : [],
         categorie = Classement.Erp ? Classement.Categorie : null,
         effectif = Classement.Erp ? Classement.Effectif : null,
         locauxSommeil = Classement.Erp && Classement.LocauxSommeil,
