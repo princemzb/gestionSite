@@ -38,6 +38,7 @@ public sealed class LibellesDossiersTests
     [InlineData("ClotureIntervention", "Intervention clôturée")]
     [InlineData("Cloture", "Dossier clôturé")]
     [InlineData("Reouverture", "Rouvert")]
+    [InlineData("ConstatInspection", "Constat d'inspection rattaché")]
     [InlineData("Nouveau", "Nouveau")]
     public void JournalEventsReadInFrench(string code, string libelle) => Assert.Equal(libelle, LibellesDossiers.Nature(code));
 

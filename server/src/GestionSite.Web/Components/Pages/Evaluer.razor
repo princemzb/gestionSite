@@ -1,7 +1,6 @@
 @page "/organisations/{OrganisationId:guid}/inventaire/evaluer"
 @layout AdminLayout
 @attribute [Authorize]
-@using System.Globalization
 @using GestionSite.Web.Inventaire
 @inject SessionApi Session
 @inject NavigationManager Navigation
@@ -77,41 +76,7 @@ else
         }
 
         @* Étape 2 : état constaté (composant individuel) ou répartition par état (lot). *@
-        @if (Saisie.Etape == 2)
-        {
-            <section class="carte etape-evaluation" aria-label="État constaté">
-                @if (c.Lot is { } lot)
-                {
-                    <h2>Combien dans chaque état ?</h2>
-                    <div class="grille-etats">
-                        @foreach (var (cle, libelle, classe) in Libelles.Etats)
-                        {
-                            <label class="@($"champ {classe}")">@libelle<input type="number" inputmode="numeric" min="0" max="@lot.Quantite" name="@($"Saisie.{Propriete(cle)}")" value="@Saisie.Nombre(cle)" /></label>
-                        }
-                    </div>
-                    <p class="note">Total attendu : @lot.Quantite @Libelles.Unite(lot.Unite, lot.Quantite). La note du lot est la moyenne pondérée des états.</p>
-                }
-                else
-                {
-                    <h2>État constaté</h2>
-                    <div class="choix-etats">
-                        @foreach (var (etat, libelle, note, classe) in Libelles.Echelle)
-                        {
-                            <label class="@($"choix-etat {classe}")"><input type="radio" name="Saisie.Etat" value="@etat" checked="@(Saisie.Etat == etat)" required /><span>@libelle</span><span>@note</span></label>
-                        }
-                    </div>
-                }
-                <p class="note">Les points observés guident votre choix ; la note n'est pas calculée automatiquement (DEC-01).</p>
-            </section>
-        }
-        else
-        {
-            <input type="hidden" name="Saisie.Etat" value="@Saisie.Etat" />
-            @foreach (var (cle, _, _) in Libelles.Etats)
-            {
-                <input type="hidden" name="@($"Saisie.{Propriete(cle)}")" value="@Saisie.Nombre(cle)" />
-            }
-        }
+        <EtatComposant Etat="@Saisie.Etat" Nombre="Saisie.Nombre" Quantite="@c.Lot?.Quantite" Unite="@c.Lot?.Unite" Visible="@(Saisie.Etape == 2)" />
 
         @* Étape 3 : photos (obligatoires pour Mauvais et Critique) et remarque, puis enregistrement. *@
         @if (Saisie.Etape == 3)
@@ -296,9 +261,7 @@ else
                 constats = Enumerable.Range(0, Grille!.Criteres.Count).Select(i => saisie.Constat(i) switch { "oui" => true, "non" => (bool?)false, _ => null }),
                 mesures = saisie.MesuresLues(Grille.Mesures.Count),
                 etat = Composant.Lot is null ? saisie.Etat : null,
-                repartition = Composant.Lot is null
-                    ? null
-                    : new { bon = saisie.Bon ?? 0, satisfaisant = saisie.Satisfaisant ?? 0, degrade = saisie.Degrade ?? 0, mauvais = saisie.Mauvais ?? 0, critique = saisie.Critique ?? 0 },
+                repartition = Composant.Lot is null ? null : saisie.Repartition(),
                 remarque = saisie.Remarque,
             }, Contexte?.Request.Form.Files.GetFiles("photos") ?? [], CancellationToken.None);
         }
@@ -363,91 +326,10 @@ else
 
     private string Fiche() => $"/organisations/{OrganisationId}/inventaire?site={SiteCourant?.Id}&composant={ComposantDemande}";
 
-    private static string Propriete(string cle) => string.Concat(char.ToUpperInvariant(cle[0]), cle[1..]);
-
-    private sealed class SaisieEvaluation
+    private sealed class SaisieEvaluation : SaisieGrille
     {
-        public Guid CommandeId { get; set; }
-
-        public int? GrilleVersion { get; set; }
-
-        public int Etape { get; set; } = 1;
-
-        public string? Action { get; set; }
-
-        // « oui » conforme, « non » défaut, vide non vérifié : une valeur par point, dans l'ordre de la grille.
-        public List<string?>? Constats { get; set; } = [];
-
-        // Texte saisi (virgule ou point), une valeur par mesure de la grille.
-        public List<string?>? Mesures { get; set; } = [];
-
-        public string? Etat { get; set; }
-
-        public int? Bon { get; set; }
-
-        public int? Satisfaisant { get; set; }
-
-        public int? Degrade { get; set; }
-
-        public int? Mauvais { get; set; }
-
-        public int? Critique { get; set; }
-
         public string? Remarque { get; set; }
 
-        internal bool PhotoExigee => Etat is "Mauvais" or "Critique" || Mauvais > 0 || Critique > 0;
-
         internal bool CritiqueConstate => Etat == "Critique" || Critique > 0;
-
-        // Listes absentes du formulaire (étape envoyée sans elles) : lues comme vides.
-        internal string? Constat(int rang) => Constats is { } constats && rang < constats.Count ? constats[rang] ?? "" : "";
-
-        internal string? Mesure(int rang) => Mesures is { } mesures && rang < mesures.Count ? mesures[rang] : null;
-
-        internal int? Nombre(string cle) => cle switch
-        {
-            "bon" => Bon,
-            "satisfaisant" => Satisfaisant,
-            "degrade" => Degrade,
-            "mauvais" => Mauvais,
-            _ => Critique,
-        };
-
-        // Mesures lues (vide : non relevée) ; null si l'une n'est pas un nombre.
-        internal List<decimal?>? MesuresLues(int nombre)
-        {
-            var lues = new List<decimal?>(nombre);
-            for (var i = 0; i < nombre; i++)
-            {
-                var texte = Mesure(i)?.Trim().Replace(',', '.');
-                if (string.IsNullOrEmpty(texte))
-                {
-                    lues.Add(null);
-                }
-                else if (decimal.TryParse(texte, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var valeur)
-                    && Math.Round(valeur, 3) == valeur)
-                {
-                    lues.Add(valeur);
-                }
-                else
-                {
-                    return null;
-                }
-            }
-
-            return lues;
-        }
-
-        internal string? ErreurRepartition(int quantite)
-        {
-            var nombres = new[] { Bon, Satisfaisant, Degrade, Mauvais, Critique };
-            if (nombres.Any(n => n < 0))
-            {
-                return "Des quantités positives ou nulles.";
-            }
-
-            var total = nombres.Sum(n => n ?? 0);
-            return total == quantite ? null : $"Répartition : {total} pour une quantité de {quantite}.";
-        }
     }
 }

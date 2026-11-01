@@ -84,6 +84,7 @@ internal static class LibellesDossiers
         "ClotureIntervention" => "Intervention clôturée",
         "Cloture" => "Dossier clôturé",
         "Reouverture" => "Rouvert",
+        "ConstatInspection" => "Constat d'inspection rattaché",
         _ => code,
     };
 

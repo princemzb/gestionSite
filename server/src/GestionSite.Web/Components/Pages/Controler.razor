@@ -1,0 +1,515 @@
+@page "/organisations/{OrganisationId:guid}/preventif/controler"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Globalization
+@using GestionSite.Web.Inventaire
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject TimeProvider Horloge
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu evaluation controle">
+<PageTitle>Contrôler · gestionSite</PageTitle>
+
+@if (Plan?.Prochaine is not { } echeance)
+{
+    <div class="entete"><div><h1>Contrôler</h1><p>@(Message ?? "Plan introuvable sur ce site.")</p></div></div>
+    @if (SiteCourant is not null && PlanDemande is not null)
+    {
+        <a class="retour" href="@FichePlan()">← Fiche du plan</a>
+    }
+}
+else
+{
+    var p = Plan;
+    var etape = EtapeCourante;
+    <a class="retour" href="@FichePlan()">← @p.Libelle</a>
+    <div class="entete-evaluation">
+        <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · échéance du @LibellesPreventif.Date(echeance.Echeance)</span>
+        <h1>Contrôler · étape @Saisie.Etape sur @Etapes.Count</h1>
+    </div>
+    <ol class="progression" aria-label="Étapes">
+        @for (var i = 0; i < Etapes.Count; i++)
+        {
+            var numero = i + 1;
+            <li class="@(numero < Saisie.Etape ? "faite" : numero == Saisie.Etape ? "courante" : null)" aria-current="@(numero == Saisie.Etape ? "step" : null)"><span>@Etapes[i].Titre</span></li>
+        }
+    </ol>
+    @if (Message is not null)
+    {
+        <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    <EditForm Model="Saisie" FormName="controle" OnSubmit="AvancerAsync" enctype="multipart/form-data" class="formulaire-evaluation">
+        <input type="hidden" name="Saisie.CommandeId" value="@Saisie.CommandeId" />
+        <input type="hidden" name="Saisie.GrilleVersion" value="@Saisie.GrilleVersion" />
+        <input type="hidden" name="Saisie.Etape" value="@Saisie.Etape" />
+        <input type="hidden" name="Saisie.Echeance" value="@Saisie.Echeance?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+
+        @* Inspection : points de la grille (un défaut peut signaler un danger) et mesures ; hors de l'étape, champs cachés. *@
+        @if (Grille is { } grille)
+        {
+            @if (etape == "points")
+            {
+                <section class="carte etape-evaluation" aria-label="Points à observer">
+                    <h2>Points à observer <span class="aide">· grille v@(grille.Version)</span></h2>
+                    <p class="note">Chaque défaut ouvre un dossier à qualifier, ou rejoint le dossier ouvert du même point.</p>
+                    @for (var i = 0; i < grille.Criteres.Count; i++)
+                    {
+                        var rang = i;
+                        var choisi = Saisie.Constat(rang);
+                        <fieldset class="@($"point-observe point-controle {ClassePoint(choisi)}")">
+                            <legend>@grille.Criteres[rang]</legend>
+                            @foreach (var (choix, libelle) in ChoixPoint)
+                            {
+                                <label class="choix-constat"><input type="radio" name="@($"Saisie.Constats[{rang}]")" value="@choix" checked="@(choisi == choix)" /> @libelle</label>
+                            }
+                        </fieldset>
+                    }
+                    @for (var i = 0; i < grille.Mesures.Count; i++)
+                    {
+                        var rang = i;
+                        <label class="champ">@grille.Mesures[rang].Libelle <span class="aide">(facultative, @grille.Mesures[rang].Unite)</span>
+                            <input inputmode="decimal" name="@($"Saisie.Mesures[{rang}]")" value="@Saisie.Mesure(rang)" maxlength="20" />
+                        </label>
+                    }
+                </section>
+            }
+            else
+            {
+                @for (var i = 0; i < grille.Criteres.Count; i++)
+                {
+                    <input type="hidden" name="@($"Saisie.Constats[{i}]")" value="@Saisie.Constat(i)" />
+                }
+                @for (var i = 0; i < grille.Mesures.Count; i++)
+                {
+                    <input type="hidden" name="@($"Saisie.Mesures[{i}]")" value="@Saisie.Mesure(i)" />
+                }
+            }
+        }
+
+        @if (Composant)
+        {
+            <EtatComposant Etat="@Saisie.Etat" Nombre="Saisie.Nombre" Quantite="@Lot?.Quantite" Unite="@Lot?.Unite" Visible="@(etape == "etat")" />
+        }
+
+        @* Entretien et vérification extérieure : intervenant, observations du rapport (vérification) et relevés libres. *@
+        @if (p.Nature != "InspectionInterne")
+        {
+            var verification = p.Nature == "VerificationExterieure";
+            @if (etape is "releves" or "observations")
+            {
+                var observations = SaisieControle.AuMoinsUne(Saisie.Observations);
+                var releves = SaisieControle.AuMoinsUne(Saisie.Releves);
+                @* Entrée dans un champ : « Suivant », jamais « + Ajouter » (premier bouton d'envoi du formulaire). *@
+                <button type="submit" name="Saisie.Action" value="suivant" class="visuellement-masque" tabindex="-1" aria-hidden="true">Suivant</button>
+                <section class="carte etape-evaluation" aria-label="@Etapes[0].Titre">
+                    <h2>Intervenant</h2>
+                    <div class="grille-champs">
+                        <label class="champ">Prestataire <span class="aide">(raison sociale ; vide : l'intervenant affecté)</span>
+                            <input name="Saisie.Prestataire" value="@Saisie.Prestataire" maxlength="120" />
+                        </label>
+                        @if (verification)
+                        {
+                            <label class="champ">N° d'agrément <span class="aide">(facultatif)</span>
+                                <input name="Saisie.NumeroAgrement" value="@Saisie.NumeroAgrement" maxlength="60" />
+                            </label>
+                        }
+                    </div>
+                    @if (verification)
+                    {
+                        <h2>Observations du rapport</h2>
+                        <p class="note">Chaque observation est un écart à lever : elle ouvre un dossier dans sa zone.</p>
+                        @for (var i = 0; i < observations.Count; i++)
+                        {
+                            var rang = i;
+                            var o = observations[rang];
+                            <fieldset class="ligne-observation">
+                                <legend>Observation @(rang + 1)</legend>
+                                <label class="champ">Libellé<textarea name="@($"Saisie.Observations[{rang}].Libelle")" rows="2" maxlength="300">@o.Libelle</textarea></label>
+                                <label class="champ">Zone
+                                    <select name="@($"Saisie.Observations[{rang}].ZoneId")">
+                                        @foreach (var (id, libelle) in Zones)
+                                        {
+                                            <option value="@id" selected="@(id == (o.ZoneId ?? p.Cible.ZoneId))">@libelle</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="case-ligne"><input type="checkbox" name="@($"Saisie.Observations[{rang}].Danger")" value="true" checked="@o.Danger" /> Danger signalé</label>
+                            </fieldset>
+                        }
+                        @if (observations.Count < SaisieControle.ObservationsMax)
+                        {
+                            <button type="submit" name="Saisie.Action" value="ajouter-observation" class="bouton-ajout" formnovalidate>+ Ajouter une observation</button>
+                        }
+                    }
+                    <h2>Relevés <span class="aide">(facultatifs)</span></h2>
+                    @for (var i = 0; i < releves.Count; i++)
+                    {
+                        var rang = i;
+                        var r = releves[rang];
+                        <div class="ligne-releve">
+                            <label class="champ">Libellé<input name="@($"Saisie.Releves[{rang}].Libelle")" value="@r.Libelle" maxlength="80" /></label>
+                            <label class="champ">Valeur<input inputmode="decimal" name="@($"Saisie.Releves[{rang}].Valeur")" value="@r.Valeur" maxlength="20" /></label>
+                            <label class="champ">Unité<input name="@($"Saisie.Releves[{rang}].Unite")" value="@r.Unite" maxlength="16" /></label>
+                        </div>
+                    }
+                    @if (releves.Count < SaisieControle.RelevesMax)
+                    {
+                        <button type="submit" name="Saisie.Action" value="ajouter-releve" class="bouton-ajout" formnovalidate>+ Ajouter un relevé</button>
+                    }
+                </section>
+            }
+            else
+            {
+                <input type="hidden" name="Saisie.Prestataire" value="@Saisie.Prestataire" />
+                <input type="hidden" name="Saisie.NumeroAgrement" value="@Saisie.NumeroAgrement" />
+                @for (var i = 0; i < (Saisie.Observations?.Count ?? 0); i++)
+                {
+                    var o = Saisie.Observations![i];
+                    <input type="hidden" name="@($"Saisie.Observations[{i}].Libelle")" value="@o.Libelle" />
+                    <input type="hidden" name="@($"Saisie.Observations[{i}].ZoneId")" value="@o.ZoneId" />
+                    @if (o.Danger)
+                    {
+                        <input type="hidden" name="@($"Saisie.Observations[{i}].Danger")" value="true" />
+                    }
+                }
+                @for (var i = 0; i < (Saisie.Releves?.Count ?? 0); i++)
+                {
+                    var r = Saisie.Releves![i];
+                    <input type="hidden" name="@($"Saisie.Releves[{i}].Libelle")" value="@r.Libelle" />
+                    <input type="hidden" name="@($"Saisie.Releves[{i}].Valeur")" value="@r.Valeur" />
+                    <input type="hidden" name="@($"Saisie.Releves[{i}].Unite")" value="@r.Unite" />
+                }
+            }
+        }
+
+        @* Dernière étape : date réelle, résultat déclaré (jamais « conforme »), rapport, photos et compte rendu. *@
+        @if (etape == "resultat")
+        {
+            <section class="carte etape-evaluation" aria-label="@Etapes[^1].Titre">
+                <h2>@Etapes[^1].Titre</h2>
+                @if (Composant)
+                {
+                    <p class="note">@Constat</p>
+                }
+                <label class="champ">Date de réalisation
+                    <input type="date" name="Saisie.RealiseLe" value="@Saisie.RealiseLe?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                           max="@Aujourdhui.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" required />
+                </label>
+                <fieldset class="choix-resultat">
+                    <legend>Résultat déclaré</legend>
+                    @foreach (var (resultat, libelle) in Saisie.Resultats())
+                    {
+                        <label class="choix-constat"><input type="radio" name="Saisie.Resultat" value="@resultat" checked="@(Saisie.Resultat == resultat)" required /> @libelle</label>
+                    }
+                </fieldset>
+                @if (Saisie.Ecart)
+                {
+                    <p class="note encadre">Un défaut ou une observation exclut « Sans observation » : l'échéance passe « avec réserves » jusqu'à la clôture des dossiers.</p>
+                }
+                @if (p.Nature == "VerificationExterieure")
+                {
+                    <label class="champ">Rapport PDF
+                        @if (Saisie.RapportExige(p))
+                        {
+                            <span class="etiquette verification">obligatoire : vérification réglementaire par un prestataire</span>
+                        }
+                        else
+                        {
+                            <span class="aide">(facultatif, 10 Mo au plus)</span>
+                        }
+                        <input type="file" name="rapport" accept="application/pdf,.pdf" />
+                    </label>
+                }
+                <label class="champ">Photos
+                    @if (Composant && Saisie.PhotoExigee)
+                    {
+                        <span class="etiquette verification">obligatoire : état mauvais ou critique</span>
+                    }
+                    else
+                    {
+                        <span class="aide">(facultatives, 3 au plus, 10 Mo chacune)</span>
+                    }
+                    <input type="file" name="photos" accept="image/jpeg,image/png,image/heic,image/heif" multiple />
+                </label>
+                <label class="champ">@LibellesPreventif.ChampCompteRendu(p.Nature)
+                    <textarea name="Saisie.CompteRendu" rows="3" maxlength="2000" required="@(p.Nature == "Entretien")">@Saisie.CompteRendu</textarea>
+                </label>
+            </section>
+        }
+        else
+        {
+            <input type="hidden" name="Saisie.RealiseLe" value="@Saisie.RealiseLe?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+            <input type="hidden" name="Saisie.Resultat" value="@Saisie.Resultat" />
+            <input type="hidden" name="Saisie.CompteRendu" value="@Saisie.CompteRendu" />
+        }
+
+        <div class="actions-evaluation">
+            @if (Saisie.Etape < Etapes.Count)
+            {
+                <button type="submit" name="Saisie.Action" value="suivant" class="bouton-principal">Suivant : @Etapes[Saisie.Etape].Titre.ToLowerInvariant()</button>
+            }
+            else
+            {
+                <button type="submit" name="Saisie.Action" value="enregistrer" class="bouton-principal">Enregistrer le contrôle</button>
+            }
+            @if (Saisie.Etape > 1)
+            {
+                <button type="submit" name="Saisie.Action" value="retour" class="bouton-secondaire" formnovalidate>Retour</button>
+            }
+            else
+            {
+                <a class="bouton-secondaire bouton-lien" href="@FichePlan()">Annuler</a>
+            }
+        </div>
+    </EditForm>
+}
+</main>
+
+@code {
+    // Constat d'un point : jamais « conforme » (décision du 30/10) ; le danger se signale sur un défaut.
+    private static readonly (string Code, string Libelle)[] ChoixPoint =
+        [("oui", "Sans défaut"), ("non", "Défaut"), ("danger", "Défaut, danger"), ("", "Non vérifié")];
+
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "plan")] private Guid? PlanDemande { get; set; }
+
+    [SupplyParameterFromForm(Name = "Saisie", FormName = "controle")] private SaisieControle? Formulaire { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    private SaisieControle Saisie => Formulaire ??= new()
+    {
+        CommandeId = Guid.NewGuid(),
+        GrilleVersion = Grille?.Version,
+        RealiseLe = Aujourdhui,
+        Echeance = Plan?.Prochaine?.Echeance,
+        // Échéance affectée : son intervenant (un technicien n'est jamais remplacé par le prestataire habituel du plan) ;
+        // sinon le prestataire habituel est proposé.
+        Prestataire = Plan?.Prochaine?.Intervenant is { } affecte ? affecte.Prestataire : Plan?.Intervenant?.Prestataire,
+    };
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private PlanApi? Plan { get; set; }
+
+    private GrilleApi? Grille { get; set; }
+
+    private LotApi? Lot { get; set; }
+
+    // Inspection d'un composant : l'état (ou la répartition du lot) est saisi comme une évaluation US-11.
+    private bool Composant { get; set; }
+
+    private IReadOnlyList<(Guid Id, string Libelle)> Zones { get; set; } = [];
+
+    private DateOnly Aujourdhui { get; set; }
+
+    private string? Message { get; set; }
+
+    private IReadOnlyList<(string Cle, string Titre)> Etapes => SaisieControle.Etapes(Plan!.Nature, Composant);
+
+    // Étape envoyée par le formulaire, ramenée dans le parcours.
+    private string EtapeCourante => Etapes[Math.Clamp(Saisie.Etape, 1, Etapes.Count) - 1].Cle;
+
+    private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}";
+
+    private string Constat => Lot is { } lot
+        ? $"Répartition : {Libelles.Repartition(cle => Saisie.Nombre(cle) ?? 0)} sur {lot.Quantite}."
+        : $"État constaté : {Libelles.Etat(Saisie.Etat)}.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Aujourdhui = Perimetre.Jour(Horloge.GetUtcNow());
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            SiteCourant = Perimetre.SitesInternes(Organisation).FirstOrDefault(s => s.Id == SiteDemande);
+            if (SiteCourant is null || PlanDemande is null)
+            {
+                return;
+            }
+
+            if (!Perimetre.ARole(Organisation, SiteCourant.Id, "Technicien", "Responsable", "Delegue"))
+            {
+                Message = "Vous n'exécutez pas les contrôles de ce site.";
+                return;
+            }
+
+            var plan = (await Session.LireAsync<FichePlanApi>($"{Base}/preventive/plans/{PlanDemande}", CancellationToken.None)).Plan;
+            Message = MotifIndisponible(plan, moi.CompteId);
+            if (Message is not null)
+            {
+                return;
+            }
+
+            // Zones du site : seulement pour situer les observations d'une vérification extérieure.
+            if (plan.Nature == "VerificationExterieure")
+            {
+                Zones = Perimetre.Zones(await Session.LireAsync<List<BatimentApi>>($"{Base}/inventory/structure", CancellationToken.None));
+            }
+
+            if (plan.Nature == "InspectionInterne")
+            {
+                Message = "Le corps d'état de cette cible n'a pas de grille : inspection impossible.";
+                Grille = await Session.LireAsync<GrilleApi>($"{Base}/inventory/grids/{plan.Cible.CorpsEtat}", CancellationToken.None);
+                Message = null;
+                if (plan.Cible.ComposantId is { } composant)
+                {
+                    Lot = (await Session.LireAsync<FicheComposantApi>($"{Base}/inventory/components/{composant}", CancellationToken.None)).Composant.Lot;
+                    Composant = true;
+                }
+            }
+
+            Plan = plan;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message ??= "Plan introuvable sur ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    // Plan sans échéance à contrôler, ou échéance confiée à quelqu'un d'autre (l'API reste juge : 403).
+    private string? MotifIndisponible(PlanApi plan, Guid compte)
+    {
+        if (plan.Suspendu)
+        {
+            return $"Plan suspendu : {plan.MotifSuspension}";
+        }
+
+        if (plan.Prochaine is not { } echeance)
+        {
+            return "Plan ponctuel réalisé : plus d'échéance à contrôler.";
+        }
+
+        var enCharge = echeance.Intervenant is { } i && (i.CompteId == compte || i.ReferentCompteId == compte);
+        return enCharge || Perimetre.ARole(Organisation, SiteCourant!.Id, "Responsable", "Delegue")
+            ? null
+            : "Ce contrôle ne vous est pas confié : seuls l'intervenant affecté et les responsables du site le saisissent.";
+    }
+
+    private async Task AvancerAsync()
+    {
+        if (Plan is null)
+        {
+            return;
+        }
+
+        var saisie = Saisie;
+        saisie.Etape = Math.Clamp(saisie.Etape, 1, Etapes.Count);
+        Message = null;
+        switch (saisie.Action)
+        {
+            case "retour":
+                saisie.Etape = Math.Max(1, saisie.Etape - 1);
+                return;
+            case "ajouter-releve":
+                saisie.Ajouter("releve");
+                return;
+            case "ajouter-observation":
+                saisie.Ajouter("observation");
+                return;
+            case "suivant":
+                Message = saisie.ErreurEtape(EtapeCourante, Grille, Lot);
+                if (Message is null)
+                {
+                    saisie.Etape = Math.Min(Etapes.Count, saisie.Etape + 1);
+                }
+
+                return;
+            case "enregistrer" when saisie.Etape == Etapes.Count:
+                await EnregistrerAsync(saisie);
+                return;
+            default:
+                return; // action inconnue ou envoi prématuré : l'étape est réaffichée, rien n'est enregistré
+        }
+    }
+
+    private async Task EnregistrerAsync(SaisieControle saisie)
+    {
+        ControleEnregistreApi? enregistre;
+        try
+        {
+            var fichiers = Contexte?.Request.Form.Files;
+            var rapport = Plan!.Nature == "VerificationExterieure" && fichiers?.GetFile("rapport") is { Length: > 0 } pdf ? pdf : null;
+            enregistre = await Session.EnvoyerFormulaireAsync<ControleEnregistreApi>($"{Base}/preventive/plans/{Plan.Id}/perform",
+                saisie.Demande(Plan, Grille, Lot), fichiers?.GetFiles("photos") ?? [], rapport, CancellationToken.None);
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+            return;
+        }
+        catch (RefusApiException refus)
+        {
+            (Message, var reprise) = LibellesPreventif.RefusRealisation(refus.Code, refus.Champ, refus.Statut);
+            saisie.Etape = reprise switch
+            {
+                "points" or "debut" => 1,
+                "etat" => 2,
+                "resultat" => Etapes.Count,
+                _ => saisie.Etape,
+            };
+            if (refus.Code is "grille_modifiee" or "commande_reutilisee")
+            {
+                saisie.CommandeId = Guid.NewGuid();
+            }
+
+            if (refus.Code == "grille_modifiee")
+            {
+                await RelireGrilleAsync(saisie);
+            }
+
+            return;
+        }
+
+        Navigation.NavigateTo($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant!.Id}&controle={enregistre!.Id}&enregistre=1");
+    }
+
+    // Nouvelle version de la grille : points et mesures à refaire ; si elle ne se relit pas, le message le dit.
+    private async Task RelireGrilleAsync(SaisieControle saisie)
+    {
+        saisie.Constats = [];
+        saisie.Mesures = [];
+        try
+        {
+            Grille = await Session.LireAsync<GrilleApi>($"{Base}/inventory/grids/{Plan!.Cible.CorpsEtat}", CancellationToken.None);
+            saisie.GrilleVersion = Grille.Version;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException)
+        {
+            Message = "La grille a changé et ne se relit pas pour l'instant : réessayez dans un instant.";
+        }
+    }
+
+    private static string? ClassePoint(string choisi) => choisi switch
+    {
+        "non" => "defaut",
+        "danger" => "defaut danger",
+        _ => null,
+    };
+
+    private string FichePlan() => $"/organisations/{OrganisationId}/preventif/plan?site={SiteCourant?.Id}&plan={PlanDemande}";
+}

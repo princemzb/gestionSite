@@ -95,7 +95,10 @@ else
                 <ul class="liste-echeances">
                     @foreach (var p in MesControles)
                     {
-                        <li><a href="@FichePlan(p.Id)">@p.Libelle</a> · @LibellesPreventif.DateCourte(p.Prochaine!.Echeance) · @LibellesPreventif.Etat(p.Prochaine.Etat)</li>
+                        <li>
+                            <a href="@FichePlan(p.Id)">@p.Libelle</a> · @LibellesPreventif.DateCourte(p.Prochaine!.Echeance) · @LibellesPreventif.Etat(p.Prochaine.Etat)
+                            <a class="lien-discret" href="@($"/organisations/{OrganisationId}/preventif/controler?site={SiteCourant.Id}&plan={p.Id}")">Contrôler</a>
+                        </li>
                     }
                 </ul>
             }
@@ -103,6 +106,9 @@ else
             <h2>Plans proposés · @(Proposes?.ToString(CultureInfo.InvariantCulture) ?? "—")</h2>
             <p class="note">À confirmer par le responsable avant d'apparaître au calendrier.</p>
             <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/propositions?site={SiteCourant.Id}")">Voir les plans proposés</a>
+
+            <h2>Contrôles réalisés</h2>
+            <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/controles?site={SiteCourant.Id}")">Historique des contrôles</a>
 
             <h2>Tous les plans · @Plans.Count</h2>
             <ul class="liste-echeances">

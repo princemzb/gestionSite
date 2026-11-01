@@ -151,9 +151,13 @@ internal sealed class SessionApi(
     /// Formulaire multipart (partie « demande » en JSON et photos), réponse lue en <typeparamref name="T"/> ou ignorée (204).
     /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.
     /// </summary>
-    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation)
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, demande, photos, rapport: null, annulation);
+
+    /// <summary>Formulaire multipart avec, en plus des photos, un rapport PDF (partie « rapport ») vérifié par l'API.</summary>
+    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport, CancellationToken annulation)
     {
-        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, photos), annulation).ConfigureAwait(false);
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, photos, rapport), annulation).ConfigureAwait(false);
         return reponse.StatusCode == HttpStatusCode.NoContent
             ? default
             : await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false);
@@ -352,8 +356,8 @@ internal sealed class SessionApi(
     }
 }
 
-/// <summary>Formulaire avec photos, recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
-internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> photos)
+/// <summary>Formulaire avec photos (et rapport PDF), recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
+internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport = null)
 {
     internal MultipartFormDataContent Creer()
     {
@@ -363,6 +367,14 @@ internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile>
             var contenu = new StreamContent(photo.OpenReadStream());
             contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(photo.ContentType, out var type) ? type : null;
             formulaire.Add(contenu, "photos", "photo");
+        }
+
+        // Type réel reconnu par l'API à sa signature, jamais au nom ni au type annoncé.
+        if (rapport is not null)
+        {
+            var contenu = new StreamContent(rapport.OpenReadStream());
+            contenu.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            formulaire.Add(contenu, "rapport", "rapport.pdf");
         }
 
         return formulaire;

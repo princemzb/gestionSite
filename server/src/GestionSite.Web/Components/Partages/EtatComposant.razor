@@ -1,0 +1,55 @@
+@using GestionSite.Web.Inventaire
+@* État constaté d'un composant ou répartition d'un lot, commun à l'évaluation (US-11) et à l'inspection (US-12) ; hors de
+   son étape, conservé en champs cachés. Paramètres de types publics : le composant est public, les modèles internes. *@
+@if (Visible)
+{
+    <section class="carte etape-evaluation" aria-label="État constaté">
+        @if (Quantite is { } quantite)
+        {
+            <h2>Combien dans chaque état ?</h2>
+            <div class="grille-etats">
+                @foreach (var (cle, libelle, classe) in Libelles.Etats)
+                {
+                    <label class="@($"champ {classe}")">@libelle<input type="number" inputmode="numeric" min="0" max="@quantite" name="@($"Saisie.{Propriete(cle)}")" value="@Nombre(cle)" /></label>
+                }
+            </div>
+            <p class="note">Total attendu : @quantite @Libelles.Unite(Unite ?? "Unite", quantite). La note du lot est la moyenne pondérée des états.</p>
+        }
+        else
+        {
+            <h2>État constaté</h2>
+            <div class="choix-etats">
+                @foreach (var (etat, libelle, note, classe) in Libelles.Echelle)
+                {
+                    <label class="@($"choix-etat {classe}")"><input type="radio" name="Saisie.Etat" value="@etat" checked="@(Etat == etat)" required /><span>@libelle</span><span>@note</span></label>
+                }
+            </div>
+        }
+        <p class="note">Les points observés guident votre choix ; la note n'est pas calculée automatiquement (DEC-01).</p>
+    </section>
+}
+else
+{
+    <input type="hidden" name="Saisie.Etat" value="@Etat" />
+    @foreach (var (cle, _, _) in Libelles.Etats)
+    {
+        <input type="hidden" name="@($"Saisie.{Propriete(cle)}")" value="@Nombre(cle)" />
+    }
+}
+
+@code {
+    /// <summary>État saisi (composant individuel).</summary>
+    [Parameter] public string? Etat { get; set; }
+
+    /// <summary>Quantité saisie pour un état (« bon », « degrade »…) d'un lot.</summary>
+    [Parameter, EditorRequired] public Func<string, int?> Nombre { get; set; } = null!;
+
+    /// <summary>Quantité du lot (répartition par état), null pour un composant individuel (état).</summary>
+    [Parameter] public int? Quantite { get; set; }
+
+    [Parameter] public string? Unite { get; set; }
+
+    [Parameter] public bool Visible { get; set; }
+
+    private static string Propriete(string cle) => string.Concat(char.ToUpperInvariant(cle[0]), cle[1..]);
+}
