@@ -228,7 +228,7 @@ internal static class ValidationPlan
 
             var de = Point(saisie.De, $"{champ}.de");
             var a = Point(saisie.A, $"{champ}.a");
-            var largeur = Centimetre(Math.Sqrt(((a.X - de.X) * (a.X - de.X)) + ((a.Y - de.Y) * (a.Y - de.Y))));
+            var largeur = Centimetre(Longueur(de, a));
             if (largeur is < OuvertureMin or > OuvertureMax)
             {
                 throw Refus($"{champ}.a");

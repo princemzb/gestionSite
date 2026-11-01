@@ -150,10 +150,14 @@ export function bornesPoints(points) {
     return null;
   }
 
-  return {
-    minX: Math.min(...points.map(p => p.x)),
-    minY: Math.min(...points.map(p => p.y)),
-    maxX: Math.max(...points.map(p => p.x)),
-    maxY: Math.max(...points.map(p => p.y)),
-  };
+  // Une seule boucle, sans tableau intermédiaire : jusqu'à 24 000 points sur un plan chargé.
+  const bornes = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const p of points) {
+    bornes.minX = Math.min(bornes.minX, p.x);
+    bornes.minY = Math.min(bornes.minY, p.y);
+    bornes.maxX = Math.max(bornes.maxX, p.x);
+    bornes.maxY = Math.max(bornes.maxY, p.y);
+  }
+
+  return bornes;
 }

@@ -42,18 +42,21 @@ export function metresParPixel(cote) {
 
 /**
  * Défaut d'une cote, ou null si elle est complète et valable : « de » ou « a » (point absent ou hors de l'image),
- * « courte » (moins de 10 px), « distance » (absente, ou hors de 0,20 m à 5 km).
+ * « courte » (moins de 10 px), « distance » (absente, ou hors de 0,20 m à 5 km). Contrôlée après arrondi (centième de
+ * pixel, centimètre), comme le serveur : une cote acceptée ici l'est aussi à l'enregistrement.
  */
 export function defautCote(cote, image) {
-  if (!cote?.de || !pointImage(cote.de, image)) {
+  const de = cote?.de ? pointImage(cote.de, image) : null;
+  if (!de) {
     return "de";
   }
 
-  if (!cote.a || !pointImage(cote.a, image)) {
+  const a = cote.a ? pointImage(cote.a, image) : null;
+  if (!a) {
     return "a";
   }
 
-  if (longueurPixels(cote) < COTE_PIXELS_MIN) {
+  if (longueurPixels({ de, a }) < COTE_PIXELS_MIN) {
     return "courte";
   }
 
@@ -88,7 +91,7 @@ export function defautFond(fond, image) {
     return { cote: "calibration", defaut: calibration };
   }
 
-  if (Math.max(image.largeur, image.hauteur) * metresParPixel(fond.calibration) > BORNE) {
+  if (Math.max(image.largeur, image.hauteur) * metresParPixel(normaliserCote(fond.calibration, image)) > BORNE) {
     return { cote: "calibration", defaut: "etendue" };
   }
 
@@ -142,7 +145,7 @@ export function lireDistance(texte) {
     return null;
   }
 
-  const net = texte.replace(/[\s  ]/g, "").replace(/m$/i, "").replace(",", ".");
+  const net = texte.replace(/\s/g, "").replace(/m$/i, "").replace(",", ".");
   if (!/^\d+(\.\d+)?$/.test(net)) {
     return null;
   }

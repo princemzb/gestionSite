@@ -68,6 +68,8 @@ describe("cotes", () => {
     assert.equal(defautCote({ ...complete, a: null }, image), "a");
     assert.equal(defautCote({ ...complete, a: { x: 9000, y: 0 } }, image), "a");
     assert.equal(defautCote({ ...complete, a: { x: COTE_PIXELS_MIN - 1, y: 0 } }, image), "courte");
+    // Contrôlée après arrondi au centième de pixel, comme le serveur : 10,0002 px avant arrondi, 9,998 px après.
+    assert.equal(defautCote({ ...complete, a: { x: 7.0712, y: 7.0712 } }, image), "courte");
     for (const distance of [null, Number.NaN, "5", 0.1, 5001]) {
       assert.equal(defautCote({ ...complete, distance }, image), "distance");
     }

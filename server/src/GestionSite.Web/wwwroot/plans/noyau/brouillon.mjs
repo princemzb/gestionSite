@@ -60,12 +60,24 @@ export function lireBrouillon(stockage, cle) {
     && typeof brouillon.organisationId === "string" && typeof brouillon.planId === "string"
     ? cleDuBrouillon(brouillon)
     : null;
-  if (attendue !== cle || !Number.isInteger(brouillon.versionLue) || brouillon.versionLue < 0 || !brouillon.document
-    || typeof brouillon.document !== "object" || typeof brouillon.modifieLe !== "string") {
+  if (attendue !== cle || !Number.isInteger(brouillon.versionLue) || brouillon.versionLue < 0 || !documentLisible(brouillon.document)
+    || typeof brouillon.modifieLe !== "string") {
     return null;
   }
 
   return brouillon;
+}
+
+const objet = valeur => valeur !== null && typeof valeur === "object" && !Array.isArray(valeur);
+
+// Document de l'éditeur (plan.mjs) : contenu de schéma 1 avec ses listes, saisie en cours ou null. Un brouillon d'un
+// autre format (ancien, tronqué) est ignoré plutôt que de bloquer l'ouverture de l'éditeur.
+function documentLisible(document) {
+  const contenu = objet(document) ? document.contenu : null;
+  return objet(contenu) && contenu.schema === 1
+    && ["pieces", "ouvertures", "escaliers", "composants"].every(liste => Array.isArray(contenu[liste]))
+    && (contenu.fond === null || objet(contenu.fond))
+    && (document.saisie === null || objet(document.saisie));
 }
 
 function cleDuBrouillon(brouillon) {

@@ -210,7 +210,7 @@ internal sealed class ServicePlansBatiment(
         var texte = Motif(motif, obligatoire: false);
         var courante = await CouranteAsync(plan.Id, cancellationToken).ConfigureAwait(false);
         await ExigerCouranteAsync(courante, lue, cancellationToken).ConfigureAwait(false);
-        var valide = ValidationPlan.Valider(contenu, await CadreAsync(plan, contenu?.Composants, cancellationToken).ConfigureAwait(false));
+        var valide = ValidationPlan.Valider(contenu, await CadreAsync(plan, contenu?.Composants, contenu?.Fond?.FondId, cancellationToken).ConfigureAwait(false));
         return await AjouterAsync(plan, courante, envoi, valide, texte, restaureDe: null, cancellationToken).ConfigureAwait(false);
     }
 
@@ -238,7 +238,7 @@ internal sealed class ServicePlansBatiment(
         var courante = await CouranteAsync(plan.Id, cancellationToken).ConfigureAwait(false);
         await ExigerCouranteAsync(courante, lue, cancellationToken).ConfigureAwait(false);
         var contenu = ancienne.ContenuLu;
-        var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], cancellationToken).ConfigureAwait(false);
+        var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], contenu.Fond?.FondId, cancellationToken).ConfigureAwait(false);
         var gardes = contenu.Composants.Where(m => cadre.Composants.TryGetValue(m.ComposantId, out var c) && !c.Retire
             && !ValidationPlan.ObjetDeValeur(c.CorpsEtat) && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
         var valide = ValidationPlan.Valider(Saisie(contenu with { Composants = gardes }), cadre);
@@ -304,7 +304,7 @@ internal sealed class ServicePlansBatiment(
         };
     }
 
-    private async Task<CadrePlan> CadreAsync(PlanBatiment plan, IReadOnlyList<SaisieMarqueur?>? marqueurs, CancellationToken cancellationToken)
+    private async Task<CadrePlan> CadreAsync(PlanBatiment plan, IReadOnlyList<SaisieMarqueur?>? marqueurs, Guid? fondId, CancellationToken cancellationToken)
     {
         var zones = await context.Zones.AsNoTracking().Where(z => z.BatimentId == plan.BatimentId)
             .Select(z => new ZoneCadre(z.Id, z.NiveauId, z.PartiesCommunes)).ToDictionaryAsync(z => z.Id, cancellationToken).ConfigureAwait(false);
@@ -314,8 +314,11 @@ internal sealed class ServicePlansBatiment(
         var composants = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == plan.SiteId)
             .Select(c => new ComposantCadre(c.Id, c.ZoneId, c.CorpsEtat, c.RetireLe != null))
             .ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
-        var fonds = await context.FondsPlanBatiment.AsNoTracking().Where(f => f.PlanId == plan.Id)
-            .Select(f => new FondCadre(f.Id, f.LargeurAffichage, f.HauteurAffichage)).ToDictionaryAsync(f => f.Id, cancellationToken).ConfigureAwait(false);
+        // Seul le fond désigné par le contenu est lu (aucune requête pour un plan vierge) ; un fond d'un autre plan n'y est pas.
+        var fonds = fondId is { } id
+            ? await context.FondsPlanBatiment.AsNoTracking().Where(f => f.Id == id && f.PlanId == plan.Id)
+                .Select(f => new FondCadre(f.Id, f.LargeurAffichage, f.HauteurAffichage)).ToDictionaryAsync(f => f.Id, cancellationToken).ConfigureAwait(false)
+            : [];
         return new CadrePlan(plan.NiveauId, zones, niveaux.ToHashSet(), composants, fonds);
     }
 

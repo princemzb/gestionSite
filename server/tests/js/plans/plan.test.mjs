@@ -199,6 +199,9 @@ describe("refus du serveur", () => {
     assert.match(messageRefus(404, null), /n'existe pas/);
     assert.match(messageRefus(409, { code: "commande_reutilisee" }), /déjà servi/);
     assert.match(messageRefus(409, null), /modifié entre-temps/);
+    assert.match(messageRefus(409, { code: "plan_existant", planId: "p" }), /déjà un plan/);
+    assert.match(messageRefus(400, null), /rechargez la page/);
+    assert.match(messageRefus(413, null), /25 Mo/);
     assert.equal(messageRefus(422, { code: "quota_atteint", title: "Quota atteint." }), "Quota atteint.");
     assert.equal(messageRefus(422, { code: "pdf_protege", title: "PDF protégé." }), "PDF protégé.");
     assert.equal(messageRefus(422, { code: "page_absente", title: "Page absente." }), "Page absente.");
@@ -207,6 +210,10 @@ describe("refus du serveur", () => {
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.fond.fondId" }), /fond de plan/);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.pieces[0].contour" }), /géométrie du plan/);
     assert.match(messageRefus(422, { code: "donnee_invalide" }), /saisie/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "version" }), /version lue/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.nord" }), /nord/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.composants[3].position" }), /géométrie/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "inconnu" }), /: saisie\./);
     assert.match(messageRefus(503, null), /indisponible/);
   });
 });

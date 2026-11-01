@@ -35,8 +35,9 @@ const enPanne = {
   removeItem() { throw new Error("refusé"); },
 };
 
+const contenu = { schema: 1, pieces: [], ouvertures: [], escaliers: [], composants: [], fond: null };
 const brouillon = (compteId, planId = plan) => ({
-  compteId, organisationId: organisation, planId, versionLue: 3, document: { contenu: { schema: 1 }, saisie: null }, modifieLe: "2026-11-01T10:00:00Z",
+  compteId, organisationId: organisation, planId, versionLue: 3, document: { contenu, saisie: null }, modifieLe: "2026-11-01T10:00:00Z",
 });
 
 describe("clé du brouillon", () => {
@@ -62,12 +63,19 @@ describe("clé du brouillon", () => {
 });
 
 describe("lecture et écriture", () => {
+  it("relit un brouillon avec un fond et une calibration en cours", () => {
+    const stockage = memoire();
+    const enCours = { ...brouillon(compteA), document: { contenu: { ...contenu, fond: { fondId: "f" } }, saisie: { fondId: "f" } } };
+    ecrireBrouillon(stockage, enCours);
+    assert.deepEqual(lireBrouillon(stockage, cleBrouillon(compteA, organisation, plan)).document, enCours.document);
+  });
+
   it("relit le brouillon écrit pour le même compte et le même plan", () => {
     const stockage = memoire();
     assert.equal(ecrireBrouillon(stockage, brouillon(compteA)), true);
     const lu = lireBrouillon(stockage, cleBrouillon(compteA, organisation, plan));
     assert.equal(lu.versionLue, 3);
-    assert.deepEqual(lu.document, { contenu: { schema: 1 }, saisie: null });
+    assert.deepEqual(lu.document, { contenu, saisie: null });
   });
 
   it("ne rend jamais le brouillon d'un autre compte, même recopié sous sa clé", () => {
@@ -85,7 +93,13 @@ describe("lecture et écriture", () => {
     for (const texte of ["{", "null", "42", JSON.stringify({ ...brouillon(compteA), versionLue: -1 }),
       JSON.stringify({ ...brouillon(compteA), versionLue: "3" }), JSON.stringify({ ...brouillon(compteA), document: null }),
       JSON.stringify({ ...brouillon(compteA), document: "x" }), JSON.stringify({ ...brouillon(compteA), modifieLe: 1 }),
-      JSON.stringify({ ...brouillon(compteA), compteId: 1 }), JSON.stringify({ ...brouillon(compteA), planId: "pas-un-guid" })]) {
+      JSON.stringify({ ...brouillon(compteA), compteId: 1 }), JSON.stringify({ ...brouillon(compteA), planId: "pas-un-guid" }),
+      // Document d'un autre format (ancien, tronqué) : ignoré plutôt que de bloquer l'éditeur.
+      JSON.stringify({ ...brouillon(compteA), document: {} }), JSON.stringify({ ...brouillon(compteA), document: [] }),
+      JSON.stringify({ ...brouillon(compteA), document: { contenu: { ...contenu, schema: 2 }, saisie: null } }),
+      JSON.stringify({ ...brouillon(compteA), document: { contenu: { ...contenu, pieces: undefined }, saisie: null } }),
+      JSON.stringify({ ...brouillon(compteA), document: { contenu: { ...contenu, fond: 3 }, saisie: null } }),
+      JSON.stringify({ ...brouillon(compteA), document: { contenu, saisie: "x" } })]) {
       stockage.setItem(cle, texte);
       assert.equal(lireBrouillon(stockage, cle), null, texte);
     }

@@ -268,19 +268,33 @@ const champs = {
   "contenu.fond.fondId": "fond de plan",
   "contenu.fond.calibration": "cote de calibration",
   "contenu.fond.controle": "cote de contrôle",
+  "contenu.pieces": "géométrie du plan",
+  "contenu.ouvertures": "géométrie du plan",
+  "contenu.escaliers": "géométrie du plan",
+  "contenu.composants": "géométrie du plan",
+  "contenu.schema": "format du plan",
+  "contenu.nord": "orientation du nord",
+  "contenu.altitude": "altitude du niveau",
+  "contenu.hauteurSousPlafond": "hauteur sous plafond",
+  version: "version lue",
+  commandeId: "identifiant d'envoi",
+  corps: "envoi",
   fichier: "fichier",
   page: "page du PDF",
   echelle: "échelle déclarée",
   motif: "motif",
 };
 
+// Champ exact, élément d'une liste (« contenu.pieces[2]… ») ou sous-champ (« contenu.fond.calibration.a »).
+const cheminsChamps = Object.keys(champs).sort((a, b) => b.length - a.length);
+
 function libelleChamp(champ) {
   if (typeof champ !== "string") {
     return "saisie";
   }
 
-  const connu = Object.keys(champs).sort((a, b) => b.length - a.length).find(c => champ === c || champ.startsWith(`${c}.`));
-  return connu ? champs[connu] : "géométrie du plan";
+  const connu = cheminsChamps.find(c => champ === c || champ.startsWith(`${c}.`) || champ.startsWith(`${c}[`));
+  return connu ? champs[connu] : "saisie";
 }
 
 /**
@@ -311,7 +325,15 @@ export function messageRefus(statut, probleme) {
       return "Vous ne modifiez pas les plans de ce site.";
     case 404:
       return "Ce plan n'existe pas ou n'est plus accessible.";
+    case 400:
+      return "Requête refusée (formulaire expiré ou envoi trop volumineux) : rechargez la page. Votre brouillon est conservé sur cet appareil.";
+    case 413:
+      return "Fichier trop volumineux : 25 Mo au plus.";
     case 409:
+      if (probleme?.code === "plan_existant") {
+        return "Ce niveau a déjà un plan, créé entre-temps : rechargez la page.";
+      }
+
       return probleme?.code === "commande_reutilisee"
         ? "Cet envoi a déjà servi : rechargez la page."
         : "Ce plan a été modifié entre-temps : rechargez-le.";
