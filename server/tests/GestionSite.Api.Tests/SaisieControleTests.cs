@@ -74,8 +74,22 @@ public sealed class SaisieControleTests
         Assert.NotNull(new SaisieControle { Releves = [new() { Libelle = "Pression", Valeur = "haute" }] }.ErreurEtape("releves", null, null));
         Assert.NotNull(new SaisieControle { Releves = [new() { Valeur = "12" }] }.ErreurEtape("observations", null, null));
         Assert.NotNull(new SaisieControle { Releves = [new() { Libelle = "Pression" }] }.ErreurEtape("releves", null, null));
-        Assert.Null(new SaisieControle { Releves = [new() { Libelle = "Pression", Valeur = "1,25" }, new()] }.ErreurEtape("releves", null, null));
+        Assert.NotNull(new SaisieControle { Releves = [new() { Libelle = "Pression", Valeur = "1,25" }] }.ErreurEtape("releves", null, null)); // unité exigée par l'API
+        Assert.NotNull(new SaisieControle { Releves = [new() { Unite = "bar" }] }.ErreurEtape("releves", null, null));
+        Assert.Null(new SaisieControle { Releves = [new() { Libelle = "Pression", Valeur = "1,25", Unite = "bar" }, new()] }.ErreurEtape("releves", null, null));
+        Assert.Equal("Observation : décrivez l'écart signalé comme dangereux.",
+            new SaisieControle { Observations = [new() { Danger = true }] }.ErreurEtape("observations", null, null));
+        Assert.Null(new SaisieControle { Observations = [new() { Libelle = "Bloc hors service", Danger = true }, new()] }.ErreurEtape("observations", null, null));
+        Assert.Null(new SaisieControle { Observations = null }.ErreurEtape("observations", null, null));
         Assert.Null(new SaisieControle().ErreurEtape("resultat", null, null));
+    }
+
+    [Fact]
+    public void TheDueDateShownWhenTheScreenOpenedIsTheOneSent()
+    {
+        var plan = Plan("Entretien", "BonnePratique", null);
+        Assert.Equal("2027-10-31", Json(new SaisieControle().Demande(plan, null, null)).GetProperty("echeance").GetString());
+        Assert.Equal("2026-10-31", Json(new SaisieControle { Echeance = new DateOnly(2026, 10, 31) }.Demande(plan, null, null)).GetProperty("echeance").GetString());
     }
 
     [Fact]

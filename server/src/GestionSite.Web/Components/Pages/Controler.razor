@@ -45,6 +45,7 @@ else
         <input type="hidden" name="Saisie.CommandeId" value="@Saisie.CommandeId" />
         <input type="hidden" name="Saisie.GrilleVersion" value="@Saisie.GrilleVersion" />
         <input type="hidden" name="Saisie.Etape" value="@Saisie.Etape" />
+        <input type="hidden" name="Saisie.Echeance" value="@Saisie.Echeance?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
 
         @* Inspection : points de la grille (un défaut peut signaler un danger) et mesures ; hors de l'étape, champs cachés. *@
         @if (Grille is { } grille)
@@ -101,6 +102,8 @@ else
             {
                 var observations = SaisieControle.AuMoinsUne(Saisie.Observations);
                 var releves = SaisieControle.AuMoinsUne(Saisie.Releves);
+                @* Entrée dans un champ : « Suivant », jamais « + Ajouter » (premier bouton d'envoi du formulaire). *@
+                <button type="submit" name="Saisie.Action" value="suivant" class="visuellement-masque" tabindex="-1" aria-hidden="true">Suivant</button>
                 <section class="carte etape-evaluation" aria-label="@Etapes[0].Titre">
                     <h2>Intervenant</h2>
                     <div class="grille-champs">
@@ -285,7 +288,10 @@ else
         CommandeId = Guid.NewGuid(),
         GrilleVersion = Grille?.Version,
         RealiseLe = Aujourdhui,
-        Prestataire = Plan?.Prochaine?.Intervenant?.Prestataire ?? Plan?.Intervenant?.Prestataire,
+        Echeance = Plan?.Prochaine?.Echeance,
+        // Échéance affectée : son intervenant (un technicien n'est jamais remplacé par le prestataire habituel du plan) ;
+        // sinon le prestataire habituel est proposé.
+        Prestataire = Plan?.Prochaine?.Intervenant is { } affecte ? affecte.Prestataire : Plan?.Intervenant?.Prestataire,
     };
 
     private OrganisationApi? Organisation { get; set; }
@@ -347,11 +353,17 @@ else
                 return;
             }
 
-            var structure = await Session.LireAsync<List<BatimentApi>>($"{Base}/inventory/structure", CancellationToken.None);
-            Zones = [.. structure.SelectMany(b => b.Zones.Select(z => (z.Id, $"{b.Nom} · {z.Nom}")))];
+            // Zones du site : seulement pour situer les observations d'une vérification extérieure.
+            if (plan.Nature == "VerificationExterieure")
+            {
+                Zones = Perimetre.Zones(await Session.LireAsync<List<BatimentApi>>($"{Base}/inventory/structure", CancellationToken.None));
+            }
+
             if (plan.Nature == "InspectionInterne")
             {
+                Message = "Le corps d'état de cette cible n'a pas de grille : inspection impossible.";
                 Grille = await Session.LireAsync<GrilleApi>($"{Base}/inventory/grids/{plan.Cible.CorpsEtat}", CancellationToken.None);
+                Message = null;
                 if (plan.Cible.ComposantId is { } composant)
                 {
                     Lot = (await Session.LireAsync<FicheComposantApi>($"{Base}/inventory/components/{composant}", CancellationToken.None)).Composant.Lot;
@@ -367,7 +379,7 @@ else
         }
         catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
         {
-            Message = "Plan introuvable sur ce site.";
+            Message ??= "Plan introuvable sur ce site.";
         }
         catch (RefusApiException)
         {
@@ -423,9 +435,11 @@ else
                 }
 
                 return;
-            default:
+            case "enregistrer" when saisie.Etape == Etapes.Count:
                 await EnregistrerAsync(saisie);
                 return;
+            default:
+                return; // action inconnue ou envoi prématuré : l'étape est réaffichée, rien n'est enregistré
         }
     }
 

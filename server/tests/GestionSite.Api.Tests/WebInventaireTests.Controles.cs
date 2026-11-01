@@ -133,7 +133,7 @@ public sealed partial class WebInventaireTests
         Assert.Contains("Observations du rapport", etape1, StringComparison.Ordinal);
         Assert.Contains("Saisie.Observations[1].Libelle", plusObservation, StringComparison.Ordinal);
         Assert.Contains("Saisie.Releves[1].Libelle", plusReleve, StringComparison.Ordinal);
-        Assert.Contains("Relevé : un libellé et une valeur", releveFaux, StringComparison.Ordinal);
+        Assert.Contains("Relevé : un libellé, une valeur", releveFaux, StringComparison.Ordinal);
         Assert.Contains("Contrôler · étape 2 sur 2", etape2, StringComparison.Ordinal);
         Assert.Contains("obligatoire : vérification réglementaire par un prestataire", etape2, StringComparison.Ordinal);
         Assert.Contains("name=\"Saisie.Observations[0].Danger\" value=\"true\"", etape2, StringComparison.Ordinal); // conservée en champ caché
@@ -191,6 +191,11 @@ public sealed partial class WebInventaireTests
         var sansCompteRendu = await LireAsync(await PosterAsync(responsable, controler, "controle", final));
         var dateFuture = await LireAsync(await PosterAsync(responsable, controler, "controle",
             [.. final.Where(c => c.Nom != "Saisie.RealiseLe"), ("Saisie.RealiseLe", "2099-01-01"), ("Saisie.CompteRendu", "Chéneaux dégagés")]));
+        var autreEcheance = await LireAsync(await PosterAsync(responsable, controler, "controle",
+            [.. final, ("Saisie.CompteRendu", "Chéneaux dégagés"), ("Saisie.Echeance", "2020-10-31")]));
+        var premature = await LireAsync(await PosterAsync(responsable, controler, "controle", [.. Etape(final, "1", "enregistrer"), ("Saisie.CompteRendu", "Chéneaux")]));
+        Assert.Contains("n'est plus l'échéance courante du plan", autreEcheance, StringComparison.Ordinal); // jamais reportée sur l'échéance suivante
+        Assert.Contains("Contrôler · étape 1 sur 2", premature, StringComparison.Ordinal); // rien n'est enregistré avant la dernière étape
         var enregistre = await LirePageAsync(responsable, Chemin(await PosterAsync(responsable, controler, "controle",
             [.. final, ("Saisie.CompteRendu", "Chéneaux dégagés\nDescentes libres")])));
 

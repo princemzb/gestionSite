@@ -110,7 +110,7 @@ internal static class LibellesPreventif
         ("commande_reutilisee", _) => ("Cet envoi a déjà servi : recommencez l'enregistrement.", "resultat"),
         ("composant_retire", _) => ("Ce composant vient d'être retiré de l'inventaire : le contrôle ne s'enregistre plus.", "resultat"),
         ("modifie_entre_temps", _) => ("Quelqu'un d'autre vient de modifier cette échéance ou ce lot : vérifiez puis recommencez.", "resultat"),
-        ("statut_incompatible", _) => ("Ce plan est suspendu ou cette échéance est déjà traitée.", "resultat"),
+        ("statut_incompatible", _) => ("Ce plan est suspendu, sa cible n'a pas de grille, ou cette échéance est déjà traitée : revenez à la fiche du plan.", "resultat"),
         (_, "echeance") => ("Cette échéance n'est plus l'échéance courante du plan : revenez à la fiche du plan.", "resultat"),
         (_, "photos") => ("Photos : 3 au plus, de 10 Mo chacune (JPEG, PNG ou HEIC) ; obligatoire pour un état mauvais ou critique.", "resultat"),
         (_, "rapport") => ("Rapport : un fichier PDF de 10 Mo au plus, obligatoire pour une vérification réglementaire par un prestataire.", "resultat"),

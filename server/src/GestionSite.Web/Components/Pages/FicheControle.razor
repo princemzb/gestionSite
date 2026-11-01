@@ -153,8 +153,8 @@ else
 
     private bool Enregistre => Enregistrement == 1;
 
-    // Un défaut, une observation ou un résultat « non satisfaisant » laissent l'échéance en réserve.
-    private bool Reserves => Controle!.Constats is { Count: > 0 } || Controle.Resultat == "NonConforme";
+    // Comme le domaine : un point en défaut, une observation ou un résultat « non satisfaisant » laissent l'échéance en réserve.
+    private bool Reserves => Controle!.Points.Any(p => p.Conforme == false) || Controle.Observations.Count > 0 || Controle.Resultat == "NonConforme";
 
     private string Statut => !Reserves ? "Réalisée" : Controle!.ReservesLevees ? "Réserves levées" : "Réalisée avec réserves";
 
@@ -178,7 +178,7 @@ else
             if (controle.Observations.Count > 0)
             {
                 var structure = await Session.LireAsync<List<BatimentApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/inventory/structure", CancellationToken.None);
-                Zones = structure.SelectMany(b => b.Zones.Select(z => (z.Id, Libelle: $"{b.Nom} · {z.Nom}"))).ToDictionary(z => z.Id, z => z.Libelle);
+                Zones = Perimetre.Zones(structure).ToDictionary(z => z.Id, z => z.Libelle);
             }
 
             Controle = controle;

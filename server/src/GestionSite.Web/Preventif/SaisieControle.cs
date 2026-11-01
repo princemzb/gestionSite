@@ -20,6 +20,9 @@ internal sealed class SaisieControle : SaisieGrille
 
     public List<ObservationSaisie>? Observations { get; set; } = [];
 
+    // Échéance affichée à l'ouverture : l'envoi la vise, jamais l'échéance suivante (saut ou double envoi entre-temps).
+    public DateOnly? Echeance { get; set; }
+
     public string? Prestataire { get; set; }
 
     public string? NumeroAgrement { get; set; }
@@ -42,7 +45,7 @@ internal sealed class SaisieControle : SaisieGrille
     /// <summary>Point en défaut (avec ou sans danger) ou observation d'un rapport : le résultat « sans observation » est exclu.</summary>
     internal bool Ecart => Enumerable.Range(0, Constats?.Count ?? 0).Any(i => Constat(i) is "non" or "danger") || ObservationsRemplies.Any();
 
-    internal IEnumerable<ReleveSaisi> RelevesRemplis => (Releves ?? []).Where(r => !string.IsNullOrWhiteSpace(r.Libelle) || !string.IsNullOrWhiteSpace(r.Valeur));
+    internal IEnumerable<ReleveSaisi> RelevesRemplis => (Releves ?? []).Where(r => !string.IsNullOrWhiteSpace(r.Libelle) || !string.IsNullOrWhiteSpace(r.Valeur) || !string.IsNullOrWhiteSpace(r.Unite));
 
     internal IEnumerable<ObservationSaisie> ObservationsRemplies => (Observations ?? []).Where(o => !string.IsNullOrWhiteSpace(o.Libelle));
 
@@ -88,8 +91,12 @@ internal sealed class SaisieControle : SaisieGrille
         "points" when MesuresLues(grille?.Mesures.Count ?? 0) is null => "Mesure : un nombre (virgule ou point), trois décimales au plus.",
         "etat" when lot is not null => ErreurRepartition(lot.Quantite),
         "etat" when Etat is null => "Choisissez l'état constaté.",
-        "releves" or "observations" when RelevesRemplis.Any(r => string.IsNullOrWhiteSpace(r.Libelle) || !Decimal(r.Valeur, out var v) || v is null) =>
-            "Relevé : un libellé et une valeur (nombre, virgule ou point, trois décimales au plus).",
+        "releves" or "observations" when RelevesRemplis.Any(r => string.IsNullOrWhiteSpace(r.Libelle) || string.IsNullOrWhiteSpace(r.Unite)
+            || !Decimal(r.Valeur, out var v) || v is null) =>
+            "Relevé : un libellé, une valeur (nombre, virgule ou point, trois décimales au plus) et une unité.",
+        // Une observation sans libellé n'est pas envoyée : un danger signalé sans texte serait perdu.
+        "observations" when (Observations ?? []).Any(o => o.Danger && string.IsNullOrWhiteSpace(o.Libelle)) =>
+            "Observation : décrivez l'écart signalé comme dangereux.",
         _ => null,
     };
 
@@ -101,7 +108,7 @@ internal sealed class SaisieControle : SaisieGrille
         return new
         {
             commandeId = CommandeId,
-            echeance = plan.Prochaine?.Echeance,
+            echeance = Echeance ?? plan.Prochaine?.Echeance,
             realiseLe = RealiseLe,
             resultat = Resultat,
             compteRendu = CompteRendu,
