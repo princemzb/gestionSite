@@ -22,12 +22,27 @@ internal sealed record LiaisonPlan(string Type, IReadOnlyList<PointPlan> Contour
 internal sealed record MarqueurPlan(Guid ComposantId, Guid ZoneId, PointPlan Position);
 
 /// <summary>
+/// Cote mesurée sur un fond de plan (S21-07, RP-21.4) : deux points en pixels du dérivé d'affichage (origine en haut à
+/// gauche, au centième de pixel) et la distance réelle qui les sépare, en mètres.
+/// </summary>
+internal sealed record CotePlan(PointPlan De, PointPlan A, double Distance);
+
+/// <summary>
+/// Fond de la version et sa calibration (S21-07, RP-21.4) : le dérivé d'affichage est posé coin haut gauche à l'origine du
+/// repère, axes de l'image et du repère confondus, à l'échelle de la cote de calibration (mètres par pixel = distance /
+/// longueur en pixels) ; la cote de contrôle, facultative, mesure l'écart de cette échelle sur une autre longueur connue.
+/// </summary>
+internal sealed record FondPlan(Guid FondId, CotePlan Calibration, CotePlan? Controle);
+
+/// <summary>
 /// Contenu d'une version de plan de bâtiment, schéma 1 : JSON stocké tel quel et rendu tel quel (lisible par le web et
-/// par l'application tablette), renvoyable tel quel pour enregistrer la suivante. Nord en degrés depuis l'axe Y du repère, altitude du niveau et hauteur sous plafond en mètres.
+/// par l'application tablette), renvoyable tel quel pour enregistrer la suivante. Nord en degrés depuis l'axe Y du repère, altitude du niveau et hauteur sous plafond en mètres ;
+/// fond calibré facultatif (absent : plan vierge sur grille métrique). Repère : x vers la droite, y vers le bas du plan
+/// affiché, comme l'image du fond.
 /// </summary>
 internal sealed record ContenuPlan(
     int Schema, double? Nord, double? Altitude, double? HauteurSousPlafond, IReadOnlyList<PiecePlan> Pieces, IReadOnlyList<OuverturePlan> Ouvertures,
-    IReadOnlyList<LiaisonPlan> Escaliers, IReadOnlyList<MarqueurPlan> Composants)
+    IReadOnlyList<LiaisonPlan> Escaliers, IReadOnlyList<MarqueurPlan> Composants, FondPlan? Fond = null)
 {
     internal static ContenuPlan Vide { get; } = new(VersionPlanBatiment.SchemaCourant, null, null, null, [], [], [], []);
 }

@@ -16,9 +16,14 @@ internal sealed record SaisieLiaison(string? Type, IReadOnlyList<SaisiePoint?>? 
 
 internal sealed record SaisieMarqueur(Guid? ComposantId, SaisiePoint? Position);
 
+internal sealed record SaisieCote(SaisiePoint? De, SaisiePoint? A, double? Distance);
+
+internal sealed record SaisieFond(Guid? FondId, SaisieCote? Calibration, SaisieCote? Controle);
+
 internal sealed record SaisieContenuPlan(
     int? Schema, double? Nord, double? Altitude, double? HauteurSousPlafond, IReadOnlyList<SaisiePiece?>? Pieces,
-    IReadOnlyList<SaisieOuverture?>? Ouvertures, IReadOnlyList<SaisieLiaison?>? Escaliers, IReadOnlyList<SaisieMarqueur?>? Composants);
+    IReadOnlyList<SaisieOuverture?>? Ouvertures, IReadOnlyList<SaisieLiaison?>? Escaliers, IReadOnlyList<SaisieMarqueur?>? Composants,
+    SaisieFond? Fond = null);
 
 internal enum TypeOuverture
 {
@@ -39,12 +44,17 @@ internal sealed record ZoneCadre(Guid Id, Guid? NiveauId, bool PartiesCommunes);
 /// <summary>Composant du site désigné par un marqueur.</summary>
 internal sealed record ComposantCadre(Guid Id, Guid ZoneId, CorpsEtat CorpsEtat, bool Retire);
 
+/// <summary>Fond importé pour ce plan : dimensions de son dérivé d'affichage, en pixels.</summary>
+internal sealed record FondCadre(Guid Id, int Largeur, int Hauteur);
+
 /// <summary>
 /// Ce que l'inventaire permet de dessiner sur un plan : son niveau (absent pour un plan masse), les zones de son bâtiment,
-/// les autres niveaux du bâtiment (cibles des escaliers) et les composants du site désignés par la saisie.
+/// les autres niveaux du bâtiment (cibles des escaliers), les composants du site désignés par la saisie et les fonds
+/// importés pour ce plan.
 /// </summary>
 internal sealed record CadrePlan(
-    Guid? NiveauId, IReadOnlyDictionary<Guid, ZoneCadre> Zones, IReadOnlySet<Guid> AutresNiveaux, IReadOnlyDictionary<Guid, ComposantCadre> Composants);
+    Guid? NiveauId, IReadOnlyDictionary<Guid, ZoneCadre> Zones, IReadOnlySet<Guid> AutresNiveaux, IReadOnlyDictionary<Guid, ComposantCadre> Composants,
+    IReadOnlyDictionary<Guid, FondCadre>? Fonds = null);
 
 internal sealed record PlanValide(ContenuPlan Contenu, IReadOnlyList<AvertissementPlan> Avertissements);
 
@@ -68,6 +78,10 @@ internal static class ValidationPlan
     internal const double OuvertureMin = 0.2;
     internal const double OuvertureMax = 30;
     internal const string MarqueurHorsZone = "marqueur_hors_zone";
+
+    /// <summary>Cote mesurée sur un fond : 10 px au moins (en deçà, l'imprécision du pointage dépasse 10 %).</summary>
+    internal const double CotePixelsMin = 10;
+    internal const double CoteMin = 0.2;
 
     private static readonly GeometryFactory Fabrique = NtsGeometryServices.Instance.CreateGeometryFactory();
 
@@ -93,8 +107,10 @@ internal static class ValidationPlan
         var escaliers = Escaliers(Liste(contenu.Escaliers, EscaliersMax, "contenu.escaliers"), cadre, ref points);
         var ouvertures = Ouvertures(Liste(contenu.Ouvertures, OuverturesMax, "contenu.ouvertures"), pieces);
         var (marqueurs, avertissements) = Marqueurs(Liste(contenu.Composants, MarqueursMax, "contenu.composants"), cadre, pieces);
+        var fond = contenu.Fond is null ? null : Fond(contenu.Fond, cadre);
         return new PlanValide(
-            new ContenuPlan(VersionPlanBatiment.SchemaCourant, nord, altitude, hauteur, [.. pieces.Select(p => p.Piece)], ouvertures, escaliers, marqueurs), avertissements);
+            new ContenuPlan(VersionPlanBatiment.SchemaCourant, nord, altitude, hauteur, [.. pieces.Select(p => p.Piece)], ouvertures, escaliers, marqueurs, fond),
+            avertissements);
     }
 
     /// <summary>Arrondi au centimètre, le demi-centimètre s'éloignant de zéro, jamais -0 (même règle que l'éditeur, ADR-11).</summary>
@@ -263,6 +279,49 @@ internal static class ValidationPlan
 
         return (marqueurs, avertissements);
     }
+
+    // Fond importé pour ce plan, calibré (RP-21.4) : cote de calibration obligatoire, cote de contrôle facultative ; l'image
+    // calibrée reste dans les bornes du repère.
+    private static FondPlan Fond(SaisieFond saisie, CadrePlan cadre)
+    {
+        if (saisie.FondId is not { } fondId || cadre.Fonds?.GetValueOrDefault(fondId) is not { } image)
+        {
+            throw Refus("contenu.fond.fondId");
+        }
+
+        var calibration = Cote(saisie.Calibration, image, "contenu.fond.calibration");
+        var controle = saisie.Controle is null ? null : Cote(saisie.Controle, image, "contenu.fond.controle");
+        var metresParPixel = calibration.Distance / Longueur(calibration.De, calibration.A);
+        if (Math.Max(image.Largeur, image.Hauteur) * metresParPixel > Borne)
+        {
+            throw Refus("contenu.fond.calibration.distance");
+        }
+
+        return new FondPlan(fondId, calibration, controle);
+    }
+
+    // Deux points de l'image (au centième de pixel), à 10 px au moins l'un de l'autre, et une distance réelle de 0,20 m à 5 km.
+    private static CotePlan Cote(SaisieCote? saisie, FondCadre image, string champ)
+    {
+        var cote = saisie ?? throw Refus(champ);
+        var de = Pixel(cote.De, image, $"{champ}.de");
+        var a = Pixel(cote.A, image, $"{champ}.a");
+        if (Longueur(de, a) < CotePixelsMin)
+        {
+            throw Refus($"{champ}.a");
+        }
+
+        return cote.Distance is { } distance && double.IsFinite(distance) && Centimetre(distance) is var metres and >= CoteMin and <= Borne
+            ? new CotePlan(de, a, metres)
+            : throw Refus($"{champ}.distance");
+    }
+
+    private static PointPlan Pixel(SaisiePoint? saisie, FondCadre image, string champ) =>
+        saisie is { X: { } x, Y: { } y } && double.IsFinite(x) && double.IsFinite(y) && x >= 0 && y >= 0 && x <= image.Largeur && y <= image.Hauteur
+            ? new PointPlan(Centimetre(x), Centimetre(y))
+            : throw Refus(champ);
+
+    private static double Longueur(PointPlan de, PointPlan a) => Math.Sqrt(((a.X - de.X) * (a.X - de.X)) + ((a.Y - de.Y) * (a.Y - de.Y)));
 
     /// <summary>Objet de valeur (trésor, objets de culte, coffre) : jamais de marqueur sur un plan (décision du 30/10).</summary>
     internal static bool ObjetDeValeur(CorpsEtat corpsEtat) => corpsEtat == CorpsEtat.EquipementsCulte;
