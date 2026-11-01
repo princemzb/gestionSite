@@ -32,7 +32,7 @@ internal sealed record DemandeObservation(string? Libelle, Guid? ZoneId, bool Da
 
 internal sealed record ControleResume(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, string Resultat, Guid? ComposantId, Guid BatimentId, int Defauts,
-    decimal? Note);
+    decimal? Note, bool Rapport);
 
 internal sealed record ControleLu(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, Guid AuteurCompteId, string? Auteur,
@@ -339,7 +339,7 @@ internal sealed class ServiceOccurrences(
             .Take(500).ToListAsync(cancellationToken).ConfigureAwait(false);
         return [.. lus.Select(l => new ControleResume(
             l.Controle.Id, l.Controle.PlanId, l.Plan, l.Controle.Nature.ToString(), l.Controle.Echeance, l.Controle.RealiseLe, l.Controle.Resultat.ToString(),
-            l.Controle.ComposantId, l.Controle.BatimentId, l.Controle.Defauts, l.Controle.Note))];
+            l.Controle.ComposantId, l.Controle.BatimentId, l.Controle.Defauts, l.Controle.Note, l.Controle.RapportCle != null))];
     }
 
     internal async Task<ControleLu> LireAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)
