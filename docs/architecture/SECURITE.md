@@ -24,6 +24,7 @@ Identité et contact des déclarants, comptes, photos, plans, justificatifs, jou
 | Injection via réponse IA ou page produit | Validation structurée et absence d’exécution | T-10 |
 | Fuite de trajet via logs | Exclusion coordonnées des journaux et traces | T-12 |
 | Spam public | Limites et surveillance sans compte imposé | T-02 |
+| PDF de plan piégé (code natif PDFium) | Rendu hors de l'API dans un processus enfant sans secrets, borné en temps (20 s) et en mémoire (1 Gio), un à la fois ; PDFium sans V8 ni XFA ; PDF chiffré refusé ; original jamais servi (S21-05) | RenduPdfTests, test de fumée dans l'image |
 
 Le décalage entre révocation serveur et appareil hors connexion doit être accepté explicitement. Le MFA différé est une décision produit connue, à réexaminer avant ouverture commerciale.
 Utiliser [OWASP ASVS](https://asvs.owasp.org/) comme référentiel pour sélectionner et tracer les contrôles web/API ; aucun niveau de certification n’est revendiqué.

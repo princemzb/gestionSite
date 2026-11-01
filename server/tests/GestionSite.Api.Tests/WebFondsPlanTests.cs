@@ -8,6 +8,7 @@ using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
 using GestionSite.Modules.Patrimoine.PlansBatiment;
 using GestionSite.SharedKernel;
+using GestionSite.Tests;
 using GestionSite.Web;
 using GestionSite.Web.Inventaire;
 using ImageMagick;
@@ -119,10 +120,36 @@ public sealed partial class WebFondsPlanTests(InfrastructureFixture infrastructu
         Assert.Equal(0, await _database.CountAsync("SELECT count(*) FROM patrimoine.fonds_plan_batiment"));
     }
 
+    [Fact]
+    public async Task ThePageAndTheDeclaredScaleOfAPdfAreRelayed()
+    {
+        var plan = await PlanAsync();
+        using var responsable = await ConnecterAsync("responsable@fonds-web.test");
+        var fonds = $"/organisations/{_organisation}/sites/{_site}/plans-batiment/{plan}/fonds";
+        var pdf = PdfSynthetique.Pages((595, 842, (1, 1, 1)), (842, 595, (1, 1, 1)));
+        var jeton = await JetonAsync(responsable);
+
+        using var importe = await ImporterAsync(responsable, fonds, pdf, "plan.pdf", "application/pdf", jeton, ("page", "2"), ("echelle", "50"));
+        using var pageAbsente = await ImporterAsync(responsable, fonds, pdf, "plan.pdf", "application/pdf", jeton, ("page", "3"));
+
+        Assert.Equal(HttpStatusCode.OK, importe.StatusCode);
+        var source = (await importe.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("pdf");
+        Assert.Equal((2, 2, 50), (source.GetProperty("page").GetInt32(), source.GetProperty("pages").GetInt32(), source.GetProperty("echelle").GetInt32()));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, pageAbsente.StatusCode);
+        var refus = await pageAbsente.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(("page_absente", "page", "Page absente : ce PDF compte 2 pages."),
+            (refus.GetProperty("code").GetString(), refus.GetProperty("champ").GetString(), refus.GetProperty("title").GetString()));
+    }
+
     private static async Task<HttpResponseMessage> ImporterAsync(
-        HttpClient navigateur, string fonds, byte[]? contenu, string nom, string type, string? jeton)
+        HttpClient navigateur, string fonds, byte[]? contenu, string nom, string type, string? jeton, params (string Nom, string Valeur)[] champs)
     {
         using var formulaire = new MultipartFormDataContent { { new StringContent(Guid.NewGuid().ToString()), "commandeId" } };
+        foreach (var (champ, valeur) in champs)
+        {
+            formulaire.Add(new StringContent(valeur), champ);
+        }
+
         if (contenu is not null)
         {
             var fichier = new ByteArrayContent(contenu);

@@ -1,8 +1,9 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
   <!-- Les implémentations de modules exposent des endpoints ASP.NET Core ; les contrats restent
-       indépendants du framework web pour pouvoir être partagés (client Blazor WebAssembly compris). -->
-  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Contracts'))">
+       indépendants du framework web pour pouvoir être partagés (client Blazor WebAssembly compris), et le processus de
+       rendu PDF (S21-05) n'en a pas besoin. -->
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('.Contracts')) And !$(MSBuildProjectName.EndsWith('.RenduPdf'))">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

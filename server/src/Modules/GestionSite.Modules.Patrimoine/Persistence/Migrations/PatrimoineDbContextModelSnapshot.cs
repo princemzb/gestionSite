@@ -462,6 +462,11 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("cle_maitre");
 
+                    b.Property<string>("CleOriginal")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle_original");
+
                     b.Property<Guid>("CommandeId")
                         .HasColumnType("uuid")
                         .HasColumnName("commande_id");
@@ -469,6 +474,10 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");
+
+                    b.Property<int?>("Echelle")
+                        .HasColumnType("integer")
+                        .HasColumnName("echelle");
 
                     b.Property<int>("Hauteur")
                         .HasColumnType("integer")
@@ -478,6 +487,11 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("hauteur_affichage");
 
+                    b.Property<decimal?>("HauteurPageMm")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("numeric(9,2)")
+                        .HasColumnName("hauteur_page_mm");
+
                     b.Property<int>("Largeur")
                         .HasColumnType("integer")
                         .HasColumnName("largeur");
@@ -486,9 +500,22 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("largeur_affichage");
 
+                    b.Property<decimal?>("LargeurPageMm")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("numeric(9,2)")
+                        .HasColumnName("largeur_page_mm");
+
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
+
+                    b.Property<int?>("PagePdf")
+                        .HasColumnType("integer")
+                        .HasColumnName("page_pdf");
+
+                    b.Property<int?>("PagesPdf")
+                        .HasColumnType("integer")
+                        .HasColumnName("pages_pdf");
 
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uuid")
@@ -505,6 +532,10 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.Property<int>("TailleMaitre")
                         .HasColumnType("integer")
                         .HasColumnName("taille_maitre");
+
+                    b.Property<int?>("TailleOriginal")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille_original");
 
                     b.Property<string>("TypeContenu")
                         .IsRequired()
@@ -524,6 +555,8 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
 
                     b.ToTable("fonds_plan_batiment", "patrimoine", t =>
                         {
+                            t.HasCheckConstraint("ck_fonds_plan_batiment_pdf", "(cle_original IS NULL AND taille_original IS NULL AND page_pdf IS NULL AND pages_pdf IS NULL AND largeur_page_mm IS NULL AND hauteur_page_mm IS NULL AND echelle IS NULL) OR (cle_original IS NOT NULL AND taille_original > 0 AND page_pdf BETWEEN 1 AND pages_pdf AND largeur_page_mm > 0 AND hauteur_page_mm > 0 AND (echelle IS NULL OR echelle BETWEEN 1 AND 10000))");
+
                             t.HasCheckConstraint("ck_fonds_plan_batiment_tailles", "taille_maitre > 0 AND taille_affichage > 0");
 
                             t.HasCheckConstraint("ck_fonds_plan_batiment_type", "type_contenu IN ('image/png', 'image/jpeg')");

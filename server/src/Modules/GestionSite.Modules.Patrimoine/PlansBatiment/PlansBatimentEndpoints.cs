@@ -105,5 +105,15 @@ internal static class PlansBatimentEndpoints
         {
             return RefusCommuns.Probleme(StatusCodes.Status422UnprocessableEntity, plein.Message, "quota_atteint");
         }
+        catch (PdfRefuseException pdf)
+        {
+            // Message propre au refus (titre) : l'éditeur l'affiche tel quel, ou s'appuie sur le code.
+            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: pdf.Message, extensions: new Dictionary<string, object?>
+            {
+                ["code"] = pdf.Code,
+                ["champ"] = pdf.Champ,
+                ["pages"] = pdf.Pages,
+            });
+        }
     }
 }
