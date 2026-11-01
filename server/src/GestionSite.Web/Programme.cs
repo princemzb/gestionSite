@@ -22,6 +22,12 @@ internal static class Programme
 {
     internal const string ClientApi = "api";
 
+    /// <summary>
+    /// Client de l'import d'un fond de plan (S21-05) : rendu PDF borné à 20 s par l'API, après l'éventuel rendu en cours,
+    /// puis réencodage et écriture du stockage, au-delà des 30 s du client courant.
+    /// </summary>
+    internal const string ClientApiLong = "api-long";
+
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +41,11 @@ internal static class Programme
         {
             client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient(ClientApiLong, (provider, client) =>
+        {
+            client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
+            client.Timeout = TimeSpan.FromMinutes(3);
         });
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddMemoryCache();

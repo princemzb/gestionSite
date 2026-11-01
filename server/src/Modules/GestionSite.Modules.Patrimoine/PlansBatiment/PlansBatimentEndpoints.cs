@@ -107,13 +107,14 @@ internal static class PlansBatimentEndpoints
         }
         catch (PdfRefuseException pdf)
         {
-            // Message propre au refus (titre) : l'éditeur l'affiche tel quel, ou s'appuie sur le code.
-            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: pdf.Message, extensions: new Dictionary<string, object?>
+            // Message propre au refus (titre) : l'éditeur l'affiche tel quel, ou s'appuie sur le code ; « pages » pour une page absente.
+            var extensions = new Dictionary<string, object?> { ["code"] = pdf.Code, ["champ"] = pdf.Champ };
+            if (pdf.Pages is { } pages)
             {
-                ["code"] = pdf.Code,
-                ["champ"] = pdf.Champ,
-                ["pages"] = pdf.Pages,
-            });
+                extensions["pages"] = pages;
+            }
+
+            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: pdf.Message, extensions: extensions);
         }
     }
 }

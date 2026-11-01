@@ -120,9 +120,9 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
             await entree.WriteAsync(pdf, cancellationToken).ConfigureAwait(false);
             await entree.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (IOException)
+        catch (Exception arret) when (arret is IOException or OperationCanceledException)
         {
-            // Entrée fermée par l'enfant.
+            // Entrée fermée par l'enfant, ou délai dépassé : le refus vient de la lecture de sa sortie, jamais d'ici.
         }
         finally
         {
@@ -152,7 +152,15 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
                 && long.TryParse(taille, NumberStyles.None, CultureInfo.InvariantCulture, out var octets)
                 && octets > 0 && octets <= TailleMaxPng(largeurPx, hauteurPx):
                 var png = new byte[octets];
-                await sortie.ReadExactlyAsync(png, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await sortie.ReadExactlyAsync(png, cancellationToken).ConfigureAwait(false);
+                }
+                catch (EndOfStreamException)
+                {
+                    return null; // enfant arrêté en cours d'écriture (mémoire du conteneur) : PDF trop lourd
+                }
+
                 return new PagePdfRendue(png, nombrePages, l, h);
             default:
                 return null; // ILLISIBLE, en-tête inattendu ou sortie vide (arrêt brutal)

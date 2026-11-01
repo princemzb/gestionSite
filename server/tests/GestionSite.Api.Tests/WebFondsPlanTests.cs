@@ -44,7 +44,11 @@ public sealed partial class WebFondsPlanTests(InfrastructureFixture infrastructu
 
         _web = new WebApplicationFactory<WebOptions>().WithWebHostBuilder(builder => builder
             .UseSetting("Web:ApiUrl", "http://localhost")
-            .ConfigureServices(services => services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => _api.Server.CreateHandler())));
+            .ConfigureServices(services =>
+            {
+                services.AddHttpClient("api").ConfigurePrimaryHttpMessageHandler(() => _api.Server.CreateHandler());
+                services.AddHttpClient(Programme.ClientApiLong).ConfigurePrimaryHttpMessageHandler(() => _api.Server.CreateHandler()); // import des fonds
+            }));
         var ouverte = await IdentiteModule.OuvrirOrganisationAsync(
             _api.Services, "Église Saint-Paul", "admin@fonds-web.test", "Claire M.", CancellationToken.None, premierSite: "Site centre");
         _organisation = ouverte.OrganisationId;
