@@ -119,12 +119,16 @@ internal sealed class SessionApi(
     internal Task<T> EcrireAsync<T>(string chemin, object corps, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Post, chemin, corps, annulation);
 
     /// <summary>Contenu binaire (photo) d'une ressource de l'API, ou null si elle n'existe pas.</summary>
-    internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation)
+    internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation) =>
+        (await LireFichierAsync(chemin, annulation).ConfigureAwait(false))?.Contenu;
+
+    /// <summary>Contenu binaire et type annoncé par l'API (fond de plan : PNG ou JPEG), ou null si la ressource n'existe pas.</summary>
+    internal async Task<(byte[] Contenu, string? TypeContenu)?> LireFichierAsync(string chemin, CancellationToken annulation)
     {
         try
         {
             using var reponse = await EnvoyerAsync(HttpMethod.Get, chemin, corps: null, annulation).ConfigureAwait(false);
-            return await reponse.Content.ReadAsByteArrayAsync(annulation).ConfigureAwait(false);
+            return (await reponse.Content.ReadAsByteArrayAsync(annulation).ConfigureAwait(false), reponse.Content.Headers.ContentType?.MediaType);
         }
         catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
         {
@@ -152,12 +156,19 @@ internal sealed class SessionApi(
     /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.
     /// </summary>
     internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation) =>
-        EnvoyerFormulaireAsync<T>(chemin, demande, photos, rapport: null, annulation);
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos), annulation);
+
+    /// <summary>Même formulaire, fichiers envoyés dans la partie <paramref name="partie"/> (fond de plan : « fichier »).</summary>
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> fichiers, string partie, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, fichiers, partie), annulation);
 
     /// <summary>Formulaire multipart avec, en plus des photos, un rapport PDF (partie « rapport ») vérifié par l'API.</summary>
-    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport, CancellationToken annulation)
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos, rapport: rapport), annulation);
+
+    private async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, ContenuFormulaire formulaire, CancellationToken annulation)
     {
-        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, photos, rapport), annulation).ConfigureAwait(false);
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, formulaire, annulation).ConfigureAwait(false);
         return reponse.StatusCode == HttpStatusCode.NoContent
             ? default
             : await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false);
@@ -356,17 +367,20 @@ internal sealed class SessionApi(
     }
 }
 
-/// <summary>Formulaire avec photos (et rapport PDF), recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
-internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport = null)
+/// <summary>
+/// Formulaire avec photos (ou un fichier dans la partie <paramref name="partie"/>) et, au besoin, un rapport PDF ; recréé à
+/// chaque envoi (un flux déjà lu ne se renvoie pas).
+/// </summary>
+internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> fichiers, string partie = "photos", IFormFile? rapport = null)
 {
     internal MultipartFormDataContent Creer()
     {
         var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };
-        foreach (var photo in photos)
+        foreach (var fichier in fichiers)
         {
-            var contenu = new StreamContent(photo.OpenReadStream());
-            contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(photo.ContentType, out var type) ? type : null;
-            formulaire.Add(contenu, "photos", "photo");
+            var contenu = new StreamContent(fichier.OpenReadStream());
+            contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(fichier.ContentType, out var type) ? type : null;
+            formulaire.Add(contenu, partie, partie);
         }
 
         // Type réel reconnu par l'API à sa signature, jamais au nom ni au type annoncé.

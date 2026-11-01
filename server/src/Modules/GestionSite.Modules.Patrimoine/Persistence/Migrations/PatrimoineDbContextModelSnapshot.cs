@@ -440,6 +440,96 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.ToTable("journal_inventaire", "patrimoine");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.FondPlanBatiment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<string>("CleAffichage")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle_affichage");
+
+                    b.Property<string>("CleMaitre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle_maitre");
+
+                    b.Property<Guid>("CommandeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commande_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<int>("Hauteur")
+                        .HasColumnType("integer")
+                        .HasColumnName("hauteur");
+
+                    b.Property<int>("HauteurAffichage")
+                        .HasColumnType("integer")
+                        .HasColumnName("hauteur_affichage");
+
+                    b.Property<int>("Largeur")
+                        .HasColumnType("integer")
+                        .HasColumnName("largeur");
+
+                    b.Property<int>("LargeurAffichage")
+                        .HasColumnType("integer")
+                        .HasColumnName("largeur_affichage");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<int>("TailleAffichage")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille_affichage");
+
+                    b.Property<int>("TailleMaitre")
+                        .HasColumnType("integer")
+                        .HasColumnName("taille_maitre");
+
+                    b.Property<string>("TypeContenu")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type_contenu");
+
+                    b.HasKey("Id")
+                        .HasName("pk_fonds_plan_batiment");
+
+                    b.HasIndex("OrganisationId", "CommandeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_fonds_plan_batiment_commande");
+
+                    b.HasIndex("PlanId", "OrganisationId")
+                        .HasDatabaseName("ix_fonds_plan_batiment_plan_id_organisation_id");
+
+                    b.ToTable("fonds_plan_batiment", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_fonds_plan_batiment_tailles", "taille_maitre > 0 AND taille_affichage > 0");
+
+                            t.HasCheckConstraint("ck_fonds_plan_batiment_type", "type_contenu IN ('image/png', 'image/jpeg')");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Niveau", b =>
                 {
                     b.Property<Guid>("Id")
@@ -807,6 +897,17 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_evaluations_composants_composant_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.FondPlanBatiment", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.PlanBatiment", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_fonds_plan_batiment_plans_batiment_plan_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Niveau", b =>

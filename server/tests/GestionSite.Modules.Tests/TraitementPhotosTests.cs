@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Photos;
 using ImageMagick;
@@ -8,12 +7,13 @@ namespace GestionSite.Modules.Tests;
 /// <summary>Photos du dépôt public (S08-02) : métadonnées retirées, orientation appliquée, formats et tailles bornés.</summary>
 public sealed class TraitementPhotosTests
 {
-    // Bornes posées avant le premier traitement, comme dans l'application.
-    public TraitementPhotosTests() => RuntimeHelpers.RunClassConstructor(typeof(TraitementPhotos).TypeHandle);
-
     [Fact]
     public void DecodingIsBoundedWithoutDiskFallback()
     {
+        // Bornes posées par l'initialiseur appelé au démarrage de l'API (et par chaque traitement), une seule fois.
+        LimitesImages.Poser();
+        LimitesImages.Poser();
+
         Assert.Equal(12_000u, ResourceLimits.Width);
         Assert.Equal(50_000_000ul, ResourceLimits.Area);
         Assert.Equal(0ul, ResourceLimits.Disk);
@@ -93,6 +93,6 @@ public sealed class TraitementPhotosTests
     {
         byte[] entete = [0, 0, 0, 24, .. "ftyp"u8, .. System.Text.Encoding.ASCII.GetBytes(marque)];
 
-        Assert.Equal(heic, TraitementPhotos.Format(entete) == MagickFormat.Heic);
+        Assert.Equal(heic, DecodageImage.Format(entete) == MagickFormat.Heic);
     }
 }

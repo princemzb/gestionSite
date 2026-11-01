@@ -18,6 +18,9 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
 {
     protected const string MotDePasse = "un-mot-de-passe-solide";
     private protected TestDatabase Database { get; private set; } = null!;
+
+    /// <summary>Conteneurs partagés (stockage S3 compris), pour les vérifications directes.</summary>
+    private protected InfrastructureFixture Infrastructure => infrastructure;
     private WebApplicationFactory<Program> _api = null!;
     private HttpClient _client = null!;
     protected Guid Organisation { get; private set; }

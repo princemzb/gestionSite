@@ -90,6 +90,20 @@ internal static class Programme
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.SlidingExpiration = false;
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement
+            // Import appelé par l'éditeur (fetch, réponse JSON) : sans session, 401 plutôt que la page de connexion.
+            options.Events.OnRedirectToLogin = contexte =>
+            {
+                if (FondsPlanEndpoints.EstImport(contexte.Request))
+                {
+                    contexte.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                }
+                else
+                {
+                    contexte.Response.Redirect(contexte.RedirectUri);
+                }
+
+                return Task.CompletedTask;
+            };
         });
         builder.Services.AddAuthorization();
         // Par défaut, le cookie antiforgery n'est jamais Secure ; « Always » est exclu : l'antiforgery refuse alors
@@ -156,6 +170,7 @@ internal static class Programme
         app.MapSitesAdministration();
         app.MapActionsDossier();
         app.MapPhotosEvaluation();
+        app.MapFondsPlan();
         app.MapActionsPreventif();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>

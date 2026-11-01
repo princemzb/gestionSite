@@ -1,6 +1,7 @@
 using GestionSite.Modules.Patrimoine.Domain;
 using GestionSite.Modules.Patrimoine.Structure;
 using GestionSite.SharedKernel;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -49,6 +50,25 @@ internal static class PlansBatimentEndpoints
             Guid orgId, Guid siteId, Guid planId, int version, DemandeRestauration demande, ServicePlansBatiment service, CancellationToken ct) =>
             Results.Ok(await service.RestaurerAsync(orgId, siteId, planId, version, demande.CommandeId, demande.Version, demande.Motif, ct)
                 .ConfigureAwait(false)));
+
+        // Fonds importés en image (S21-04) : multipart « demande » ({commandeId}) et un « fichier » de 25 Mo au plus.
+        plans.MapPost("/{planId:guid}/backgrounds", async (Guid orgId, Guid siteId, Guid planId, HttpRequest requete, ServiceFondsPlan service, CancellationToken ct) =>
+            Results.Ok(await service.ImporterAsync(
+                orgId, siteId, planId, () => FormulaireAvecPhotos.LireFichierAsync<DemandeFond>(requete, TraitementFonds.Champ, TraitementFonds.TailleMax, ct), ct)
+                .ConfigureAwait(false)))
+            .AvecFichier(TraitementFonds.TailleMax);
+        plans.MapGet("/{planId:guid}/backgrounds", async (Guid orgId, Guid siteId, Guid planId, ServiceFondsPlan service, CancellationToken ct) =>
+            Results.Ok(await service.ListerAsync(orgId, siteId, planId, ct).ConfigureAwait(false)));
+        plans.MapGet("/{planId:guid}/backgrounds/{fondId:guid}", async (
+            Guid orgId, Guid siteId, Guid planId, Guid fondId, HttpResponse reponse, ServiceFondsPlan service, CancellationToken ct) =>
+        {
+            // Donnée de sûreté (RP-21.10) : jamais en cache partagé, type jamais réinterprété.
+            reponse.Headers.CacheControl = "private, no-store";
+            reponse.Headers.XContentTypeOptions = "nosniff";
+            return await service.ImageAsync(orgId, siteId, planId, fondId, ct).ConfigureAwait(false) is { } image
+                ? Results.File(image.Contenu, image.TypeContenu)
+                : Results.NotFound();
+        });
         return endpoints;
     }
 
@@ -80,6 +100,10 @@ internal static class PlansBatimentEndpoints
         catch (EnvoiPlanReutiliseException reutilise)
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilise.Message, "commande_reutilisee");
+        }
+        catch (QuotaFondsAtteintException plein)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status422UnprocessableEntity, plein.Message, "quota_atteint");
         }
     }
 }
