@@ -47,6 +47,17 @@ public sealed class LibellesPreventifTests
     }
 
     [Theory]
+    [InlineData("Creation", "Plan créé")]
+    [InlineData("Modification", "Règle modifiée")]
+    [InlineData("Suspension", "Plan suspendu")]
+    [InlineData("Reprise", "Plan repris")]
+    [InlineData("Affectation", "Échéance affectée")]
+    [InlineData("Saut", "Échéance sautée")]
+    [InlineData("Realisation", "Contrôle enregistré")]
+    [InlineData("Inconnue", "Inconnue")]
+    public void EachJournalEventHasALabel(string nature, string libelle) => Assert.Equal(libelle, LibellesPreventif.Journal(nature));
+
+    [Theory]
     [InlineData(1, "Ans", "tous les ans")]
     [InlineData(5, "Ans", "tous les 5 ans")]
     [InlineData(1, "Mois", "tous les mois")]

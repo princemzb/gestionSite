@@ -67,6 +67,19 @@ internal static class LibellesPreventif
         _ => code ?? "—",
     };
 
+    /// <summary>Nature d'un événement du journal d'un plan.</summary>
+    internal static string Journal(string nature) => nature switch
+    {
+        "Creation" => "Plan créé",
+        "Modification" => "Règle modifiée",
+        "Suspension" => "Plan suspendu",
+        "Reprise" => "Plan repris",
+        "Affectation" => "Échéance affectée",
+        "Saut" => "Échéance sautée",
+        "Realisation" => "Contrôle enregistré",
+        _ => nature,
+    };
+
     /// <summary>Classe de couleur d'une échéance : orange « à faire », rouge « en retard ».</summary>
     internal static string ClasseEtat(string? etat) => etat switch
     {

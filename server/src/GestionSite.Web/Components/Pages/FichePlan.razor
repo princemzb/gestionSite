@@ -139,7 +139,7 @@ else
             <ul class="liste-echeances">
                 @foreach (var ev in Fiche.Historique)
                 {
-                    <li>@Perimetre.Date(ev.Le, avecHeure: true) · @Journal(ev.Nature)@(ev.Auteur is null ? "" : $" · {ev.Auteur}")</li>
+                    <li>@Perimetre.Date(ev.Le, avecHeure: true) · @LibellesPreventif.Journal(ev.Nature)@(ev.Auteur is null ? "" : $" · {ev.Auteur}")</li>
                 }
             </ul>
         </aside>
@@ -272,18 +272,6 @@ else
     }
 
     private string Action(string action) => $"/organisations/{OrganisationId}/sites/{SiteCourant?.Id}/preventif/plans/{PlanDemande}/{action}";
-
-    private static string Journal(string nature) => nature switch
-    {
-        "Creation" => "Plan créé",
-        "Modification" => "Règle modifiée",
-        "Suspension" => "Plan suspendu",
-        "Reprise" => "Plan repris",
-        "Affectation" => "Échéance affectée",
-        "Saut" => "Échéance sautée",
-        "Realisation" => "Contrôle enregistré",
-        _ => nature,
-    };
 
     private sealed class SaisieAffectation
     {
