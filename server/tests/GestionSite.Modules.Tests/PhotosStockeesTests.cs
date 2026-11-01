@@ -87,7 +87,10 @@ public sealed class PhotosStockeesTests
                 throw new IOException("écriture refusée");
             }
 
-            Fichiers[cle] = contenu;
+            lock (Fichiers) // écritures parallèles (Task.WhenAll) : le dictionnaire n'est pas sûr entre fils
+            {
+                Fichiers[cle] = contenu;
+            }
         }
 
         public Task<(byte[] Contenu, string TypeContenu)?> LireAsync(string cle, CancellationToken cancellationToken) =>
@@ -95,13 +98,17 @@ public sealed class PhotosStockeesTests
 
         public Task SupprimerAsync(string cle, CancellationToken cancellationToken)
         {
-            Suppressions.Add(cle);
-            if (cle == EchecSuppression)
+            lock (Fichiers)
             {
-                throw new IOException("stockage indisponible");
+                Suppressions.Add(cle);
+                if (cle == EchecSuppression)
+                {
+                    throw new IOException("stockage indisponible");
+                }
+
+                Fichiers.Remove(cle);
             }
 
-            Fichiers.Remove(cle);
             return Task.CompletedTask;
         }
     }

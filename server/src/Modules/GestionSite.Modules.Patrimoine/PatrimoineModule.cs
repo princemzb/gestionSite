@@ -19,11 +19,15 @@ namespace GestionSite.Modules.Patrimoine;
 /// </summary>
 public static class PatrimoineModule
 {
-    public static IServiceCollection AddPatrimoineModule(this IServiceCollection services) =>
-        services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
+    public static IServiceCollection AddPatrimoineModule(this IServiceCollection services)
+    {
+        services.AddOptions<FondsPlanOptions>().BindConfiguration(FondsPlanOptions.Section)
+            .Validate(o => o.QuotaFondsOctets > 0, "PlansBatiment:QuotaFondsOctets doit être positif.").ValidateOnStart();
+        return services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()
             .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>()
-            .AddScoped<ServiceEtablissement>().AddScoped<ServicePlansBatiment>();
+            .AddScoped<ServiceEtablissement>().AddScoped<ServicePlansBatiment>().AddScoped<ServiceFondsPlan>();
+    }
 
     public static IEndpointRouteBuilder MapPatrimoineEndpoints(this IEndpointRouteBuilder endpoints) =>
         endpoints.MapStructure().MapComposants().MapGrilles().MapEvaluations().MapScore().MapEtablissement().MapPlansBatiment();

@@ -142,6 +142,13 @@ Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtim
 - Un droit n'ouvre rien sur un site où le membre n'a plus de rôle : il est retiré avec la révision qui supprime ce rôle, et avec la révocation de l'adhésion, dans la même entrée de journal (droits avant/après).
 - Accord ou retrait déjà en l'état : rien n'est écrit ni journalisé ; le motif reste exigé.
 
+### Fonds de plan importés en image — règles d'implémentation (S21-04, choix de l'agent, révisables)
+- Un fond appartient à un plan de bâtiment (un niveau ou le plan masse) ; un plan peut en recevoir plusieurs, chaque import crée un nouveau fond, jamais modifié ni supprimé en V1 (une version de plan pourra s'y référer avec sa calibration, S21-07).
+- Import : R/D et titulaires du droit nominatif (`ModifierPlans`) ; lecture : comptes internes du site (`ConsulterSite`), l'administrateur sans rôle sur le site n'y a pas accès ; aucune voie publique.
+- Fichier : un seul par envoi, 25 Mo au plus, JPEG, PNG ou HEIC reconnu par ses octets ; refus avant décodage au-delà de 12 000 px ou 50 Mpx annoncés ; SVG, DWG, PDF (S21-05) et TIFF refusés ici.
+- Sorties : maître de 8 000 px au plus et dérivé d'affichage de 4 096 px au plus, réencodés sans métadonnées ; un PNG reste un PNG (traits nets d'un plan dessiné), le reste devient JPEG. Seul le dérivé est servi ; le fichier d'origine n'est jamais conservé.
+- Quota de stockage des fonds par organisation (maîtres et dérivés) : 1 Gio proposé par défaut, réglable (`PlansBatiment:QuotaFondsOctets`), **valeur à confirmer par le porteur** ; message clair quand il est atteint.
+
 ## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
 Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
 - Plateformes (DEC-06) : Android (version minimale proposée : Android 11), distribution par un test interne Google Play ; l'achat du compte développeur (25 $, unique) est fait par le porteur ; iPad reporté.

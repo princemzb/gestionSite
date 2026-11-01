@@ -40,18 +40,64 @@ public static class FormulaireAvecPhotos
     public static Task<FormulaireRecu<T>> LireAvecDocumentAsync<T>(HttpRequest requete, string document, CancellationToken cancellationToken)
         where T : class => LireAsync<T>(requete, document, CorpsAvecDocumentMax, cancellationToken);
 
+    /// <summary>Limites de taille d'un point d'entrée à un seul fichier de <paramref name="tailleMax"/> octets (fond de plan).</summary>
+    public static RouteHandlerBuilder AvecFichier(this RouteHandlerBuilder route, int tailleMax) => Limiter(route, CorpsFichier(tailleMax));
+
+    /// <summary>
+    /// Formulaire à un seul fichier (fond de plan de bâtiment) : partie « demande » (JSON) et exactement un fichier dans la
+    /// partie <paramref name="partie"/>, de <paramref name="tailleMax"/> octets au plus ; sinon saisie refusée sur cette partie.
+    /// </summary>
+    public static async Task<(T Demande, byte[] Fichier)> LireFichierAsync<T>(HttpRequest requete, string partie, int tailleMax, CancellationToken cancellationToken)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(requete);
+        Relever(requete, CorpsFichier(tailleMax));
+        var refus = new SaisieInvalideException(partie, $"Un seul fichier, de {tailleMax / (1024 * 1024)} Mo au plus.");
+        try
+        {
+            if (!requete.HasFormContentType)
+            {
+                throw refus;
+            }
+
+            var formulaire = await requete.ReadFormAsync(cancellationToken).ConfigureAwait(false);
+            var demande = JsonSerializer.Deserialize<T>(formulaire["demande"].ToString(), JsonSerializerOptions.Web) ?? throw Illisible();
+            var fichiers = formulaire.Files.GetFiles(partie);
+            if (fichiers.Count != 1 || fichiers[0].Length is 0 || fichiers[0].Length > tailleMax)
+            {
+                throw refus;
+            }
+
+            return (demande, await LireAsync(fichiers[0], cancellationToken).ConfigureAwait(false));
+        }
+        catch (BadHttpRequestException tropGros) when (tropGros.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            throw refus;
+        }
+        catch (Exception illisible) when (illisible is JsonException or InvalidOperationException or InvalidDataException or IOException)
+        {
+            throw Illisible();
+        }
+    }
+
+    private static long CorpsFichier(int tailleMax) => tailleMax + (1024L * 1024);
+
     private static RouteHandlerBuilder Limiter(RouteHandlerBuilder route, long corpsMax) =>
         route.WithMetadata(new RequestSizeLimitAttribute(corpsMax)).WithFormOptions(multipartBodyLengthLimit: corpsMax, valueLengthLimit: 64 * 1024);
 
-    private static async Task<FormulaireRecu<T>> LireAsync<T>(HttpRequest requete, string? document, long corpsMax, CancellationToken cancellationToken)
-        where T : class
+    // Limite de Kestrel (30 Mo par défaut) ajustée pour ce seul point d'entrée.
+    private static void Relever(HttpRequest requete, long corpsMax)
     {
-        // Limite de Kestrel (30 Mo par défaut) relevée pour ce seul point d'entrée.
         if (requete.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
         {
             taille.MaxRequestBodySize = corpsMax;
         }
+    }
 
+    private static async Task<FormulaireRecu<T>> LireAsync<T>(HttpRequest requete, string? document, long corpsMax, CancellationToken cancellationToken)
+        where T : class
+    {
+        Relever(requete, corpsMax);
         try
         {
             if (!requete.HasFormContentType)

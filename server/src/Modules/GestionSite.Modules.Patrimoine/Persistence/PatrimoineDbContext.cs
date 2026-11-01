@@ -35,6 +35,8 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<VersionPlanBatiment> VersionsPlanBatiment => Set<VersionPlanBatiment>();
 
+    public DbSet<FondPlanBatiment> FondsPlanBatiment => Set<FondPlanBatiment>();
+
     public DbSet<EtablissementSite> Etablissements => Set<EtablissementSite>();
 
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
@@ -235,6 +237,25 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             version.HasIndex(v => new { v.OrganisationId, v.CommandeId }).IsUnique().HasDatabaseName(VersionPlanBatiment.ContrainteCommande);
             version.HasOne<PlanBatiment>().WithMany()
                 .HasForeignKey(v => new { v.PlanId, v.OrganisationId })
+                .HasPrincipalKey(p => new { p.Id, p.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FondPlanBatiment>(fond =>
+        {
+            fond.ToTable("fonds_plan_batiment", table =>
+            {
+                table.HasCheckConstraint("ck_fonds_plan_batiment_type", "type_contenu IN ('image/png', 'image/jpeg')");
+                table.HasCheckConstraint("ck_fonds_plan_batiment_tailles", "taille_maitre > 0 AND taille_affichage > 0");
+            });
+            fond.HasKey(f => f.Id);
+            fond.Property(f => f.Id).ValueGeneratedNever();
+            fond.Property(f => f.TypeContenu).HasMaxLength(FondPlanBatiment.TypeMax);
+            fond.Property(f => f.CleMaitre).HasMaxLength(FondPlanBatiment.CleMax);
+            fond.Property(f => f.CleAffichage).HasMaxLength(FondPlanBatiment.CleMax);
+            fond.HasIndex(f => new { f.OrganisationId, f.CommandeId }).IsUnique().HasDatabaseName(FondPlanBatiment.IndexCommande);
+            fond.HasOne<PlanBatiment>().WithMany()
+                .HasForeignKey(f => new { f.PlanId, f.OrganisationId })
                 .HasPrincipalKey(p => new { p.Id, p.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });

@@ -154,6 +154,7 @@ internal static class Programme
         app.MapSitesAdministration();
         app.MapActionsDossier();
         app.MapPhotosEvaluation();
+        app.MapFondsPlan();
         app.MapActionsPreventif();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
