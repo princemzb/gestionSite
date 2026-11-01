@@ -41,3 +41,22 @@ internal sealed record ControleResumeApi(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, string Resultat, Guid? ComposantId, Guid BatimentId, int Defauts,
     decimal? Note, bool Rapport);
 
+// Exécution d'un contrôle (S12-07) : réponse de POST plans/{id}/perform et fiche GET controls/{id}.
+internal sealed record ControleEnregistreApi(Guid Id, string Statut, Guid? EvaluationId, decimal? Note, string? Libelle);
+
+internal sealed record PointControleApi(string Texte, bool? Conforme, bool Danger);
+
+internal sealed record MesureControleApi(string Libelle, string Unite, decimal? Valeur);
+
+internal sealed record ObservationControleApi(string Libelle, Guid ZoneId, bool Danger);
+
+internal sealed record RapportControleApi(int Taille, string Empreinte);
+
+internal sealed record ConstatControleApi(int Rang, string Libelle, bool Danger, Guid DossierId, bool Rattache, string StatutDossier);
+
+internal sealed record ControleApi(
+    Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, string? Auteur,
+    string? Intervenant, string? Prestataire, string? NumeroAgrement, string Resultat, string? CompteRendu, Guid ZoneId, int? GrilleVersion,
+    IReadOnlyList<PointControleApi> Points, IReadOnlyList<MesureControleApi> Mesures, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos,
+    IReadOnlyList<ObservationControleApi> Observations, RapportControleApi? Rapport, IReadOnlyList<ConstatControleApi>? Constats, bool ReservesLevees);
+

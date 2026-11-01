@@ -156,12 +156,19 @@ internal sealed class SessionApi(
     /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.
     /// </summary>
     internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation) =>
-        EnvoyerFormulaireAsync<T>(chemin, demande, photos, "photos", annulation);
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos), annulation);
 
     /// <summary>Même formulaire, fichiers envoyés dans la partie <paramref name="partie"/> (fond de plan : « fichier »).</summary>
-    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> fichiers, string partie, CancellationToken annulation)
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> fichiers, string partie, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, fichiers, partie), annulation);
+
+    /// <summary>Formulaire multipart avec, en plus des photos, un rapport PDF (partie « rapport ») vérifié par l'API.</summary>
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos, rapport: rapport), annulation);
+
+    private async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, ContenuFormulaire formulaire, CancellationToken annulation)
     {
-        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, fichiers, partie), annulation).ConfigureAwait(false);
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, formulaire, annulation).ConfigureAwait(false);
         return reponse.StatusCode == HttpStatusCode.NoContent
             ? default
             : await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false);
@@ -360,8 +367,11 @@ internal sealed class SessionApi(
     }
 }
 
-/// <summary>Formulaire avec photos (ou un fichier), recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
-internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> fichiers, string partie = "photos")
+/// <summary>
+/// Formulaire avec photos (ou un fichier dans la partie <paramref name="partie"/>) et, au besoin, un rapport PDF ; recréé à
+/// chaque envoi (un flux déjà lu ne se renvoie pas).
+/// </summary>
+internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> fichiers, string partie = "photos", IFormFile? rapport = null)
 {
     internal MultipartFormDataContent Creer()
     {
@@ -371,6 +381,14 @@ internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile>
             var contenu = new StreamContent(fichier.OpenReadStream());
             contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(fichier.ContentType, out var type) ? type : null;
             formulaire.Add(contenu, partie, partie);
+        }
+
+        // Type réel reconnu par l'API à sa signature, jamais au nom ni au type annoncé.
+        if (rapport is not null)
+        {
+            var contenu = new StreamContent(rapport.OpenReadStream());
+            contenu.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            formulaire.Add(contenu, "rapport", "rapport.pdf");
         }
 
         return formulaire;

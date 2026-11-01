@@ -88,5 +88,71 @@ public sealed class LibellesPreventifTests
     [InlineData("interdit", "Vous n'avez pas le droit de faire cette action.")]
     [InlineData("introuvable", "Cet élément n'existe plus.")]
     [InlineData("indisponible", "Action refusée ou service momentanément indisponible : réessayez.")]
+    [InlineData("echeance", "Cette échéance n'est plus l'échéance courante : la fiche est rechargée.")]
     public void EachActionOutcomeHasAMessage(string? issue, string? message) => Assert.Equal(message, ActionsPreventifEndpoints.Message(issue));
+
+    [Theory]
+    [InlineData("grille_modifiee", null, "points", "La grille de ce corps d'état vient d'être modifiée")]
+    [InlineData("commande_reutilisee", null, "resultat", "Cet envoi a déjà servi")]
+    [InlineData("composant_retire", null, "resultat", "Ce composant vient d'être retiré")]
+    [InlineData("modifie_entre_temps", null, "resultat", "Quelqu'un d'autre vient de modifier cette échéance ou ce lot")]
+    [InlineData("statut_incompatible", null, "resultat", "Ce plan est suspendu")]
+    [InlineData("donnee_invalide", "echeance", "resultat", "n'est plus l'échéance courante du plan")]
+    [InlineData("donnee_invalide", "photos", "resultat", "Photos : 3 au plus")]
+    [InlineData("donnee_invalide", "rapport", "resultat", "Rapport : un fichier PDF")]
+    [InlineData("donnee_invalide", "realiseLe", "resultat", "Date de réalisation")]
+    [InlineData("donnee_invalide", "resultat", "resultat", "exclut « Sans observation »")]
+    [InlineData("donnee_invalide", "compteRendu", "resultat", "Compte rendu : obligatoire pour un entretien")]
+    [InlineData("donnee_invalide", "prestataire", "debut", "Prestataire : une ligne visible")]
+    [InlineData("donnee_invalide", "numeroAgrement", "debut", "N° d'agrément")]
+    [InlineData("donnee_invalide", "observations", "debut", "Observations : 50 au plus")]
+    [InlineData("donnee_invalide", "releves", "debut", "Relevés : 8 au plus")]
+    [InlineData("donnee_invalide", "etat", "etat", "Choisissez l'état constaté.")]
+    [InlineData("donnee_invalide", "repartition", "etat", "La somme des quantités")]
+    [InlineData("donnee_invalide", "points", "points", "Vérifiez les points et les mesures.")]
+    [InlineData("donnee_invalide", "mesures", "points", "Vérifiez les points et les mesures.")]
+    [InlineData("donnee_invalide", "grilleVersion", "points", "Vérifiez les points et les mesures.")]
+    public void EachRefusalOfAControlSaysWhatToFixAndWhere(string code, string? champ, string etape, string message)
+    {
+        var (texte, reprise) = LibellesPreventif.RefusRealisation(code, champ, System.Net.HttpStatusCode.UnprocessableEntity);
+        Assert.Contains(message, texte, StringComparison.Ordinal);
+        Assert.Equal(etape, reprise);
+    }
+
+    [Theory]
+    [InlineData(System.Net.HttpStatusCode.Forbidden, "Ce contrôle ne vous est pas confié")]
+    [InlineData(System.Net.HttpStatusCode.NotFound, "Ce plan n'existe plus sur ce site.")]
+    [InlineData(System.Net.HttpStatusCode.ServiceUnavailable, "Service momentanément indisponible")]
+    public void OtherRefusalsKeepTheCurrentStep(System.Net.HttpStatusCode statut, string message)
+    {
+        var (texte, reprise) = LibellesPreventif.RefusRealisation(null, null, statut);
+        Assert.Contains(message, texte, StringComparison.Ordinal);
+        Assert.Null(reprise);
+    }
+
+    [Fact]
+    public void AGridPointIsNeverShownAsCompliant()
+    {
+        Assert.Equal("Sans défaut", LibellesPreventif.Point(true, false));
+        Assert.Equal("Défaut", LibellesPreventif.Point(false, false));
+        Assert.Equal("Défaut, danger signalé", LibellesPreventif.Point(false, true));
+        Assert.Equal("Non vérifié", LibellesPreventif.Point(null, false));
+    }
+
+    [Fact]
+    public void SizesMeasuresAndCasesReadNaturally()
+    {
+        Assert.Equal("1 Ko", LibellesPreventif.Taille(10));
+        Assert.Equal("200 Ko", LibellesPreventif.Taille(204_800));
+        Assert.Equal("2,5 Mo", LibellesPreventif.Taille(2_621_440));
+        Assert.Equal("48,5 °C", LibellesPreventif.Mesure(48.5m, "°C"));
+        Assert.Equal("3", LibellesPreventif.Mesure(3m, ""));
+        Assert.Equal("non relevée", LibellesPreventif.Mesure(null, "bar"));
+        Assert.Equal("1 dossier ouvert", LibellesPreventif.Ecarts(1, 0));
+        Assert.Equal("2 dossiers ouverts, 1 constat rattaché à un dossier existant", LibellesPreventif.Ecarts(2, 1));
+        Assert.Equal("3 constats rattachés à un dossier existant", LibellesPreventif.Ecarts(0, 3));
+        Assert.Equal("Remarque (facultative)", LibellesPreventif.ChampCompteRendu("InspectionInterne"));
+        Assert.Equal("Compte rendu (obligatoire)", LibellesPreventif.ChampCompteRendu("Entretien"));
+        Assert.Equal("Compte rendu (facultatif)", LibellesPreventif.ChampCompteRendu("VerificationExterieure"));
+    }
 }

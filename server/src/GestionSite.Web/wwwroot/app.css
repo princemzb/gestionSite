@@ -470,7 +470,23 @@ form.formulaire-inventaire { padding: 0; }
 .detail-plan { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 14px; }
 .detail-plan dt { color: var(--encre-2); }
 .detail-plan dd { margin: 0; }
-.fiche-plan .echeance { display: inline-block; margin: 0 0 0 6px; font-size: 13px; }
+.fiche-plan .echeance, .fiche-controle .echeance { display: inline-block; margin: 0 0 0 6px; font-size: 13px; }
+.actions-controle { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.actions-controle details[open] { flex-basis: 100%; }
+
+/* Contrôle sur téléphone (US-12, S12-07, maquette A : même parcours que l'évaluation), fiche et historique des contrôles. */
+.point-observe.point-controle { grid-template-columns: repeat(2, 1fr); }
+.point-observe.danger, .point-observe:has(input[value="danger"]:checked) { border: 2px solid var(--danger); background: var(--danger-fond); }
+.choix-resultat, .ligne-observation { margin: 0; border: 1px solid var(--bordure-forte); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+.choix-resultat legend, .ligne-observation legend { padding: 0 4px; font-weight: 600; }
+.ligne-releve { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+.texte-libre { white-space: pre-line; overflow-wrap: anywhere; }
+.empreinte { overflow-wrap: anywhere; }
+.fiche-controle h2 { margin: 8px 0 0; font-size: 17px; }
+.liste-controles { padding: 18px; }
+.ligne-controle { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--bordure); }
+.ligne-controle:first-child { border-top: none; padding-top: 0; }
+.observation { display: flex; flex-direction: column; gap: 2px; }
 
 /* Téléphone (US-09 : « Mes interventions » du technicien) : navigation compacte en haut, le contenu reste au premier écran. */
 @media (max-width: 640px) {
@@ -485,4 +501,6 @@ form.formulaire-inventaire { padding: 0; }
   .calendrier-grille li { min-height: 48px; padding: 4px; }
   .calendrier-grille .echeance { font-size: 0; padding: 0; height: 6px; } /* pastille de couleur ; le libellé reste lu par les lecteurs d'écran */
   .detail-plan { grid-template-columns: 1fr; }
+  .ligne-releve { grid-template-columns: 1fr 1fr; }
+  .ligne-releve label:first-child { grid-column: 1 / -1; }
 }
