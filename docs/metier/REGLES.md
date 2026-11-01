@@ -127,6 +127,21 @@ Cadrage complet : docs/pilotage/cadrage/US-21.md (règles RP-21.1 à RP-21.8, so
 - Maquettes (S21-06, choix du porteur du 30/10) : éditeur « Atelier » (A : outils à gauche, plan au centre, propriétés de la pièce à droite, sélecteur de niveau) pour l'usage courant, et parcours guidé (C : fond, échelle avec cote de contrôle, pièces zone par zone, composants) pour créer un nouveau plan ; ordinateur et tablette ; B écartée.
 Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtiment sans niveau), géométrie en mètres dans un repère par bâtiment, calibration obligatoire pour un plan importé ; pièces liées aux zones d'US-07 ; chaque enregistrement crée une version immuable, conflit à la version lue (409) ; « plan de bâtiment » partout pour ne pas confondre avec les plans préventifs d'US-12.
 
+### Plans de bâtiment — règles d'implémentation (S21-02, choix de l'agent, révisables)
+- Pièce : une zone dessinée au plus une fois par version ; les Parties communes ne sont jamais dessinées (listées à côté du plan) ; plan masse réservé à un bâtiment sans niveau, ses pièces sont les zones sans niveau.
+- Contour : 3 à 500 sommets, aucun sommet répété, aire d'au moins 0,25 m², plus large que 5 cm ; chevauchement entre deux pièces refusé au-delà de 5 cm de largeur (chaque contour réduit de 2,5 cm ne doit plus rencontrer l'autre) : un mur commun et une petite imprécision de tracé restent admis.
+- Ouverture : 0,20 à 30 m, posée à 5 cm près sur une arête d'une des pièces qu'elle relie (une ou deux) ; le contour suivant les faces intérieures, l'autre pièce est de l'autre côté du mur et n'est pas contrôlée géométriquement.
+- Objets de valeur : faute d'un attribut « objet de valeur » dans l'inventaire, tout composant de la catégorie « Équipements de culte » est refusé comme marqueur (autel, orgue et calices compris). Le trésor ou un coffre classé ailleurs (Mobilier, Autre) n'est pas reconnu : à trancher par le porteur (attribut dédié dans l'inventaire, ou consigne aux utilisateurs).
+- Marqueur : seulement pour un composant d'une zone du niveau du plan ; un composant des Parties communes d'un bâtiment à niveaux ne se place pas. Hors du contour de sa zone : avertissement, jamais refus.
+- Chaque enregistrement crée une version, même sans changement (renvoi du même envoi excepté). Restauration : marqueurs de composants retirés, passés sur un autre niveau ou devenus objets de valeur retirés de la copie (avertissement) ; la position d'un composant reclassé en objet de valeur n'est plus servie, même dans les anciennes versions.
+- Arrondi au centimètre identique dans l'éditeur et le serveur (ADR-11).
+
+### Droit nominatif « modifier les plans du bâtiment » — règles d'implémentation (S21-03, choix de l'agent, révisables)
+- Liste blanche limitée à `ModifierPlans`, tenue aussi par une contrainte en base. Autorisation = union des rôles et des droits nominatifs, relue à chaque requête (retrait immédiat, jeton en cours compris).
+- Éligible : membre ayant accepté son invitation et au moins un rôle sur le site (T, P ou C ; R/D l'ont déjà par leur rôle, l'accord reste possible et sans effet). Un administrateur sans rôle sur le site n'est pas éligible ; s'il a aussi un rôle sur le site, il peut se l'accorder (tracé au journal).
+- Un droit n'ouvre rien sur un site où le membre n'a plus de rôle : il est retiré avec la révision qui supprime ce rôle, et avec la révocation de l'adhésion, dans la même entrée de journal (droits avant/après).
+- Accord ou retrait déjà en l'état : rien n'est écrit ni journalisé ; le motif reste exigé.
+
 ## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
 Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
 - Plateformes (DEC-06) : Android (version minimale proposée : Android 11), distribution par un test interne Google Play ; l'achat du compte développeur (25 $, unique) est fait par le porteur ; iPad reporté.

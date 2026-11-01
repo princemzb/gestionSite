@@ -43,7 +43,15 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
             return DecisionAutorisation.Introuvable;
         }
 
-        return rolesSurSite.Exists(autorises.Contains) ? DecisionAutorisation.Autorise : DecisionAutorisation.Refuse;
+        if (rolesSurSite.Exists(autorises.Contains))
+        {
+            return DecisionAutorisation.Autorise;
+        }
+
+        // Union des rôles et des droits nominatifs (US-21), jamais sans rôle sur le site.
+        return (await SitesNominatifsAsync(appelant, droit, cancellationToken).ConfigureAwait(false)).Contains(site)
+            ? DecisionAutorisation.Autorise
+            : DecisionAutorisation.Refuse;
     }
 
     public async Task<IReadOnlySet<Guid>> SitesAutorisesAsync(Guid organisationId, Droit droit, CancellationToken cancellationToken)
@@ -55,9 +63,31 @@ internal sealed class Autorisations(IdentiteDbContext context, CompteCourant com
 
         var appelant = await AppelantAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var autorises = MatriceDroits.RolesPour(droit);
-        return appelant is null
-            ? []
-            : appelant.Roles.Where(r => r.SiteId is not null && autorises.Contains(r.Role)).Select(r => r.SiteId!.Value).ToHashSet();
+        if (appelant is null)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var sites = appelant.Roles.Where(r => r.SiteId is not null && autorises.Contains(r.Role)).Select(r => r.SiteId!.Value).ToHashSet();
+        sites.UnionWith(await SitesNominatifsAsync(appelant, droit, cancellationToken).ConfigureAwait(false));
+        return sites;
+    }
+
+    /// <summary>
+    /// Règle unique du droit nominatif (US-21) : sites où le droit, de la liste blanche, est accordé nommément à l'appelant
+    /// et où il a un rôle ; relue à chaque décision, un retrait prend effet aussitôt.
+    /// </summary>
+    private async Task<IReadOnlyCollection<Guid>> SitesNominatifsAsync(Membre appelant, Droit droit, CancellationToken cancellationToken)
+    {
+        var internes = appelant.Roles.Where(r => r.SiteId is not null).Select(r => r.SiteId!.Value).Distinct().ToList();
+        if (!MatriceDroits.EstNominatif(droit) || internes.Count == 0)
+        {
+            return [];
+        }
+
+        return await context.DroitsNominatifs.AsNoTracking()
+            .Where(d => d.MembreId == appelant.Id && d.Droit == droit && internes.Contains(d.SiteId)).Select(d => d.SiteId)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Adhésion acceptée et active de l'appelant, ou null ; l'organisation devient courante si trouvée.</summary>

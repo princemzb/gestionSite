@@ -188,6 +188,50 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.ToTable("comptes", "identite");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.DroitNominatif", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AccordeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accorde_le");
+
+                    b.Property<string>("Droit")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("droit");
+
+                    b.Property<Guid>("MembreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membre_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_droits_nominatifs");
+
+                    b.HasIndex("SiteId", "OrganisationId")
+                        .HasDatabaseName("ix_droits_nominatifs_site_id_organisation_id");
+
+                    b.HasIndex("MembreId", "OrganisationId", "Droit", "SiteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_droits_nominatifs_membre_id_organisation_id_droit_site_id");
+
+                    b.ToTable("droits_nominatifs", "identite", t =>
+                        {
+                            t.HasCheckConstraint("ck_droits_nominatifs_liste_blanche", "droit IN ('ModifierPlans')");
+                        });
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.EvenementHabilitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -201,6 +245,14 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.Property<Guid>("CompteId")
                         .HasColumnType("uuid")
                         .HasColumnName("compte_id");
+
+                    b.Property<string>("DroitsApres")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("droits_apres");
+
+                    b.Property<string>("DroitsAvant")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("droits_avant");
 
                     b.Property<DateTimeOffset>("Le")
                         .HasColumnType("timestamp with time zone")
@@ -549,6 +601,25 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_codes_sites_publics_sites_site_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.DroitNominatif", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Membre", null)
+                        .WithMany()
+                        .HasForeignKey("MembreId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_droits_nominatifs_membres_membre_id_organisation_id");
+
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_droits_nominatifs_sites_site_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.EvenementHabilitation", b =>

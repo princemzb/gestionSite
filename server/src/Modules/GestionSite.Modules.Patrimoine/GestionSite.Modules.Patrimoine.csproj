@@ -5,6 +5,10 @@
     <ProjectReference Include="..\GestionSite.Modules.Patrimoine.Contracts\GestionSite.Modules.Patrimoine.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Validation géométrique des plans de bâtiment (US-21) : BSD-3-Clause. -->
+    <PackageReference Include="NetTopologySuite" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="GestionSite.Modules.Tests" />
     <InternalsVisibleTo Include="GestionSite.Api.Tests" />
   </ItemGroup>

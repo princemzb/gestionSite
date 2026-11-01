@@ -538,6 +538,60 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.PlanBatiment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<Guid>("BatimentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batiment_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<Guid?>("NiveauId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("niveau_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_plans_batiment");
+
+                    b.HasAlternateKey("Id", "OrganisationId")
+                        .HasName("ak_plans_batiment_id_organisation_id");
+
+                    b.HasIndex("BatimentId", "OrganisationId")
+                        .HasDatabaseName("ix_plans_batiment_batiment_id_organisation_id");
+
+                    b.HasIndex("NiveauId", "OrganisationId")
+                        .HasDatabaseName("ix_plans_batiment_niveau_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "SiteId")
+                        .HasDatabaseName("ix_plans_batiment_organisation_id_site_id");
+
+                    b.HasIndex("OrganisationId", "BatimentId", "NiveauId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_plans_batiment_niveau");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("OrganisationId", "BatimentId", "NiveauId"), false);
+
+                    b.ToTable("plans_batiment", "patrimoine");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.VersionGrille", b =>
                 {
                     b.Property<Guid>("Id")
@@ -590,6 +644,85 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                     b.ToTable("grilles", "patrimoine", t =>
                         {
                             t.HasCheckConstraint("ck_grilles_version", "version >= 2");
+                        });
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.VersionPlanBatiment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<string>("Avertissements")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("avertissements");
+
+                    b.Property<Guid>("CommandeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commande_id");
+
+                    b.Property<string>("Contenu")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("contenu");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<string>("Motif")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motif");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<int?>("RestaureDe")
+                        .HasColumnType("integer")
+                        .HasColumnName("restaure_de");
+
+                    b.Property<int>("Schema")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_versions_plan_batiment");
+
+                    b.HasIndex("OrganisationId", "CommandeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_versions_plan_batiment_commande");
+
+                    b.HasIndex("PlanId", "OrganisationId")
+                        .HasDatabaseName("ix_versions_plan_batiment_plan_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "PlanId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_versions_plan_batiment_version");
+
+                    b.ToTable("versions_plan_batiment", "patrimoine", t =>
+                        {
+                            t.HasCheckConstraint("ck_versions_plan_batiment_restauration", "restaure_de IS NULL OR (restaure_de >= 1 AND restaure_de < version)");
+
+                            t.HasCheckConstraint("ck_versions_plan_batiment_version", "version >= 1");
                         });
                 });
 
@@ -696,6 +829,35 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_photos_evaluations_evaluations_evaluation_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.PlanBatiment", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.Batiment", null)
+                        .WithMany()
+                        .HasForeignKey("BatimentId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_plans_batiment_batiments_batiment_id_organisation_id");
+
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.Niveau", null)
+                        .WithMany()
+                        .HasForeignKey("NiveauId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_plans_batiment_niveaux_niveau_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.VersionPlanBatiment", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Patrimoine.Domain.PlanBatiment", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_versions_plan_batiment_plans_batiment_plan_id_organisation_");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Patrimoine.Domain.Zone", b =>

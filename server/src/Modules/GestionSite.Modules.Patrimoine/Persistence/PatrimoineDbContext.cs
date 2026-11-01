@@ -31,6 +31,10 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
 
     public DbSet<PhotoEvaluation> PhotosEvaluation => Set<PhotoEvaluation>();
 
+    public DbSet<PlanBatiment> PlansBatiment => Set<PlanBatiment>();
+
+    public DbSet<VersionPlanBatiment> VersionsPlanBatiment => Set<VersionPlanBatiment>();
+
     public DbSet<EtablissementSite> Etablissements => Set<EtablissementSite>();
 
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
@@ -192,6 +196,47 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             etablissement.HasKey(e => e.SiteId);
             etablissement.Property(e => e.SiteId).ValueGeneratedNever();
             etablissement.Property<uint>("xmin").IsRowVersion();
+        });
+
+        modelBuilder.Entity<PlanBatiment>(plan =>
+        {
+            plan.ToTable("plans_batiment");
+            plan.HasKey(p => p.Id);
+            plan.Property(p => p.Id).ValueGeneratedNever();
+            plan.HasAlternateKey(p => new { p.Id, p.OrganisationId });
+            // Un plan par niveau, un seul plan masse (niveau absent) par bâtiment.
+            plan.HasIndex(p => new { p.OrganisationId, p.BatimentId, p.NiveauId }).IsUnique().AreNullsDistinct(false)
+                .HasDatabaseName(PlanBatiment.ContrainteNiveau);
+            plan.HasIndex(p => new { p.OrganisationId, p.SiteId });
+            plan.HasOne<Batiment>().WithMany()
+                .HasForeignKey(p => new { p.BatimentId, p.OrganisationId })
+                .HasPrincipalKey(b => new { b.Id, b.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            plan.HasOne<Niveau>().WithMany()
+                .HasForeignKey(p => new { p.NiveauId, p.OrganisationId })
+                .HasPrincipalKey(n => new { n.Id, n.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VersionPlanBatiment>(version =>
+        {
+            version.ToTable("versions_plan_batiment", table =>
+            {
+                table.HasCheckConstraint("ck_versions_plan_batiment_version", "version >= 1");
+                table.HasCheckConstraint("ck_versions_plan_batiment_restauration", "restaure_de IS NULL OR (restaure_de >= 1 AND restaure_de < version)");
+            });
+            version.HasKey(v => v.Id);
+            version.Property(v => v.Id).ValueGeneratedNever();
+            version.Property(v => v.Contenu).HasColumnType("jsonb");
+            version.Property(v => v.Avertissements).HasColumnType("jsonb");
+            version.Property(v => v.Motif).HasMaxLength(VersionPlanBatiment.MotifMax);
+            // Une version par numéro : deux enregistrements simultanés à partir de la même version ne créent pas deux « v3 ».
+            version.HasIndex(v => new { v.OrganisationId, v.PlanId, v.Version }).IsUnique().HasDatabaseName(VersionPlanBatiment.ContrainteVersion);
+            version.HasIndex(v => new { v.OrganisationId, v.CommandeId }).IsUnique().HasDatabaseName(VersionPlanBatiment.ContrainteCommande);
+            version.HasOne<PlanBatiment>().WithMany()
+                .HasForeignKey(v => new { v.PlanId, v.OrganisationId })
+                .HasPrincipalKey(p => new { p.Id, p.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EvenementInventaire>(evenement =>
