@@ -3,6 +3,8 @@
     <ProjectReference Include="..\..\GestionSite.SharedKernel\GestionSite.SharedKernel.csproj" />
     <ProjectReference Include="..\GestionSite.Modules.Identite.Contracts\GestionSite.Modules.Identite.Contracts.csproj" />
     <ProjectReference Include="..\GestionSite.Modules.Patrimoine.Contracts\GestionSite.Modules.Patrimoine.Contracts.csproj" />
+    <!-- Processus enfant de rendu PDF (S21-05) : livré à côté du module, lancé à part, jamais appelé en processus. -->
+    <ProjectReference Include="..\GestionSite.Modules.Patrimoine.RenduPdf\GestionSite.Modules.Patrimoine.RenduPdf.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Validation géométrique des plans de bâtiment (US-21) : BSD-3-Clause. -->

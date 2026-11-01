@@ -271,7 +271,9 @@ internal sealed class SessionApi(
                 _ => JsonContent.Create(corps),
             };
 
-            return await Client.SendAsync(demande, annulation).ConfigureAwait(false);
+            // Import d'un fond de plan (rendu PDF compris) : client au délai long.
+            var client = corps is ContenuFormulaire { Partie: "fichier" } ? clients.CreateClient(Programme.ClientApiLong) : Client;
+            return await client.SendAsync(demande, annulation).ConfigureAwait(false);
         }).ConfigureAwait(false);
     }
 
@@ -373,6 +375,9 @@ internal sealed class SessionApi(
 /// </summary>
 internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> fichiers, string partie = "photos", IFormFile? rapport = null)
 {
+    /// <summary>Partie des fichiers : « photos », ou « fichier » pour un fond de plan.</summary>
+    internal string Partie => partie;
+
     internal MultipartFormDataContent Creer()
     {
         var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };

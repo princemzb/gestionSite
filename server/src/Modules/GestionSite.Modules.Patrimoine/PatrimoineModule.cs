@@ -22,8 +22,10 @@ public static class PatrimoineModule
     public static IServiceCollection AddPatrimoineModule(this IServiceCollection services)
     {
         services.AddOptions<FondsPlanOptions>().BindConfiguration(FondsPlanOptions.Section)
-            .Validate(o => o.QuotaFondsOctets > 0, "PlansBatiment:QuotaFondsOctets doit être positif.").ValidateOnStart();
-        return services.AddPatrimoinePersistence().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
+            .Validate(o => o.QuotaFondsOctets > 0, "PlansBatiment:QuotaFondsOctets doit être positif.")
+            .Validate(o => o.RenduPdfDelaiSecondes > 0, "PlansBatiment:RenduPdfDelaiSecondes doit être positif.")
+            .Validate(o => o.RenduPdfMemoireOctets > 0, "PlansBatiment:RenduPdfMemoireOctets doit être positif.").ValidateOnStart();
+        return services.AddPatrimoinePersistence().AddSingleton<ProcessusRenduPdf>().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()
             .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>()
             .AddScoped<ServiceEtablissement>().AddScoped<ServicePlansBatiment>().AddScoped<ServiceFondsPlan>();

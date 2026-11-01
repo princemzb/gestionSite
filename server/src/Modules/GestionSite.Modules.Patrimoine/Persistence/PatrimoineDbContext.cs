@@ -247,12 +247,23 @@ internal sealed class PatrimoineDbContext(DbContextOptions<PatrimoineDbContext> 
             {
                 table.HasCheckConstraint("ck_fonds_plan_batiment_type", "type_contenu IN ('image/png', 'image/jpeg')");
                 table.HasCheckConstraint("ck_fonds_plan_batiment_tailles", "taille_maitre > 0 AND taille_affichage > 0");
+                // Fond rendu d'un PDF (S21-05) : original, page choisie et taille de page ensemble ; échelle facultative.
+                table.HasCheckConstraint(
+                    "ck_fonds_plan_batiment_pdf",
+                    "(cle_original IS NULL AND taille_original IS NULL AND page_pdf IS NULL AND pages_pdf IS NULL " +
+                    "AND largeur_page_mm IS NULL AND hauteur_page_mm IS NULL AND echelle IS NULL) " +
+                    "OR (cle_original IS NOT NULL AND taille_original > 0 AND page_pdf BETWEEN 1 AND pages_pdf " +
+                    "AND largeur_page_mm > 0 AND hauteur_page_mm > 0 AND (echelle IS NULL OR echelle BETWEEN 1 AND " +
+                    $"{FondPlanBatiment.EchelleMax}))");
             });
             fond.HasKey(f => f.Id);
             fond.Property(f => f.Id).ValueGeneratedNever();
             fond.Property(f => f.TypeContenu).HasMaxLength(FondPlanBatiment.TypeMax);
             fond.Property(f => f.CleMaitre).HasMaxLength(FondPlanBatiment.CleMax);
             fond.Property(f => f.CleAffichage).HasMaxLength(FondPlanBatiment.CleMax);
+            fond.Property(f => f.CleOriginal).HasMaxLength(FondPlanBatiment.CleMax);
+            fond.Property(f => f.LargeurPageMm).HasPrecision(9, 2);
+            fond.Property(f => f.HauteurPageMm).HasPrecision(9, 2);
             fond.HasIndex(f => new { f.OrganisationId, f.CommandeId }).IsUnique().HasDatabaseName(FondPlanBatiment.IndexCommande);
             fond.HasOne<PlanBatiment>().WithMany()
                 .HasForeignKey(f => new { f.PlanId, f.OrganisationId })
