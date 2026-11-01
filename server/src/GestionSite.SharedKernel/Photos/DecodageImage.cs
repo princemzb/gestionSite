@@ -12,7 +12,7 @@ namespace GestionSite.SharedKernel.Photos;
 public static class DecodageImage
 {
     // Places de décodage du processus : deux photos à la fois, ou une seule grande image ; la mémoire d'ImageMagick
-    // (LimitesImages.MemoireMax, sans repli sur le disque) reste suffisante pour chacune.
+    // (LimitesImages.MemoireMax, sans repli sur le disque) couvre le pire cas mesuré de chacune (SOC-04).
     private const int PlacesMax = 2;
     private static readonly SemaphoreSlim Places = new(PlacesMax);
     private static readonly SemaphoreSlim Seules = new(1);
@@ -94,6 +94,7 @@ public static class DecodageImage
         LimitesImages.Poser();
         var reglages = new MagickReadSettings { Format = format };
         ExigerDimensions(contenu, reglages, champ);
+        var lue = false;
         try
         {
             using var image = new MagickImage(contenu, reglages);
@@ -105,11 +106,13 @@ public static class DecodageImage
             }
 
             image.Strip();
+            lue = true;
             return traiter(image);
         }
         catch (MagickException erreur)
         {
-            throw Refus(erreur, champ);
+            // Image lue et convertie : sa réduction et son réencodage n'échouent que faute de mémoire, jamais « illisible ».
+            throw lue ? TropGrande(champ) : Refus(erreur, champ);
         }
     }
 
@@ -142,9 +145,11 @@ public static class DecodageImage
         }
     }
 
-    // Bornes d'ImageMagick atteintes (dimensions annoncées, mémoire) : image trop grande ; toute autre erreur : illisible.
+    // Bornes d'ImageMagick atteintes (dimensions annoncées, mémoire des pixels épuisée sans repli sur le disque) : image
+    // trop grande ; toute autre erreur : illisible.
     private static SaisieInvalideException Refus(MagickException erreur, string champ) =>
-        erreur is MagickResourceLimitErrorException || erreur.Message.StartsWith("WidthOrHeightExceedsLimit", StringComparison.Ordinal)
+        erreur is MagickResourceLimitErrorException or MagickCacheErrorException
+        || erreur.Message.StartsWith("WidthOrHeightExceedsLimit", StringComparison.Ordinal)
             ? TropGrande(champ)
             : new SaisieInvalideException(champ, "Image illisible.");
 
