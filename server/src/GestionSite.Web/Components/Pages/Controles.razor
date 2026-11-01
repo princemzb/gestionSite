@@ -1,0 +1,97 @@
+@page "/organisations/{OrganisationId:guid}/preventif/controles"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Inventaire
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu preventif">
+<PageTitle>Contrôles · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Liste is null)
+{
+    <div class="entete"><div><h1>Contrôles</h1><p>@(Message ?? "Aucun site ne vous est attribué dans cette organisation.")</p></div></div>
+}
+else
+{
+    <a class="retour" href="@($"/organisations/{OrganisationId}/preventif?site={SiteCourant.Id}")">← Préventif</a>
+    <div class="entete">
+        <div>
+            <h1>Contrôles · @SiteCourant.Nom</h1>
+            <p>Historique des contrôles réalisés, le plus récent d'abord. Résultats déclarés par l'intervenant, jamais une attestation de conformité.</p>
+        </div>
+        @if (Sites.Count > 1)
+        {
+            <nav class="onglets" aria-label="Site">
+                @foreach (var site in Sites)
+                {
+                    <a href="@($"/organisations/{OrganisationId}/preventif/controles?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                }
+            </nav>
+        }
+    </div>
+    <section class="carte liste-controles" aria-label="Contrôles réalisés">
+        @if (Liste.Count == 0)
+        {
+            <p class="note">Aucun contrôle enregistré sur ce site.</p>
+        }
+        <ul class="liste-echeances">
+            @foreach (var c in Liste)
+            {
+                <li class="ligne-controle">
+                    <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={c.Id}")"><strong>@LibellesPreventif.Date(c.RealiseLe)</strong> · @c.Plan</a>
+                    <span class="note">@LibellesPreventif.Nature(c.Nature) · @LibellesPreventif.Resultat(c.Resultat)@(c.Defauts > 0 ? $" · {c.Defauts} écart{(c.Defauts > 1 ? "s" : "")}" : "")@(c.Note is { } note ? $" · note {Libelles.Note(note)}" : "")@(c.Rapport ? " · rapport PDF" : "")</span>
+                </li>
+            }
+        </ul>
+    </section>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<ControleResumeApi>? Liste { get; set; }
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is { } site)
+            {
+                Liste = await Session.LireAsync<List<ControleResumeApi>>($"/organizations/{OrganisationId}/sites/{site.Id}/preventive/controls", CancellationToken.None);
+            }
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas les contrôles de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+}

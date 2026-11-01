@@ -41,8 +41,18 @@ internal static class ActionsPreventifEndpoints
                 {
                     version = uint.TryParse(formulaire["version"], out var version) ? version : (uint?)null,
                 }, CancellationToken.None).ConfigureAwait(false)));
+        // Saut de l'échéance courante avec motif (S12-07) : la personne en charge, sinon R/D ; l'API reste juge.
+        site.MapPost("/plans/{planId:guid}/sauter", (Guid organisationId, Guid siteId, Guid planId, SessionApi session, HttpContext contexte, IAntiforgery antifalsification) =>
+            ExecuterAsync(contexte, antifalsification, _ => Plan(organisationId, siteId, planId), async formulaire =>
+                await session.ExecuterAsync(Api(organisationId, siteId, $"plans/{planId}/skip"), new
+                {
+                    echeance = DateOnly.TryParseExact(formulaire["echeance"], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var echeance) ? echeance : (DateOnly?)null,
+                    motif = formulaire["motif"].ToString(),
+                    commentaire = formulaire["commentaire"].ToString(),
+                }, CancellationToken.None).ConfigureAwait(false)));
         // Photos et rapport PDF d'un contrôle : droits vérifiés par l'API, jamais mis en cache partagé ; le rapport est
-        // téléchargé en pièce jointe (jamais affiché dans l'origine de l'application). Photos : écran de contrôle (S12-07).
+        // téléchargé en pièce jointe (jamais affiché dans l'origine de l'application).
         site.MapGet("/controles/{controleId:guid}/photos/{rang:int}", (Guid organisationId, Guid siteId, Guid controleId, int rang, SessionApi session, HttpContext contexte) =>
             RelaisPhoto.RelayerAsync(session, contexte, Api(organisationId, siteId, $"controls/{controleId}/photos/{rang}")));
         site.MapGet("/controles/{controleId:guid}/rapport", (Guid organisationId, Guid siteId, Guid controleId, SessionApi session, HttpContext contexte) =>
@@ -102,6 +112,7 @@ internal static class ActionsPreventifEndpoints
         "commentaire" => "Commentaire obligatoire pour le motif « Autre » (500 caractères au plus).",
         "modifie_entre_temps" => "Quelqu'un d'autre vient de modifier ce plan : la fiche est rechargée, recommencez.",
         "statut_incompatible" => "Cette action n'est plus possible dans l'état actuel du plan.",
+        "echeance" => "Cette échéance n'est plus l'échéance courante : la fiche est rechargée.",
         "interdit" => "Vous n'avez pas le droit de faire cette action.",
         "introuvable" => "Cet élément n'existe plus.",
         _ => "Action refusée ou service momentanément indisponible : réessayez.",

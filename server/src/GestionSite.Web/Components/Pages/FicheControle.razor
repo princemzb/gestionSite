@@ -1,0 +1,201 @@
+@page "/organisations/{OrganisationId:guid}/preventif/controle"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Dossiers
+@using GestionSite.Web.Inventaire
+@using GestionSite.Web.Preventif
+@inject SessionApi Session
+@inject NavigationManager Navigation
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
+<main class="admin-contenu preventif">
+<PageTitle>Contrôle préventif · gestionSite</PageTitle>
+
+@if (SiteCourant is null || Controle is null)
+{
+    <div class="entete"><div><h1>Contrôle préventif</h1><p>@(Message ?? "Contrôle introuvable sur ce site.")</p></div></div>
+}
+else
+{
+    var c = Controle;
+    var constats = c.Constats ?? [];
+    <a class="retour" href="@($"/organisations/{OrganisationId}/preventif/plan?site={SiteCourant.Id}&plan={c.PlanId}")">← @c.Plan</a>
+    <div class="entete">
+        <div>
+            <span class="note">@LibellesPreventif.Nature(c.Nature) · échéance du @LibellesPreventif.Date(c.Echeance)</span>
+            <h1>Contrôle du @LibellesPreventif.Date(c.RealiseLe)</h1>
+        </div>
+        <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/controles?site={SiteCourant.Id}")">Tous les contrôles</a>
+    </div>
+    @if (Enregistre)
+    {
+        <p role="status" class="alerte succes">Contrôle enregistré@(c.Note is { } note ? $" ; évaluation : {Libelles.Note(note)} · {Libelles.Etat(c.LibelleNote)}" : "")@(constats.Count > 0 ? $" ; {LibellesPreventif.Ecarts(constats.Count(k => !k.Rattache), constats.Count(k => k.Rattache))}" : "").</p>
+    }
+
+    <div class="echeancier">
+        <section class="carte fiche-controle" aria-label="Contrôle">
+            <h2>Résultat déclaré : @LibellesPreventif.Resultat(c.Resultat) <span class="@($"echeance {(Reserves ? "echeance-a-faire" : "echeance-a-venir")}")">@Statut</span></h2>
+            <dl class="detail-plan">
+                <dt>Réalisé le</dt><dd>@LibellesPreventif.Date(c.RealiseLe)</dd>
+                <dt>Saisi le</dt><dd>@Perimetre.Date(c.SaisiLe, avecHeure: true)@(c.Auteur is null ? "" : $" par {c.Auteur}")</dd>
+                <dt>Intervenant</dt><dd>@(c.Prestataire ?? c.Intervenant ?? "—")</dd>
+                @if (c.NumeroAgrement is { } agrement)
+                {
+                    <dt>N° d'agrément</dt><dd>@agrement</dd>
+                }
+                @if (c.GrilleVersion is { } version)
+                {
+                    <dt>Grille</dt><dd>version @version</dd>
+                }
+                @if (c.Note is { } noteEvaluation)
+                {
+                    <dt>Évaluation</dt><dd>@Libelles.Note(noteEvaluation) · @Libelles.Etat(c.LibelleNote)</dd>
+                }
+            </dl>
+
+            @if (c.Points.Count > 0)
+            {
+                <h2>Points observés</h2>
+                <ul class="points-evalues">
+                    @foreach (var point in c.Points)
+                    {
+                        <li class="@(point.Conforme switch { false => "defaut", null => "non-verifie", _ => null })"><span class="visuellement-masque">@LibellesPreventif.Point(point.Conforme, point.Danger) : </span>@point.Texte@(point.Conforme == false ? $" — {LibellesPreventif.Point(point.Conforme, point.Danger).ToLowerInvariant()}" : "")</li>
+                    }
+                </ul>
+            }
+            @if (c.Mesures.Count > 0)
+            {
+                <h2>Mesures et relevés</h2>
+                <ul class="points-evalues">
+                    @foreach (var mesure in c.Mesures)
+                    {
+                        <li class="mesure">@mesure.Libelle : @LibellesPreventif.Mesure(mesure.Valeur, mesure.Unite)</li>
+                    }
+                </ul>
+            }
+            @if (c.Observations.Count > 0)
+            {
+                <h2>Observations du rapport</h2>
+                <ul class="liste-echeances">
+                    @foreach (var observation in c.Observations)
+                    {
+                        <li class="observation"><span class="texte-libre">@observation.Libelle</span><span class="note"> · @Zone(observation.ZoneId)@(observation.Danger ? " · danger signalé" : "")</span></li>
+                    }
+                </ul>
+            }
+            @if (c.CompteRendu is { } compteRendu)
+            {
+                <h2>@(c.Nature == "InspectionInterne" ? "Remarque" : "Compte rendu")</h2>
+                <p class="texte-libre">@compteRendu</p>
+            }
+            @if (c.Rapport is { } rapport)
+            {
+                <h2>Rapport</h2>
+                <p><a href="@($"{Relais}/rapport")">Télécharger le rapport PDF</a> <span class="note">(@LibellesPreventif.Taille(rapport.Taille))</span></p>
+                <p class="note empreinte">Empreinte SHA-256 : @rapport.Empreinte</p>
+            }
+            @if (c.Photos.Count > 0)
+            {
+                <h2>Photos</h2>
+                <div class="photos">
+                    @foreach (var rang in c.Photos)
+                    {
+                        <img src="@($"{Relais}/photos/{rang}")" alt="@($"Photo {rang} du contrôle")" loading="lazy" />
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="carte" aria-label="Dossiers ouverts">
+            <h2>Écarts et dossiers · @constats.Count</h2>
+            @if (constats.Count == 0)
+            {
+                <p class="note">Aucun défaut ni observation : aucun dossier ouvert.</p>
+            }
+            else if (c.ReservesLevees)
+            {
+                <p class="alerte succes">Réserves levées : tous les dossiers liés sont clos.</p>
+            }
+            <ul class="liste-echeances">
+                @foreach (var constat in constats)
+                {
+                    <li>
+                        <a href="@($"/organisations/{OrganisationId}/dossiers/{constat.DossierId}")">@constat.Libelle</a>
+                        <span class="note"> · @(constat.Rattache ? "rattaché au dossier déjà ouvert" : "nouveau dossier") · @LibellesDossiers.Statut(constat.StatutDossier)@(constat.Danger ? " · danger signalé" : "")</span>
+                    </li>
+                }
+            </ul>
+        </aside>
+    </div>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "controle")] private Guid? ControleDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "enregistre")] private int? Enregistrement { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private ControleApi? Controle { get; set; }
+
+    private Dictionary<Guid, string> Zones { get; set; } = [];
+
+    private string? Message { get; set; }
+
+    private bool Enregistre => Enregistrement == 1;
+
+    // Un défaut, une observation ou un résultat « non satisfaisant » laissent l'échéance en réserve.
+    private bool Reserves => Controle!.Constats is { Count: > 0 } || Controle.Resultat == "NonConforme";
+
+    private string Statut => !Reserves ? "Réalisée" : Controle!.ReservesLevees ? "Réserves levées" : "Réalisée avec réserves";
+
+    // Photos et rapport relayés par l'application web, qui transmet les droits de l'appelant à l'API.
+    private string Relais => $"/organisations/{OrganisationId}/sites/{SiteCourant!.Id}/preventif/controles/{Controle!.Id}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            SiteCourant = Perimetre.SitesInternes(Organisation).FirstOrDefault(s => s.Id == SiteDemande);
+            if (SiteCourant is null || ControleDemande is null)
+            {
+                return;
+            }
+
+            var controle = await Session.LireAsync<ControleApi>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/preventive/controls/{ControleDemande}", CancellationToken.None);
+            if (controle.Observations.Count > 0)
+            {
+                var structure = await Session.LireAsync<List<BatimentApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant.Id}/inventory/structure", CancellationToken.None);
+                Zones = structure.SelectMany(b => b.Zones.Select(z => (z.Id, Libelle: $"{b.Nom} · {z.Nom}"))).ToDictionary(z => z.Id, z => z.Libelle);
+            }
+
+            Controle = controle;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Contrôle introuvable sur ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private string Zone(Guid zone) => Zones.TryGetValue(zone, out var libelle) ? libelle : "zone retirée";
+}

@@ -44,6 +44,31 @@ else
                     <p>Affectée à @(i.Nom ?? i.Prestataire)@(i.Prestataire is not null && i.Referent is not null ? $" (référent : {i.Referent})" : "")</p>
                 }
 
+                @* Exécution (S12-07) : la personne en charge (technicien affecté ou référent du prestataire), ou R/D. *@
+                @if (Planificateur || EnCharge(e))
+                {
+                    <div class="actions-controle">
+                        <a class="bouton-principal bouton-lien" href="@($"/organisations/{OrganisationId}/preventif/controler?site={SiteCourant.Id}&plan={p.Id}")">Faire le contrôle</a>
+                        <details class="ecarter">
+                            <summary class="bouton-secondaire">Sauter cette échéance</summary>
+                            <form method="post" action="@Action("sauter")" class="formulaire-inventaire">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="echeance" value="@e.Echeance.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                                <label class="champ">Motif
+                                    <select name="motif" required>
+                                        @foreach (var (motif, libelle) in LibellesPreventif.MotifsSaut)
+                                        {
+                                            <option value="@motif">@libelle</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="champ">Commentaire <span class="aide">(obligatoire pour « Autre »)</span><textarea name="commentaire" rows="2" maxlength="500"></textarea></label>
+                                <button type="submit" class="bouton-secondaire">Sauter l'échéance</button>
+                            </form>
+                        </details>
+                    </div>
+                }
+
                 @if (Planificateur)
                 {
                     <EditForm id="affecter" Model="Affectation" FormName="affectation" OnSubmit="AffecterAsync" class="formulaire-inventaire panneau-action">
@@ -119,7 +144,15 @@ else
                 {
                     var controle = Controles.FirstOrDefault(c => c.Id == o.ControleId);
                     <li>
-                        <strong>@LibellesPreventif.Date(o.RealiseeLe ?? o.SauteeLe ?? o.Echeance)</strong> · @LibellesPreventif.Etat(o.Statut)
+                        @if (controle is not null)
+                        {
+                            <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={controle.Id}")"><strong>@LibellesPreventif.Date(controle.RealiseLe)</strong></a>
+                        }
+                        else
+                        {
+                            <strong>@LibellesPreventif.Date(o.RealiseeLe ?? o.SauteeLe ?? o.Echeance)</strong>
+                        }
+                        · @LibellesPreventif.Etat(o.Statut)
                         @if (controle is not null)
                         {
                             @($" · {LibellesPreventif.Resultat(controle.Resultat)}{(controle.Defauts > 0 ? $" ({controle.Defauts} écart{(controle.Defauts > 1 ? "s" : "")})" : "")}")
@@ -174,9 +207,14 @@ else
 
     private string? Message { get; set; }
 
+    private Guid Compte { get; set; }
+
     private bool Planificateur => Perimetre.ARole(Organisation, SiteCourant?.Id, "Responsable", "Delegue");
 
     private string Base => $"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/preventive";
+
+    // Échéance confiée à l'appelant : technicien affecté, ou référent interne du prestataire (affichage ; l'API reste juge).
+    private bool EnCharge(EcheanceApi echeance) => echeance.Intervenant is { } i && (i.CompteId == Compte || i.ReferentCompteId == Compte);
 
     protected override async Task OnInitializedAsync()
     {
@@ -184,6 +222,7 @@ else
         try
         {
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Compte = moi.CompteId;
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
             RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
             SiteCourant = Perimetre.SitesInternes(Organisation).FirstOrDefault(s => s.Id == SiteDemande);
