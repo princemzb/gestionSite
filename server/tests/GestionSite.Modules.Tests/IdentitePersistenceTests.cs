@@ -26,7 +26,7 @@ public sealed class IdentitePersistenceTests
                 || t.ClrType == typeof(Organisation))
             .ToList();
 
-        Assert.Equal(5, marquees.Count); // organisations, sites, membres, rôles, journal
+        Assert.Equal(6, marquees.Count); // organisations, sites, membres, rôles, journal, droits nominatifs
         Assert.All(marquees, t => Assert.NotEmpty(t.GetDeclaredQueryFilters()));
     }
 

@@ -136,6 +136,12 @@ Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtim
 - Chaque enregistrement crée une version, même sans changement (renvoi du même envoi excepté). Restauration : marqueurs de composants retirés, passés sur un autre niveau ou devenus objets de valeur retirés de la copie (avertissement) ; la position d'un composant reclassé en objet de valeur n'est plus servie, même dans les anciennes versions.
 - Arrondi au centimètre identique dans l'éditeur et le serveur (ADR-11).
 
+### Droit nominatif « modifier les plans du bâtiment » — règles d'implémentation (S21-03, choix de l'agent, révisables)
+- Liste blanche limitée à `ModifierPlans`, tenue aussi par une contrainte en base. Autorisation = union des rôles et des droits nominatifs, relue à chaque requête (retrait immédiat, jeton en cours compris).
+- Éligible : membre ayant accepté son invitation et au moins un rôle sur le site (T, P ou C ; R/D l'ont déjà par leur rôle, l'accord reste possible et sans effet). Un administrateur sans rôle sur le site n'est pas éligible ; s'il a aussi un rôle sur le site, il peut se l'accorder (tracé au journal).
+- Un droit n'ouvre rien sur un site où le membre n'a plus de rôle : il est retiré avec la révision qui supprime ce rôle, et avec la révocation de l'adhésion, dans la même entrée de journal (droits avant/après).
+- Accord ou retrait déjà en l'état : rien n'est écrit ni journalisé ; le motif reste exigé.
+
 ## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
 Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
 - Plateformes (DEC-06) : Android (version minimale proposée : Android 11), distribution par un test interne Google Play ; l'achat du compte développeur (25 $, unique) est fait par le porteur ; iPad reporté.

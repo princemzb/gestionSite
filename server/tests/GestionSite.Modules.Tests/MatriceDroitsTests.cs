@@ -47,6 +47,10 @@ public sealed class MatriceDroitsTests
     }
 
     [Fact]
+    public void OnlyBuildingPlanEditingCanBeGrantedByName() =>
+        Assert.Equal([Droit.ModifierPlans], Enum.GetValues<Droit>().Where(MatriceDroits.EstNominatif));
+
+    [Fact]
     public void EveryRightIsInTheMatrix()
     {
         Assert.All(Enum.GetValues<Droit>(), d => Assert.NotEmpty(MatriceDroits.RolesPour(d)));

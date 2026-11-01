@@ -68,6 +68,7 @@ Toutes les commandes ci-dessous ont été exécutées le 27 octobre 2026 sur mac
 ### Journal des habilitations (S06-06, RG-31)
 - Ouverture, création, révision, révocation, acceptation et refus d'une adhésion ajoutent une entrée `identite.journal_habilitations` (auteur, date, motif facultatif, rôles avant et après) dans la même transaction que le changement, datée comme lui. `motif` dans le corps (jamais dans l'URL) : obligatoire pour réviser et révoquer (RG-31), facultatif à la création. Une révision sans changement n'écrit rien. Lecture par pages (`?limite=&avant=<id>`, identifiants ordonnés dans le temps).
 - Ajout seulement : le rôle applicatif n'a que SELECT et INSERT sur la table (test) ; RLS forcée par organisation. Lecture : `GET /organizations/{orgId}/members/journal` (administrateur).
+- Droits nominatifs (S21-03) : table `identite.droits_nominatifs` (SELECT, INSERT, DELETE pour le rôle applicatif ; RLS forcée ; contrainte de liste blanche `ModifierPlans`) ; `Autorisations.VerifierAsync` ajoute aux rôles un droit nominatif de `MatriceDroits.Nominatifs` accordé sur le site, seulement si l'appelant a un rôle sur ce site ; journal : natures `AttributionDroit` et `RetraitDroit`, colonnes `droits_avant` et `droits_apres`.
 - Journaux techniques : ni e-mail, ni mot de passe, ni jeton (test sur un parcours complet) ; les commandes SQL journalisées ne contiennent que des identifiants.
 
 ### Autorisation des opérations (S06-05)

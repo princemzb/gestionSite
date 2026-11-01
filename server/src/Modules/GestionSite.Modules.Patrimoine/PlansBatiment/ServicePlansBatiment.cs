@@ -52,7 +52,7 @@ internal sealed class EnvoiPlanReutiliseException() : Exception("Cet identifiant
 
 /// <summary>
 /// Plans de bâtiment (US-21, S21-02) : lecture et historique pour les comptes internes du site (ConsulterSite), création,
-/// enregistrement et restauration pour R/D (ModifierPlans ; droit nominatif à venir, S21-03). Chaque enregistrement crée
+/// enregistrement et restauration pour R/D et les titulaires du droit nominatif (ModifierPlans, S21-03). Chaque enregistrement crée
 /// une version immuable à partir de la version lue ; un renvoi du même enregistrement (même identifiant d'envoi) rend la
 /// même version.
 /// </summary>
