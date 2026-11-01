@@ -11,8 +11,8 @@ internal sealed record FondPrepare(string TypeContenu, byte[] Maitre, int Largeu
 /// Fonds de plan de bâtiment importés en image (US-21, RP-21.3, S21-04) : un fichier de 25 Mo au plus, JPEG, PNG ou HEIC
 /// reconnu par ses octets d'en-tête (jamais par son nom ni son type annoncé : SVG, DWG ou PDF renommés sont refusés),
 /// dimensions lues dans l'en-tête et refusées avant décodage au-delà de 12 000 px ou 50 Mpx. Décodage commun aux photos
-/// (orientation appliquée, métadonnées retirées), puis deux sorties réencodées : PNG pour un PNG (traits nets d'un plan
-/// dessiné), JPEG sinon.
+/// (orientation appliquée, métadonnées retirées), seul à la fois, puis deux sorties réencodées : PNG pour un PNG (traits
+/// nets d'un plan dessiné), JPEG sinon, ou quand le PNG réduit dépasserait 25 Mo (scan monochrome devenu nuances de gris).
 /// </summary>
 internal static class TraitementFonds
 {
@@ -23,10 +23,7 @@ internal static class TraitementFonds
     internal const string Png = "image/png";
     internal const string Jpeg = "image/jpeg";
 
-    // Un fond à la fois (jusqu'à 50 Mpx) : la mémoire du conteneur reste bornée, à côté des photos.
-    private static readonly SemaphoreSlim Decodages = new(1);
-
-    internal static FondPrepare Preparer(byte[] contenu)
+    internal static Task<FondPrepare> PreparerAsync(byte[] contenu, CancellationToken cancellationToken)
     {
         if (contenu.Length is 0 or > TailleMax)
         {
@@ -35,20 +32,27 @@ internal static class TraitementFonds
 
         var format = DecodageImage.Format(contenu)
             ?? throw new SaisieInvalideException(Champ, "Image attendue au format JPEG, PNG ou HEIC (pour un plan d'architecte, exportez-le en image ou en PDF).");
-        var png = format == MagickFormat.Png;
-        return DecodageImage.Traiter(contenu, format, Decodages, Champ, image =>
+        return DecodageImage.TraiterSeuleAsync(contenu, format, Champ, image =>
         {
             // Maître puis dérivé, réduits sur la même image : jamais deux copies en mémoire.
-            var maitre = Encoder(image, CoteMaitre, png);
+            image.Resize(new MagickGeometry(CoteMaitre, CoteMaitre) { Greater = true }); // réduit seulement les plus grandes
+            var png = format == MagickFormat.Png;
+            var maitre = Encoder(image, png);
+            if (png && maitre.Length > TailleMax)
+            {
+                png = false;
+                maitre = Encoder(image, png);
+            }
+
             var (largeur, hauteur) = ((int)image.Width, (int)image.Height);
-            var affichage = Encoder(image, CoteAffichage, png);
+            image.Resize(new MagickGeometry(CoteAffichage, CoteAffichage) { Greater = true });
+            var affichage = Encoder(image, png);
             return new FondPrepare(png ? Png : Jpeg, maitre, largeur, hauteur, affichage, (int)image.Width, (int)image.Height);
-        });
+        }, cancellationToken);
     }
 
-    private static byte[] Encoder(MagickImage image, uint cote, bool png)
+    private static byte[] Encoder(MagickImage image, bool png)
     {
-        image.Resize(new MagickGeometry(cote, cote) { Greater = true }); // réduit seulement les plus grandes
         if (png)
         {
             image.Format = MagickFormat.Png;

@@ -11,6 +11,12 @@ namespace GestionSite.SharedKernel.Photos;
 /// </summary>
 public static class DecodageImage
 {
+    // Places de décodage du processus : deux photos à la fois, ou une seule grande image ; la mémoire d'ImageMagick
+    // (LimitesImages.MemoireMax, sans repli sur le disque) reste suffisante pour chacune.
+    private const int PlacesMax = 2;
+    private static readonly SemaphoreSlim Places = new(PlacesMax);
+    private static readonly SemaphoreSlim Seules = new(1);
+
     private static readonly HashSet<string> MarquesHeic = new(StringComparer.Ordinal) { "heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1" };
 
     /// <summary>Format d'après les octets d'en-tête, ou null si ce n'est ni JPEG, ni PNG, ni HEIC.</summary>
@@ -33,18 +39,61 @@ public static class DecodageImage
     }
 
     /// <summary>
-    /// Image décodée puis confiée à <paramref name="traiter"/> (réduction, réencodage), au plus
-    /// <paramref name="decodages"/> à la fois. Dimensions annoncées par l'en-tête au-delà des bornes, image illisible ou trop
-    /// lourde à traiter : saisie refusée sur <paramref name="champ"/>.
+    /// Image (photo) décodée puis confiée à <paramref name="traiter"/> (réduction, réencodage), occupant une des places de
+    /// décodage du processus. Dimensions annoncées par l'en-tête au-delà des bornes, image illisible ou trop lourde à traiter :
+    /// saisie refusée sur <paramref name="champ"/>.
     /// </summary>
-    public static T Traiter<T>(byte[] contenu, MagickFormat format, SemaphoreSlim decodages, string champ, Func<MagickImage, T> traiter)
+    public static T Traiter<T>(byte[] contenu, MagickFormat format, string champ, Func<MagickImage, T> traiter)
     {
-        ArgumentNullException.ThrowIfNull(decodages);
         ArgumentNullException.ThrowIfNull(traiter);
+        Places.Wait();
+        try
+        {
+            return Decoder(contenu, format, champ, traiter);
+        }
+        finally
+        {
+            Places.Release();
+        }
+    }
+
+    /// <summary>
+    /// Grande image (fond de plan, jusqu'à 50 Mpx) traitée seule : elle occupe toutes les places de décodage, la mémoire
+    /// d'ImageMagick (commune au processus) lui revient entière. Attente asynchrone, abandonnée avec la requête.
+    /// </summary>
+    public static async Task<T> TraiterSeuleAsync<T>(
+        byte[] contenu, MagickFormat format, string champ, Func<MagickImage, T> traiter, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(traiter);
+        await Seules.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var prises = 0;
+        try
+        {
+            // Une seule grande image à la fois : elle prend les places une à une sans jamais en bloquer une autre en attente.
+            for (; prises < PlacesMax; prises++)
+            {
+                await Places.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return Decoder(contenu, format, champ, traiter);
+        }
+        finally
+        {
+            if (prises > 0)
+            {
+                Places.Release(prises);
+            }
+
+            Seules.Release();
+        }
+    }
+
+    // Sous une place de décodage : lecture de l'en-tête comprise, la concurrence d'ImageMagick reste bornée.
+    private static T Decoder<T>(byte[] contenu, MagickFormat format, string champ, Func<MagickImage, T> traiter)
+    {
         LimitesImages.Poser();
         var reglages = new MagickReadSettings { Format = format };
         ExigerDimensions(contenu, reglages, champ);
-        decodages.Wait();
         try
         {
             using var image = new MagickImage(contenu, reglages);
@@ -61,10 +110,6 @@ public static class DecodageImage
         catch (MagickException erreur)
         {
             throw Refus(erreur, champ);
-        }
-        finally
-        {
-            decodages.Release();
         }
     }
 

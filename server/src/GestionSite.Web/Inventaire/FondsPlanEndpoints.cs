@@ -11,7 +11,10 @@ namespace GestionSite.Web.Inventaire;
 /// </summary>
 internal static class FondsPlanEndpoints
 {
-    /// <summary>Un fichier de 25 Mo et le reste du formulaire (limite propre à cette route).</summary>
+    /// <summary>
+    /// Un fichier de 25 Mo et le reste du formulaire (limite propre à cette route), comme l'API (TraitementFonds.TailleMax,
+    /// hors de portée de l'application web : l'égalité est vérifiée par les tests).
+    /// </summary>
     internal const long CorpsMax = (25 + 1) * 1024 * 1024;
 
     internal static IEndpointRouteBuilder MapFondsPlan(this IEndpointRouteBuilder endpoints)
@@ -24,6 +27,11 @@ internal static class FondsPlanEndpoints
             .RequireAuthorization();
         return endpoints;
     }
+
+    /// <summary>Requête d'import d'un fond (POST …/plans-batiment/{plan}/fonds), qui attend du JSON et jamais une redirection.</summary>
+    internal static bool EstImport(HttpRequest requete) =>
+        HttpMethods.IsPost(requete.Method) && requete.Path.StartsWithSegments("/organisations", out var reste)
+        && reste.Value!.Contains("/plans-batiment/", StringComparison.Ordinal) && reste.Value.EndsWith("/fonds", StringComparison.Ordinal);
 
     // Fichier lié par le framework : le jeton antifalsification est exigé avant tout envoi à l'API.
     private static async Task<IResult> ImporterAsync(

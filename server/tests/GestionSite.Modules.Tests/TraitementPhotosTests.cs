@@ -93,6 +93,6 @@ public sealed class TraitementPhotosTests
     {
         byte[] entete = [0, 0, 0, 24, .. "ftyp"u8, .. System.Text.Encoding.ASCII.GetBytes(marque)];
 
-        Assert.Equal(heic, TraitementPhotos.Format(entete) == MagickFormat.Heic);
+        Assert.Equal(heic, DecodageImage.Format(entete) == MagickFormat.Heic);
     }
 }

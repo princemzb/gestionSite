@@ -68,7 +68,7 @@ internal sealed class ServiceFondsPlan(
             throw new QuotaFondsAtteintException();
         }
 
-        var prepare = TraitementFonds.Preparer(fichier);
+        var prepare = await TraitementFonds.PreparerAsync(fichier, cancellationToken).ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var fond = new FondPlanBatiment(
             Guid.CreateVersion7(maintenant), plan, commande, prepare.TypeContenu, (prepare.Largeur, prepare.Hauteur, prepare.Maitre.Length),

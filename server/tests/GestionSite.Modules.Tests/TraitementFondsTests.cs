@@ -12,9 +12,9 @@ namespace GestionSite.Modules.Tests;
 public sealed class TraitementFondsTests
 {
     [Fact]
-    public void AJpegCarryingALocationIsStoredWithoutAnyMetadata()
+    public async Task AJpegCarryingALocationIsStoredWithoutAnyMetadata()
     {
-        var fond = TraitementFonds.Preparer(EssaisImages.JpegAvecPosition(1200, 800));
+        var fond = await TraitementFonds.PreparerAsync(EssaisImages.JpegAvecPosition(1200, 800), CancellationToken.None);
 
         Assert.Equal(TraitementFonds.Jpeg, fond.TypeContenu);
         foreach (var sortie in new[] { fond.Maitre, fond.Affichage })
@@ -32,11 +32,11 @@ public sealed class TraitementFondsTests
     }
 
     [Fact]
-    public void ALargeImageGivesAMasterOf8000AndADisplayCopyOf4096()
+    public async Task ALargeImageGivesAMasterOf8000AndADisplayCopyOf4096()
     {
         using var source = new MagickImage(MagickColors.White, 9_000, 3_000) { Format = MagickFormat.Jpeg };
 
-        var fond = TraitementFonds.Preparer(source.ToByteArray());
+        var fond = await TraitementFonds.PreparerAsync(source.ToByteArray(), CancellationToken.None);
 
         Assert.Equal((8_000, 2_667), (fond.Largeur, fond.Hauteur));
         Assert.Equal((4_096, 1_366), (fond.LargeurAffichage, fond.HauteurAffichage));
@@ -45,12 +45,12 @@ public sealed class TraitementFondsTests
     }
 
     [Fact]
-    public void APngStaysAPngWithoutAncillaryChunksAndKeepsItsOrientation()
+    public async Task APngStaysAPngWithoutAncillaryChunksAndKeepsItsOrientation()
     {
         using var source = new MagickImage(MagickColors.Black, 300, 200) { Format = MagickFormat.Png };
         source.SetAttribute("comment", "Plan synthétique — Paroisse fictive");
 
-        var fond = TraitementFonds.Preparer(source.ToByteArray());
+        var fond = await TraitementFonds.PreparerAsync(source.ToByteArray(), CancellationToken.None);
 
         Assert.Equal(TraitementFonds.Png, fond.TypeContenu);
         using var relue = new MagickImage(fond.Maitre);
@@ -63,7 +63,28 @@ public sealed class TraitementFondsTests
     }
 
     [Fact]
-    public void ARotatedPhotoOfAPlanIsTurnedUpright()
+    public async Task AMonochromeScanWhosePngWouldGrowPastTheLimitBecomesAJpeg()
+    {
+        // Scan noir et blanc compressé à 1 bit par pixel : réduit, il passe en nuances de gris et son PNG dépasserait 25 Mo.
+        using var scan = new MagickImage(MagickColors.White, 8_200, 3_600);
+        scan.AddNoise(NoiseType.Random);
+        scan.Threshold(new Percentage(50));
+        scan.ColorType = ColorType.Bilevel;
+        scan.Format = MagickFormat.Png;
+        var contenu = scan.ToByteArray();
+        Assert.True(contenu.Length < TraitementFonds.TailleMax);
+
+        var fond = await TraitementFonds.PreparerAsync(contenu, CancellationToken.None);
+
+        Assert.Equal(TraitementFonds.Jpeg, fond.TypeContenu);
+        Assert.True(fond.Maitre.Length <= TraitementFonds.TailleMax);
+        using var affichage = new MagickImage(fond.Affichage);
+        Assert.Equal(MagickFormat.Jpeg, affichage.Format);
+        Assert.Equal((8_000, 3_512), (fond.Largeur, fond.Hauteur));
+    }
+
+    [Fact]
+    public async Task ARotatedPhotoOfAPlanIsTurnedUpright()
     {
         using var source = new MagickImage(MagickColors.Gray, 40, 20);
         var exif = new ExifProfile();
@@ -72,32 +93,32 @@ public sealed class TraitementFondsTests
         source.Orientation = Orientation.RightTop; // à tourner de 90° à l'affichage
         source.Format = MagickFormat.Jpeg;
 
-        var fond = TraitementFonds.Preparer(source.ToByteArray());
+        var fond = await TraitementFonds.PreparerAsync(source.ToByteArray(), CancellationToken.None);
 
         Assert.Equal((20, 40), (fond.Largeur, fond.Hauteur));
     }
 
     [Fact]
-    public void AnImageDeclaringTwentyThousandPixelsIsRefusedWithoutDecoding()
+    public async Task AnImageDeclaringTwentyThousandPixelsIsRefusedWithoutDecoding()
     {
-        var refus = Assert.Throws<SaisieInvalideException>(() => TraitementFonds.Preparer(EssaisImages.PngAnnonce(20_000, 20_000)));
+        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(EssaisImages.PngAnnonce(20_000, 20_000), CancellationToken.None));
 
         Assert.Equal("fichier", refus.Champ);
         Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AJpegDeclaringTwentyThousandPixelsIsRefusedWithoutDecoding()
+    public async Task AJpegDeclaringTwentyThousandPixelsIsRefusedWithoutDecoding()
     {
-        var refus = Assert.Throws<SaisieInvalideException>(() => TraitementFonds.Preparer(EssaisImages.JpegAnnonce(20_000, 600)));
+        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(EssaisImages.JpegAnnonce(20_000, 600), CancellationToken.None));
 
         Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TooManyPixelsAreRefusedEvenUnderTheSideLimit()
+    public async Task TooManyPixelsAreRefusedEvenUnderTheSideLimit()
     {
-        var refus = Assert.Throws<SaisieInvalideException>(() => TraitementFonds.Preparer(EssaisImages.PngAnnonce(11_000, 11_000)));
+        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(EssaisImages.PngAnnonce(11_000, 11_000), CancellationToken.None));
 
         Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
@@ -109,7 +130,7 @@ public sealed class TraitementFondsTests
     [InlineData("vide")]
     [InlineData("trop-gros")]
     [InlineData("jpeg-tronque")]
-    public void AnythingElseIsRefusedOnTheFile(string cas)
+    public async Task AnythingElseIsRefusedOnTheFile(string cas)
     {
         byte[] contenu = cas switch
         {
@@ -121,7 +142,7 @@ public sealed class TraitementFondsTests
             _ => [0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10],
         };
 
-        var refus = Assert.Throws<SaisieInvalideException>(() => TraitementFonds.Preparer(contenu));
+        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(contenu, CancellationToken.None));
 
         Assert.Equal("fichier", refus.Champ);
     }

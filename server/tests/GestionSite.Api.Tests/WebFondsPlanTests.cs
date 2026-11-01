@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using GestionSite.Modules.Identite;
 using GestionSite.Modules.Identite.Domain;
 using GestionSite.Modules.Identite.Persistence;
+using GestionSite.Modules.Patrimoine.PlansBatiment;
 using GestionSite.SharedKernel;
 using GestionSite.Web;
 using GestionSite.Web.Inventaire;
@@ -75,6 +76,7 @@ public sealed partial class WebFondsPlanTests(InfrastructureFixture infrastructu
         using var sansSession = await anonyme.GetAsync(new Uri(image, UriKind.Relative));
         using var inconnu = await pasteur.GetAsync(new Uri($"{fonds}/{Guid.NewGuid()}", UriKind.Relative));
         using var parLecteur = await ImporterAsync(pasteur, fonds, dessin.ToByteArray(), "plan.png", "image/png", await JetonAsync(pasteur));
+        using var importSansSession = await ImporterAsync(anonyme, fonds, dessin.ToByteArray(), "plan.png", "image/png", jeton: null);
 
         Assert.Equal(HttpStatusCode.OK, importe.StatusCode);
         Assert.Contains("no-store", importe.Headers.CacheControl?.ToString(), StringComparison.Ordinal);
@@ -91,6 +93,7 @@ public sealed partial class WebFondsPlanTests(InfrastructureFixture infrastructu
         Assert.Equal(HttpStatusCode.Redirect, sansSession.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, inconnu.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, parLecteur.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, importSansSession.StatusCode); // l'éditeur reçoit 401, pas la page de connexion
     }
 
     [Fact]
@@ -112,6 +115,7 @@ public sealed partial class WebFondsPlanTests(InfrastructureFixture infrastructu
         Assert.Equal(("donnee_invalide", "fichier"), (refus.GetProperty("code").GetString(), refus.GetProperty("champ").GetString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, sansFichier.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, tropGros.StatusCode); // limite de corps de la route, avant tout envoi à l'API
+        Assert.Equal(TraitementFonds.TailleMax + (1024 * 1024), FondsPlanEndpoints.CorpsMax); // alignée sur la limite de l'API
         Assert.Equal(0, await _database.CountAsync("SELECT count(*) FROM patrimoine.fonds_plan_batiment"));
     }
 
