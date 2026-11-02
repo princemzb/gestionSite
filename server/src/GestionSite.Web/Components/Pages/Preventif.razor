@@ -116,7 +116,7 @@ else
                 {
                     <li>
                         <a href="@FichePlan(p.Id)">@p.Libelle</a>
-                        <span class="note"> · @p.Cible.Libelle · @(p.Suspendu ? "suspendu" : p.Prochaine is { } e ? LibellesPreventif.Date(e.Echeance) : "terminé")</span>
+                        <span class="note"> · @p.Cible.Libelle · @(p.Suspendu ? "suspendu" : p.Prochaine is { } e ? Perimetre.Date(e.Echeance) : "terminé")</span>
                     </li>
                 }
             </ul>
@@ -180,15 +180,19 @@ else
                 return;
             }
 
+            // Plans et propositions lus ensemble ; un échec des propositions ne masque ni le calendrier ni les retards.
             var racine = $"/organizations/{OrganisationId}/sites/{site.Id}/preventive";
-            Plans = await Session.LireAsync<List<PlanApi>>($"{racine}/plans", CancellationToken.None);
+            var plans = Session.LireAsync<List<PlanApi>>($"{racine}/plans", CancellationToken.None);
+            var proposes = ProposesAsync(racine);
+            await Task.WhenAll(plans, proposes);
+            Plans = await plans;
             // « Mes contrôles » : échéance courante confiée à l'appelant (technicien ou référent), comme GET mine.
             MesControles = [.. Plans.Where(p => p.Prochaine?.Intervenant is { } i && (i.CompteId == compte || i.ReferentCompteId == compte))
                 .OrderBy(p => p.Prochaine!.Echeance)];
             EnRetard = [.. Plans.Where(p => p.Prochaine?.Etat == "EnRetard").OrderBy(p => p.Prochaine!.Echeance)];
             var jours = Jours().ToList();
             ParJour = EcheancesProjetees.Projeter(Plans, jours[0], jours[^1], Aujourdhui);
-            Proposes = await ProposesAsync(racine);
+            Proposes = await proposes;
         }
         catch (SessionExpireeException)
         {
@@ -204,7 +208,7 @@ else
         }
     }
 
-    // Nombre affiché seulement : un échec de lecture des propositions ne masque ni le calendrier ni les retards.
+    // Nombre affiché seulement (rien d'autre n'est lu des propositions) : en cas d'échec, « — ».
     private async Task<int?> ProposesAsync(string racine)
     {
         try

@@ -253,6 +253,34 @@ public sealed class ExecutionPreventifTests(InfrastructureFixture infrastructure
         Assert.Equal("RealiseeAvecReserves", resultat.GetProperty("statut").GetString()); // « non conforme » sans point : réserves
     }
 
+    [Fact]
+    public async Task OnlyPlannersListWhoCanBeAssignedAControlAndPastorsAreNotAmongThem()
+    {
+        var (responsable, technicien, pasteur) = await ComptesAsync();
+        await MembreAsync("delegue@inventaire.test", Role.Delegue);
+        var admin = await JetonAsync("admin@inventaire.test");
+        var assignees = $"{Preventif}/assignees";
+
+        var liste = await LireAsync(assignees, await JetonAsync("delegue@inventaire.test"));
+        using var parResponsable = await EnvoyerAsync(HttpMethod.Get, assignees, responsable);
+        using var parTechnicien = await EnvoyerAsync(HttpMethod.Get, assignees, technicien);
+        using var parPasteur = await EnvoyerAsync(HttpMethod.Get, assignees, pasteur);
+        using var parAdministrateur = await EnvoyerAsync(HttpMethod.Get, assignees, admin); // administrateur seul : aucun accès implicite
+        using var autreSite = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/sites/{Guid.NewGuid()}/preventive/assignees", responsable);
+        var roles = liste.EnumerateArray().ToDictionary(m => m.GetProperty("compteId").GetGuid(), m => m.GetProperty("roles").EnumerateArray().Single().GetString());
+
+        Assert.Equal(HttpStatusCode.OK, parResponsable.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parTechnicien.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parPasteur.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parAdministrateur.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, autreSite.StatusCode);
+        Assert.Equal(3, roles.Count); // technicien, responsable et délégué ; ni le pasteur ni l'administrateur
+        Assert.Equal("Technicien", roles[await CompteAsync("technicien@inventaire.test")]);
+        Assert.Equal("Responsable", roles[await CompteAsync("responsable@inventaire.test")]);
+        Assert.Equal("Delegue", roles[await CompteAsync("delegue@inventaire.test")]);
+        Assert.All(liste.EnumerateArray(), m => Assert.Equal(JsonValueKind.String, m.GetProperty("nom").ValueKind));
+    }
+
     private async Task<(string Responsable, string Technicien, string Pasteur)> ComptesAsync()
     {
         await MembreAsync("responsable@inventaire.test", Role.Responsable);

@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace GestionSite.Web.Dossiers;
 
 /// <summary>Libellés du traitement des dossiers (US-09 : DEC-03, DEC-05, décisions du 29/10) : codes de l'API → texte affiché.</summary>
@@ -26,8 +24,6 @@ internal static class LibellesDossiers
     /// <summary>Étapes de la barre d'avancement (maquette B).</summary>
     internal static readonly (string Code, string Libelle)[] Etapes =
         [("AQualifier", "Déclaré"), ("Qualifie", "Qualifié"), ("Affecte", "Affecté"), ("EnCours", "En cours"), ("Cloture", "Clôturé")];
-
-    private static readonly CultureInfo Francais = CultureInfo.GetCultureInfo("fr-FR");
 
     internal static string Statut(string code) => code switch
     {
@@ -87,6 +83,4 @@ internal static class LibellesDossiers
         "ConstatInspection" => "Constat d'inspection rattaché",
         _ => code,
     };
-
-    internal static string Date(DateOnly date) => date.ToString("dd/MM/yyyy", Francais);
 }

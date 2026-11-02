@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using GestionSite.Modules.Identite.Domain;
 
@@ -264,6 +266,67 @@ public sealed partial class WebInventaireTests
         Assert.Contains("Contrôle introuvable sur ce site.", controleInconnu, StringComparison.Ordinal);
         Assert.Contains("Plan suspendu : Chaises prêtées", suspendu, StringComparison.Ordinal);
         Assert.Contains("← Fiche du plan", suspendu, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AZoneInspectionPlannedThroughTheApiIsAssignedThenDoneWithoutAComponentState()
+    {
+        await MembreAsync("responsable@inventaire-web.test", "Rose L.", Role.Responsable);
+        using var technicien = await ConnecterAsync("technicien@inventaire-web.test");
+        var communes = await EgliseAsync(technicien);
+        await PlanDeZoneAsync(await SiteAsync(), communes, "CourantsForts");
+        using var responsable = await ConnecterAsync("responsable@inventaire-web.test");
+        var fiche = LienPlan().Match(await LirePageAsync(responsable, $"/organisations/{_organisation}/preventif")).Groups[1].Value;
+        var controler = fiche.Replace("/preventif/plan?", "/preventif/controler?", StringComparison.Ordinal);
+        var avant = await LirePageAsync(responsable, fiche);
+        Chemin(await PosterAsync(responsable, fiche, "affectation", ("Affectation.Echeance", EcheanceAffectee().Match(avant).Groups[1].Value),
+            ("Affectation.Version", VersionAffectee().Match(avant).Groups[1].Value), ("Affectation.IntervenantCompteId", Technicien().Match(avant).Groups[1].Value)));
+
+        var mesControles = await LirePageAsync(technicien, $"/organisations/{_organisation}/preventif");
+        var etape1 = await LirePageAsync(technicien, controler);
+        var points = ChampsControle(Commande().Match(etape1).Groups[1].Value, "1", "1", "suivant", ("Saisie.Constats[0]", "oui"), ("Saisie.Constats[1]", "oui"),
+            ("Saisie.Constats[2]", "non"), ("Saisie.Constats[3]", ""), ("Saisie.Constats[4]", ""), ("Saisie.Mesures[0]", "35"));
+        var etape2 = await LireAsync(await PosterAsync(technicien, controler, "controle", points));
+        var enregistre = await LirePageAsync(technicien, Chemin(await PosterAsync(technicien, controler, "controle",
+            [.. Etape(points, "2", "enregistrer"), ("Saisie.RealiseLe", Hier), ("Saisie.Resultat", "AvecObservations"), ("Saisie.CompteRendu", "Prise noircie côté chœur")])));
+        var historique = await LirePageAsync(technicien, $"/organisations/{_organisation}/preventif/controles");
+
+        Assert.Contains("Mes contrôles · 1", mesControles, StringComparison.Ordinal);
+        Assert.Contains("Contrôler · étape 1 sur 2", etape1, StringComparison.Ordinal); // zone : pas d'étape « État »
+        Assert.Contains("Pas de trace d'échauffement (noircissement, odeur)", etape1, StringComparison.Ordinal);
+        Assert.Contains("Contrôler · étape 2 sur 2", etape2, StringComparison.Ordinal);
+        Assert.DoesNotContain("Combien dans chaque état ?", etape2, StringComparison.Ordinal);
+        Assert.Contains("Contrôle enregistré ; 1 dossier ouvert.", enregistre, StringComparison.Ordinal); // aucune évaluation de composant
+        Assert.DoesNotContain("<dt>Évaluation</dt>", enregistre, StringComparison.Ordinal);
+        Assert.Contains("Pas de trace d'échauffement (noircissement, odeur) — défaut", enregistre, StringComparison.Ordinal);
+        Assert.Contains("Température au point chaud : 35 °C", enregistre, StringComparison.Ordinal);
+        Assert.Contains("Prise noircie côté chœur", enregistre, StringComparison.Ordinal);
+        Assert.Contains("Inspection · Avec observations · 1 écart", historique, StringComparison.Ordinal);
+        Assert.DoesNotContain("· note", historique, StringComparison.Ordinal);
+    }
+
+    // Plan d'inspection d'une zone pour un corps d'état, créé par l'API (aucun écran ne le propose) par un responsable du site.
+    private async Task PlanDeZoneAsync(string site, string zone, string corpsEtat)
+    {
+        using var client = _api.CreateClient();
+        using var connexion = await client.PostAsJsonAsync("/auth/login", new { email = "responsable@inventaire-web.test", motDePasse = MotDePasse });
+        var jeton = (await connexion.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("jetonAcces").GetString();
+        using var demande = new HttpRequestMessage(HttpMethod.Post, new Uri($"/organizations/{_organisation}/sites/{site}/preventive/plans", UriKind.Relative))
+        {
+            Content = JsonContent.Create(new
+            {
+                commandeId = Guid.NewGuid(),
+                cible = new { type = "ZoneCorpsEtat", zoneId = Guid.Parse(zone), corpsEtat },
+                nature = "InspectionInterne",
+                libelle = "Inspection électrique des parties communes",
+                @base = "BonnePratique",
+                periode = new { valeur = 1, unite = "Ans" },
+                premiereEcheance = DateOnly.FromDateTime(DateTime.UtcNow),
+            }),
+        };
+        demande.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jeton);
+        using var reponse = await client.SendAsync(demande);
+        Assert.Equal(HttpStatusCode.OK, reponse.StatusCode);
     }
 
     // Bâtiment « Église » créé par le technicien ; renvoie sa zone « Parties communes ».

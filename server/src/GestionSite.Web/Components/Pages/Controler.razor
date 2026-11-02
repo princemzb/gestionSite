@@ -1,6 +1,7 @@
 @page "/organisations/{OrganisationId:guid}/preventif/controler"
 @layout AdminLayout
 @attribute [Authorize]
+@attribute [Microsoft.AspNetCore.Mvc.RequestSizeLimit(SaisieControle.CorpsMaximal)]
 @using System.Globalization
 @using GestionSite.Web.Inventaire
 @using GestionSite.Web.Preventif
@@ -26,7 +27,7 @@ else
     var etape = EtapeCourante;
     <a class="retour" href="@FichePlan()">← @p.Libelle</a>
     <div class="entete-evaluation">
-        <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · échéance du @LibellesPreventif.Date(echeance.Echeance)</span>
+        <span class="note">@LibellesPreventif.Nature(p.Nature) · @p.Cible.Libelle · échéance du @Perimetre.Date(echeance.Echeance)</span>
         <h1>Contrôler · étape @Saisie.Etape sur @Etapes.Count</h1>
     </div>
     <ol class="progression" aria-label="Étapes">
@@ -361,14 +362,7 @@ else
 
             if (plan.Nature == "InspectionInterne")
             {
-                Message = "Le corps d'état de cette cible n'a pas de grille : inspection impossible.";
-                Grille = await Session.LireAsync<GrilleApi>($"{Base}/inventory/grids/{plan.Cible.CorpsEtat}", CancellationToken.None);
-                Message = null;
-                if (plan.Cible.ComposantId is { } composant)
-                {
-                    Lot = (await Session.LireAsync<FicheComposantApi>($"{Base}/inventory/components/{composant}", CancellationToken.None)).Composant.Lot;
-                    Composant = true;
-                }
+                await LireInspectionAsync(plan);
             }
 
             Plan = plan;
@@ -384,6 +378,33 @@ else
         catch (RefusApiException)
         {
             Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    // Grille et composant inspecté lus ensemble, à chaque étape ; la première lecture en échec, dans cet ordre, donne le
+    // message : grille absente (hors panne du service), sinon plan introuvable.
+    private async Task LireInspectionAsync(PlanApi plan)
+    {
+        var grille = Session.LireAsync<GrilleApi>($"{Base}/inventory/grids/{plan.Cible.CorpsEtat}", CancellationToken.None);
+        var composant = plan.Cible.ComposantId is { } id
+            ? Session.LireAsync<FicheComposantApi>($"{Base}/inventory/components/{id}", CancellationToken.None)
+            : null;
+        Task[] lectures = composant is null ? [grille] : [grille, composant];
+        try
+        {
+            await Task.WhenAll(lectures);
+        }
+        catch (RefusApiException) when (grille.IsFaulted)
+        {
+            Message = "Le corps d'état de cette cible n'a pas de grille : inspection impossible.";
+            throw;
+        }
+
+        Grille = await grille;
+        if (composant is not null)
+        {
+            Lot = (await composant).Composant.Lot;
+            Composant = true;
         }
     }
 

@@ -29,8 +29,7 @@ internal sealed class ServiceInterventions(
     internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.QualifierAffecter, cancellationToken).ConfigureAwait(false);
-        return [.. (await annuaire.MembresAyantDroitAsync(siteId, Droit.DocumenterIntervention, compteIds: null, cancellationToken).ConfigureAwait(false))
-            .Select(m => new IntervenantPossible(m.CompteId, m.Nom, m.Roles))];
+        return await Intervenants.ListerAsync(annuaire, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<int> AffecterAsync(Guid organisationId, Guid siteId, Guid dossierId, DemandeAffectation demande, CancellationToken cancellationToken)
