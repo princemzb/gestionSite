@@ -32,6 +32,8 @@ internal static class PlansBatimentEndpoints
             .AddEndpointFilter(TraduireRefus);
         plans.MapGet("/", async (Guid orgId, Guid siteId, ServicePlansBatiment service, CancellationToken ct) =>
             Results.Ok(await service.ListerAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        plans.MapGet("/rights", async (Guid orgId, Guid siteId, ServicePlansBatiment service, CancellationToken ct) =>
+            Results.Ok(await service.DroitsAsync(orgId, siteId, ct).ConfigureAwait(false)));
         plans.MapPost("/", async (Guid orgId, Guid siteId, DemandePlanBatiment demande, ServicePlansBatiment service, CancellationToken ct) =>
             Results.Ok(new Cree(await service.CreerAsync(orgId, siteId, demande.BatimentId, demande.NiveauId, ct).ConfigureAwait(false))));
         plans.MapGet("/{planId:guid}", async (Guid orgId, Guid siteId, Guid planId, ServicePlansBatiment service, CancellationToken ct) =>

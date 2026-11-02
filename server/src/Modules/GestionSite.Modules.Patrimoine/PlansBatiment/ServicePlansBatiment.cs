@@ -24,6 +24,8 @@ internal sealed record VersionResumee(int Version, DateTimeOffset Le, string? Au
 
 internal sealed record VersionEnregistree(int Version, IReadOnlyList<AvertissementPlan> Avertissements);
 
+internal sealed record DroitsPlans(bool ModifierPlans);
+
 /// <summary>Numéro, auteur et date de la dernière version, sans son contenu.</summary>
 internal sealed record EnTeteVersion(int Version, Guid AuteurCompteId, DateTimeOffset CreeLe);
 
@@ -77,6 +79,17 @@ internal sealed class ServicePlansBatiment(
         return [.. plans.Select(p => dernieres.TryGetValue(p.Id, out var v)
             ? new PlanLu(p.Id, p.BatimentId, p.NiveauId, v.Version, v.CreeLe, noms.GetValueOrDefault(v.AuteurCompteId))
             : new PlanLu(p.Id, p.BatimentId, p.NiveauId, 0, null, null))];
+    }
+
+    /// <summary>
+    /// Droits de l'appelant sur les plans de bâtiment du site (rôle R/D ou droit nominatif, S21-03) : l'éditeur n'affiche ses
+    /// commandes qu'à qui peut enregistrer ; le serveur reste juge à chaque écriture.
+    /// </summary>
+    internal async Task<DroitsPlans> DroitsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        var modifier = await autorisations.VerifierAsync(organisationId, Droit.ModifierPlans, siteId, cancellationToken).ConfigureAwait(false);
+        return new DroitsPlans(modifier == DecisionAutorisation.Autorise);
     }
 
     /// <summary>
@@ -197,7 +210,7 @@ internal sealed class ServicePlansBatiment(
         var texte = Motif(motif, obligatoire: false);
         var courante = await CouranteAsync(plan.Id, cancellationToken).ConfigureAwait(false);
         await ExigerCouranteAsync(courante, lue, cancellationToken).ConfigureAwait(false);
-        var valide = ValidationPlan.Valider(contenu, await CadreAsync(plan, contenu?.Composants, cancellationToken).ConfigureAwait(false));
+        var valide = ValidationPlan.Valider(contenu, await CadreAsync(plan, contenu?.Composants, contenu?.Fond?.FondId, cancellationToken).ConfigureAwait(false));
         return await AjouterAsync(plan, courante, envoi, valide, texte, restaureDe: null, cancellationToken).ConfigureAwait(false);
     }
 
@@ -225,7 +238,7 @@ internal sealed class ServicePlansBatiment(
         var courante = await CouranteAsync(plan.Id, cancellationToken).ConfigureAwait(false);
         await ExigerCouranteAsync(courante, lue, cancellationToken).ConfigureAwait(false);
         var contenu = ancienne.ContenuLu;
-        var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], cancellationToken).ConfigureAwait(false);
+        var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], contenu.Fond?.FondId, cancellationToken).ConfigureAwait(false);
         var gardes = contenu.Composants.Where(m => cadre.Composants.TryGetValue(m.ComposantId, out var c) && !c.Retire
             && !ValidationPlan.ObjetDeValeur(c.CorpsEtat) && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
         var valide = ValidationPlan.Valider(Saisie(contenu with { Composants = gardes }), cadre);
@@ -291,7 +304,7 @@ internal sealed class ServicePlansBatiment(
         };
     }
 
-    private async Task<CadrePlan> CadreAsync(PlanBatiment plan, IReadOnlyList<SaisieMarqueur?>? marqueurs, CancellationToken cancellationToken)
+    private async Task<CadrePlan> CadreAsync(PlanBatiment plan, IReadOnlyList<SaisieMarqueur?>? marqueurs, Guid? fondId, CancellationToken cancellationToken)
     {
         var zones = await context.Zones.AsNoTracking().Where(z => z.BatimentId == plan.BatimentId)
             .Select(z => new ZoneCadre(z.Id, z.NiveauId, z.PartiesCommunes)).ToDictionaryAsync(z => z.Id, cancellationToken).ConfigureAwait(false);
@@ -301,7 +314,12 @@ internal sealed class ServicePlansBatiment(
         var composants = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == plan.SiteId)
             .Select(c => new ComposantCadre(c.Id, c.ZoneId, c.CorpsEtat, c.RetireLe != null))
             .ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
-        return new CadrePlan(plan.NiveauId, zones, niveaux.ToHashSet(), composants);
+        // Seul le fond désigné par le contenu est lu (aucune requête pour un plan vierge) ; un fond d'un autre plan n'y est pas.
+        var fonds = fondId is { } id
+            ? await context.FondsPlanBatiment.AsNoTracking().Where(f => f.Id == id && f.PlanId == plan.Id)
+                .Select(f => new FondCadre(f.Id, f.LargeurAffichage, f.HauteurAffichage)).ToDictionaryAsync(f => f.Id, cancellationToken).ConfigureAwait(false)
+            : [];
+        return new CadrePlan(plan.NiveauId, zones, niveaux.ToHashSet(), composants, fonds);
     }
 
     private Task<EnTeteVersion?> CouranteAsync(Guid planId, CancellationToken cancellationToken) =>
@@ -331,7 +349,10 @@ internal sealed class ServicePlansBatiment(
         [.. contenu.Pieces.Select(p => new SaisiePiece(p.ZoneId, Points(p.Contour)))],
         [.. contenu.Ouvertures.Select(o => new SaisieOuverture(o.Type, Point(o.De), Point(o.A), o.Zones))],
         [.. contenu.Escaliers.Select(e => new SaisieLiaison(e.Type, Points(e.Contour), e.VersNiveauId))],
-        [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, Point(m.Position)))]);
+        [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, Point(m.Position)))],
+        contenu.Fond is { } fond ? new SaisieFond(fond.FondId, Cote(fond.Calibration), fond.Controle is { } controle ? Cote(controle) : null) : null);
+
+    private static SaisieCote Cote(CotePlan cote) => new(Point(cote.De), Point(cote.A), cote.Distance);
 
     private static SaisiePoint Point(PointPlan point) => new(point.X, point.Y);
 
