@@ -12,7 +12,7 @@ namespace GestionSite.SharedKernel.Photos;
 public static class DecodageImage
 {
     // Places de décodage du processus : deux photos à la fois, ou une seule grande image ; la mémoire d'ImageMagick
-    // (LimitesImages.MemoireMax, sans repli sur le disque) reste suffisante pour chacune.
+    // (LimitesImages.MemoireMax, sans repli sur le disque) couvre le pire cas mesuré de chacune (SOC-04).
     private const int PlacesMax = 2;
     private static readonly SemaphoreSlim Places = new(PlacesMax);
     private static readonly SemaphoreSlim Seules = new(1);
@@ -94,6 +94,7 @@ public static class DecodageImage
         LimitesImages.Poser();
         var reglages = new MagickReadSettings { Format = format };
         ExigerDimensions(contenu, reglages, champ);
+        var lue = false;
         try
         {
             using var image = new MagickImage(contenu, reglages);
@@ -105,11 +106,18 @@ public static class DecodageImage
             }
 
             image.Strip();
+            lue = true;
             return traiter(image);
         }
-        catch (MagickException erreur)
+        catch (MagickException erreur) when (!lue)
         {
             throw Refus(erreur, champ);
+        }
+        catch (MagickException erreur) when (erreur is MagickResourceLimitErrorException or MagickCacheErrorException or MagickCoderErrorException)
+        {
+            // Image lue et convertie : sa réduction et son réencodage n'échouent que faute de mémoire (un pixel non alloué
+            // au réencodage PNG devient « No IDATs written »), jamais « illisible ». Toute autre erreur : défaut du serveur.
+            throw TropLourde(champ);
         }
     }
 
@@ -142,12 +150,21 @@ public static class DecodageImage
         }
     }
 
-    // Bornes d'ImageMagick atteintes (dimensions annoncées, mémoire) : image trop grande ; toute autre erreur : illisible.
+    // Bornes d'ImageMagick atteintes (dimensions annoncées) : image trop grande ; mémoire des pixels épuisée (sans repli
+    // sur le disque) : trop lourde à traiter ; toute autre erreur : illisible.
     private static SaisieInvalideException Refus(MagickException erreur, string champ) =>
-        erreur is MagickResourceLimitErrorException || erreur.Message.StartsWith("WidthOrHeightExceedsLimit", StringComparison.Ordinal)
-            ? TropGrande(champ)
-            : new SaisieInvalideException(champ, "Image illisible.");
+        erreur switch
+        {
+            MagickCacheErrorException when erreur.Message.StartsWith("CacheResourcesExhausted", StringComparison.Ordinal) => TropLourde(champ),
+            MagickResourceLimitErrorException => TropGrande(champ),
+            _ when erreur.Message.StartsWith("WidthOrHeightExceedsLimit", StringComparison.Ordinal) => TropGrande(champ),
+            _ => new SaisieInvalideException(champ, "Image illisible."),
+        };
 
     private static SaisieInvalideException TropGrande(string champ) =>
         new(champ, $"Image trop grande : {LimitesImages.CoteMax} px de côté et {LimitesImages.SurfaceMax / 1_000_000} millions de pixels au plus.");
+
+    // Dans les bornes, mais la mémoire du processus ne suffit pas (pire cas mesuré couvert : SOC-04) : message actionnable.
+    private static SaisieInvalideException TropLourde(string champ) =>
+        new(champ, "Image trop grande pour être traitée : réduisez ses dimensions, puis envoyez-la de nouveau.");
 }

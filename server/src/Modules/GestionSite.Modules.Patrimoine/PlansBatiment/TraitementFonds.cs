@@ -25,11 +25,10 @@ internal static class TraitementFonds
     internal const string Jpeg = "image/jpeg";
 
     /// <summary>
-    /// Surface d'une page de PDF rendue : 46 Mpx, sous les 50 Mpx des images importées. Au-delà d'environ 48 Mpx, le
-    /// réencodage PNG dépasse la mémoire accordée à ImageMagick (LimitesImages.MemoireMax, constaté le 01/11/2026) ; une
-    /// page au format A (rapport √2) garde ses 8 000 px de grand côté (45,3 Mpx), une page carrée est rendue en 6 782 px.
+    /// Surface d'une page de PDF rendue : celle des images importées (50 Mpx, SOC-04). Une page au format A (rapport √2)
+    /// garde ses 8 000 px de grand côté (45,3 Mpx), une page carrée est rendue en 7 071 px.
     /// </summary>
-    internal const ulong SurfacePdf = 46_000_000;
+    internal const ulong SurfacePdf = LimitesImages.SurfaceMax;
 
     /// <summary>PDF reconnu par sa signature en tête (« %PDF- »), jamais par son nom ni son type annoncé.</summary>
     internal static bool EstPdf(ReadOnlySpan<byte> contenu) => contenu.StartsWith("%PDF-"u8);
@@ -43,7 +42,7 @@ internal static class TraitementFonds
     }
 
     /// <summary>
-    /// Page d'un PDF (S21-05) rendue dans le processus enfant (8 000 px de côté et 46 Mpx au plus), puis traitée comme un
+    /// Page d'un PDF (S21-05) rendue dans le processus enfant (8 000 px de côté et 50 Mpx au plus), puis traitée comme un
     /// PNG importé : mêmes bornes vérifiées, mêmes sorties.
     /// </summary>
     internal static async Task<(FondPrepare Fond, PagePdfRendue Page)> PreparerPdfAsync(
