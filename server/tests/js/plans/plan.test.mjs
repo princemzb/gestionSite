@@ -36,6 +36,13 @@ describe("document", () => {
     assert.equal(documentDepuisVersion(null).contenu.pieces.length, 0);
   });
 
+  it("retire les marqueurs obsolètes, que le serveur refuserait dans la version suivante", () => {
+    const composants = [{ composantId: "retire", position: { x: 1, y: 1 } }, { composantId: "actif", position: { x: 2, y: 2 } }];
+    const document = documentDepuisVersion({ contenu: { composants }, marqueursObsoletes: ["retire"] });
+    assert.deepEqual(document.contenu.composants.map(m => m.composantId), ["actif"]);
+    assert.equal(documentDepuisVersion({ contenu: { composants }, marqueursObsoletes: [] }).contenu.composants.length, 2);
+  });
+
   it("dit si le contenu a changé depuis la version lue", () => {
     const lu = documentDepuisVersion({ contenu: {} });
     assert.equal(estModifie(lu, lu), false);

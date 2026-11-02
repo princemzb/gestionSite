@@ -24,7 +24,9 @@ internal enum IssueConnexion
 internal sealed class SessionExpireeException() : Exception("Session expirée.");
 
 /// <summary>Échec métier renvoyé par l'API (code stable des ProblemDetails).</summary>
-internal sealed class RefusApiException(HttpStatusCode statut, string? code, string? message, string? champ = null) : Exception(message ?? code)
+internal sealed class RefusApiException(
+    HttpStatusCode statut, string? code, string? message, string? champ = null, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? details = null)
+    : Exception(message ?? code)
 {
     internal HttpStatusCode Statut { get; } = statut;
 
@@ -32,6 +34,9 @@ internal sealed class RefusApiException(HttpStatusCode statut, string? code, str
 
     /// <summary>Champ refusé d'une saisie invalide (422 « donnee_invalide »).</summary>
     internal string? Champ { get; } = champ;
+
+    /// <summary>Autres membres du refus (conflit de version : version gagnante, auteur, date).</summary>
+    internal IReadOnlyDictionary<string, System.Text.Json.JsonElement> Details { get; } = details ?? new Dictionary<string, System.Text.Json.JsonElement>();
 }
 
 /// <summary>
@@ -204,6 +209,8 @@ internal sealed class SessionApi(
         }
 
         await contexte.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
+        // Brouillons locaux de l'éditeur de plans (tablette partagée, RP-21.8) : stockage du site effacé par le navigateur.
+        contexte.Response.Headers["Clear-Site-Data"] = "\"storage\"";
         return Results.LocalRedirect("/connexion");
     }
 
@@ -241,7 +248,7 @@ internal sealed class SessionApi(
             var probleme = await LireProblemeAsync(reponse, annulation).ConfigureAwait(false);
             throw reponse.StatusCode == HttpStatusCode.Unauthorized
                 ? new SessionExpireeException()
-                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title, probleme?.Champ);
+                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title, probleme?.Champ, probleme?.Autres);
         }
     }
 
