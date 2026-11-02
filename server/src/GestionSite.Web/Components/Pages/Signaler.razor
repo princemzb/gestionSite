@@ -28,14 +28,7 @@ else if (Accuse is not null)
         {
             <section class="alerte danger" aria-label="Consigne en cas de danger">
                 <strong>Vous avez signalé un danger.</strong>
-                @if (Accuse.NumeroUrgence is { Length: > 0 } numero)
-                {
-                    <span> Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112), puis le numéro d'urgence du site : <a href="@($"tel:{numero.Replace(" ", string.Empty)}")">@numero</a>.</span>
-                }
-                else
-                {
-                    <span> Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112).</span>
-                }
+                <span> Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112)@if (Accuse.NumeroUrgence is { Length: > 0 } numero){<text>, puis le numéro d'urgence du site : <a href="@($"tel:{numero.Replace(" ", string.Empty)}")">@numero</a></text>}.</span>
             </section>
         }
         <p class="note">Il n'y a pas de suivi en ligne. Vous pouvez fermer cette page.</p>

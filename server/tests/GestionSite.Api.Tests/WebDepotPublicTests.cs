@@ -61,8 +61,8 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         Assert.Contains("Église Saint-Paul · Site centre", page, StringComparison.Ordinal);
         Assert.Contains($"/s/{_code}/signaler?choix=danger", page, StringComparison.Ordinal);
         Assert.Contains($"/s/{_code}/signaler?choix=demande", page, StringComparison.Ordinal);
-        Assert.Contains("Danger immédiat : appelez aussi le 18 ou le 112.", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("alerté", page, StringComparison.Ordinal);
+        Assert.Contains("Danger immédiat : appelez d'abord le 18 ou le 112.", page, StringComparison.Ordinal);
+        Assert.DoesNotMatch(PromesseAlerte(), page);
     }
 
     [Theory]
@@ -111,8 +111,8 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         Assert.Contains("href=\"tel:0123456789\"", accuse, StringComparison.Ordinal);
         Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.alertes_danger"));
         // Aucune diffusion d'alerte avant US-10 : ni le formulaire ni l'accusé ne promettent que quelqu'un est alerté.
-        Assert.DoesNotContain("alerté", formulaire, StringComparison.Ordinal);
-        Assert.DoesNotContain("alerté", accuse, StringComparison.Ordinal);
+        Assert.DoesNotMatch(PromesseAlerte(), formulaire);
+        Assert.DoesNotMatch(PromesseAlerte(), accuse);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
 
         Assert.Contains("Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112).</span>", accuse, StringComparison.Ordinal);
         Assert.DoesNotContain("href=\"tel:", accuse, StringComparison.Ordinal);
-        Assert.DoesNotContain("alerté", accuse, StringComparison.Ordinal);
+        Assert.DoesNotMatch(PromesseAlerte(), accuse);
     }
 
     [Fact]
@@ -628,6 +628,10 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
 
     [GeneratedRegex("<img src=\"(/organisations/[^\"]+/photos/1)\"")]
     private static partial Regex PhotoDepot();
+
+    /// <summary>Promesse d'une alerte diffusée (« alerté », « prévenus », « averti »…) : rien n'est diffusé avant US-10.</summary>
+    [GeneratedRegex(@"\b(alerté|prévenu|averti)(e|s|es)?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PromesseAlerte();
 
     private sealed record JetonLu(string JetonAcces);
 
