@@ -24,13 +24,14 @@ public sealed class DecodagesSeuls
 public sealed class ImagesGrandesTests
 {
     [Theory]
-    [InlineData(7_071, 7_071, 6, 7_071, 7_071)] // RVBA carré, non réduit : 668 Mio mesurés (défaut d'origine dès 48 Mpx en RVB)
-    [InlineData(7_071, 7_071, 2, 7_071, 7_071)] // RVB carré : 525 Mio
-    [InlineData(8_409, 5_946, 3, 8_000, 5_657)] // palette, réduit : 681 Mio
-    [InlineData(10_000, 5_000, 6, 8_000, 4_000)] // 50 000 000 px exactement
-    public async Task AFiftyMegapixelPngIsAcceptedAsAFond(int largeur, int hauteur, byte typeCouleur, int largeurMaitre, int hauteurMaitre)
+    [InlineData(7_071, 7_071, 6, 8, 7_071, 7_071)] // RVBA carré, non réduit : 668 Mio mesurés (défaut d'origine dès 48 Mpx en RVB)
+    [InlineData(7_071, 7_071, 6, 16, 7_071, 7_071)] // RVBA 16 bits : 668 Mio
+    [InlineData(7_071, 7_071, 2, 8, 7_071, 7_071)] // RVB carré : 525 Mio
+    [InlineData(8_409, 5_946, 3, 8, 8_000, 5_657)] // palette, réduit : 681 Mio
+    [InlineData(10_000, 5_000, 6, 8, 8_000, 4_000)] // 50 000 000 px exactement
+    public async Task AFiftyMegapixelPngIsAcceptedAsAFond(int largeur, int hauteur, byte typeCouleur, byte profondeur, int largeurMaitre, int hauteurMaitre)
     {
-        var fond = await TraitementFonds.PreparerAsync(EssaisImages.PngRaye(largeur, hauteur, typeCouleur), CancellationToken.None);
+        var fond = await TraitementFonds.PreparerAsync(EssaisImages.PngRaye(largeur, hauteur, typeCouleur, profondeur), CancellationToken.None);
 
         Assert.Equal(TraitementFonds.Png, fond.TypeContenu);
         Assert.Equal((largeurMaitre, hauteurMaitre), (fond.Largeur, fond.Hauteur));
@@ -72,27 +73,42 @@ public sealed class ImagesGrandesTests
     }
 
     [Theory]
-    [InlineData(8, false, 2_000)] // les pixels décodés (11,4 Mio) ne tiennent pas
-    [InlineData(8, true, 2_000)]
-    [InlineData(16, false, 2_000)] // fond décodé, mais pas réencodé en PNG
-    [InlineData(30, true, 3_000)] // photo décodée (25,7 Mio), mais pas réduite à 2 560 px
-    public async Task ExhaustedMemoryIsReportedAsTooLargeNeverUnreadable(ulong memoireMio, bool photo, int cote)
+    [InlineData(8, false, 2_000, false)] // les pixels décodés (11,4 Mio) ne tiennent pas
+    [InlineData(8, true, 2_000, false)]
+    [InlineData(16, false, 2_000, true)] // fond décodé, mais pas réencodé en PNG
+    [InlineData(30, true, 3_000, true)] // photo décodée (25,7 Mio), mais pas réduite à 2 560 px
+    public async Task ExhaustedMemoryIsReportedAsTooLargeNeverUnreadable(ulong memoireMio, bool photo, int cote, bool decodable)
     {
         var png = EssaisImages.PngRaye(cote, cote, 2);
         LimitesImages.Poser();
         ResourceLimits.Memory = memoireMio * 1024 * 1024;
         try
         {
+            // Phase visée vérifiée : une mise à jour d'ImageMagick qui la déplacerait fait échouer l'essai.
+            Assert.Equal(decodable, Decodable(png));
             var refus = photo
                 ? Assert.Throws<SaisieInvalideException>(() => TraitementPhotos.Preparer(png))
                 : await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(png, CancellationToken.None));
 
             Assert.Equal(photo ? "photos" : "fichier", refus.Champ);
-            Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
+            Assert.StartsWith("Image trop grande pour être traitée", refus.Message, StringComparison.Ordinal);
         }
         finally
         {
             ResourceLimits.Memory = LimitesImages.MemoireMax;
+        }
+    }
+
+    private static bool Decodable(byte[] png)
+    {
+        try
+        {
+            using var image = new MagickImage(png, new MagickReadSettings { Format = MagickFormat.Png });
+            return true;
+        }
+        catch (MagickCacheErrorException)
+        {
+            return false;
         }
     }
 

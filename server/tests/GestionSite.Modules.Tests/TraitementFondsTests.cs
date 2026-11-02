@@ -200,20 +200,21 @@ internal static class EssaisImages
     }
 
     /// <summary>
-    /// PNG de 8 bits écrit sans ImageMagick (aucune mémoire d'ImageMagick prise pour le préparer) : fond blanc rayé de
-    /// noir, en RVB, RVBA ou palette, données compressées en un seul bloc.
+    /// PNG écrit sans ImageMagick (aucune mémoire d'ImageMagick prise pour le préparer) : fond blanc rayé de noir, en RVB,
+    /// RVBA (8 ou 16 bits par composante) ou palette, données compressées en un seul bloc.
     /// </summary>
-    internal static byte[] PngRaye(int largeur, int hauteur, byte typeCouleur)
+    internal static byte[] PngRaye(int largeur, int hauteur, byte typeCouleur, byte profondeur = 8)
     {
-        var octetsParPixel = typeCouleur switch { 2 => 3, 6 => 4, _ => 1 };
+        var octetsParComposante = profondeur / 8;
+        var octetsParPixel = typeCouleur switch { 2 => 3, 6 => 4, _ => 1 } * octetsParComposante;
         var blanche = new byte[1 + (largeur * octetsParPixel)]; // octet de filtre (0 : aucun) puis les pixels
         var noire = new byte[blanche.Length];
         if (typeCouleur != 3)
         {
             blanche.AsSpan(1).Fill(0xFF);
-            for (var x = 4; typeCouleur == 6 && x < noire.Length; x += 4)
+            for (var x = 1 + octetsParPixel - octetsParComposante; typeCouleur == 6 && x < noire.Length; x += octetsParPixel)
             {
-                noire[x] = 0xFF; // noir opaque
+                noire.AsSpan(x, octetsParComposante).Fill(0xFF); // noir opaque
             }
         }
         else
@@ -233,7 +234,7 @@ internal static class EssaisImages
         var entete = new byte[13];
         BinaryPrimitives.WriteInt32BigEndian(entete, largeur);
         BinaryPrimitives.WriteInt32BigEndian(entete.AsSpan(4), hauteur);
-        (entete[8], entete[9]) = (8, typeCouleur);
+        (entete[8], entete[9]) = (profondeur, typeCouleur);
         using var png = new MemoryStream();
         png.Write([0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A]);
         Bloc(png, "IHDR"u8, entete);
