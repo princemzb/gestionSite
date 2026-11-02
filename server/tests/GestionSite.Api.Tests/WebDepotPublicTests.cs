@@ -61,6 +61,8 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         Assert.Contains("Église Saint-Paul · Site centre", page, StringComparison.Ordinal);
         Assert.Contains($"/s/{_code}/signaler?choix=danger", page, StringComparison.Ordinal);
         Assert.Contains($"/s/{_code}/signaler?choix=demande", page, StringComparison.Ordinal);
+        Assert.Contains("Danger immédiat : appelez aussi le 18 ou le 112.", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("alerté", page, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -103,10 +105,27 @@ public sealed partial class WebDepotPublicTests(InfrastructureFixture infrastruc
         var formulaire = await LirePageAsync(visiteur, $"/s/{_code}/signaler?choix=danger");
         var accuse = await EnvoyerAsync(visiteur, "danger", "Fuite au tableau électrique.", photo: false);
 
-        Assert.Contains("Vous signalez un danger.", formulaire, StringComparison.Ordinal);
+        Assert.Contains("Vous signalez un danger.</strong> En cas de danger immédiat, appelez d'abord les secours (18 ou 112).", formulaire, StringComparison.Ordinal);
         Assert.Contains("Vous avez signalé un danger.", accuse, StringComparison.Ordinal);
+        Assert.Contains("Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112), puis le numéro d'urgence du site :", accuse, StringComparison.Ordinal);
         Assert.Contains("href=\"tel:0123456789\"", accuse, StringComparison.Ordinal);
         Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM maintenance.alertes_danger"));
+        // Aucune diffusion d'alerte avant US-10 : ni le formulaire ni l'accusé ne promettent que quelqu'un est alerté.
+        Assert.DoesNotContain("alerté", formulaire, StringComparison.Ordinal);
+        Assert.DoesNotContain("alerté", accuse, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADangerReportWithoutSiteNumberSendsToTheEmergencyServices()
+    {
+        await using var web = Web(_api);
+        using var visiteur = Navigateur(web);
+
+        var accuse = await EnvoyerAsync(visiteur, "danger", "Odeur de brûlé au tableau.", photo: false);
+
+        Assert.Contains("Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112).</span>", accuse, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"tel:", accuse, StringComparison.Ordinal);
+        Assert.DoesNotContain("alerté", accuse, StringComparison.Ordinal);
     }
 
     [Fact]
