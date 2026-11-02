@@ -3014,6 +3014,25 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Défaut hérité de S21-04 constaté en S21-05 (PR #93) ; carte décidée par le porteur le 01/11.",
       "trelloId": "6ae78776955655d718ec6a1e",
       "trelloShortLink": "267LV4UG"
+    },
+    {
+      "id": "SOC-05",
+      "name": "[SOC-05] Socle : processus de rendu PDF isolé des secrets de l'API",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Le processus enfant de rendu PDF ne peut lire ni l'environnement, ni la mémoire, ni les fichiers de l'API (utilisateur système dédié, ou mécanisme équivalent vérifié dans l'image amd64 réelle).",
+        "Démonstration par un test : depuis l'enfant, la lecture de /proc/<pid de l'API>/environ et des fichiers de configuration échoue.",
+        "Aucune régression du rendu (tests S21-05 et SOC-04 verts, test de fumée dans l'image réelle) ; /security-review à zéro constat."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Point reporté de la revue PR #93.",
+      "trelloId": "6ae8fb7578a49af73a9b06d0",
+      "trelloShortLink": "zRqWmGVw"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
