@@ -976,7 +976,7 @@ function demarrer(racine) {
       },
       "brouillon-confirmer": reprendreBrouillon,
     };
-    actions[action]?.();
+    void actions[action]?.();
   });
 
   for (const cible of ["calibration", "controle"]) {
@@ -995,7 +995,7 @@ function demarrer(racine) {
 
   el("[data-role=import]")?.addEventListener("submit", evenement => {
     evenement.preventDefault();
-    importer(evenement.target);
+    void importer(evenement.target); // refus et erreurs affichés par importer
   });
 
   new ResizeObserver(() => {
@@ -1008,7 +1008,7 @@ function demarrer(racine) {
   }).observe(svg);
 
   // ——— Ouverture ———
-  (async () => {
+  void (async () => {
     const local = stockage();
     if (local) {
       purgerAutresComptes(local, d.compte); // tablette partagée : aucun brouillon d'un autre compte ne reste
