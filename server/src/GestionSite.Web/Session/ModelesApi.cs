@@ -19,7 +19,12 @@ internal sealed record ActivationApi(string Jeton, DateTimeOffset ExpireLe);
 
 internal sealed record MembreCreeApi(Guid MembreId, Guid CompteId, int Version, ActivationApi? Activation);
 
-internal sealed record ProblemeApi(string? Code, string? Title, string? Champ);
+internal sealed record ProblemeApi(string? Code, string? Title, string? Champ)
+{
+    /// <summary>Autres membres du ProblemDetails (version gagnante d'un conflit, plan existant, nombre de pages…).</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? Autres { get; init; }
+}
 
 internal sealed record ActivationReussieApi(string Email);
 
@@ -117,6 +122,11 @@ internal sealed record CritiqueApi(Guid Id, string Nom, Guid ZoneId);
 internal sealed record ZoneNoteeApi(
     Guid ZoneId, string Nom, Guid BatimentId, string Batiment, string? Niveau, bool PartiesCommunes, decimal? Note, string? Libelle,
     CouvertureApi Couverture, int Anciennes, int AEvaluer, int Critiques, DateTimeOffset? PlusAncienne, IReadOnlyList<PointHistoriqueApi> Historique);
+
+// Plans de bâtiment (US-21, S21-07) : plans du site et droits de l'appelant pour l'éditeur.
+internal sealed record PlanBatimentApi(Guid Id, Guid BatimentId, Guid? NiveauId, int Version, DateTimeOffset? ModifieLe, string? Auteur);
+
+internal sealed record DroitsPlansApi(bool ModifierPlans);
 
 internal sealed record ScoreApi(
     decimal? Note, string? Libelle, CouvertureApi Couverture, decimal PartAncienne, IReadOnlyList<CritiqueApi> Critiques, IReadOnlyList<ZoneNoteeApi> Zones,

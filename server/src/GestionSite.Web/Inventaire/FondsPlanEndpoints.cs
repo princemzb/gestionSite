@@ -29,11 +29,6 @@ internal static class FondsPlanEndpoints
         return endpoints;
     }
 
-    /// <summary>Requête d'import d'un fond (POST …/plans-batiment/{plan}/fonds), qui attend du JSON et jamais une redirection.</summary>
-    internal static bool EstImport(HttpRequest requete) =>
-        HttpMethods.IsPost(requete.Method) && requete.Path.StartsWithSegments("/organisations", out var reste)
-        && reste.Value!.Contains("/plans-batiment/", StringComparison.Ordinal) && reste.Value.EndsWith("/fonds", StringComparison.Ordinal);
-
     // Fichier lié par le framework : le jeton antifalsification est exigé avant tout envoi à l'API.
     private static async Task<IResult> ImporterAsync(
         Guid organisationId, Guid siteId, Guid planId, [FromForm] Guid? commandeId, [FromForm] int? page, [FromForm] int? echelle, IFormFile? fichier,

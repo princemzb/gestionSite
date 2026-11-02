@@ -3033,6 +3033,250 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Point reporté de la revue PR #93.",
       "trelloId": "6ae8fb7578a49af73a9b06d0",
       "trelloShortLink": "zRqWmGVw"
+    },
+    {
+      "id": "DET-12",
+      "name": "[DET-12] Dette technique des écrans du préventif (points reportés S12-06, S12-07)",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Lectures indépendantes des écrans du préventif en parallèle (calendrier, fiche du plan, étapes du contrôle) ; nombre de plans proposés obtenu sans calculer toute la liste si un comptage simple suffit.",
+        "Liste des intervenants affectables propre au préventif (droit « Exécuter un contrôle ») au lieu de /cases/assignees.",
+        "Limite de taille du corps de l'écran de contrôle portée par un attribut ou un point d'accès dédié plutôt que par un test de chemin dans Programme.cs ; formatage des dates commun (LibellesPreventif / LibellesDossiers).",
+        "Test de bout en bout d'une inspection de zone (plan créé par l'API).",
+        "Aucun changement visuel ; non-régression us12.mjs en préproduction."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Choix du porteur du 02/11.",
+      "trelloId": "6ae9012d5331115cd6750200",
+      "trelloShortLink": "h35kQwg9"
+    },
+    {
+      "id": "S10-01",
+      "name": "[S10-01] Centre de notifications et émission après transaction",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Tables notifications (une par destinataire, RLS, clé d'unicité) et file d'envoi (ADR-06) ; interface d'envoi remplaçable (centre seul ; e-mail et SMS branchés par S10-09).",
+        "GET /me/notifications (non lues, pagination), POST /me/notifications/{id}/read, POST /me/notifications/read.",
+        "Un danger déposé (public, interne, constat d'inspection) crée une notification pour chaque destinataire de Q3-A (R/D et P/C du site, techniciens en charge d'une intervention ouverte du dossier), dans la même transaction ; activité bloquée, affectation, clôture automatique et constat rattaché notifiés.",
+        "Rejeu du même commandeId : aucune notification de plus ; membre révoqué : plus de notifications visibles ; autre organisation : 404 ; aucun nom, contact ni description de déclarant ; l'auteur n'est pas notifié de sa propre action ; T-03.11 et T-03.19 verts.",
+        "Revue /code-review high ; CI et Sonar verts."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae909472eb8149f84f98b58",
+      "trelloShortLink": "K8ZcaQRH"
+    },
+    {
+      "id": "S10-02",
+      "name": "[S10-02] Planificateur, rappels DEC-05 et délai de prise en charge",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-01"
+      ],
+      "acceptanceCriteria": [
+        "Point d'entrée interne sur le port de l'API, jamais relayé par le Worker, protégé par un secret ; fonction SECURITY DEFINER qui ne renvoie que des identifiants d'organisations dues, puis traitement par organisation avec SET LOCAL ; verrou par organisation.",
+        "Rappel à 75 %, escalade à 100 % aux R/D, rappel quotidien ; une tâche rejouée ne double rien ; un dossier en attente ne reçoit aucun rappel de résolution ; un dossier réaffecté envoie le rappel suivant au nouvel intervenant.",
+        "Q7-A : délai de prise en charge de la qualification au démarrage de la première intervention ; un dossier qualifié jamais affecté reçoit son rappel (T-04.10) ; code d'US-09, CONTRATS, tests d'US-09 et deploy/verification/us09.mjs mis à jour.",
+        "Tests à horloge contrôlée (TimeProvider) : T-04.10, T-04.11, T-04.13, T-04.14, changements d'heure.",
+        "Revue /code-review high + /security-review."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae90948ee8c9337ec43e906",
+      "trelloShortLink": "QzffZhCL"
+    },
+    {
+      "id": "S10-03",
+      "name": "[S10-03] Attentes échues et dossiers restés à qualifier",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-02"
+      ],
+      "acceptanceCriteria": [
+        "Q9-A : le jour du réexamen à 8 h (heure de Paris), rappel unique à la personne en charge ; sans reprise ni report à J+3, escalade aux R/D du site ; puis rappel hebdomadaire aux deux.",
+        "Q8-A : dossier « À qualifier » : rappel aux R/D 24 h après la réception, puis toutes les 24 h tant qu'il n'est pas qualifié, classé ou rattaché.",
+        "« Reporter le réexamen » trace l'ancienne et la nouvelle date ; une reprise arrête les rappels ; PRD §14 « déclenche la relance à la date de réexamen ».",
+        "Revue /code-review high."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae909496d35be2159791384",
+      "trelloShortLink": "6eUkeckm"
+    },
+    {
+      "id": "S10-04",
+      "name": "[S10-04] Danger : prise en compte, mise en sécurité, levée",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-01",
+        "S10-02"
+      ],
+      "acceptanceCriteria": [
+        "Q4-A : prise en compte par un R/D ; sans prise en compte en 15 min, nouvelle alerte à tous, puis toutes les heures jour et nuit ; après prise en compte, rappel horaire à son auteur tant que la mise en sécurité n'est pas déclarée, autres R/D au bout de 4 h ; la prise en compte arrête les re-alertes ; deux prises en compte simultanées : une seule retenue (409).",
+        "Q5-A : mise en sécurité déclarée par T, R/D, P/C du site, vérifiée par un R/D (pasteur refusé pour vérifier : 403).",
+        "Q6-A : mise en attente refusée tant que la mise en sécurité n'est pas déclarée réalisée.",
+        "Un dossier clôturé dont le danger n'est pas levé reste dans « dangers en cours » ; T-05.11 ; journal de chaque étape (auteur, instant, action, motif) ; non-régression US-08, US-09, US-12.",
+        "Revue /code-review high."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae9094930f334a663744461",
+      "trelloShortLink": "35pNkmTR"
+    },
+    {
+      "id": "S10-05",
+      "name": "[S10-05] Relances manuelles",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-01"
+      ],
+      "acceptanceCriteria": [
+        "POST …/cases/{id}/reminders (droit Relancer) : technicien refusé (403) ; pasteur accepté sans changement de statut (T-03.18) ; dossier clos refusé ; seconde relance dans le délai refusée ; journal « Relance ».",
+        "Q10-A : la relance vise un compte interne (référent du prestataire) ; R/D et coordination notent « prestataire relancé hors application » (date, moyen, commentaire), trace seule, sans message ni coordonnées ; pasteur refusé pour cette trace (403).",
+        "Revue /code-review high."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae9094a7f7836770c7e6723",
+      "trelloShortLink": "MvD93cDr"
+    },
+    {
+      "id": "S10-07",
+      "name": "[S10-07] Maquettes : notifications, danger et relances",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Plusieurs propositions en Jour et Nuit : cloche et centre de notifications ; bandeau « Dangers en cours » ; panneau du danger sur la fiche (prendre en compte, mise en sécurité, vérifier, lever ou écarter) ; relance et trace « prestataire relancé hors application » ; attente échue et report ; consigne du site.",
+        "Pas d'écran d'activation du push (Q1-B).",
+        "Arrêt pour validation par le porteur avant tout code d'écran ; choix reporté dans REGLES."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae9094a6d4225ad8c43ff28",
+      "trelloShortLink": "FuboCqla"
+    },
+    {
+      "id": "S10-08",
+      "name": "[S10-08] Écrans web d'US-10 et préproduction",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-01",
+        "S10-02",
+        "S10-03",
+        "S10-04",
+        "S10-05",
+        "S10-07"
+      ],
+      "acceptanceCriteria": [
+        "Écrans conformes aux maquettes validées, Jour et Nuit, téléphone ; aucune violation de CSP.",
+        "Déploiement : migrations, alarme et déclencheur planifié.",
+        "deploy/verification/us10.mjs : dépôt avec danger → notification d'un R/D au chargement de page → prise en compte → mise en sécurité → vérification ; relance par un pasteur ; attente au réexamen du jour notifiée par le passage du planificateur.",
+        "Seuils horaires DEC-05 prouvés par les tests à horloge contrôlée ; non-régression us08, us09, us12."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae9094a6b19c72a01f4df81",
+      "trelloShortLink": "UyOKgwMV"
+    },
+    {
+      "id": "S10-09",
+      "name": "[S10-09] E-mail et SMS des dangers et escalades",
+      "type": "sous_carte",
+      "list": "Bloqué",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-01",
+        "S10-04"
+      ],
+      "acceptanceCriteria": [
+        "Fournisseurs derrière l'interface d'envoi ; domaine avec SPF, DKIM, DMARC ; états d'envoi et reprise ; un échec d'envoi n'annule jamais l'action métier ; contenu minimal (type, site, numéro de dossier ; jamais nom, contact ni description du déclarant).",
+        "Un danger part par e-mail et SMS aux destinataires de Q3-A en moins d'une minute (mesuré en préproduction), re-alertes comprises ; escalades à 100 % par e-mail.",
+        "Q11-A : heures calmes 21 h – 7 h (heure de Paris) pour l'e-mail hors danger, envoi reporté à 7 h ; le danger part toujours.",
+        "Numéros de mobile : base légale fixée avec le porteur avant collecte (DEC-07) ; information du membre à la saisie ; numéro facultatif saisi par le membre, utilisé seulement pour les SMS de danger, jamais affiché aux autres ; retrait à tout moment ; suppression à la révocation ; transmission au seul fournisseur de SMS (sous-traitance, localisation).",
+        "Texte de l'accusé public et test « aucune promesse d'alerte » revus quand l'envoi est réel.",
+        "Revue /code-review high + /security-review."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3). Bloquée : achat du domaine et des fournisseurs d'e-mail et de SMS par le porteur, collecte des numéros de mobile à cadrer ; liste précédente : À affiner.",
+      "trelloId": "6ae9094b06a038bb12b37ef4",
+      "trelloShortLink": "A39q7xmr"
+    },
+    {
+      "id": "S10-10",
+      "name": "[S10-10] Rappels du préventif",
+      "type": "sous_carte",
+      "list": "À affiner",
+      "labels": [],
+      "sprint": null,
+      "owner": null,
+      "parentStories": [
+        "US-10"
+      ],
+      "dependencies": [
+        "S10-02"
+      ],
+      "acceptanceCriteria": [
+        "Notification à l'ouverture de la fenêtre « À faire » et au passage « En retard » ; destinataires : personne affectée à l'échéance, sinon R/D du site (choix de l'agent, révisable).",
+        "Une notification par seuil et par échéance, sans doublon au rejeu ; isolation des organisations et des sites testée.",
+        "Revue /code-review high."
+      ],
+      "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
+      "trelloId": "6ae9094c9096894e0bfa3316",
+      "trelloShortLink": "VBcTPYsJ"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
