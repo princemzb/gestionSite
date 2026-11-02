@@ -529,7 +529,7 @@ form.formulaire-inventaire { padding: 0; }
 .cotes .calibration { stroke: var(--plan-cote); fill: var(--plan-cote); }
 .cotes .controle { stroke: var(--plan-controle); fill: var(--plan-controle); stroke-dasharray: 6 4; }
 .cotes .mesure { stroke: var(--succes); fill: var(--succes); }
-.cotes text { fill: #FFFFFF; paint-order: stroke; stroke: #000740; stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.cotes text { fill: var(--encre); stroke: var(--surface); stroke-width: 4px; stroke-dasharray: none; paint-order: stroke; vector-effect: non-scaling-stroke; }
 .editeur-pastille { position: absolute; left: 16px; top: 16px; right: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
 .editeur-pastille > * { pointer-events: auto; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--bordure-forte); font-size: 13px; color: var(--encre); }
 .bouton-pastille { font: inherit; font-size: 13px; cursor: pointer; min-height: 32px; }

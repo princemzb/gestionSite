@@ -242,7 +242,7 @@ function demarrer(racine) {
   function segment(de, a, classe, texte) {
     creer("line", { x1: de.x, y1: de.y, x2: a.x, y2: a.y, class: classe }, couches.cotes);
     if (texte) {
-      const etiquette = creer("text", { x: (de.x + a.x) / 2, y: (de.y + a.y) / 2, class: classe }, couches.cotes);
+      const etiquette = creer("text", { x: (de.x + a.x) / 2, y: (de.y + a.y) / 2 }, couches.cotes);
       etiquette.textContent = texte;
     }
   }
@@ -718,7 +718,7 @@ function demarrer(racine) {
       rendreGeometrie(couches.calque, etat.calque.contenu, false);
     }
 
-    couches.calque.hidden = !etat.calque.affiche;
+    couches.calque.toggleAttribute("hidden", !etat.calque.affiche); // élément SVG : pas de propriété hidden
     bouton.setAttribute("aria-pressed", String(etat.calque.affiche));
     bouton.textContent = `Calque ${d.niveauInferieur} : ${etat.calque.affiche ? "affiché" : "masqué"}`;
   }

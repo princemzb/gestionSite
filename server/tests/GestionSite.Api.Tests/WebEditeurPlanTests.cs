@@ -86,6 +86,20 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
     }
 
     [Fact]
+    public async Task WithoutBuildingOrInternalSiteThePageExplainsWhatToDo()
+    {
+        using var responsable = await ConnecterAsync("responsable@editeur-web.test");
+        var page = $"/organisations/{_organisation}/plans";
+
+        var sansBatiment = await PageAsync(responsable, page);
+        var autreOrganisation = await PageAsync(responsable, $"/organisations/{Guid.NewGuid()}/plans"); // aucun site d'une autre organisation
+
+        Assert.Contains("Décrivez d'abord le site dans l'inventaire", sansBatiment, StringComparison.Ordinal);
+        Assert.DoesNotContain("editeur.mjs", sansBatiment, StringComparison.Ordinal);
+        Assert.Contains("Aucun site ne vous est attribué", autreOrganisation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AReaderSeesTheWorkshopWithoutAnyEditingCommand()
     {
         var lieux = await LieuxAsync();
