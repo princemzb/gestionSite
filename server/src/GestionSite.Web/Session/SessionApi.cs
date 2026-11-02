@@ -36,10 +36,11 @@ internal sealed class RefusApiException(HttpStatusCode statut, string? code, str
 
 /// <summary>
 /// Appels à l'API pour l'utilisateur connecté. Jetons rangés dans les propriétés chiffrées du cookie ;
-/// le jeton d'accès (15 min) est renouvelé à l'approche de son expiration ou sur refus 401.
+/// le jeton d'accès (15 min) est renouvelé à l'approche de son expiration ou sur refus 401. Une page peut lancer
+/// plusieurs lectures en parallèle : le renouvellement et l'écriture du cookie restent un à la fois.
 /// </summary>
 internal sealed class SessionApi(
-    IHttpClientFactory clients, IHttpContextAccessor accesseur, TimeProvider horloge, RenouvellementsPartages renouvellements)
+    IHttpClientFactory clients, IHttpContextAccessor accesseur, TimeProvider horloge, RenouvellementsPartages renouvellements) : IDisposable
 {
     private const string Acces = "acces";
     private const string Renouvellement = "renouvellement";
@@ -48,6 +49,9 @@ internal sealed class SessionApi(
     // Jetons de la requête en cours : après un renouvellement, les appels suivants de la même page doivent
     // utiliser les nouveaux, pas ceux du cookie reçu (déjà remplacés, donc pris pour un vol par l'API).
     private JetonsApi? _jetonsCourants;
+
+    // Lectures parallèles d'une même page : le contexte HTTP (cookie de session) n'est jamais modifié en même temps.
+    private readonly SemaphoreSlim _verrouJetons = new(1, 1);
 
     private HttpContext Contexte => accesseur.HttpContext ?? throw new InvalidOperationException("Hors requête HTTP.");
 
@@ -222,12 +226,12 @@ internal sealed class SessionApi(
 
     private async Task<HttpResponseMessage> EnvoyerOuEchouerAsync(HttpMethod methode, string chemin, object? corps, CancellationToken annulation)
     {
-        var acces = await JetonValideAsync(forcer: false, annulation).ConfigureAwait(false);
+        var acces = await JetonValideAsync(refuse: null, annulation).ConfigureAwait(false);
         var reponse = await EnvoyerAvecAsync(methode, chemin, corps, acces, annulation).ConfigureAwait(false);
         if (reponse.StatusCode == HttpStatusCode.Unauthorized)
         {
             reponse.Dispose();
-            acces = await JetonValideAsync(forcer: true, annulation).ConfigureAwait(false);
+            acces = await JetonValideAsync(refuse: acces, annulation).ConfigureAwait(false);
             reponse = await EnvoyerAvecAsync(methode, chemin, corps, acces, annulation).ConfigureAwait(false);
         }
 
@@ -277,8 +281,29 @@ internal sealed class SessionApi(
         }).ConfigureAwait(false);
     }
 
-    private async Task<string> JetonValideAsync(bool forcer, CancellationToken annulation)
+    /// <summary>Jeton d'accès valide ; <paramref name="refuse"/> : jeton refusé (401) par l'API, à remplacer.</summary>
+    private async Task<string> JetonValideAsync(string? refuse, CancellationToken annulation)
     {
+        await _verrouJetons.WaitAsync(annulation).ConfigureAwait(false);
+        try
+        {
+            return await JetonValideSousVerrouAsync(refuse, annulation).ConfigureAwait(false);
+        }
+        finally
+        {
+            _verrouJetons.Release();
+        }
+    }
+
+    private async Task<string> JetonValideSousVerrouAsync(string? refuse, CancellationToken annulation)
+    {
+        // Jeton refusé déjà remplacé par une lecture parallèle : pas de second renouvellement.
+        if (refuse is not null && _jetonsCourants is { } courants && courants.JetonAcces != refuse)
+        {
+            return courants.JetonAcces;
+        }
+
+        var forcer = refuse is not null;
         var resultat = await Contexte.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
         var proprietes = resultat.Properties ?? throw new SessionExpireeException();
         var acces = _jetonsCourants?.JetonAcces ?? proprietes.GetTokenValue(Acces);
@@ -312,6 +337,8 @@ internal sealed class SessionApi(
         await Contexte.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, resultat.Principal!, Proprietes(jetons)).ConfigureAwait(false);
         return jetons.JetonAcces;
     }
+
+    public void Dispose() => _verrouJetons.Dispose();
 
     private async Task OuvrirSessionAsync(Guid compteId, string email, JetonsApi jetons)
     {

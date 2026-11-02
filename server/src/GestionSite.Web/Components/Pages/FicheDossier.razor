@@ -44,7 +44,7 @@ else
                 }
                 else if (d.Statut == "EnAttente")
                 {
-                    <span>Délai suspendu</span><strong>@(d.ReexamenLe is { } r ? $"réexamen le {LibellesDossiers.Date(r)}" : "en attente")</strong>
+                    <span>Délai suspendu</span><strong>@(d.ReexamenLe is { } r ? $"réexamen le {Perimetre.Date(r)}" : "en attente")</strong>
                 }
                 else
                 {
@@ -204,7 +204,7 @@ else
                         <span class="vide">@(i.Prestataire is { } p ? $"{p} (prestataire) · suivi par {i.Referent}" : i.Intervenant)</span>
                         @if (i.Statut == "EnAttente")
                         {
-                            <span class="vide">@LibellesDossiers.Libelle(LibellesDossiers.MotifsAttente, i.MotifAttente)@(i.ReexamenLe is { } re ? $" · réexamen le {LibellesDossiers.Date(re)}" : "")@(i.CommentaireAttente is { } ca ? $" · {ca}" : "")</span>
+                            <span class="vide">@LibellesDossiers.Libelle(LibellesDossiers.MotifsAttente, i.MotifAttente)@(i.ReexamenLe is { } re ? $" · réexamen le {Perimetre.Date(re)}" : "")@(i.CommentaireAttente is { } ca ? $" · {ca}" : "")</span>
                         }
                         @if (i.Actions is { } actions)
                         {

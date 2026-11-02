@@ -129,7 +129,7 @@ else
                     <div>
                         <strong>@p.Libelle</strong>
                         <span class="note">@LibellesPreventif.Nature(p.Nature) · @LibellesPreventif.Periode(p.Periode) · @LibellesPreventif.Intervenant(p.Intervenant) · @LibellesPreventif.Base(p.Base), à confirmer</span>
-                        <span class="note">@(p.Cible.Type == "Batiment" ? "Bâtiment" : "Composant") : @p.Cible.Libelle · première échéance proposée le @LibellesPreventif.Date(p.Echeance)</span>
+                        <span class="note">@(p.Cible.Type == "Batiment" ? "Bâtiment" : "Composant") : @p.Cible.Libelle · première échéance proposée le @Perimetre.Date(p.Echeance)</span>
                         <details><summary>Référence</summary><p class="note">@p.Reference</p></details>
                         @if (p.Ecart is { } e)
                         {

@@ -41,7 +41,7 @@ else
             @foreach (var c in Liste)
             {
                 <li class="ligne-controle">
-                    <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={c.Id}")"><strong>@LibellesPreventif.Date(c.RealiseLe)</strong> · @c.Plan</a>
+                    <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={c.Id}")"><strong>@Perimetre.Date(c.RealiseLe)</strong> · @c.Plan</a>
                     <span class="note">@LibellesPreventif.Nature(c.Nature) · @LibellesPreventif.Resultat(c.Resultat)@(c.Defauts > 0 ? $" · {c.Defauts} écart{(c.Defauts > 1 ? "s" : "")}" : "")@(c.Note is { } note ? $" · note {Libelles.Note(note)}" : "")@(c.Rapport ? " · rapport PDF" : "")</span>
                 </li>
             }

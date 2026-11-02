@@ -75,6 +75,8 @@ internal static class PreventifEndpoints
     {
         preventif.MapGet("/mine", async (Guid orgId, Guid siteId, ServicePlans service, CancellationToken ct) =>
             Results.Ok(await service.MesControlesAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        preventif.MapGet("/assignees", async (Guid orgId, Guid siteId, ServiceOccurrences service, CancellationToken ct) =>
+            Results.Ok(await service.IntervenantsAsync(orgId, siteId, ct).ConfigureAwait(false)));
         preventif.MapPost("/plans/{id:guid}/assign", async (
             Guid orgId, Guid siteId, Guid id, DemandeAffectationControle demande, ServiceOccurrences service, CancellationToken ct) =>
         {

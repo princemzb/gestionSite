@@ -16,6 +16,9 @@ internal sealed class SaisieControle : SaisieGrille
 
     internal const int ObservationsMax = 50;
 
+    /// <summary>Corps d'un envoi de l'écran de contrôle : 3 photos de 10 Mo, un rapport PDF de 10 Mo et le reste du formulaire.</summary>
+    internal const long CorpsMaximal = 44 * 1024 * 1024;
+
     public List<ReleveSaisi>? Releves { get; set; } = [];
 
     public List<ObservationSaisie>? Observations { get; set; } = [];

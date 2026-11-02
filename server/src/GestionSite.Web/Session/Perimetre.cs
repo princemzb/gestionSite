@@ -28,6 +28,9 @@ internal static class Perimetre
     internal static DateOnly Jour(DateTimeOffset maintenant) =>
         DateOnly.FromDateTime(Paris is null ? maintenant.UtcDateTime : TimeZoneInfo.ConvertTime(maintenant, Paris).DateTime);
 
+    /// <summary>Jour calendaire « dd/MM/yyyy » (échéances, réexamens, dates de réalisation).</summary>
+    internal static string Date(DateOnly date) => date.ToString("dd/MM/yyyy", Francais);
+
     /// <summary>Date à l'heure de Paris (« dd/MM/yyyy » ou avec l'heure), ou en UTC signalé comme tel.</summary>
     internal static string Date(DateTimeOffset date, bool avecHeure = false)
     {
