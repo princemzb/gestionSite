@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.Versioning;
 using System.Text;
 using GestionSite.Modules.Patrimoine.PlansBatiment;
 using GestionSite.Modules.Patrimoine.RenduPdf;
@@ -181,8 +182,45 @@ public sealed class RenduPdfTests
         Assert.True(gros.Length > 64 * 1024);
     }
 
-    private static ProcessusRenduPdf Processus(int delai = 20, long memoire = 1024L * 1024 * 1024) =>
-        new(Options.Create(new FondsPlanOptions { RenduPdfDelaiSecondes = delai, RenduPdfMemoireOctets = memoire }), NullLogger<ProcessusRenduPdf>.Instance);
+    [Fact]
+    public async Task TheConfiguredLauncherReceivesOnlyTheRenderingArgumentsAndRunsTheRendering()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // lanceur isolé : image Linux du conteneur seulement (SOC-05)
+        }
+
+        // Lanceur d'essai : refuse tout autre appel que les 4 arguments numériques, puis lance le rendu directement.
+        var commande = string.Join(' ', ProcessusRenduPdf.PreparerLancementDirect().Select(a => $"'{a}'"));
+        using var lanceur = new LanceurEssai($"[ $# -eq 4 ] || exit 64\nexec {commande} \"$@\"");
+
+        var rendue = await Processus(lanceur: lanceur.Chemin).RendreAsync(TroisPages, 3, 1_000, 1_000_000, CancellationToken.None);
+
+        Assert.Equal((3, 300d, 300d), (rendue.Pages, rendue.LargeurPt, rendue.HauteurPt));
+        using var image = new MagickImage(rendue.Png);
+        Assert.Equal((1_000u, 1_000u), (image.Width, image.Height));
+    }
+
+    [Fact]
+    public async Task ALauncherRefusalBecomesAnUnreadableDocument()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var lanceur = new LanceurEssai("echo 'lanceur-rendu-pdf : appelant (refus)' >&2\nexit 126");
+
+        var refus = await Assert.ThrowsAsync<PdfRefuseException>(
+            () => Processus(lanceur: lanceur.Chemin).RendreAsync(TroisPages, 1, Cote, Surface, CancellationToken.None));
+
+        Assert.Equal(("pdf_illisible", "fichier"), (refus.Code, refus.Champ));
+    }
+
+    private static ProcessusRenduPdf Processus(int delai = 20, long memoire = 1024L * 1024 * 1024, string? lanceur = null) =>
+        new(
+            Options.Create(new FondsPlanOptions { RenduPdfDelaiSecondes = delai, RenduPdfMemoireOctets = memoire, RenduPdfLanceur = lanceur }),
+            NullLogger<ProcessusRenduPdf>.Instance);
 
     // Processus de rendu encore en vie, lancés par ce processus de test.
     private static List<Process> Enfants() =>
@@ -218,5 +256,23 @@ public sealed class RenduPdfTests
     {
         using var pixels = image.GetPixels();
         return pixels.GetPixel(x, y).ToColor()!.ToHexString();
+    }
+
+    // Lanceur d'essai : script shell exécutable dans un dossier temporaire, supprimé avec lui.
+    private sealed class LanceurEssai : IDisposable
+    {
+        private readonly string _dossier = Directory.CreateTempSubdirectory("lanceur-rendu-pdf-").FullName;
+
+        [UnsupportedOSPlatform("windows")]
+        public LanceurEssai(string corps)
+        {
+            Chemin = Path.Combine(_dossier, "lanceur");
+            File.WriteAllText(Chemin, $"#!/bin/sh\n{corps}\n");
+            File.SetUnixFileMode(Chemin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        public string Chemin { get; }
+
+        public void Dispose() => Directory.Delete(_dossier, recursive: true);
     }
 }

@@ -38,6 +38,16 @@ jobs:
             server/artifacts/coverage-js
           if-no-files-found: ignore
 
+  image:
+    name: Image du conteneur (isolation du rendu PDF)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # Image construite en amd64 natif (plateforme de Cloudflare) : processus de rendu PDF isolé de l'API (SOC-05).
+      - name: Construction de l'image et vérification de l'isolation du rendu PDF
+        run: server/eng/verify-image.sh linux/amd64
+
   tooling:
     name: Outillage Trello (tests)
     runs-on: ubuntu-latest
@@ -129,19 +139,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
-      - name: Analyse et porte qualité Sonar (dépôt entier, C#, JavaScript et scripts)
+      - name: Analyse et porte qualité Sonar (dépôt entier, C#, JavaScript, scripts et lanceur C)
         run: |
+          # Lanceur setuid du rendu PDF (SOC-05) : commande de compilation de server/Dockerfile, pour l'analyse C.
+          python3 - "$RUNNER_TEMP/compile_commands.json" <<'PY'
+          import json, os, sys
+          source = "server/deploy/lanceur-rendu-pdf.c"
+          arguments = ["gcc", "-std=gnu17", "-O2", "-Wall", "-Wextra", "-DUID_API=1654", "-DUID_RENDU=1655", "-DGID_RENDU=1655",
+                       '-DDOTNET="/usr/share/dotnet/dotnet"', '-DPROGRAMME="/app/rendu-pdf/GestionSite.Modules.Patrimoine.RenduPdf.dll"',
+                       "-c", source]
+          json.dump([{"directory": os.environ["GITHUB_WORKSPACE"], "file": source, "arguments": arguments}], open(sys.argv[1], "w"))
+          PY
           dotnet tool restore
           dotnet sonarscanner begin \
             /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="server/tests/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.mjs,server/src/GestionSite.Web/wwwroot/lib/**" \
+            /d:sonar.coverage.exclusions="server/tests/**,server/deploy/**,server/eng/isolation-rendu-pdf/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.mjs,server/src/GestionSite.Web/wwwroot/lib/**" \
             /d:sonar.cpd.exclusions="server/**/Migrations/**" \
             /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
-            /d:sonar.javascript.lcov.reportPaths="$GITHUB_WORKSPACE/server/artifacts/coverage-js/lcov.info"
+            /d:sonar.javascript.lcov.reportPaths="$GITHUB_WORKSPACE/server/artifacts/coverage-js/lcov.info" \
+            /d:sonar.cfamily.compile-commands="$RUNNER_TEMP/compile_commands.json"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
           coverage xml -o coverage-python.xml
