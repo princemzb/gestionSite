@@ -1,0 +1,324 @@
+@page "/organisations/{OrganisationId:guid}/plans"
+@layout AdminLayout
+@attribute [Authorize]
+@using System.Text.Json
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antifalsification
+@* Éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : maquettes validées « Atelier » (A, plan enregistré) et parcours
+   guidé (C, nouveau plan). La page rend la structure et passe ses paramètres en attributs data-* ; le module
+   plans/editeur.mjs charge le plan en JSON et gère la vue, la calibration, l'historique et le brouillon local. *@
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="plans" />
+<main class="admin-contenu editeur-page">
+<PageTitle>Plans · gestionSite</PageTitle>
+
+@if (Message is not null)
+{
+    <div class="entete"><div><h1>Plans</h1></div></div>
+    <p role="alert" class="alerte danger">@Message</p>
+}
+else if (SiteCourant is null)
+{
+    <div class="entete"><div><h1>Plans</h1><p>Aucun site ne vous est attribué dans cette organisation.</p></div></div>
+}
+else if (BatimentCourant is null)
+{
+    <div class="entete"><div><h1>Plans · @SiteCourant.Nom</h1><p>Décrivez d'abord le site dans l'inventaire : bâtiments, niveaux et zones.</p></div></div>
+    <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/inventaire?site={SiteCourant.Id}")">Ouvrir l'inventaire</a>
+}
+else
+{
+    <div class="entete">
+        <div>
+            <h1>@(Mode == "guide" ? "Nouveau plan" : "Plan") · @BatimentCourant.Nom · @NomNiveau</h1>
+            <p data-role="resume">@(Mode == "guide" ? "Quatre étapes ; chaque étape s'enregistre comme une version, vous pouvez vous arrêter et reprendre." : "Chargement du plan…")</p>
+        </div>
+        <div class="actions">
+            @if (Sites.Count > 1)
+            {
+                <nav class="onglets" aria-label="Site">
+                    @foreach (var site in Sites)
+                    {
+                        <a href="@($"/organisations/{OrganisationId}/plans?site={site.Id}")" aria-current="@(site.Id == SiteCourant.Id ? "page" : null)">@site.Nom</a>
+                    }
+                </nav>
+            }
+            @if (Structure.Count > 1)
+            {
+                <nav class="onglets" aria-label="Bâtiment">
+                    @foreach (var batiment in Structure)
+                    {
+                        <a href="@Url(batiment.Id, null)" aria-current="@(batiment.Id == BatimentCourant.Id ? "page" : null)">@batiment.Nom</a>
+                    }
+                </nav>
+            }
+            @if (Niveaux.Count > 0)
+            {
+                <nav class="onglets" aria-label="Niveau">
+                    @foreach (var niveau in Niveaux)
+                    {
+                        <a href="@Url(BatimentCourant.Id, niveau.Id)" aria-current="@(niveau.Id == NiveauCourant?.Id ? "page" : null)">@niveau.Nom</a>
+                    }
+                </nav>
+            }
+            @if (Modifiable && Mode == "atelier")
+            {
+                <button type="button" class="bouton-principal" data-action="enregistrer" disabled>Enregistrer</button>
+            }
+        </div>
+    </div>
+
+    @if (Mode == "absent")
+    {
+        <p class="alerte avertissement">Aucun plan de bâtiment pour ce niveau. Un responsable, un délégué ou un membre qui a reçu le droit « modifier les plans du bâtiment » peut le créer.</p>
+    }
+    else
+    {
+        <p class="alerte" data-role="message" role="status" aria-live="polite" hidden></p>
+        <div class="alerte avertissement editeur-brouillon" data-role="brouillon" hidden>
+            <p data-role="brouillon-texte"></p>
+            <div class="actions">
+                <button type="button" class="bouton-secondaire" data-action="brouillon-abandonner">Abandonner le brouillon</button>
+                <button type="button" class="bouton-secondaire" data-action="brouillon-reprendre" hidden>Reprendre mon brouillon</button>
+                <button type="button" class="bouton-principal" data-action="brouillon-confirmer" hidden>Confirmer</button>
+            </div>
+        </div>
+
+        @if (Mode == "guide")
+        {
+            <ol class="etapes etapes-plan" data-role="etapes" aria-label="Étapes du nouveau plan">
+                <li data-etape="fond" aria-current="step">1 · Fond du plan</li>
+                <li data-etape="calibration">2 · Calibrer l'échelle</li>
+                <li data-etape="pieces">3 · Tracer les pièces</li>
+                <li data-etape="composants">4 · Placer les composants</li>
+            </ol>
+        }
+
+        <div class="editeur" id="editeur-plan" data-mode="@Mode" data-organisation="@OrganisationId" data-site="@SiteCourant.Id"
+             data-batiment="@BatimentCourant.Id" data-niveau="@NiveauCourant?.Id" data-plan="@PlanCourant?.Id" data-compte="@CompteId"
+             data-modifiable="@(Modifiable ? "true" : "false")" data-jeton="@Jeton" data-niveau-nom="@NomNiveau"
+             data-plan-inferieur="@PlanInferieur?.Id" data-niveau-inferieur="@NiveauInferieur?.Nom" data-zones="@ZonesJson">
+            @if (Mode == "atelier")
+            {
+                <div class="carte editeur-outils" role="toolbar" aria-label="Outils">
+                    <button type="button" class="outil" data-outil="selection" aria-pressed="true" title="Sélection et déplacement de la vue"><span aria-hidden="true">↖</span><span class="visuellement-masque">Sélection</span></button>
+                    <button type="button" class="outil" data-outil="cote" aria-pressed="false" title="Cote : mesurer une longueur"><span aria-hidden="true">↔</span><span class="visuellement-masque">Cote</span></button>
+                    <span class="outils-espace"></span>
+                    <button type="button" class="outil" data-action="annuler" title="Annuler" disabled><span aria-hidden="true">↶</span><span class="visuellement-masque">Annuler</span></button>
+                    <button type="button" class="outil" data-action="retablir" title="Rétablir" disabled><span aria-hidden="true">↷</span><span class="visuellement-masque">Rétablir</span></button>
+                </div>
+            }
+            <section class="carte editeur-plan" aria-label="Plan">
+                <svg class="editeur-svg" data-role="svg" tabindex="0" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"
+                     aria-label="@($"Plan du niveau {NomNiveau}. Flèches : déplacer la vue ; plus et moins : zoomer ; zéro : tout afficher.")">
+                    <defs><pattern id="grille-metrique" data-role="motif" patternUnits="userSpaceOnUse" width="1" height="1"><path data-role="motif-trait" d="M 1 0 L 0 0 0 1" class="grille-trait" /></pattern></defs>
+                    <rect data-role="grille" class="grille" x="-5000" y="-5000" width="10000" height="10000" fill="url(#grille-metrique)" />
+                    <g data-role="fond"></g>
+                    <g data-role="calque" class="calque-inferieur" hidden></g>
+                    <g data-role="pieces" class="pieces"></g>
+                    <g data-role="cotes" class="cotes"></g>
+                </svg>
+                <div class="editeur-pastille">
+                    <span data-role="fond-texte">Plan sur grille métrique</span>
+                    @if (PlanInferieur is not null)
+                    {
+                        <button type="button" class="bouton-pastille" data-action="calque" aria-pressed="false">Calque @(NiveauInferieur!.Nom) : masqué</button>
+                    }
+                </div>
+                <div class="editeur-commandes" role="group" aria-label="Vue">
+                    @if (Mode == "guide")
+                    {
+                        <button type="button" class="bouton-vue" data-action="annuler" disabled>↶ Annuler</button>
+                    }
+                    <button type="button" class="bouton-vue" data-action="zoom-avant" aria-label="Zoom avant">+</button>
+                    <button type="button" class="bouton-vue" data-action="zoom-arriere" aria-label="Zoom arrière">−</button>
+                    <button type="button" class="bouton-vue" data-action="ajuster">Tout afficher</button>
+                    <button type="button" class="bouton-vue" data-action="gauche" aria-label="Déplacer la vue vers la gauche">←</button>
+                    <button type="button" class="bouton-vue" data-action="haut" aria-label="Déplacer la vue vers le haut">↑</button>
+                    <button type="button" class="bouton-vue" data-action="bas" aria-label="Déplacer la vue vers le bas">↓</button>
+                    <button type="button" class="bouton-vue" data-action="droite" aria-label="Déplacer la vue vers la droite">→</button>
+                </div>
+                <span class="editeur-echelle" data-role="barre-echelle" aria-hidden="true"></span>
+            </section>
+
+            <aside class="carte editeur-panneau" aria-label="Propriétés">
+                <div data-panneau="proprietes" hidden="@(Mode == "guide")">
+                    <h2>Plan du niveau</h2>
+                    <dl class="editeur-proprietes">
+                        <dt>Fond</dt><dd data-role="prop-fond">Aucun (grille métrique)</dd>
+                        <dt>Échelle</dt><dd data-role="prop-echelle">—</dd>
+                        <dt>Cote de contrôle</dt><dd data-role="prop-controle">—</dd>
+                    </dl>
+                    <p class="note" data-role="mesure" hidden></p>
+                    @if (Modifiable)
+                    {
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="changer-fond">Changer de fond</button>
+                            <button type="button" class="bouton-secondaire" data-action="recalibrer" hidden>Recalibrer</button>
+                        </div>
+                    }
+                    <p class="note">Pièces, ouvertures, escaliers et composants : bientôt dans l'éditeur.</p>
+                </div>
+
+                @if (Modifiable)
+                {
+                    <div data-panneau="fond" hidden="@(Mode != "guide")">
+                        <h2>Fond du plan</h2>
+                        <p class="note">Importez le plan papier scanné, une photo ou un PDF (une page), ou commencez sur une grille métrique. Masquez d'abord les noms du cartouche (personnes, entreprises).</p>
+                        <fieldset class="editeur-fonds" data-role="fonds" hidden>
+                            <legend>Fonds déjà importés</legend>
+                            <div data-role="fonds-liste"></div>
+                        </fieldset>
+                        <form class="editeur-import" data-role="import">
+                            <label class="champ">Fichier <span class="aide">(JPEG, PNG, HEIC ou PDF, 25 Mo au plus)</span>
+                                <input type="file" name="fichier" accept=".jpg,.jpeg,.png,.heic,.pdf,image/jpeg,image/png,image/heic,application/pdf" required />
+                            </label>
+                            <div class="editeur-champs-pdf">
+                                <label class="champ">Page du PDF <span class="aide">(1 par défaut)</span>
+                                    <input type="number" name="page" min="1" step="1" inputmode="numeric" />
+                                </label>
+                                <label class="champ">Échelle 1:N du PDF <span class="aide">(facultative)</span>
+                                    <input type="number" name="echelle" min="1" max="10000" step="1" inputmode="numeric" placeholder="100" />
+                                </label>
+                            </div>
+                            <button type="submit" class="bouton-secondaire">Importer ce fond</button>
+                        </form>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="grille">Commencer sur une grille métrique</button>
+                            <button type="button" class="bouton-secondaire" data-action="fermer-panneau" hidden="@(Mode == "guide")">Retour</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="calibration" hidden>
+                        <h2>Calibrer l'échelle</h2>
+                        <p class="note">Touchez les deux extrémités d'une longueur connue, idéalement plus de 10 m (longueur de la nef), puis saisissez la distance réelle. Zoomez pour pointer avec précision.</p>
+                        <div class="onglets editeur-cibles" role="group" aria-label="Cote à poser">
+                            <button type="button" data-cible="calibration" aria-pressed="true">Cote de calibration</button>
+                            <button type="button" data-cible="controle" aria-pressed="false">Cote de contrôle</button>
+                        </div>
+                        <p class="note" data-role="consigne"></p>
+                        <label class="champ">Distance réelle de calibration
+                            <input type="text" inputmode="decimal" data-champ="calibration" autocomplete="off" placeholder="14,33" />
+                            <span class="aide">mètres</span>
+                        </label>
+                        <label class="champ">Longueur de contrôle mesurée sur place <span class="aide">(conseillée)</span>
+                            <input type="text" inputmode="decimal" data-champ="controle" autocomplete="off" placeholder="8,90" />
+                            <span class="aide">mètres</span>
+                        </label>
+                        <p class="alerte" data-role="resultat-controle" hidden></p>
+                        <p class="note">Au-delà de 2 % d'écart, un avertissement s'affiche ; l'échelle déclarée d'un PDF est proposée par défaut, à confirmer par la cote mesurée.</p>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="retour-fond">Retour</button>
+                            <button type="button" class="bouton-principal" data-action="valider-calibration">Valider l'échelle</button>
+                        </div>
+                    </div>
+                }
+            </aside>
+        </div>
+        <script type="module" src="plans/editeur.mjs"></script>
+    }
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")] private Guid? SiteDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "batiment")] private Guid? BatimentDemande { get; set; }
+
+    [SupplyParameterFromQuery(Name = "niveau")] private Guid? NiveauDemande { get; set; }
+
+    [CascadingParameter] private HttpContext? Contexte { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    private SiteApi? SiteCourant { get; set; }
+
+    private IReadOnlyList<BatimentApi> Structure { get; set; } = [];
+
+    private BatimentApi? BatimentCourant { get; set; }
+
+    // Niveaux du bâtiment, du plus bas au plus haut (sélecteur de la maquette A).
+    private IReadOnlyList<NiveauApi> Niveaux { get; set; } = [];
+
+    private NiveauApi? NiveauCourant { get; set; }
+
+    private NiveauApi? NiveauInferieur { get; set; }
+
+    private PlanBatimentApi? PlanCourant { get; set; }
+
+    private PlanBatimentApi? PlanInferieur { get; set; }
+
+    private bool Modifiable { get; set; }
+
+    private Guid CompteId { get; set; }
+
+    private string? Jeton { get; set; }
+
+    private string ZonesJson { get; set; } = "{}";
+
+    private string? Message { get; set; }
+
+    // Plan masse d'un bâtiment sans niveau (RP-21.1).
+    private string NomNiveau => NiveauCourant?.Nom ?? "Plan masse";
+
+    // Parcours guidé (C) pour un plan sans version, si l'appelant peut l'enregistrer ; Atelier (A) dès la première version.
+    private string Mode => PlanCourant is { Version: > 0 } ? "atelier" : Modifiable ? "guide" : "absent";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            CompteId = moi.CompteId;
+            Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            RolesAppelant = Organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? [];
+            Sites = Perimetre.SitesInternes(Organisation);
+            SiteCourant = Sites.FirstOrDefault(s => s.Id == SiteDemande) ?? Sites.FirstOrDefault();
+            if (SiteCourant is not { } site)
+            {
+                return;
+            }
+
+            var api = $"/organizations/{OrganisationId}/sites/{site.Id}/inventory";
+            Structure = await Session.LireAsync<List<BatimentApi>>($"{api}/structure", CancellationToken.None);
+            BatimentCourant = Structure.FirstOrDefault(b => b.Id == BatimentDemande) ?? Structure.FirstOrDefault();
+            if (BatimentCourant is not { } batiment)
+            {
+                return;
+            }
+
+            Niveaux = [.. batiment.Niveaux.OrderBy(n => n.Ordre)];
+            NiveauCourant = Niveaux.FirstOrDefault(n => n.Id == NiveauDemande) ?? Niveaux.FirstOrDefault(n => n.Ordre == 0) ?? Niveaux.FirstOrDefault();
+            NiveauInferieur = NiveauCourant is { } courant ? Niveaux.LastOrDefault(n => n.Ordre < courant.Ordre) : null;
+            var plans = await Session.LireAsync<List<PlanBatimentApi>>($"{api}/building-plans", CancellationToken.None);
+            PlanCourant = plans.FirstOrDefault(p => p.BatimentId == batiment.Id && p.NiveauId == NiveauCourant?.Id);
+            PlanInferieur = NiveauInferieur is { } inferieur ? plans.FirstOrDefault(p => p.NiveauId == inferieur.Id && p.Version > 0) : null;
+            Modifiable = (await Session.LireAsync<DroitsPlansApi>($"{api}/building-plans/rights", CancellationToken.None)).ModifierPlans;
+            // Noms des zones du bâtiment, pour les étiquettes des pièces (insérés par textContent dans l'éditeur).
+            ZonesJson = JsonSerializer.Serialize(batiment.Zones.ToDictionary(z => z.Id, z => z.Nom));
+            Jeton = Contexte is null ? null : Antifalsification.GetAndStoreTokens(Contexte).RequestToken;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            Message = "Vous ne consultez pas les plans de ce site.";
+        }
+        catch (RefusApiException)
+        {
+            Message = "Service momentanément indisponible : réessayez dans un instant.";
+        }
+    }
+
+    private string Url(Guid batimentId, Guid? niveauId) =>
+        $"/organisations/{OrganisationId}/plans?site={SiteCourant!.Id}&batiment={batimentId}{(niveauId is { } n ? $"&niveau={n}" : "")}";
+}

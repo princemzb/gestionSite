@@ -101,10 +101,11 @@ internal static class Programme
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.SlidingExpiration = false;
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement
-            // Import appelé par l'éditeur (fetch, réponse JSON) : sans session, 401 plutôt que la page de connexion.
+            // Appels de l'éditeur de plans (fetch, réponse JSON : import, lecture, enregistrement) : sans session, 401 plutôt
+            // que la page de connexion.
             options.Events.OnRedirectToLogin = contexte =>
             {
-                if (FondsPlanEndpoints.EstImport(contexte.Request))
+                if (EditeurPlanEndpoints.EstAppelEditeur(contexte.Request))
                 {
                     contexte.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 }
@@ -182,6 +183,7 @@ internal static class Programme
         app.MapActionsDossier();
         app.MapPhotosEvaluation();
         app.MapFondsPlan();
+        app.MapEditeurPlan();
         app.MapActionsPreventif();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
