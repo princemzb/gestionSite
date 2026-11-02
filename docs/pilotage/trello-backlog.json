@@ -3033,6 +3033,29 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Point reporté de la revue PR #93.",
       "trelloId": "6ae8fb7578a49af73a9b06d0",
       "trelloShortLink": "zRqWmGVw"
+    },
+    {
+      "id": "DET-12",
+      "name": "[DET-12] Dette technique des écrans du préventif (points reportés S12-06, S12-07)",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-12"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Lectures indépendantes des écrans du préventif en parallèle (calendrier, fiche du plan, étapes du contrôle) ; nombre de plans proposés obtenu sans calculer toute la liste si un comptage simple suffit.",
+        "Liste des intervenants affectables propre au préventif (droit « Exécuter un contrôle ») au lieu de /cases/assignees.",
+        "Limite de taille du corps de l'écran de contrôle portée par un attribut ou un point d'accès dédié plutôt que par un test de chemin dans Programme.cs ; formatage des dates commun (LibellesPreventif / LibellesDossiers).",
+        "Test de bout en bout d'une inspection de zone (plan créé par l'API).",
+        "Aucun changement visuel ; non-régression us12.mjs en préproduction."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Choix du porteur du 02/11.",
+      "trelloId": "6ae9012d5331115cd6750200",
+      "trelloShortLink": "h35kQwg9"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
