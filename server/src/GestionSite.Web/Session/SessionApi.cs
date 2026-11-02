@@ -53,6 +53,9 @@ internal sealed class SessionApi(
     // Lectures parallèles d'une même page : le contexte HTTP (cookie de session) n'est jamais modifié en même temps.
     private readonly SemaphoreSlim _verrouJetons = new(1, 1);
 
+    // Renouvellement refusé pendant cette requête : session fermée, les lectures en attente ne le retentent pas.
+    private bool _sessionFermee;
+
     private HttpContext Contexte => accesseur.HttpContext ?? throw new InvalidOperationException("Hors requête HTTP.");
 
     private HttpClient Client => clients.CreateClient(Programme.ClientApi);
@@ -297,6 +300,11 @@ internal sealed class SessionApi(
 
     private async Task<string> JetonValideSousVerrouAsync(string? refuse, CancellationToken annulation)
     {
+        if (_sessionFermee)
+        {
+            throw new SessionExpireeException();
+        }
+
         // Jeton refusé déjà remplacé par une lecture parallèle : pas de second renouvellement.
         if (refuse is not null && _jetonsCourants is { } courants && courants.JetonAcces != refuse)
         {
@@ -329,6 +337,7 @@ internal sealed class SessionApi(
         }).ConfigureAwait(false);
         if (jetons is null)
         {
+            _sessionFermee = true;
             await Contexte.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
             throw new SessionExpireeException();
         }
@@ -338,6 +347,7 @@ internal sealed class SessionApi(
         return jetons.JetonAcces;
     }
 
+    // Exigé par l'analyse (CA1001) ; toutes les lectures d'une page sont attendues avant la fin de la requête.
     public void Dispose() => _verrouJetons.Dispose();
 
     private async Task OuvrirSessionAsync(Guid compteId, string email, JetonsApi jetons)

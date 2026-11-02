@@ -253,12 +253,13 @@ else
         var fiche = Session.LireAsync<FichePlanApi>($"{Base}/plans/{PlanDemande}", CancellationToken.None);
         var controles = Session.LireAsync<List<ControleResumeApi>>($"{Base}/controls?planId={PlanDemande}", CancellationToken.None);
         // Intervenants affectables : droit « Exécuter un contrôle », lus seulement par qui planifie.
-        var membres = Planificateur ? Session.LireAsync<List<IntervenantApi>>($"{Base}/assignees", CancellationToken.None) : null;
-        Task[] lectures = membres is null ? [fiche, controles] : [fiche, controles, membres];
-        await Task.WhenAll(lectures);
+        var membres = Planificateur
+            ? Session.LireAsync<List<IntervenantApi>>($"{Base}/assignees", CancellationToken.None)
+            : Task.FromResult<List<IntervenantApi>>([]);
+        await Task.WhenAll(fiche, controles, membres);
         Fiche = await fiche;
         Controles = await controles;
-        Membres = membres is null ? [] : await membres;
+        Membres = await membres;
     }
 
     // Après un refus : la fiche est relue ; si la relecture échoue aussi, la fiche affichée reste, avec le message du refus.

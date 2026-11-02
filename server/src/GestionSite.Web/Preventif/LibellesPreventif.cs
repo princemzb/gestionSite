@@ -163,7 +163,7 @@ internal static class LibellesPreventif
     internal static string Mesure(decimal? valeur, string unite) =>
         valeur is { } v ? $"{v.ToString("0.###", Francais)} {unite}".TrimEnd() : "non relevée";
 
-    internal static string DateCourte(DateOnly date) => date.ToString("dd/MM", CultureInfo.InvariantCulture);
+    internal static string DateCourte(DateOnly date) => date.ToString("dd/MM", Francais);
 
     internal static string Mois(DateOnly mois) => Francais.TextInfo.ToTitleCase(mois.ToString("MMMM yyyy", Francais));
 

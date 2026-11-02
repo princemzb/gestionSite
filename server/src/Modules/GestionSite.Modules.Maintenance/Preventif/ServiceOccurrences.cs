@@ -70,8 +70,7 @@ internal sealed class ServiceOccurrences(
     internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
-        return [.. (await annuaire.MembresAyantDroitAsync(siteId, Droit.ExecuterControle, compteIds: null, cancellationToken).ConfigureAwait(false))
-            .Select(m => new IntervenantPossible(m.CompteId, m.Nom, m.Roles))];
+        return await Intervenants.ListerAsync(annuaire, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Affectation de l'échéance courante, à la version lue de l'occurrence (0 tant qu'elle n'existe pas).</summary>
