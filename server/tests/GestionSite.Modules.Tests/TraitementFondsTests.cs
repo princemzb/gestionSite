@@ -115,10 +115,13 @@ public sealed class TraitementFondsTests
         Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task TooManyPixelsAreRefusedEvenUnderTheSideLimit()
+    [Theory]
+    [InlineData(11_000, 11_000)]
+    [InlineData(7_072, 7_071)] // 50 006 112 px : juste au-dessus des 50 Mpx (7 071 × 7 071 est accepté, ImagesGrandesTests)
+    [InlineData(10_000, 5_001)]
+    public async Task TooManyPixelsAreRefusedEvenUnderTheSideLimit(uint largeur, uint hauteur)
     {
-        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(EssaisImages.PngAnnonce(11_000, 11_000), CancellationToken.None));
+        var refus = await Assert.ThrowsAsync<SaisieInvalideException>(() => TraitementFonds.PreparerAsync(EssaisImages.PngAnnonce(largeur, hauteur), CancellationToken.None));
 
         Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
@@ -194,6 +197,66 @@ internal static class EssaisImages
         BinaryPrimitives.WriteUInt16BigEndian(octets.AsSpan(trame + 5), hauteur);
         BinaryPrimitives.WriteUInt16BigEndian(octets.AsSpan(trame + 7), largeur);
         return octets;
+    }
+
+    /// <summary>
+    /// PNG écrit sans ImageMagick (aucune mémoire d'ImageMagick prise pour le préparer) : fond blanc rayé de noir, en RVB,
+    /// RVBA (8 ou 16 bits par composante) ou palette, données compressées en un seul bloc.
+    /// </summary>
+    internal static byte[] PngRaye(int largeur, int hauteur, byte typeCouleur, byte profondeur = 8)
+    {
+        var octetsParComposante = profondeur / 8;
+        var octetsParPixel = typeCouleur switch { 2 => 3, 6 => 4, _ => 1 } * octetsParComposante;
+        var blanche = new byte[1 + (largeur * octetsParPixel)]; // octet de filtre (0 : aucun) puis les pixels
+        var noire = new byte[blanche.Length];
+        if (typeCouleur != 3)
+        {
+            blanche.AsSpan(1).Fill(0xFF);
+            for (var x = 1 + octetsParPixel - octetsParComposante; typeCouleur == 6 && x < noire.Length; x += octetsParPixel)
+            {
+                noire.AsSpan(x, octetsParComposante).Fill(0xFF); // noir opaque
+            }
+        }
+        else
+        {
+            noire.AsSpan(1).Fill(1); // palette : 0 blanc, 1 noir
+        }
+
+        using var donnees = new MemoryStream();
+        using (var compression = new System.IO.Compression.ZLibStream(donnees, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+        {
+            for (var y = 0; y < hauteur; y++)
+            {
+                compression.Write(y % 100 < 2 ? noire : blanche);
+            }
+        }
+
+        var entete = new byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(entete, largeur);
+        BinaryPrimitives.WriteInt32BigEndian(entete.AsSpan(4), hauteur);
+        (entete[8], entete[9]) = (profondeur, typeCouleur);
+        using var png = new MemoryStream();
+        png.Write([0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        Bloc(png, "IHDR"u8, entete);
+        if (typeCouleur == 3)
+        {
+            Bloc(png, "PLTE"u8, [0xFF, 0xFF, 0xFF, 0, 0, 0]);
+        }
+
+        Bloc(png, "IDAT"u8, donnees.GetBuffer().AsSpan(0, (int)donnees.Length));
+        Bloc(png, "IEND"u8, []);
+        return png.ToArray();
+    }
+
+    private static void Bloc(Stream sortie, ReadOnlySpan<byte> type, ReadOnlySpan<byte> contenu)
+    {
+        Span<byte> quatre = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(quatre, contenu.Length);
+        sortie.Write(quatre);
+        byte[] typeEtContenu = [.. type, .. contenu];
+        sortie.Write(typeEtContenu);
+        BinaryPrimitives.WriteUInt32BigEndian(quatre, Crc32(typeEtContenu));
+        sortie.Write(quatre);
     }
 
     private static uint Crc32(ReadOnlySpan<byte> octets)

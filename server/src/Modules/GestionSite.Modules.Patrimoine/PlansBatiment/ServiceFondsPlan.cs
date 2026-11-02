@@ -24,8 +24,8 @@ internal sealed class FondsPlanOptions
     public int RenduPdfDelaiSecondes { get; init; } = 20;
 
     /// <summary>
-    /// Mémoire privée maximale du processus de rendu PDF, en octets (1 Gio, choix de l'agent : l'image rendue de 46 Mpx en
-    /// occupe 140 Mo, plus le PNG compressé, le reste pour PDFium et son environnement d'exécution, sous les 4 Gio du conteneur).
+    /// Mémoire privée maximale du processus de rendu PDF, en octets (1 Gio, choix de l'agent : l'image rendue de 50 Mpx en
+    /// occupe 150 Mo, plus le PNG compressé, le reste pour PDFium et son environnement d'exécution, sous les 4 Gio du conteneur).
     /// </summary>
     public long RenduPdfMemoireOctets { get; init; } = 1024L * 1024 * 1024;
 }

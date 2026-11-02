@@ -15,9 +15,20 @@ public sealed class TraitementPhotosTests
         LimitesImages.Poser();
 
         Assert.Equal(12_000u, ResourceLimits.Width);
-        Assert.Equal(50_000_000ul, ResourceLimits.Area);
+        Assert.Equal(50_000_001ul, ResourceLimits.Area); // ImageMagick refuse une surface égale à sa borne
         Assert.Equal(0ul, ResourceLimits.Disk);
-        Assert.True(ResourceLimits.Memory <= 512ul * 1024 * 1024);
+        Assert.Equal(1024ul * 1024 * 1024, ResourceLimits.Memory);
+    }
+
+    [Theory]
+    [InlineData(7_072, 7_071)] // 50 006 112 px
+    [InlineData(12_001, 100)]
+    public void APhotoJustOverTheBoundsIsTooLargeNotUnreadable(uint largeur, uint hauteur)
+    {
+        var refus = Assert.Throws<SaisieInvalideException>(() => TraitementPhotos.Preparer(EssaisImages.PngAnnonce(largeur, hauteur)));
+
+        Assert.Equal("photos", refus.Champ);
+        Assert.StartsWith("Image trop grande", refus.Message, StringComparison.Ordinal);
     }
 
     [Fact]

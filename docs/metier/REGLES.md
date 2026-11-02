@@ -71,7 +71,7 @@ Choix faits en expert du bâtiment (corps d'état, pratique des contrôleurs pou
 - Reporté : type et catégorie d'ERP du site (utile aux obligations réglementaires), à décider avec US-12.
 
 ## Dépôt public — décisions US-08, V, 28 octobre 2026 (porteur du projet)
-- Photos : jusqu’à 3 par dépôt, JPEG, PNG ou HEIC, 10 Mo au plus chacune ; métadonnées (dont la position GPS) retirées à la réception.
+- Photos : jusqu’à 3 par dépôt, JPEG, PNG ou HEIC, 10 Mo au plus chacune, 12 000 px de côté et 50 Mpx au plus (au-delà : « Image trop grande », jamais « illisible » ; SOC-04) ; métadonnées (dont la position GPS) retirées à la réception.
 - Anti-abus : Turnstile (Cloudflare, ADR-08) vérifié côté serveur, derrière une interface remplaçable, plus une limite de dépôts par adresse ; aucune vérification d’identité.
 - QR code et lien public d’un site : affichables et imprimables par l’administrateur (tous les sites) et par responsable et délégués (leurs sites).
 - Dépôts reçus : liste en lecture par site dès US-08, pour les comptes habilités sur le site (T, R/D, P/C, conformément à DEC-04) ; leur traitement relève d’US-09.
@@ -145,16 +145,17 @@ Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtim
 ### Fonds de plan importés en image — règles d'implémentation (S21-04, choix de l'agent, révisables)
 - Un fond appartient à un plan de bâtiment (un niveau ou le plan masse) ; un plan peut en recevoir plusieurs, chaque import crée un nouveau fond, jamais modifié ni supprimé en V1 (une version de plan pourra s'y référer avec sa calibration, S21-07).
 - Import : R/D et titulaires du droit nominatif (`ModifierPlans`) ; lecture : comptes internes du site (`ConsulterSite`), l'administrateur sans rôle sur le site n'y a pas accès ; aucune voie publique.
-- Fichier : un seul par envoi, 25 Mo au plus, JPEG, PNG ou HEIC reconnu par ses octets ; refus avant décodage au-delà de 12 000 px ou 50 Mpx annoncés ; SVG, DWG et TIFF refusés ; PDF : voir ci-dessous (S21-05).
+- Fichier : un seul par envoi, 25 Mo au plus, JPEG, PNG ou HEIC reconnu par ses octets ; refus avant décodage au-delà de 12 000 px ou 50 Mpx annoncés (« Image trop grande ») ; jusqu'à ces bornes, les formes les plus lourdes mesurées (PNG en palette, transparent ou en 16 bits, JPEG CMJN) sont traitées (SOC-04) ; SVG, DWG et TIFF refusés ; PDF : voir ci-dessous (S21-05).
 - Sorties : maître de 8 000 px au plus et dérivé d'affichage de 4 096 px au plus, réencodés sans métadonnées ; un PNG reste un PNG (traits nets d’un plan dessiné) sauf si, réduit, il dépasserait 25 Mo ; le reste devient JPEG. Seul le dérivé est servi ; le fichier d'origine n'est jamais conservé.
 - Quota de stockage des fonds par organisation (maîtres et dérivés) : 1 Gio proposé par défaut, réglable (`PlansBatiment:QuotaFondsOctets`), **valeur à confirmer par le porteur** ; message clair quand il est atteint.
 
-### Fonds de plan importés en PDF — règles d'implémentation (S21-05, choix de l'agent, révisables)
+### Fonds de plan importés en PDF — règles d'implémentation (S21-05 ; validées par le porteur le 1er novembre 2026)
 - Une seule page par import, choisie par son numéro (la première par défaut) ; page absente : refus qui donne le nombre de pages du PDF. Pour une autre page, un nouvel import (nouveau fond).
 - Tout PDF chiffré est refusé, même ouvrable sans mot de passe (simples restrictions) : « enregistrez-le sans protection ». PDF corrompu, trop long à rendre (20 s, RP-21.3) ou trop lourd (mémoire du rendu, 1 Gio) : refus avec un message, l'application reste disponible.
-- Rendu : fond blanc, annotations comprises, rotation de la page appliquée, grand côté à 8 000 px et 46 Mpx au plus (une page carrée sort en 6 782 px), puis mêmes sorties qu'une image PNG importée. Aucun script ni formulaire dynamique (XFA) n'est exécuté.
+- Rendu : fond blanc, annotations comprises, rotation de la page appliquée, grand côté à 8 000 px et 50 Mpx au plus, comme une image importée (une page carrée sort en 7 071 px ; SOC-04), puis mêmes sorties qu'une image PNG importée. Aucun script ni formulaire dynamique (XFA) n'est exécuté.
 - Échelle 1:N déclarée à l'import (facultative, N de 1 à 10 000) : gardée avec la taille de la page en millimètres, elle ne fait que proposer une valeur à la calibration, qui doit être confirmée par une cote mesurée (RP-21.4).
 - Le PDF d'origine est conservé en privé (jamais servi), pour un nouveau rendu ; il compte dans le quota des fonds avec le maître et le dérivé.
+- Décisions du porteur (01/11, QCM) : un PDF à simples restrictions reste refusé (on ne contourne pas la protection posée par l'auteur) ; limites gardées (mémoire du rendu 1 Gio, échelle 1:1 à 1:10 000, aucun nombre maximal de pages : le délai de 20 s et les 25 Mo bornent le travail) ; quota des fonds de plan 1 Gio par organisation.
 
 ## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
 Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
