@@ -358,7 +358,7 @@ function demarrer(racine) {
     const enregistrer = el("[data-action=enregistrer]");
     if (enregistrer) {
       enregistrer.textContent = `Enregistrer la version ${etat.versionLue + 1}`;
-      enregistrer.disabled = etat.enCours || Boolean(present().saisie) || !estModifie(present(), etat.reference) || Boolean(etat.reprise);
+      enregistrer.disabled = etat.enCours || etat.chargementEchoue || Boolean(present().saisie) || !estModifie(present(), etat.reference) || Boolean(etat.reprise);
     }
 
     for (const bouton of tous("[data-outil]")) {
@@ -398,30 +398,61 @@ function demarrer(racine) {
 
   // ——— Historique et brouillon ———
   let ecriturePlanifiee = null;
-  function memoriserBrouillon() {
+  function ecrireBrouillonMaintenant() {
     clearTimeout(ecriturePlanifiee);
-    ecriturePlanifiee = setTimeout(() => {
-      const cleCourante = cle();
-      const local = stockage();
-      if (!modifiable || !cleCourante || !local || etat.reprise) {
-        return;
-      }
+    const cleCourante = cle();
+    const local = stockage();
+    // Pas d'écriture tant qu'une reprise est proposée (le brouillon en attente reste tel quel), ni si le plan n'a pas pu
+    // être lu (la version lue serait fausse et le brouillon perdu).
+    if (!modifiable || !cleCourante || !local || etat.reprise || etat.chargementEchoue) {
+      return;
+    }
 
-      if (estModifie(present(), etat.reference) || present().saisie) {
-        ecrireBrouillon(local, {
-          compteId: d.compte, organisationId: d.organisation, planId: etat.planId, versionLue: etat.versionLue, document: present(),
-          modifieLe: new Date().toISOString(),
-        });
-      } else {
-        effacerBrouillon(local, cleCourante);
-      }
-    }, 300);
+    if (estModifie(present(), etat.reference) || present().saisie) {
+      ecrireBrouillon(local, {
+        compteId: d.compte, organisationId: d.organisation, planId: etat.planId, versionLue: etat.versionLue, document: present(),
+        modifieLe: new Date().toISOString(),
+      });
+    } else {
+      effacerBrouillon(local, cleCourante);
+    }
   }
 
+  function memoriserBrouillon() {
+    clearTimeout(ecriturePlanifiee);
+    ecriturePlanifiee = setTimeout(ecrireBrouillonMaintenant, 300);
+  }
+
+  // Aucune modification pendant un enregistrement : elle serait effacée par le rechargement de la version enregistrée.
   function changer(document) {
+    if (etat.enCours || etat.chargementEchoue) {
+      return;
+    }
+
     etat.historique = appliquer(etat.historique, document);
     memoriserBrouillon();
     rendre();
+  }
+
+  // Annuler, rétablir : le panneau et l'échelle de travail suivent la calibration en cours du document.
+  function deplacerHistorique(retour) {
+    if (etat.enCours || etat.chargementEchoue) {
+      return;
+    }
+
+    etat.historique = retour ? retablir(etat.historique) : annuler(etat.historique);
+    const saisie = present().saisie;
+    if (saisie && etat.panneau !== "calibration") {
+      etat.echelleSaisie = echelleInitiale(saisie.fondId, present());
+      etat.panneau = "calibration";
+    } else if (!saisie && etat.panneau === "calibration") {
+      etat.echelleSaisie = null;
+      etat.panneau = etat.mode === "guide" ? "fond" : "proprietes";
+    }
+
+    memoriserBrouillon();
+    rendre();
+    ajusterVue();
   }
 
   function charger(lue) {
@@ -450,7 +481,7 @@ function demarrer(racine) {
   function examinerBrouillon() {
     const local = stockage();
     const cleCourante = cle();
-    if (!modifiable || !local || !cleCourante) {
+    if (!modifiable || !local || !cleCourante || etat.chargementEchoue) {
       return;
     }
 
@@ -544,25 +575,33 @@ function demarrer(racine) {
     rendreCommandes();
     const corps = corpsEnregistrement(present(), etat.versionLue, crypto.randomUUID(), motif);
     const reponse = await appeler("PUT", `${base}/${etat.planId}`, corps);
-    etat.enCours = false;
     if (reponse.statut === 200) {
       const local = stockage();
       if (local) {
         effacerBrouillon(local, cle());
       }
 
+      const enregistre = present();
       const lue = await lirePlan();
       if (lue) {
         charger(lue);
+      } else {
+        // Relecture impossible : la version enregistrée devient la référence, pour ne pas renvoyer une version dépassée.
+        etat.versionLue = reponse.donnees.version;
+        etat.lue = { ...etat.lue, version: reponse.donnees.version, le: null, auteur: null };
+        etat.reference = { contenu: enregistre.contenu, saisie: null };
+        etat.historique = creerHistorique(etat.reference);
       }
 
+      etat.enCours = false;
       masquerBrouillon();
       message(`Version ${reponse.donnees.version} enregistrée.`);
       rendre();
       return true;
     }
 
-    memoriserBrouillon();
+    etat.enCours = false;
+    ecrireBrouillonMaintenant(); // conservé avant que la reprise ne soit proposée
     const enConflit = conflit(reponse.statut, reponse.probleme);
     message(messageRefus(reponse.statut, reponse.probleme), "danger");
     if (enConflit) {
@@ -732,19 +771,36 @@ function demarrer(racine) {
 
     charger(lue);
     etat.historique = appliquer(etat.historique, { ...reprise.document, saisie: null });
+    etat.echelleSaisie = null;
+    etat.panneau = "proprietes";
     masquerBrouillon();
-    memoriserBrouillon();
+    if (etat.mode === "guide") {
+      // Parcours guidé (sans bouton « Enregistrer ») : la reprise confirmée s'enregistre aussitôt, comme une étape.
+      if (await enregistrer("Reprise du brouillon")) {
+        passerEnAtelier();
+      }
+
+      return;
+    }
+
+    ecrireBrouillonMaintenant();
     message(`Brouillon repris sur la version ${etat.versionLue} : enregistrez pour en faire la version ${etat.versionLue + 1} ; la version ${etat.versionLue} reste dans l'historique.`, "avertissement");
     rendre();
+    ajusterVue();
   }
 
   async function abandonnerBrouillon() {
+    const lue = etat.planId ? await lirePlan() : null;
+    if (etat.planId && !lue) {
+      return; // plan illisible (réseau, session) : le brouillon reste, le message d'erreur est affiché
+    }
+
     const local = stockage();
     if (local && cle()) {
       effacerBrouillon(local, cle());
     }
 
-    const lue = etat.planId ? await lirePlan() : null;
+    etat.chargementEchoue = false;
     charger(lue);
     etat.echelleSaisie = null;
     etat.panneau = etat.mode === "guide" ? "fond" : "proprietes";
@@ -763,6 +819,10 @@ function demarrer(racine) {
   };
 
   svg.addEventListener("pointerdown", evenement => {
+    if (evenement.pointerType === "mouse" && evenement.button !== 0) {
+      return; // clic droit ou du milieu : ni glissement ni pose de point
+    }
+
     svg.setPointerCapture?.(evenement.pointerId);
     pointeurs.set(evenement.pointerId, position(evenement));
     if (pointeurs.size === 1) {
@@ -868,10 +928,7 @@ function demarrer(racine) {
     }
 
     evenement.preventDefault();
-    const retour = evenement.key.toLowerCase() === "y" || evenement.shiftKey;
-    etat.historique = retour ? retablir(etat.historique) : annuler(etat.historique);
-    memoriserBrouillon();
-    rendre();
+    deplacerHistorique(evenement.key.toLowerCase() === "y" || evenement.shiftKey);
   });
 
   page.addEventListener("click", evenement => {
@@ -900,8 +957,8 @@ function demarrer(racine) {
     }
 
     const actions = {
-      annuler: () => { etat.historique = annuler(etat.historique); memoriserBrouillon(); rendre(); },
-      retablir: () => { etat.historique = retablir(etat.historique); memoriserBrouillon(); rendre(); },
+      annuler: () => deplacerHistorique(false),
+      retablir: () => deplacerHistorique(true),
       enregistrer: () => enregistrer(null),
       calque: () => basculerCalque(cible),
       "changer-fond": () => { etat.panneau = "fond"; rendre(); },
@@ -958,9 +1015,13 @@ function demarrer(racine) {
     }
 
     if (etat.planId) {
-      const lue = await lirePlan();
-      charger(lue);
-      await lireFonds();
+      const [lue] = await Promise.all([lirePlan(), lireFonds()]);
+      if (lue) {
+        charger(lue);
+      } else {
+        // Plan illisible (réseau, session expirée) : rien n'est modifiable et le brouillon local reste intact.
+        etat.chargementEchoue = true;
+      }
     }
 
     examinerBrouillon();

@@ -31,9 +31,14 @@ export function normaliserContenu(contenu) {
   };
 }
 
-/** Document de l'éditeur pour une version lue (GET building-plans/{id}). */
+/**
+ * Document de l'éditeur pour une version lue (GET building-plans/{id}). Les marqueurs obsolètes (composant retiré,
+ * changé de zone ou devenu objet de valeur, RP-21.7) sont retirés : le serveur les refuserait dans la version suivante.
+ */
 export function documentDepuisVersion(lue) {
-  return { contenu: normaliserContenu(lue?.contenu), saisie: null };
+  const contenu = normaliserContenu(lue?.contenu);
+  const obsoletes = new Set(lue?.marqueursObsoletes ?? []);
+  return { contenu: obsoletes.size === 0 ? contenu : { ...contenu, composants: contenu.composants.filter(m => !obsoletes.has(m.composantId)) }, saisie: null };
 }
 
 /** Vrai si le contenu du document diffère de la version lue (un enregistrement est proposé). */
