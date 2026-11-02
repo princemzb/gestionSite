@@ -149,12 +149,13 @@ Règles de l'agent (révisables) : un plan par niveau (plan masse pour un bâtim
 - Sorties : maître de 8 000 px au plus et dérivé d'affichage de 4 096 px au plus, réencodés sans métadonnées ; un PNG reste un PNG (traits nets d’un plan dessiné) sauf si, réduit, il dépasserait 25 Mo ; le reste devient JPEG. Seul le dérivé est servi ; le fichier d'origine n'est jamais conservé.
 - Quota de stockage des fonds par organisation (maîtres et dérivés) : 1 Gio proposé par défaut, réglable (`PlansBatiment:QuotaFondsOctets`), **valeur à confirmer par le porteur** ; message clair quand il est atteint.
 
-### Fonds de plan importés en PDF — règles d'implémentation (S21-05, choix de l'agent, révisables)
+### Fonds de plan importés en PDF — règles d'implémentation (S21-05 ; validées par le porteur le 1er novembre 2026)
 - Une seule page par import, choisie par son numéro (la première par défaut) ; page absente : refus qui donne le nombre de pages du PDF. Pour une autre page, un nouvel import (nouveau fond).
 - Tout PDF chiffré est refusé, même ouvrable sans mot de passe (simples restrictions) : « enregistrez-le sans protection ». PDF corrompu, trop long à rendre (20 s, RP-21.3) ou trop lourd (mémoire du rendu, 1 Gio) : refus avec un message, l'application reste disponible.
 - Rendu : fond blanc, annotations comprises, rotation de la page appliquée, grand côté à 8 000 px et 50 Mpx au plus, comme une image importée (une page carrée sort en 7 071 px ; SOC-04), puis mêmes sorties qu'une image PNG importée. Aucun script ni formulaire dynamique (XFA) n'est exécuté.
 - Échelle 1:N déclarée à l'import (facultative, N de 1 à 10 000) : gardée avec la taille de la page en millimètres, elle ne fait que proposer une valeur à la calibration, qui doit être confirmée par une cote mesurée (RP-21.4).
 - Le PDF d'origine est conservé en privé (jamais servi), pour un nouveau rendu ; il compte dans le quota des fonds avec le maître et le dérivé.
+- Décisions du porteur (01/11, QCM) : un PDF à simples restrictions reste refusé (on ne contourne pas la protection posée par l'auteur) ; limites gardées (mémoire du rendu 1 Gio, échelle 1:1 à 1:10 000, aucun nombre maximal de pages : le délai de 20 s et les 25 Mo bornent le travail) ; quota des fonds de plan 1 Gio par organisation.
 
 ## Tablette et synchronisation — US-13, US-14, V, 30 octobre 2026 (porteur du projet)
 Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :

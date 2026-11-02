@@ -2995,6 +2995,25 @@
       "note": "Créée par l'agent dans Trello le 30/10 (décision du porteur : POC séparé d'abord) ; Trello fait foi pour la description.",
       "trelloId": "6ae4b95dea0bc871756e24da",
       "trelloShortLink": "COWVSd5I"
+    },
+    {
+      "id": "SOC-04",
+      "name": "[SOC-04] Socle : image importée de 48 à 50 Mpx refusée à tort",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Mesure de la mémoire ImageMagick consommée par le réencodage d'un PNG de 45 à 50 Mpx (photos, fonds de plan, rendu PDF).",
+        "Soit la surface acceptée est abaissée sous la limite réelle avec un refus explicite (« image trop grande », jamais « illisible »), soit la mémoire accordée est relevée dans la limite du conteneur (standard-1, 4 Gio) ; choix justifié par la mesure.",
+        "Tests aux bornes (juste en dessous et au-dessus) pour les photos et les fonds ; borne du rendu PDF (46 Mpx) réalignée si besoin."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Défaut hérité de S21-04 constaté en S21-05 (PR #93) ; carte décidée par le porteur le 01/11.",
+      "trelloId": "6ae78776955655d718ec6a1e",
+      "trelloShortLink": "267LV4UG"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
