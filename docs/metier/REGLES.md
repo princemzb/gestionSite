@@ -10,7 +10,7 @@ V = validée ; P = proposition complémentaire. Les détails ouverts sont dans l
 | RG-05 | V | Danger signalé : alerte avant qualification et suivi distinct de la mise en sécurité. |
 | RG-06 | V | Technicien affecté clôture avec actions et état final ; photo selon catégorie. Responsable peut rouvrir. |
 | RG-07 | V | Attente : motif et réexamen ; délai de résolution suspendu, ancienneté conservée. |
-| RG-08 | V | Rappels puis escalade selon priorité ; notifications internes et push. |
+| RG-08 | V | Rappels puis escalade selon priorité ; notifications internes et push. Push reporté à US-13 (décision du porteur du 02/11, section US-10). |
 | RG-09 | V | Préventif calendaire/ponctuel ; non-conformité génère un signalement. |
 | RG-10 | V | Inventaire individuel et lots, avec quantités réparties par état. |
 | RG-11 | V | Note sur 10, moyenne par niveaux, dernière évaluation conservée, fraîcheur et couverture visibles. |
@@ -110,6 +110,26 @@ Cadrage complet : docs/pilotage/cadrage/US-12.md. Décisions du 30/10 (QCM, reco
 - Maquettes (S12-06, S12-07, choix du porteur du 30/10) : échéancier du site en calendrier mensuel avec la liste des retards à côté (B) ; contrôle sur téléphone pas à pas, même parcours que l'évaluation (A) ; écrans communs validés : plans proposés à confirmer avec le classement ERP du bâtiment, saisie d'une vérification extérieure avec observations et rapport PDF.
 Règles de l'agent (révisables) : classement ERP porté par chaque bâtiment (type, catégorie déclarée, drapeaux), « salariés présents » sur le site ; échéance glissante par défaut (date réelle + période), fixe en option ; fenêtre « À faire » de 10 % de la période (7 à 30 jours), aucune tolérance après l'échéance (« En retard ») ; échéances calculées à la lecture, sans tâche planifiée ; occurrence enregistrée seulement à l'affectation, la réalisation ou le saut (clé plan + échéance, rejeu sans doublon) ; aucune notification envoyée (US-10).
 
+## Danger, attentes et relances — US-10, V, 2 novembre 2026 (porteur du projet)
+Cadrage complet : docs/pilotage/cadrage/US-10.md. Acquis (V) : RG-05, RG-07, RG-08, DEC-03, DEC-05 ; « Relancer » : R/D, P/C, jamais le technicien, le pasteur relance en interne seulement (décision du 28/10). L'application n'est ni une alarme ni un système de sécurité incendie : elle ne remplace jamais l'appel des secours (18 ou 112), le numéro d'urgence du site ni les consignes affichées dans le bâtiment.
+
+Décisions du porteur du 02/11 (QCM, Q1 à Q12) :
+- **Q1 — Push : B.** Pas de push avant l'application tablette ; côté web, centre de notifications seul ; le push natif (Firebase Cloud Messaging) est décidé avec US-13. **RG-08 (push) est reporté à US-13.** Pas de push web du navigateur.
+- **Q2 — Canaux externes : D.** E-mail pour les dangers (alerte, absence de prise en compte) et les escalades à 100 % ; **SMS pour les dangers**. Cela suppose un achat par le porteur (nom de domaine, fournisseur d'e-mail, fournisseur de SMS) et la collecte des numéros de mobile des membres (données personnelles : base légale, information des membres, minimisation, droit de retrait, à fixer dans la sous-carte S10-09). **S10-09 « E-mail et SMS » est bloquée par l'achat ; aucun service n'est configuré.**
+- **Conséquence, tant que l'achat e-mail et SMS n'est pas fait :** une alerte de danger n'est visible que dans le **centre de notifications web, au chargement d'une page** (rendu serveur statique, ADR-08) ; personne n'est prévenu hors de l'application. Le premier réflexe reste l'appel des secours et du numéro d'urgence du site, rappelés au déclarant public. Accusé du dépôt public corrigé le 02/11 (PR #101) : « Votre signalement est enregistré et transmis aux responsables du site. En cas de danger immédiat, appelez les secours (18 ou 112). » (puis le numéro d'urgence du site s'il est renseigné) ; la tuile « Il y a un danger » (« Danger immédiat : appelez d'abord le 18 ou le 112. ») et l'en-tête du formulaire de danger (« En cas de danger immédiat, appelez d'abord les secours (18 ou 112). ») ne promettent plus d'alerte non plus.
+- **Q3 — Destinataires d'une alerte de danger : A.** R/D du site (pour agir), pasteurs et coordinateurs du site (pour information) ; techniciens seulement s'ils sont en charge d'une intervention ouverte du dossier.
+- **Q4 — Suivi d'une alerte : A.** Un R/D prend en compte l'alerte. Sans prise en compte en 15 min : nouvelle alerte à tous les destinataires, puis toutes les heures, jour et nuit. Après prise en compte, tant que la mise en sécurité n'est pas déclarée réalisée : rappel toutes les heures à celui qui l'a prise en compte, et aux autres R/D au bout de 4 h.
+- **Q5 — Mise en sécurité : A.** L'action réalisée est déclarée par un technicien, un R/D, un pasteur ou un coordinateur du site (mesures conservatoires simples : fermer ou baliser l'accès, éloigner le public) ; la vérification est faite par un R/D.
+- **Q6 — Attente sous danger : A.** Mise en attente refusée tant que la mise en sécurité n'est pas déclarée réalisée (« Mettez d'abord en sécurité »).
+- **Q7 — Délai de prise en charge : A.** De la qualification au démarrage de la première intervention (section DEC-05) ; rappel aux R/D tant que le dossier n'est pas affecté, puis à l'intervenant. Les tests d'US-09 et `deploy/verification/us09.mjs` sont mis à jour dans la sous-carte S10-02.
+- **Q8 — Dossier resté « À qualifier » : A.** Rappel aux R/D du site 24 h après la réception, puis toutes les 24 h tant qu'il n'est pas qualifié, classé ou rattaché.
+- **Q9 — Réexamen d'une attente : A.** Le jour du réexamen à 8 h (heure de Paris), rappel à la personne en charge ; sans reprise ni report 3 jours plus tard (J+3), escalade aux R/D du site ; puis un rappel par semaine aux deux tant que rien n'est fait.
+- **Q10 — Relance d'un prestataire : A.** Toute relance dans l'application vise un compte interne (le référent du prestataire) ; R/D et coordination peuvent en plus noter « prestataire relancé hors application » (date, moyen, commentaire), trace seule, sans message envoyé ni coordonnées du prestataire enregistrées ; le pasteur ne fait que des relances internes.
+- **Q11 — Heures calmes : A.** De 21 h à 7 h (heure de Paris), les e-mails et SMS qui ne concernent pas un danger partent à 7 h ; le centre enregistre toujours à l'heure exacte et les délais DEC-05 ne changent pas. **Le danger part toujours**, jour et nuit.
+- **Q12 — Périmètre : A.** Le cœur (S10-01 à S10-05, S10-07, S10-08) et les rappels du préventif (S10-10) ; l'e-mail et le SMS (S10-09) sont lancés quand l'achat est fait.
+
+Découpage (cadrage §3, révisé le 02/11) : S10-01 centre de notifications et émission après transaction ; S10-02 planificateur et rappels DEC-05 ; S10-03 attentes échues et dossiers à qualifier ; S10-04 danger (prise en compte, mise en sécurité, levée) ; S10-05 relances manuelles ; S10-07 maquettes ; S10-08 écrans web et préproduction ; S10-09 e-mail et SMS (bloquée par l'achat) ; S10-10 rappels du préventif. S10-06 (push web) est retirée (Q1). Les autres propositions du cadrage marquées « agent » (cycle du danger, liste des actions de mise en sécurité, report du réexamen, fréquence des relances, contenu minimal hors de l'application, conservation) restent des choix de l'agent, révisables.
+
 ## Stocks — US-15, V, 30 octobre 2026 (porteur du projet) — en attente d'US-14
 Cadrage : docs/pilotage/cadrage/US-15.md. Décisions du 30/10 (QCM) :
 - Transfert entre sites : un R/D de l'un ou l'autre site fait toutes les étapes (préparation, départ, réception).
@@ -184,7 +204,7 @@ Un danger ne disparaît pas si la moyenne est bonne. Les grilles doivent disting
 ## Priorités, délais et relances — DEC-05, V, 27 octobre 2026 (porteur du projet)
 Priorité fixée par R/D à la qualification, indépendamment du danger déclaré (qui reste une alerte distincte).
 
-| Priorité | Usage | Prise en charge (dossier affecté) | Résolution (clôture, hors attente) |
+| Priorité | Usage | Prise en charge (de la qualification au démarrage, US-10 Q7) | Résolution (clôture, hors attente) |
 | --- | --- | --- | --- |
 | Urgente | Danger, activité bloquée | 4 h | 2 jours |
 | Haute | Gêne importante | 1 jour | 7 jours |
@@ -193,6 +213,7 @@ Priorité fixée par R/D à la qualification, indépendamment du danger déclar�
 
 - Délais comptés en temps calendaire (week-ends et jours fériés inclus), pour toutes les priorités. Ce sont des cibles de suivi, pas des engagements de service.
 - Les périodes « En attente » suspendent le délai de résolution ; l’ancienneté totale reste affichée.
+- Délai de prise en charge (décision du porteur du 02/11, US-10 Q7) : il court de la **qualification** jusqu'au démarrage de la première intervention, et non plus de l'affectation ; un dossier qualifié mais jamais affecté a donc une échéance et des rappels (conforme à T-04.10 et T-04.14). Le code d'US-09 (départ à l'affectation) est corrigé par la sous-carte S10-02.
 - Rappels : à 75 % du délai, rappel à la personne en charge (R/D si non affecté, sinon technicien affecté). À 100 %, escalade au responsable et aux délégués du site, puis rappel quotidien tant que le délai est dépassé. Une relance ne crée pas de doublon de notification pour le même seuil.
 - Récurrence : au moins 3 dossiers (hors « classée sans suite » et doublons rattachés) sur le même composant ou la même zone en 12 mois glissants.
 

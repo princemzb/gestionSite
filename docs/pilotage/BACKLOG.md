@@ -85,6 +85,8 @@ Responsable à affecter : Maintenance. Statut initial : à affiner ; exécution 
 ### US-10 — Danger, attentes et relances
 Alerte immédiate ; attente datée suspend délai ; réexamen et escalade sans doublon ; push et centre.
 
+Décisions du porteur du 02/11 (REGLES, cadrage docs/pilotage/cadrage/US-10.md) : centre de notifications seul côté web, push reporté à US-13 ; e-mail et SMS (S10-09) bloqués par l'achat. Découpage S10-01 à S10-10 sans S10-06 ; charge réestimée à 19–27 j-p, 22–32 avec l'e-mail et le SMS.
+
 Responsable à affecter : Maintenance. Statut initial : à affiner ; exécution conditionnée par les dépendances et arbitrages associés.
 
 ### US-11 — Grilles, évaluations et score
