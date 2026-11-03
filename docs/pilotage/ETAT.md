@@ -2,7 +2,7 @@
 
 **À lire en premier par tout agent ou développeur qui reprend le travail**, avant AGENTS.md et les cartes. Ce fichier est mis à jour à chaque étape significative : US ou sous-carte terminée, décision prise, PR ouverte ou fusionnée, blocage. Il doit permettre de reprendre sans aucun historique de conversation.
 
-Dernière mise à jour : 2 novembre 2026 (heure de Paris), par l'agent IA.
+Dernière mise à jour : 3 novembre 2026 (heure de Paris), par l'agent IA.
 
 ## Où en est le projet
 - Cadrage v0.2 terminé. Décisions DEC-01 à DEC-05 tranchées (REGLES, PERMISSIONS, PROCESSUS) ; 50 cas de test spécifiés, non exécutés (RECETTE).
@@ -129,3 +129,4 @@ Porte OK ; 838 lignes ; couverture globale 77,9 % (C# 100 %, scripts Python 76 %
 | 01/11/2026 | S21-05 import PDF fusionnée (#93, PDFium validé dans l'image réelle) ; décisions du porteur : PDF à restrictions refusé, limites gardées, carte SOC-04 (images 48–50 Mpx) | PR #93 |
 | 01/11/2026 | Préproduction redéployée (fae7cb1) ; US-12 livrée (`us12.mjs` 17/17, non-régression us07/08/09/11 vertes) ; S21-07 et SOC-04 lancées | Trello US-12 |
 | 02/11/2026 | US-10 cadrée et décidée (Q1–Q12), accusé public corrigé (#101) ; S21-07 éditeur fusionnée (#95, #99) ; SOC-04 fusionnée (#96) ; préproduction redéployée (150e8ac) : us21 26/26, non-régression us07/08/09/11/12 vertes ; S21-01/02/04/07 livrées | PR #95–#102 |
+| 03/11/2026 | Porteur : rythme jugé trop lent → ADR-09 allégée (une PR par story, CI seule porte complète) ; recette automatisée visible valant recette sauf terrain (OUT-02), clés de test Turnstile en préproduction ; manuel d'utilisation et livret (DOC-01, #109) ; aide intégrée et écrans d'administration (US-31) décidés ; ADR-11 adoptée. Fusionnées : DET-12 (#103), SOC-05 (#104), S10-01 (#108), S10-02/03 (#111), S04-01 (#113, Tab M11 8/8, essais à rejouer). Préproduction redéployée (187cdf1, Worker 980997d6) | PR #103–#117 |
