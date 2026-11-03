@@ -10,7 +10,7 @@ Ne confondez pas avec les **plans préventifs** du chapitre [Préventif](08-prev
 
 Les plans se dessinent de préférence sur ordinateur ou tablette.
 
-> **Pas encore disponible.** Le tracé des pièces, des ouvertures et des escaliers, et le placement des composants sur le plan, arrivent dans une prochaine version (étapes 3 et 4 du parcours guidé). Le droit nominatif « modifier les plans du bâtiment » n'a pas encore d'écran : demandez-le à l'équipe du projet.
+> **Pas encore disponible.** Le droit nominatif « modifier les plans du bâtiment » s'accordera dans **Membres** (écran en préparation) : en attendant, demandez-le à l'équipe du projet. Déclarer un problème depuis une pièce du plan arrive dans une prochaine version.
 
 ## Créer un plan : le parcours guidé {#plans-parcours}
 
@@ -49,7 +49,7 @@ La calibration indique à l'application combien mesure une longueur du fond. Ell
 1. Touchez (ou cliquez) les deux extrémités d'une **longueur connue** sur le fond, idéalement plus de 10 mètres (la longueur de la nef). Zoomez pour pointer avec précision.
 2. Saisissez la **Distance réelle de calibration** en mètres (par exemple 14,33).
 3. Conseillé : choisissez **Cote de contrôle**, touchez les extrémités d'une autre longueur mesurée sur place, puis saisissez la **Longueur de contrôle mesurée sur place**. L'application affiche l'écart en pourcentage.
-4. Cliquez sur **Valider l'échelle**. Le plan est enregistré en version 1 et l'atelier s'ouvre.
+4. Cliquez sur **Valider l'échelle**. Le plan est enregistré en version 1 et l'étape **Tracer les pièces** commence.
 
 ![Étape 2 : calibrer l'échelle avec une cote de contrôle](images/plans-calibration.png)
 
@@ -63,6 +63,44 @@ La calibration indique à l'application combien mesure une longueur du fond. Ell
 
 - « Touchez à l'intérieur du fond. »
 - « Distance : saisissez un nombre de mètres, par exemple 14,33. »
+
+## Tracer les pièces {#plans-pieces}
+
+À l'étape 3 du parcours guidé, les zones du niveau (celles de l'[inventaire](06-inventaire.md#inventaire)) sont proposées une à une : « → » la zone en cours, « ✓ » celles déjà tracées.
+
+1. Touchez les angles de la pièce un à un, sur les faces intérieures des murs. Les points s'accrochent aux angles et aux murs voisins.
+2. Touchez de nouveau le premier angle, ou cliquez sur **Fermer la pièce**. La zone suivante est proposée.
+3. **Zone suivante** passe une zone sans la tracer.
+4. Cliquez sur **Terminer les pièces** : la version est enregistrée et l'étape **Placer les composants** commence.
+
+Les **Parties communes** et les zones sans niveau ne se tracent pas : elles sont listées à côté du plan. Dans l'atelier, les outils **Pièce**, **Porte, baie ou fenêtre** et **Escalier** servent à compléter ou corriger le dessin.
+
+## Placer les composants {#plans-composants}
+
+**Pour qui :** responsable, délégué, ou titulaire du droit sur les plans.
+
+**Où cliquer :** étape 4 du parcours guidé, ou outil **Composant** (rond plein) de l'atelier, ou **Placer** dans la liste **Composants de la zone** d'une pièce sélectionnée.
+
+![Étape 4 : placer les composants](images/plans-composants.png)
+
+1. Dans la liste, cliquez sur **Placer** à côté du composant.
+2. Touchez le plan à son emplacement. Le composant apparaît sous forme de pastille avec son nom.
+3. Pour le déplacer, cliquez sur **Replacer** puis touchez le nouvel emplacement, ou sélectionnez la pastille et glissez-la.
+4. Dans le parcours guidé, cliquez sur **Terminer le plan** : la version est enregistrée et l'atelier s'ouvre. Dans l'atelier, cliquez sur **Enregistrer la version …**.
+
+**Pastille sélectionnée :** le panneau montre sa zone et ses coordonnées. Saisissez **X (m)** et **Y (m)**, ou utilisez les flèches (10 cm par appui), pour la placer sans glisser. **Retirer du plan** enlève la pastille ; le composant reste dans l'inventaire.
+
+**À savoir**
+
+- Seuls les composants des zones de ce niveau sont proposés. Les composants des Parties communes d'un bâtiment à niveaux restent sans pastille.
+- Les **objets de valeur** ne sont jamais proposés : équipements de culte et composants cochés **Objet de valeur** dans l'[inventaire](06-inventaire.md#inventaire-objet-valeur). Le panneau d'une pièce indique combien elle en contient.
+- Un composant placé hors du contour de sa zone est accepté, avec une pastille orange et un avertissement : vérifiez l'emplacement.
+- Un composant retiré de l'inventaire, déplacé dans une autre zone ou devenu objet de valeur n'est plus affiché. L'éditeur le signale (« 1 marqueur de composant n'est plus affiché… ») ; il disparaît de la prochaine version enregistrée.
+
+**Erreurs fréquentes**
+
+- « Choisissez d'abord un composant dans la liste (« Placer »). »
+- « « … » est hors du contour de sa zone : accepté, vérifiez l'emplacement. »
 
 ## Travailler dans l'atelier {#plans-atelier}
 
@@ -78,7 +116,8 @@ Dès qu'un niveau a un plan, l'**atelier** s'ouvre : outils à gauche, plan au c
 
 **Outils**
 
-- **Sélection** (flèche) : déplacer la vue.
+- **Sélection** (flèche) : déplacer la vue ; toucher une pièce, une ouverture, un escalier ou une pastille de composant pour le modifier.
+- **Pièce**, **Porte, baie ou fenêtre**, **Escalier**, **Composant** : voir [Tracer les pièces](#plans-pieces) et [Placer les composants](#plans-composants).
 - **Cote** (double flèche) : touchez deux points pour mesurer une longueur. La mesure s'affiche sur le plan et dans le panneau (« Cote mesurée »).
 - **Annuler** et **Rétablir** : aussi avec Ctrl+Z et Ctrl+Y.
 
@@ -88,7 +127,29 @@ Dès qu'un niveau a un plan, l'**atelier** s'ouvre : outils à gauche, plan au c
 
 **Enregistrer :** le bouton **Enregistrer la version …** crée une nouvelle version. Chaque version est conservée.
 
-Un membre qui consulte seulement voit le plan, le zoom et le calque, sans commande de modification.
+Un membre qui consulte seulement voit le plan, les pastilles des composants, le zoom, le calque et l'historique, sans commande de modification.
+
+**Qui modifie le plan :** l'administrateur voit dans le panneau de droite qui peut modifier ce plan, avec un lien vers **Membres**.
+
+## Historique et restauration {#plans-historique}
+
+**Pour qui :** tous les membres du site consultent l'historique ; le responsable, le délégué ou le titulaire du droit sur les plans restaurent une version.
+
+**Où cliquer :** bouton **Historique** en haut de l'atelier.
+
+![Historique : une ancienne version en lecture seule](images/plans-historique.png)
+
+1. La liste montre les versions, de la plus récente à la plus ancienne : numéro, date, auteur, motif. **Versions plus anciennes** affiche la suite.
+2. Cliquez sur une version : elle s'affiche **en lecture seule** (le résumé commence par « Consultation en lecture seule »). **Revenir à la version courante** la referme.
+3. Pour la restaurer, saisissez le **Motif de la restauration** puis cliquez sur **Restaurer cette version**.
+
+La version restaurée est recopiée dans une **nouvelle version** : rien n'est effacé, les versions suivantes restent dans l'historique. Les pastilles des composants retirés depuis, passés sur un autre niveau ou devenus objets de valeur ne sont pas recopiées : le message indique combien ont été retirées.
+
+**Erreurs fréquentes**
+
+- « Motif obligatoire : indiquez pourquoi vous restaurez cette version. »
+- « Enregistrez ou abandonnez d'abord vos modifications en cours. »
+- « Ce plan a été modifié entre-temps par … (version …) : rien n'a été restauré. Rechargez la page, puis recommencez. »
 
 ## Brouillon et conflit {#plans-brouillon}
 

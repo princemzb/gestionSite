@@ -523,7 +523,6 @@ form.formulaire-inventaire { padding: 0; }
 .pieces text, .cotes text { fill: var(--encre); font-family: Inter, system-ui, sans-serif; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
 .pieces .ouverture { stroke: var(--encre); stroke-width: 3px; vector-effect: non-scaling-stroke; }
 .pieces .escalier { fill: #00074010; stroke: var(--encre-2); stroke-dasharray: 4 3; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
-.pieces .composant { fill: var(--lien); }
 .calque-inferieur polygon { fill: none; stroke: var(--encre-3); stroke-width: 1.5px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
 .cotes line { stroke-width: 3px; vector-effect: non-scaling-stroke; }
 .cotes .calibration { stroke: var(--plan-cote); fill: var(--plan-cote); }
@@ -588,6 +587,28 @@ form.formulaire-inventaire { padding: 0; }
 .editeur-marge ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 .editeur-zone { display: flex; flex-direction: column; gap: 8px; }
 .editeur-panneau select { min-height: 44px; }
+
+/* Composants sur le plan et historique des versions (S21-09, maquette A) : pastilles nommées, liste « placé / à placer »,
+   versions à consulter. Hors du contour de sa zone : couleur d'alerte. */
+.marqueurs .marqueur circle { fill: var(--lien); stroke: var(--surface); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.marqueurs .marqueur.hors-zone circle { fill: var(--alerte); }
+.marqueurs .marqueur.selectionne circle { fill: var(--plan-selection); stroke-width: 3px; }
+.marqueurs text { fill: var(--lien); stroke: var(--surface); stroke-width: 4px; paint-order: stroke; vector-effect: non-scaling-stroke; font-family: Inter, system-ui, sans-serif; font-weight: 600; dominant-baseline: middle; }
+.marqueurs .hors-zone text { fill: var(--alerte); }
+.marqueurs .selectionne text { fill: var(--plan-selection); }
+.editeur-sous-titre { margin: 6px 0 0; font-size: 14px; color: var(--encre-2); }
+.editeur-composants { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.editeur-composants li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--etape-fond); font-size: 14px; }
+.editeur-composants li.vide { padding: 0; background: transparent; color: var(--encre-2); }
+.editeur-composants li.a-placer { outline: 2px solid var(--plan-selection); outline-offset: -2px; background: var(--surface); }
+.editeur-composants .texte { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.editeur-composants .texte strong { font-weight: 600; overflow-wrap: anywhere; }
+.editeur-composants .bouton-secondaire { height: 40px; padding: 0 14px; font-size: 14px; }
+.editeur-composants .bouton-secondaire[aria-pressed="true"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); }
+.editeur-version { display: flex; flex-direction: column; gap: 10px; }
+.editeur-versions { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.editeur-version-choix { width: 100%; min-height: 48px; padding: 8px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 12px; border: 1px solid var(--bordure-forte); background: transparent; color: var(--encre); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.editeur-version-choix[aria-current="true"] { border: 2px solid var(--plan-selection); background: var(--surface); }
 
 /* Tablette en portrait et téléphone : plan d'abord, propriétés dessous, outils en ligne. */
 @media (max-width: 1100px) {

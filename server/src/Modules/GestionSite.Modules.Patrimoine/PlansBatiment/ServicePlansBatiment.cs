@@ -13,7 +13,7 @@ internal sealed record PlanLu(Guid Id, Guid BatimentId, Guid? NiveauId, int Vers
 
 /// <summary>
 /// Version lue d'un plan : 0 tant que rien n'est enregistré (contenu vide). Marqueurs obsolètes : composants retirés,
-/// changés de zone ou devenus objets de valeur depuis cette version, à retirer de la suivante (RP-21.7) ; ceux d'un objet
+/// changés de zone ou devenus objets de valeur (reclassés en équipement de culte ou case cochée) depuis cette version, à retirer de la suivante (RP-21.7) ; ceux d'un objet
 /// de valeur ne sont jamais rendus.
 /// </summary>
 internal sealed record VersionPlanLue(
@@ -156,16 +156,17 @@ internal sealed class ServicePlansBatiment(
         var contenu = lue.ContenuLu;
         var ids = contenu.Composants.Select(m => m.ComposantId).ToList();
         // Retirés compris : un composant retiré ou introuvable n'est jamais servi s'il est (ou devient) objet de valeur.
-        var composants = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == siteId)
-            .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat, Retire = c.RetireLe != null }).ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
+        var composants = (await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == siteId)
+                .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat, c.ObjetDeValeur, Retire = c.RetireLe != null }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToDictionary(c => c.Id, c => (c.ZoneId, c.Retire, Exclu: CorpsEtats.ExcluDesPlans(c.CorpsEtat, c.ObjetDeValeur)));
         var obsoletes = contenu.Composants
-            .Where(m => !composants.TryGetValue(m.ComposantId, out var c) || c.Retire || c.ZoneId != m.ZoneId || ValidationPlan.ObjetDeValeur(c.CorpsEtat))
+            .Where(m => !composants.TryGetValue(m.ComposantId, out var c) || c.Retire || c.ZoneId != m.ZoneId || c.Exclu)
             .Select(m => m.ComposantId).ToList();
-        // Fermé par défaut : position servie seulement pour un composant connu du site qui n'est pas un objet de valeur,
-        // même dans une ancienne version (reclassé depuis, retiré ensuite ou non).
+        // Fermé par défaut : position servie seulement pour un composant connu du site qui n'est pas un objet de valeur
+        // (équipement de culte ou case cochée), même dans une ancienne version (reclassé ou coché depuis, retiré ensuite ou non).
         contenu = contenu with
         {
-            Composants = [.. contenu.Composants.Where(m => composants.TryGetValue(m.ComposantId, out var c) && !ValidationPlan.ObjetDeValeur(c.CorpsEtat))],
+            Composants = [.. contenu.Composants.Where(m => composants.TryGetValue(m.ComposantId, out var c) && !c.Exclu)],
         };
         var noms = await annuaire.NomsAsync([lue.AuteurCompteId], cancellationToken).ConfigureAwait(false);
         return new VersionPlanLue(
@@ -240,7 +241,7 @@ internal sealed class ServicePlansBatiment(
         var contenu = ancienne.ContenuLu;
         var cadre = await CadreAsync(plan, [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, null))], contenu.Fond?.FondId, cancellationToken).ConfigureAwait(false);
         var gardes = contenu.Composants.Where(m => cadre.Composants.TryGetValue(m.ComposantId, out var c) && !c.Retire
-            && !ValidationPlan.ObjetDeValeur(c.CorpsEtat) && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
+            && !c.ExcluDesPlans && cadre.Zones.TryGetValue(c.ZoneId, out var zone) && zone.NiveauId == plan.NiveauId).ToList();
         var valide = ValidationPlan.Valider(Saisie(contenu with { Composants = gardes }), cadre);
         var retires = contenu.Composants.Except(gardes).Select(m => new AvertissementPlan(MarqueurRetire, m.ComposantId));
         return await AjouterAsync(plan, courante, envoi, valide with { Avertissements = [.. retires, .. valide.Avertissements] }, texte, source, cancellationToken)
@@ -311,9 +312,9 @@ internal sealed class ServicePlansBatiment(
         var niveaux = await context.Niveaux.AsNoTracking().Where(n => n.BatimentId == plan.BatimentId && n.Id != plan.NiveauId)
             .Select(n => n.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         var ids = (marqueurs ?? []).Select(m => m?.ComposantId).OfType<Guid>().Distinct().Take(ValidationPlan.MarqueursMax + 1).ToList();
-        var composants = await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == plan.SiteId)
-            .Select(c => new ComposantCadre(c.Id, c.ZoneId, c.CorpsEtat, c.RetireLe != null))
-            .ToDictionaryAsync(c => c.Id, cancellationToken).ConfigureAwait(false);
+        var composants = (await context.Composants.AsNoTracking().Where(c => ids.Contains(c.Id) && c.SiteId == plan.SiteId)
+                .Select(c => new { c.Id, c.ZoneId, c.CorpsEtat, c.ObjetDeValeur, Retire = c.RetireLe != null }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToDictionary(c => c.Id, c => new ComposantCadre(c.Id, c.ZoneId, CorpsEtats.ExcluDesPlans(c.CorpsEtat, c.ObjetDeValeur), c.Retire));
         // Seul le fond désigné par le contenu est lu (aucune requête pour un plan vierge) ; un fond d'un autre plan n'y est pas.
         var fonds = fondId is { } id
             ? await context.FondsPlanBatiment.AsNoTracking().Where(f => f.Id == id && f.PlanId == plan.Id)

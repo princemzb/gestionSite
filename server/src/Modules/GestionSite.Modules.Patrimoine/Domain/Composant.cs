@@ -36,6 +36,12 @@ internal static class CorpsEtats
     internal static bool PhotoApresIntervention(CorpsEtat corpsEtat) => corpsEtat is CorpsEtat.CourantsForts or CorpsEtat.EclairageSecurite
         or CorpsEtat.SecuriteIncendie or CorpsEtat.Gaz or CorpsEtat.CouvertureEtancheite or CorpsEtat.StructureGrosOeuvre;
 
+    /// <summary>
+    /// Objet de valeur (trésor, objets de culte, coffre) : jamais de marqueur sur un plan (décisions du porteur des 30/10
+    /// et 03/11). Les équipements de culte le sont d'office, tout autre composant si sa case « objet de valeur » est cochée.
+    /// </summary>
+    internal static bool ExcluDesPlans(CorpsEtat corpsEtat, bool objetDeValeur) => objetDeValeur || corpsEtat == CorpsEtat.EquipementsCulte;
+
     internal static bool VerificationProposee(CorpsEtat corpsEtat) => corpsEtat is CorpsEtat.CourantsForts or CorpsEtat.EclairageSecurite
         or CorpsEtat.SecuriteIncendie or CorpsEtat.ChauffageVentilation or CorpsEtat.Gaz or CorpsEtat.Ascenseurs
         or CorpsEtat.Paratonnerre or CorpsEtat.Campanaire;
@@ -66,11 +72,12 @@ internal sealed record Lot(UniteLot Unite, int Quantite, Repartition? Repartitio
 
 /// <summary>
 /// Saisie d'un composant : un lot absent désigne un composant individuel ; « soumis à vérification » absent prend, à la
-/// création seulement, la proposition du corps d'état.
+/// création seulement, la proposition du corps d'état ; « objet de valeur » absent vaut non à la création et reste
+/// inchangé à la modification (S21-09).
 /// </summary>
 internal sealed record FicheComposant(
     string? Nom, CorpsEtat CorpsEtat, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
-    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool? SoumisAVerification, Lot? Lot);
+    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool? SoumisAVerification, Lot? Lot, bool? ObjetDeValeur = null);
 
 /// <summary>
 /// Élément suivi d'une zone (US-07, S07-02), individuel ou en lot. Retiré, il sort du calcul du score et reste
@@ -125,6 +132,15 @@ internal sealed class Composant : IAppartientAOrganisation
     public string? Remarques { get; private set; }
 
     public bool SoumisAVerification { get; private set; }
+
+    /// <summary>
+    /// Objet de valeur (coffre, trésor, sonorisation… ; décision du porteur du 03/11) : jamais placé sur un plan de
+    /// bâtiment, comme les équipements de culte, et sa position n'est plus servie, même dans les anciennes versions.
+    /// </summary>
+    public bool ObjetDeValeur { get; private set; }
+
+    /// <summary>Jamais de marqueur sur un plan : case « objet de valeur » cochée ou équipement de culte (exclu d'office).</summary>
+    internal bool ExcluDesPlans => CorpsEtats.ExcluDesPlans(CorpsEtat, ObjetDeValeur);
 
     public UniteLot? Unite { get; private set; }
 
@@ -224,6 +240,7 @@ internal sealed class Composant : IAppartientAOrganisation
         MoisMiseEnService = mois;
         Remarques = remarques;
         SoumisAVerification = verification;
+        ObjetDeValeur = fiche.ObjetDeValeur ?? ObjetDeValeur;
         Unite = lot?.Unite;
         Quantite = lot?.Quantite;
         QuantiteBon = lot?.Repartition?.Bon;

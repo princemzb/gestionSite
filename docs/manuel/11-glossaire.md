@@ -30,6 +30,7 @@
 | Intervention | Travail confié à un technicien ou à un prestataire dans un dossier. |
 | Lot | Plusieurs objets identiques suivis ensemble, avec une quantité. |
 | Niveau | Étage d'un bâtiment (sous-sol, rez-de-chaussée, tribune…). |
+| Objet de valeur | Composant convoité (coffre, trésor, objets de culte…) jamais placé sur un plan de bâtiment. |
 | Organisation | Votre église ou votre réseau d'églises dans l'application. |
 | Parties communes | Zone créée avec chaque bâtiment, pour ce qui sert à tout le bâtiment. |
 | Plan de bâtiment | Dessin d'un niveau, à l'échelle. |

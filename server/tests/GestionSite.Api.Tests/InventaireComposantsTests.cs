@@ -75,6 +75,28 @@ public sealed class InventaireComposantsTests(InfrastructureFixture infrastructu
     }
 
     [Fact]
+    public async Task TheValuableBoxIsKeptWhenAbsentFromAChangeAndClearedOnlyOnPurpose()
+    {
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var (_, communes) = await BatimentAsync("Église", technicien);
+        var sono = await CreerAsync($"{Base}/components", new { nom = "Sonorisation", corpsEtat = "CourantsFaibles", zoneId = communes, objetDeValeur = true }, technicien);
+        var simple = await CreerAsync($"{Base}/components", new { nom = "Banc", corpsEtat = "Mobilier", zoneId = communes }, technicien);
+        var fiche = new { nom = "Sonorisation", corpsEtat = "CourantsFaibles", zoneId = communes, soumisAVerification = false };
+
+        using var sansCase = await EnvoyerAsync(HttpMethod.Put, $"{Base}/components/{sono}", technicien,
+            new { fiche.nom, fiche.corpsEtat, fiche.zoneId, fiche.soumisAVerification, remarques = "Ampli en sacristie", version = await VersionAsync(sono, technicien) });
+        var apresSansCase = (await FicheAsync(sono, technicien)).GetProperty("composant");
+        using var decoche = await EnvoyerAsync(HttpMethod.Put, $"{Base}/components/{sono}", technicien,
+            new { fiche.nom, fiche.corpsEtat, fiche.zoneId, fiche.soumisAVerification, remarques = "Ampli en sacristie", objetDeValeur = false, version = apresSansCase.GetProperty("version").GetUInt32() });
+
+        Assert.Equal(HttpStatusCode.NoContent, sansCase.StatusCode);
+        Assert.True(apresSansCase.GetProperty("objetDeValeur").GetBoolean()); // absent d'une modification : inchangé
+        Assert.Equal(HttpStatusCode.NoContent, decoche.StatusCode);
+        Assert.False((await FicheAsync(sono, technicien)).GetProperty("composant").GetProperty("objetDeValeur").GetBoolean());
+        Assert.False((await FicheAsync(simple, technicien)).GetProperty("composant").GetProperty("objetDeValeur").GetBoolean()); // non par défaut
+    }
+
+    [Fact]
     public async Task AWithdrawnComponentLeavesTheListKeepsItsHistoryAndNoLongerChanges()
     {
         var technicien = await JetonAsync("technicien@inventaire.test");

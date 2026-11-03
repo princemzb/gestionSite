@@ -119,6 +119,51 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
+    public async Task ACheckedValuableIsNeverPlacedAndItsPositionVanishesEvenFromOldVersions()
+    {
+        // Décision du porteur du 03/11 (S21-09) : case « objet de valeur » cochable sur tout composant.
+        var (responsable, lieux) = await PreparerAsync();
+        var technicien = await JetonAsync("technicien@inventaire.test");
+        var coffre = await CreerAsync($"{Base}/components", new { nom = "Coffre-fort", corpsEtat = "Mobilier", zoneId = lieux.Nef }, technicien);
+        var tresor = await CreerAsync($"{Base}/components", new { nom = "Trésor", corpsEtat = "Autre", zoneId = lieux.Nef, objetDeValeur = true }, technicien);
+        var plan = await CreerAsync(Plans, new { batimentId = lieux.Eglise, niveauId = lieux.Rdc }, responsable);
+        using var premiere = await EnregistrerAsync(plan, responsable, 0, Nef(lieux, 10) with
+        {
+            Composants = [new { composantId = coffre, position = new { x = 2, y = 2 } }],
+        });
+        using var tresorPlace = await EnregistrerAsync(plan, responsable, 1, Nef(lieux, 10) with
+        {
+            Composants = [new { composantId = tresor, position = new { x = 3, y = 3 } }],
+        });
+        using var coche = await EnvoyerAsync(HttpMethod.Put, $"{Base}/components/{coffre}", technicien,
+            new { nom = "Coffre-fort", corpsEtat = "Mobilier", zoneId = lieux.Nef, soumisAVerification = false, objetDeValeur = true, version = await XminAsync(coffre) });
+        var v1 = await LireAsync($"{Plans}/{plan}/versions/1", responsable);
+        using var replace = await EnregistrerAsync(plan, responsable, 1, Nef(lieux, 10) with
+        {
+            Composants = [new { composantId = coffre, position = new { x = 2, y = 2 } }],
+        });
+        using var restauree = await EnvoyerAsync(HttpMethod.Post, $"{Plans}/{plan}/versions/1/restore", responsable,
+            new { commandeId = Guid.NewGuid(), version = 1, motif = "Retour au relevé" });
+        var v2 = await LireAsync($"{Plans}/{plan}", responsable);
+
+        Assert.Equal(1, await VersionAsync(premiere)); // pas encore objet de valeur : placé
+        Assert.Equal("contenu.composants[0].composantId", await ChampAsync(tresorPlace)); // coché dès la création : refusé
+        Assert.Equal(HttpStatusCode.NoContent, coche.StatusCode);
+        Assert.Empty(v1.GetProperty("contenu").GetProperty("composants").EnumerateArray()); // position jamais servie, même en version 1
+        Assert.Equal([coffre], v1.GetProperty("marqueursObsoletes").EnumerateArray().Select(m => m.GetGuid()));
+        Assert.Equal("contenu.composants[0].composantId", await ChampAsync(replace));
+        Assert.Equal(HttpStatusCode.OK, restauree.StatusCode);
+        Assert.Equal(["marqueur_retire"], (await restauree.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("avertissements").EnumerateArray()
+            .Select(a => a.GetProperty("code").GetString()));
+        Assert.Empty(v2.GetProperty("contenu").GetProperty("composants").EnumerateArray());
+        var lu = await LireAsync($"{Base}/components/{coffre}", technicien);
+        Assert.True(lu.GetProperty("composant").GetProperty("objetDeValeur").GetBoolean());
+        Assert.Equal(1, await Database.CountAsync(
+            "SELECT count(*) FROM patrimoine.journal_inventaire WHERE nature = 'Modification' " +
+            "AND avant = '{\"objetDeValeur\": false}'::jsonb AND apres = '{\"objetDeValeur\": true}'::jsonb"));
+    }
+
+    [Fact]
     public async Task GeometryAndReferencesAreCheckedByTheServer()
     {
         var (responsable, lieux) = await PreparerAsync();

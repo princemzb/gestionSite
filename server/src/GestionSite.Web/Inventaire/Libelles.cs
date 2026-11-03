@@ -59,6 +59,7 @@ internal static class Libelles
         ["moisMiseEnService"] = "Mois de mise en service",
         ["remarques"] = "Remarques",
         ["soumisAVerification"] = "Soumis à vérification",
+        ["objetDeValeur"] = "Objet de valeur",
         ["unite"] = "Unité",
         ["quantite"] = "Quantité",
         ["lot.unite"] = "Unité du lot",
@@ -81,7 +82,7 @@ internal static class Libelles
     private static readonly string[] OrdreChamps =
     [
         "nom", "corpsEtat", "zone", "emplacement", "marque", "modele", "numeroSerie", "anneeMiseEnService", "moisMiseEnService",
-        "remarques", "soumisAVerification", "unite", "quantite", "bon", "satisfaisant", "degrade", "mauvais", "critique",
+        "remarques", "soumisAVerification", "objetDeValeur", "unite", "quantite", "bon", "satisfaisant", "degrade", "mauvais", "critique",
     ];
 
     internal static int Rang(string champ) => Array.IndexOf(OrdreChamps, champ) is var rang and >= 0 ? rang : OrdreChamps.Length;

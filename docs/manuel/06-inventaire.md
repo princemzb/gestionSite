@@ -53,10 +53,20 @@ Les niveaux sont facultatifs : un petit bâtiment peut s'en passer.
    - **Zone** et **Emplacement précis** ;
    - **Marque**, **Modèle**, **N° de série**, **Mise en service** (année, mois facultatif), si vous les connaissez ;
    - **Soumis à vérification périodique** : proposé d'après le corps d'état (électricité, éclairage de sécurité, sécurité incendie, chauffage, gaz, ascenseurs, paratonnerre, cloches), modifiable ;
+   - **Objet de valeur** : cochez-la pour un coffre, le trésor, la sonorisation ou tout objet convoité ;
    - **Remarques**.
 4. Cliquez sur **Enregistrer**.
 
 Un composant « soumis à vérification périodique » porte le badge **Vérif.** Il sert de base aux plans proposés du [préventif](08-preventif.md#preventif-propositions).
+
+### Objets de valeur {#inventaire-objet-valeur}
+
+Un **objet de valeur** n'est jamais placé sur les [plans de bâtiment](09-plans.md#plans-composants) : le plan montre la disposition des lieux à tous les membres du site, pas l'emplacement des objets convoités.
+
+- Cochez **Objet de valeur** dans la fiche du composant (création ou **Modifier**). La fiche affiche alors « Objet de valeur : Oui : jamais placé sur les plans ».
+- Les **équipements de culte** (autel, orgue, calices…) ne sont jamais placés sur le plan, case cochée ou non.
+- Cocher la case sur un composant déjà placé retire sa position de tous les plans, anciennes versions comprises. L'éditeur de plans le signale à la prochaine ouverture.
+- Le changement est inscrit dans l'**Historique** du composant.
 
 ## Suivre un lot {#inventaire-lot}
 

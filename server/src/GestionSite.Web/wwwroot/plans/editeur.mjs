@@ -1,8 +1,12 @@
-// Éditeur de plans de bâtiment (US-21, S21-07, S21-08, ADR-11) : colle DOM mince entre la page Plans (data-*) et le noyau
+// Éditeur de plans de bâtiment (US-21, S21-07, S21-08, S21-09, ADR-11) : colle DOM mince entre la page Plans (data-*) et le noyau
 // pur (plans/noyau/*.mjs, testé par node:test). Aucun style ni script en ligne (CSP), textContent pour tout texte saisi,
 // fond servi par l'application web (<image href>, img-src 'self'). Vérifiée dans un navigateur réel (Playwright).
 
 import { ecrireBrouillon, effacerBrouillon, cleBrouillon, lireBrouillon, purgerAutresComptes } from "./noyau/brouillon.mjs";
+import {
+  avancementComposants, deplacerMarqueur, etatsComposants, horsZone, marqueurSous, messageMarqueur, messageObsoletes, nomMarqueur, placerMarqueur,
+  positionnerMarqueur, retirerMarqueur,
+} from "./noyau/composants.mjs";
 import {
   bornesFond, defautCote, distanceProposee, ecartControle, formaterEcart, formaterMetres, lireDistance, longueurPixels, messageDefaut,
   metresParPixel, metresParPixelDeclares, pixelVersRepere, pointImage, repereVersPixel,
@@ -18,10 +22,13 @@ import { annuler, appliquer, creerHistorique, peutAnnuler, peutRetablir, retabli
 import { distance } from "./noyau/mesures.mjs";
 import {
   abandonnerSaisie, appliquerDecalage, bornesAffichees, centre, commencerCalibration, conflit, controleFond, corpsEnregistrement,
-  decalageFond, descriptionFond, documentDepuisVersion, echelleFond, estModifie, fixerDistance, formaterDate, messageRefus, pointsSvg,
-  poserPoint, resumeVersion, retirerFond, validerCalibration,
+  decalageFond, descriptionFond, documentDepuisVersion, echelleFond, estModifie, fixerDistance, formaterDate, messageRefus, normaliserContenu,
+  pointsSvg, poserPoint, resumeVersion, retirerFond, validerCalibration,
 } from "./noyau/plan.mjs";
 import * as recalage from "./noyau/recalage.mjs";
+import {
+  VERSIONS_PAR_PAGE, ajouterPage, avantSuivant, bilanRestauration, corpsRestauration, libelleVersion, messageRefusRestauration, precisionsVersion,
+} from "./noyau/versions.mjs";
 import { ajuster, deplacer, echelleVue, pasGrille, pincer, redimensionner, versRepere, viewBox, zoomer } from "./noyau/vue.mjs";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -52,11 +59,16 @@ function demarrer(racine) {
   const tous = selecteur => [...page.querySelectorAll(selecteur)];
   const svg = el("[data-role=svg]");
   const couches = {
-    fond: el("[data-role=fond]"), calque: el("[data-role=calque]"), pieces: el("[data-role=pieces]"), selection: el("[data-role=selection]"),
+    fond: el("[data-role=fond]"), calque: el("[data-role=calque]"), pieces: el("[data-role=pieces]"), marqueurs: el("[data-role=marqueurs]"),
+    selection: el("[data-role=selection]"),
     cotes: el("[data-role=cotes]"),
   };
   const cadre = lireJson(d.cadre, { niveauId: null, zones: [], niveaux: [] });
   const zones = lireJson(d.zones, {});
+  // Composants placables sur ce plan (objets de valeur jamais envoyés par la page) et objets de valeur écartés par zone.
+  const composantsPlan = lireJson(d.composants, {});
+  const placables = Array.isArray(composantsPlan.placables) ? composantsPlan.placables : [];
+  const exclus = composantsPlan.exclus && typeof composantsPlan.exclus === "object" ? composantsPlan.exclus : {};
 
   const etat = {
     mode: d.mode,
@@ -81,10 +93,13 @@ function demarrer(racine) {
     mesure: { de: null, a: null },
     reprise: null,
     enCours: false,
-    rendus: { pieces: null, fond: null },
+    rendus: { pieces: null, fond: null, marqueurs: null },
+    aPlacer: null, // composant choisi dans la liste, posé au prochain toucher du plan
+    versions: { liste: [], avant: null, chargees: false },
+    consultation: null, // version de l'historique affichée en lecture seule : { lue, document }
   };
   const present = () => etat.historique.present;
-  const affiche = () => etat.apercu ?? present();
+  const affiche = () => etat.consultation?.document ?? etat.apercu ?? present();
 
   // ——— Stockage local (brouillon), réseau, messages ———
   function stockage() {
@@ -204,6 +219,14 @@ function demarrer(racine) {
       point.setAttribute("r", String((point.classList.contains("actif") || point.classList.contains("premier") ? 10 : 7) * metres));
     }
 
+    // Marqueurs de composants (maquette A) : pastille de 9 px, nom à sa droite, à taille constante à l'écran.
+    couches.marqueurs.setAttribute("font-size", String(12 * metres));
+    for (const marqueur of couches.marqueurs.children) {
+      const [rond, nom] = marqueur.children;
+      rond.setAttribute("r", String((marqueur.classList.contains("selectionne") ? 11 : 9) * metres));
+      nom.setAttribute("x", String(Number(rond.getAttribute("cx")) + 14 * metres));
+    }
+
     const pas = pasGrille(etat.vue, etat.affichage);
     if (etat.rendus.pas !== pas) {
       etat.rendus.pas = pas;
@@ -263,11 +286,22 @@ function demarrer(racine) {
         class: `ouverture ${ouverture.type.toLowerCase()}${memeSelection("ouverture", index) ? " selectionnee" : ""}`,
       }, groupe);
     });
-
-    for (const marqueur of contenu.composants) {
-      creer("circle", { cx: marqueur.position.x, cy: marqueur.position.y, r: 0.25, class: "composant" }, groupe);
-    }
   }
+
+  // Marqueurs de composants (RP-21.7) : nom du composant (textContent), hors du contour de sa zone signalé.
+  function rendreMarqueurs(contenu) {
+    const groupe = couches.marqueurs;
+    groupe.replaceChildren();
+    contenu.composants.forEach((marqueur, index) => {
+      const classes = ["marqueur", horsZone(contenu, marqueur) ? "hors-zone" : "", memeSelection("marqueur", index) ? "selectionne" : ""].filter(Boolean).join(" ");
+      const g = creer("g", { class: classes }, groupe);
+      creer("circle", { cx: marqueur.position.x, cy: marqueur.position.y, r: 0.25 }, g);
+      texteSvg(g, marqueur.position, nomMarqueur(placables, marqueur.composantId));
+    });
+  }
+
+  // Sélection d'une pièce, d'un escalier ou d'une ouverture (géométrie du dessin), sans un marqueur.
+  const selectionDessin = () => (etat.selection && etat.selection.genre !== "marqueur" ? etat.selection : null);
 
   // Poignées de la sélection (sommets), tracé en cours et points du recalage.
   function rendreSelection() {
@@ -275,7 +309,7 @@ function demarrer(racine) {
     groupe.replaceChildren();
     const contenu = affiche().contenu;
     const s = etat.selection;
-    if (s && s.genre !== "ouverture") {
+    if (s && (s.genre === "piece" || s.genre === "escalier")) {
       const element = contenu[s.genre === "piece" ? "pieces" : "escaliers"][s.index];
       element?.contour.forEach((p, sommet) => creer("circle", { cx: p.x, cy: p.y, r: 0.1, class: `sommet${s.sommet === sommet ? " actif" : ""}` }, groupe));
     }
@@ -437,9 +471,12 @@ function demarrer(racine) {
       recaler.hidden = !contenu.fond;
     }
 
+    const s = n => (n > 1 ? "s" : "");
     el("[data-role=pieces-compte]").textContent =
-      `${contenu.pieces.length} pièce${contenu.pieces.length > 1 ? "s" : ""}, ${contenu.ouvertures.length} ouverture${contenu.ouvertures.length > 1 ? "s" : ""}, ${contenu.escaliers.length} escalier${contenu.escaliers.length > 1 ? "s" : ""} ou ascenseur${contenu.escaliers.length > 1 ? "s" : ""}`;
-    if (etat.mode === "atelier") {
+      `${contenu.pieces.length} pièce${s(contenu.pieces.length)}, ${contenu.ouvertures.length} ouverture${s(contenu.ouvertures.length)}, ${contenu.escaliers.length} escalier${s(contenu.escaliers.length)} ou ascenseur${s(contenu.escaliers.length)}, ${contenu.composants.length} composant${s(contenu.composants.length)} placé${s(contenu.composants.length)}`;
+    if (etat.consultation) {
+      el("[data-role=resume]").textContent = `Consultation en lecture seule · ${resumeVersion(etat.consultation.lue, etat.consultation.document.contenu)}`;
+    } else if (etat.mode === "atelier") {
       el("[data-role=resume]").textContent = estModifie(present(), etat.reference)
         ? `${resumeVersion(etat.lue, etat.reference.contenu)} · modifications non enregistrées`
         : resumeVersion(etat.lue, etat.reference.contenu);
@@ -505,6 +542,131 @@ function demarrer(racine) {
     el("[data-role=piece-sommets]").textContent = String(piece.contour.length);
     defautAffiche(el("[data-role=piece-defaut]"), etat.apercu ? null : defautPiece(contenu, cadre, s.index));
     rendreSommet("piece", piece.contour, s);
+    remplirComposants(el("[data-role=piece-composants]"), etatsComposants(contenu, placables, piece.zoneId), { avecZone: false });
+    const nombreExclus = Number(exclus[piece.zoneId]) || 0;
+    const note = el("[data-role=piece-exclus]");
+    note.hidden = nombreExclus === 0;
+    note.textContent = nombreExclus > 1
+      ? `${nombreExclus} objets de valeur dans cette zone : jamais placés sur le plan.`
+      : "1 objet de valeur dans cette zone : jamais placé sur le plan.";
+  }
+
+  // Liste des composants (maquette A) : ● placé, ○ à placer ; boutons « Placer », « Replacer », « Retirer » (textContent).
+  function remplirComposants(liste, etats, { avecZone }) {
+    if (etats.length === 0) {
+      const vide = document.createElement("li");
+      vide.className = "vide";
+      vide.textContent = avecZone ? "Aucun composant à placer sur ce niveau : ajoutez-les d'abord dans l'inventaire." : "Aucun composant à placer dans cette zone.";
+      liste.replaceChildren(vide);
+      return;
+    }
+
+    liste.replaceChildren(...etats.map(({ composant, index, horsZone: dehors }) => {
+      const item = document.createElement("li");
+      item.classList.toggle("place", index >= 0);
+      item.classList.toggle("a-placer", etat.aPlacer === composant.id);
+      const texte = document.createElement("span");
+      texte.className = "texte";
+      const nom = document.createElement("strong");
+      nom.textContent = `${index >= 0 ? "●" : "○"} ${composant.nom}`;
+      const precision = document.createElement("span");
+      precision.className = "note";
+      const parties = [avecZone ? nomZone(cadre, composant.zoneId) : null, index >= 0 ? (dehors ? "placé hors de sa zone" : "placé") : "à placer"];
+      precision.textContent = parties.filter(Boolean).join(" · ");
+      texte.append(nom, precision);
+      const placer = bouton(index >= 0 ? "Replacer" : "Placer", "bouton-secondaire");
+      placer.dataset.placer = composant.id;
+      placer.setAttribute("aria-pressed", String(etat.aPlacer === composant.id));
+      item.append(texte, placer);
+      if (index >= 0) {
+        const retirer = bouton("Retirer", "bouton-secondaire");
+        retirer.dataset.retirerMarqueur = composant.id;
+        item.append(retirer);
+      }
+
+      return item;
+    }));
+  }
+
+  function bouton(texte, classe) {
+    const element = document.createElement("button");
+    element.type = "button";
+    element.className = classe;
+    element.textContent = texte;
+    return element;
+  }
+
+  function rendrePanneauComposants() {
+    const contenu = present().contenu;
+    const { total, places } = avancementComposants(contenu, placables);
+    el("[data-role=composants-avancement]").textContent = `${places} composant${places > 1 ? "s" : ""} placé${places > 1 ? "s" : ""} sur ${total}${composantsPlan.tronquee ? " (inventaire de plus de 1 000 composants : liste incomplète)" : ""}.`;
+    const consigne = el("[data-role=composants-consigne]");
+    const choisi = placables.find(c => c.id === etat.aPlacer);
+    consigne.textContent = choisi
+      ? `Touchez le plan à l'emplacement de « ${choisi.nom} ».`
+      : "Choisissez un composant (« Placer »), puis touchez le plan à son emplacement. Un composant placé hors du contour de sa zone est accepté, avec un avertissement.";
+    consigne.className = choisi ? "alerte succes" : "note";
+    remplirComposants(el("[data-role=composants-liste]"), etatsComposants(contenu, placables), { avecZone: true });
+    const etape = el("[data-etape=composants]"); // parcours guidé seulement
+    if (etape) {
+      etape.textContent = `4 · Composants (${places} sur ${total})`;
+    }
+  }
+
+  function rendrePanneauMarqueur(s) {
+    const contenu = affiche().contenu;
+    const marqueur = contenu.composants[s.index];
+    el("[data-role=marqueur-nom]").textContent = nomMarqueur(placables, marqueur.composantId);
+    el("[data-role=marqueur-zone]").textContent = nomZone(cadre, marqueur.zoneId);
+    el("[data-role=marqueur-hors-zone]").hidden = !horsZone(contenu, marqueur);
+    for (const axe of ["x", "y"]) {
+      const champ = el(`[data-champ=marqueur-${axe}]`);
+      if (document.activeElement !== champ) {
+        champ.value = String(marqueur.position[axe]).replace(".", ",");
+      }
+    }
+  }
+
+  // Historique (RP-21.8) : versions de la plus récente à la plus ancienne ; la version consultée et la courante signalées.
+  function rendrePanneauHistorique() {
+    const liste = el("[data-role=versions]");
+    const consultee = etat.consultation?.lue.version ?? null;
+    liste.replaceChildren(...etat.versions.liste.map(version => {
+      const item = document.createElement("li");
+      const choix = bouton("", "editeur-version-choix");
+      choix.dataset.version = String(version.version);
+      if (version.version === (consultee ?? etat.versionLue)) {
+        choix.setAttribute("aria-current", "true");
+      }
+
+      const titre = document.createElement("strong");
+      titre.textContent = `${libelleVersion(version)}${version.version === etat.versionLue ? " · courante" : ""}`;
+      const precisions = document.createElement("span");
+      precisions.className = "note";
+      precisions.textContent = precisionsVersion(version);
+      choix.append(titre, ...(precisions.textContent ? [precisions] : []));
+      item.append(choix);
+      return item;
+    }));
+    el("[data-action=versions-suivantes]").hidden = etat.versions.avant == null;
+
+    const detail = el("[data-role=version-detail]");
+    detail.hidden = !etat.consultation;
+    if (!etat.consultation) {
+      return;
+    }
+
+    const lue = etat.consultation.lue;
+    el("[data-role=version-titre]").textContent = `Version ${lue.version} affichée en lecture seule${lue.le ? ` (enregistrée le ${formaterDate(lue.le)}${lue.auteur ? ` par ${lue.auteur}` : ""})` : ""}.`;
+    const precisions = el("[data-role=version-precisions]");
+    precisions.textContent = precisionsVersion(lue);
+    precisions.hidden = !precisions.textContent;
+    const formulaire = el("[data-role=restaurer]");
+    if (formulaire) {
+      const enCours = estModifie(present(), etat.reference) || Boolean(present().saisie) || Boolean(present().trace);
+      el("[data-role=restaurer-impossible]").hidden = !enCours;
+      formulaire.querySelector("button[type=submit]").disabled = enCours || etat.enCours;
+    }
   }
 
   function rendreSommet(prefixe, contour, s) {
@@ -601,6 +763,10 @@ function demarrer(racine) {
       return "trace";
     }
 
+    if (etat.outil === "composant") {
+      return "composants";
+    }
+
     return etat.selection ? etat.selection.genre : "proprietes";
   }
 
@@ -613,8 +779,10 @@ function demarrer(racine) {
     const rendus = {
       trace: rendrePanneauTrace, piece: () => rendrePanneauPiece(etat.selection), ouverture: () => rendrePanneauOuverture(etat.selection),
       escalier: () => rendrePanneauEscalier(etat.selection), recalage: rendrePanneauRecalage, pieces: rendrePanneauGuide,
+      composants: rendrePanneauComposants, marqueur: () => rendrePanneauMarqueur(etat.selection), historique: rendrePanneauHistorique,
     };
-    if (modifiable || panneau === "proprietes") {
+    // Lecteur : propriétés et historique seulement (les autres panneaux ne sont pas dans sa page).
+    if (modifiable || panneau === "proprietes" || panneau === "historique") {
       rendus[panneau]?.();
     }
   }
@@ -632,12 +800,17 @@ function demarrer(racine) {
     if (enregistrer) {
       enregistrer.textContent = `Enregistrer la version ${etat.versionLue + 1}`;
       enregistrer.disabled = etat.enCours || etat.chargementEchoue || Boolean(present().saisie) || Boolean(present().trace)
-        || !estModifie(present(), etat.reference) || Boolean(etat.reprise);
+        || !estModifie(present(), etat.reference) || Boolean(etat.reprise) || Boolean(etat.consultation);
     }
 
-    for (const bouton of tous("[data-outil]")) {
-      bouton.setAttribute("aria-pressed", String(bouton.dataset.outil === etat.outil));
+    // Historique ouvert : outils inactifs (une version consultée ne se modifie pas).
+    const historiqueOuvert = etat.panneau === "historique";
+    for (const outil of tous("[data-outil]")) {
+      outil.setAttribute("aria-pressed", String(outil.dataset.outil === etat.outil));
+      outil.disabled = historiqueOuvert;
     }
+
+    el("[data-action=historique]")?.setAttribute("aria-pressed", String(historiqueOuvert));
 
     const fermer = el("[data-action=fermer-trace]");
     if (fermer) {
@@ -647,9 +820,9 @@ function demarrer(racine) {
       fermer.textContent = trace?.genre === "escalier" ? "Fermer le contour" : "Fermer la pièce";
     }
 
-    svg.classList.toggle("pointage", etat.panneau === "calibration" || etat.panneau === "recalage" || etat.panneau === "pieces" || etat.outil !== "selection");
+    svg.classList.toggle("pointage", ["calibration", "recalage", "pieces"].includes(etat.panneau) || Boolean(etat.aPlacer) || etat.outil !== "selection");
     const etapes = tous("[data-etape]");
-    const courante = { fond: 0, calibration: 1, pieces: 2 }[etat.panneau] ?? 0;
+    const courante = { fond: 0, calibration: 1, pieces: 2, composants: 3 }[etat.panneau] ?? 0;
     etapes.forEach((etape, rang) => {
       etape.classList.toggle("faite", rang < courante);
       if (rang === courante) {
@@ -667,6 +840,7 @@ function demarrer(racine) {
       etat.rendus.pieces = contenu;
       etat.rendus.selection = cleRendu;
       rendreGeometrie(couches.pieces, contenu, true);
+      rendreMarqueurs(contenu);
     }
 
     rendreFond();
@@ -720,7 +894,7 @@ function demarrer(racine) {
 
   // Aucune modification pendant un enregistrement : elle serait effacée par le rechargement de la version enregistrée.
   function changer(document) {
-    if (etat.enCours || etat.chargementEchoue || !modifiable) {
+    if (etat.enCours || etat.chargementEchoue || !modifiable || etat.consultation) {
       return;
     }
 
@@ -732,7 +906,7 @@ function demarrer(racine) {
   // Sélection encore valable après une modification (élément supprimé : plus de sélection).
   function verifierSelection() {
     const s = etat.selection;
-    const listeSel = s ? present().contenu[{ piece: "pieces", ouverture: "ouvertures", escalier: "escaliers" }[s.genre]] : null;
+    const listeSel = s ? present().contenu[{ piece: "pieces", ouverture: "ouvertures", escalier: "escaliers", marqueur: "composants" }[s.genre]] : null;
     if (s && (!listeSel || s.index >= listeSel.length || (s.sommet != null && s.sommet >= (listeSel[s.index].contour?.length ?? 0)))) {
       etat.selection = null;
     }
@@ -740,7 +914,7 @@ function demarrer(racine) {
 
   // Annuler, rétablir : le panneau et l'échelle de travail suivent la calibration en cours du document.
   function deplacerHistorique(retour) {
-    if (etat.enCours || etat.chargementEchoue) {
+    if (etat.enCours || etat.chargementEchoue || etat.consultation) {
       return;
     }
 
@@ -928,7 +1102,12 @@ function demarrer(racine) {
 
       etat.enCours = false;
       masquerBrouillon();
-      message(`Version ${reponse.donnees.version} enregistrée.`);
+      // Avertissement du serveur « marqueur_hors_zone » : accepté, mais signalé (RP-21.7).
+      const dehors = (reponse.donnees.avertissements ?? []).filter(a => a.code === "marqueur_hors_zone").length;
+      message(dehors
+        ? `Version ${reponse.donnees.version} enregistrée. ${dehors} composant${dehors > 1 ? "s sont placés" : " est placé"} hors du contour de ${dehors > 1 ? "leur" : "sa"} zone : vérifiez l'emplacement.`
+        : `Version ${reponse.donnees.version} enregistrée.`, dehors ? "avertissement" : "succes");
+      reinitialiserVersions();
       rendre();
       return true;
     }
@@ -1011,8 +1190,33 @@ function demarrer(racine) {
     selectionner({ genre, index: resultat.index });
   }
 
+  // Composant choisi dans la liste : posé (ou déplacé) au point touché ; hors de sa zone, accepté avec un avertissement.
+  function toucherComposant(point) {
+    const composant = placables.find(c => c.id === etat.aPlacer);
+    if (!composant) {
+      message("Choisissez d'abord un composant dans la liste (« Placer »).", "avertissement");
+      return;
+    }
+
+    const resultat = placerMarqueur(present(), composant, point);
+    if (resultat.defaut) {
+      message(messageMarqueur(resultat.defaut), "avertissement");
+      return;
+    }
+
+    etat.aPlacer = null;
+    changer(resultat.document);
+    const dehors = horsZone(present().contenu, present().contenu.composants[resultat.index]);
+    message(dehors ? `« ${composant.nom} » est hors du contour de sa zone : accepté, vérifiez l'emplacement.` : `« ${composant.nom} » placé.`,
+      dehors ? "avertissement" : "succes");
+  }
+
   function toucher(position) {
     const point = versRepere(etat.vue, etat.affichage, position);
+    if (etat.consultation) {
+      return; // version de l'historique : lecture seule
+    }
+
     const saisie = present().saisie;
     if (etat.panneau === "calibration" && saisie) {
       const info = fondInfo(saisie.fondId);
@@ -1053,6 +1257,11 @@ function demarrer(racine) {
       return;
     }
 
+    if (etat.panneau === "composants" || etat.outil === "composant") {
+      toucherComposant(point);
+      return;
+    }
+
     if (etat.panneau === "pieces" || etat.outil === "piece" || etat.outil === "escalier") {
       if (etat.panneau !== "pieces" || present().trace) {
         toucherTrace(point);
@@ -1074,7 +1283,9 @@ function demarrer(racine) {
       return;
     }
 
-    selectionner(elementSous(present().contenu, point, tolerance(), etat.selection));
+    // Les marqueurs sont au-dessus des pièces : désignés d'abord.
+    const marqueur = marqueurSous(present().contenu, point, tolerance());
+    selectionner(marqueur >= 0 ? { genre: "marqueur", index: marqueur } : elementSous(present().contenu, point, tolerance(), selectionDessin()));
   }
 
   // Recalage : points du calque accrochés à ses contours, points du fond exprimés depuis son coin haut gauche.
@@ -1144,7 +1355,7 @@ function demarrer(racine) {
     ajusterVue();
   }
 
-  // Étape 3 du parcours guidé : les zones du niveau tracées une à une ; l'étape 4 (composants) arrive avec S21-09.
+  // Étape 3 du parcours guidé : les zones du niveau tracées une à une, puis l'étape 4 (composants, S21-09).
   function commencerEtapePieces() {
     etat.panneau = "pieces";
     etat.outil = "piece";
@@ -1170,6 +1381,17 @@ function demarrer(racine) {
   async function terminerPieces() {
     changer({ ...present(), trace: null });
     if (!estModifie(present(), etat.reference) || (await enregistrer("Pièces tracées"))) {
+      // Étape 4 du parcours guidé (maquette C) : les composants du niveau, placés un à un.
+      etat.panneau = "composants";
+      etat.outil = "selection";
+      etat.aPlacer = null;
+      rendre();
+    }
+  }
+
+  async function terminerComposants() {
+    etat.aPlacer = null;
+    if (!estModifie(present(), etat.reference) || (await enregistrer("Composants placés"))) {
       passerEnAtelier();
     }
   }
@@ -1365,6 +1587,125 @@ function demarrer(racine) {
     ajusterVue();
   }
 
+  // ——— Historique des versions (RP-21.8) : liste par pages, version en lecture seule, restauration avec motif ———
+  function reinitialiserVersions() {
+    etat.versions = { liste: [], avant: null, chargees: false };
+  }
+
+  async function chargerVersions() {
+    const avant = etat.versions.chargees ? etat.versions.avant : null;
+    const reponse = await appeler("GET", `${base}/${etat.planId}/versions?limite=${VERSIONS_PAR_PAGE}${avant == null ? "" : `&avant=${avant}`}`);
+    if (reponse.statut !== 200 || !Array.isArray(reponse.donnees)) {
+      message(messageRefus(reponse.statut, reponse.probleme), "danger");
+      return;
+    }
+
+    etat.versions = { liste: ajouterPage(etat.versions.liste, reponse.donnees), avant: avantSuivant(reponse.donnees), chargees: true };
+    rendre();
+  }
+
+  async function ouvrirHistorique() {
+    if (etat.panneau === "historique") {
+      fermerHistorique();
+      return;
+    }
+
+    if (present().saisie || present().trace || etat.recalage) {
+      message("Terminez ou abandonnez d'abord la calibration, le tracé ou le recalage en cours.", "avertissement");
+      return;
+    }
+
+    etat.panneau = "historique";
+    etat.outil = "selection";
+    etat.selection = null;
+    etat.aPlacer = null;
+    message("");
+    rendre();
+    if (!etat.versions.chargees) {
+      await chargerVersions();
+    }
+  }
+
+  function revenirVersionCourante() {
+    const recadrer = Boolean(etat.consultation);
+    etat.consultation = null;
+    etat.rendus.fond = undefined;
+    rendre();
+    if (recadrer) {
+      ajusterVue();
+    }
+  }
+
+  function fermerHistorique() {
+    etat.panneau = "proprietes";
+    revenirVersionCourante();
+  }
+
+  // Une ancienne version s'affiche telle qu'enregistrée (marqueurs de composants retirés depuis compris, RP-21.7) ; la
+  // position d'un objet de valeur n'est jamais servie par le serveur.
+  async function consulterVersion(numero) {
+    if (numero === etat.versionLue) {
+      revenirVersionCourante();
+      return;
+    }
+
+    const reponse = await appeler("GET", `${base}/${etat.planId}/versions/${numero}`);
+    if (reponse.statut !== 200) {
+      message(messageRefus(reponse.statut, reponse.probleme), "danger");
+      return;
+    }
+
+    etat.consultation = { lue: reponse.donnees, document: { contenu: normaliserContenu(reponse.donnees.contenu), saisie: null, trace: null } };
+    etat.rendus.fond = undefined;
+    message("");
+    rendre();
+    ajusterVue();
+  }
+
+  async function restaurer(formulaire) {
+    const source = etat.consultation?.lue.version;
+    if (source == null || etat.enCours) {
+      return;
+    }
+
+    if (estModifie(present(), etat.reference) || present().saisie || present().trace) {
+      message("Enregistrez ou abandonnez d'abord vos modifications en cours.", "avertissement");
+      return;
+    }
+
+    const corps = corpsRestauration(etat.versionLue, crypto.randomUUID(), formulaire.elements.motif.value);
+    if (!corps) {
+      message("Motif obligatoire : indiquez pourquoi vous restaurez cette version.", "avertissement");
+      formulaire.elements.motif.focus();
+      return;
+    }
+
+    etat.enCours = true;
+    rendre();
+    const reponse = await appeler("POST", `${base}/${etat.planId}/versions/${source}/restauration`, corps);
+    etat.enCours = false;
+    if (reponse.statut !== 200) {
+      message(messageRefusRestauration(reponse.statut, reponse.probleme), "danger");
+      rendre();
+      return;
+    }
+
+    const lue = await lirePlan();
+    if (lue) {
+      charger(lue);
+    }
+
+    formulaire.reset();
+    reinitialiserVersions();
+    etat.panneau = "proprietes";
+    etat.consultation = null;
+    etat.rendus.fond = undefined;
+    const bilan = bilanRestauration(source, reponse.donnees);
+    message(bilan.texte, bilan.genre);
+    rendre();
+    ajusterVue();
+  }
+
   // ——— Modifications de l'élément sélectionné (boutons, champs, clavier) ———
   function modifierSelection(fabrique) {
     if (!etat.selection) {
@@ -1382,7 +1723,9 @@ function demarrer(racine) {
       return;
     }
 
-    if (s.sommet != null) {
+    if (s.genre === "marqueur") {
+      modifierSelection(doc => deplacerMarqueur(doc, s.index, dx, dy));
+    } else if (s.sommet != null) {
       const contour = present().contenu[s.genre === "piece" ? "pieces" : "escaliers"][s.index].contour;
       const p = contour[s.sommet];
       modifierSelection(doc => deplacerSommet(doc, s, s.sommet, { x: p.x + dx, y: p.y + dy }));
@@ -1397,7 +1740,10 @@ function demarrer(racine) {
       return;
     }
 
-    if (s.sommet != null) {
+    if (s.genre === "marqueur") {
+      changer(retirerMarqueur(present(), s.index)); // le composant reste dans l'inventaire
+      etat.selection = null;
+    } else if (s.sommet != null) {
       modifierSelection(doc => supprimerSommet(doc, s, s.sommet));
       etat.selection = { genre: s.genre, index: s.index };
     } else {
@@ -1423,7 +1769,12 @@ function demarrer(racine) {
     }
 
     const point = versRepere(etat.vue, etat.affichage, ecran);
-    const sous = elementSous(present().contenu, point, tolerance(), etat.selection);
+    if (etat.selection.genre === "marqueur") {
+      const rang = marqueurSous(present().contenu, point, tolerance());
+      return rang === etat.selection.index ? { genre: "marqueur", index: rang, depart: point } : null;
+    }
+
+    const sous = elementSous(present().contenu, point, tolerance(), selectionDessin());
     if (sous && sous.genre === etat.selection.genre && sous.index === etat.selection.index) {
       return { ...sous, depart: point };
     }
@@ -1448,6 +1799,10 @@ function demarrer(racine) {
 
   function apercuGlisser(element, ecran) {
     const point = versRepere(etat.vue, etat.affichage, ecran);
+    if (element.genre === "marqueur") {
+      return deplacerMarqueur(present(), element.index, point.x - element.depart.x, point.y - element.depart.y);
+    }
+
     if (element.sommet != null) {
       const contours = [...contoursAccrochage(present().contenu, element), ...(etat.calque.affiche ? contoursAccrochage(etat.calque.contenu) : [])];
       return deplacerSommet(present(), element, element.sommet, accrocher(point, contours, tolerance()).point);
@@ -1617,6 +1972,7 @@ function demarrer(racine) {
 
     etat.outil = outil;
     etat.selection = null;
+    etat.aPlacer = null;
     etat.mesure = { de: null, a: null };
     el("[data-role=mesure]").hidden = true;
     rendre();
@@ -1636,6 +1992,32 @@ function demarrer(racine) {
     if (cible.dataset.cible) {
       etat.cible = cible.dataset.cible;
       rendre();
+      return;
+    }
+
+    // Liste des composants (panneau de la pièce, outil « Composant », étape 4) : choisir celui à poser, ou le retirer.
+    if (cible.dataset.placer) {
+      if (etat.mode === "atelier" && etat.outil !== "composant") {
+        choisirOutil("composant");
+      }
+
+      etat.aPlacer = etat.aPlacer === cible.dataset.placer ? null : cible.dataset.placer;
+      rendre();
+      return;
+    }
+
+    if (cible.dataset.retirerMarqueur) {
+      const rang = present().contenu.composants.findIndex(m => m.composantId === cible.dataset.retirerMarqueur);
+      if (rang >= 0) {
+        etat.selection = null;
+        changer(retirerMarqueur(present(), rang));
+      }
+
+      return;
+    }
+
+    if (cible.dataset.version) {
+      void consulterVersion(Number(cible.dataset.version));
       return;
     }
 
@@ -1675,6 +2057,12 @@ function demarrer(racine) {
       "abandonner-trace": () => { changer({ ...present(), trace: null }); choisirOutil("selection"); },
       "zone-suivante": zoneSuivante,
       "terminer-pieces": terminerPieces,
+      "terminer-composants": terminerComposants,
+      "fermer-composants": () => choisirOutil("selection"),
+      historique: ouvrirHistorique,
+      "fermer-historique": fermerHistorique,
+      "versions-suivantes": chargerVersions,
+      "version-courante": revenirVersionCourante,
       "inserer-sommet": () => {
         const s = etat.selection;
         modifierSelection(doc => insererSommet(doc, s, s.sommet));
@@ -1752,6 +2140,12 @@ function demarrer(racine) {
   }
 
   lireMetres("ouverture-largeur", valeur => modifierSelection((doc, s) => modifierOuverture(doc, s.index, { largeur: valeur })));
+  for (const axe of ["x", "y"]) {
+    lireMetres(`marqueur-${axe}`, valeur => modifierSelection((doc, s) => {
+      const position = doc.contenu.composants[s.index].position;
+      return positionnerMarqueur(doc, s.index, { ...position, [axe]: valeur });
+    }));
+  }
   for (const prefixe of ["piece", "escalier"]) {
     for (const axe of ["x", "y"]) {
       lireMetres(`${prefixe}-${axe}`, valeur => {
@@ -1761,6 +2155,11 @@ function demarrer(racine) {
       });
     }
   }
+
+  el("[data-role=restaurer]")?.addEventListener("submit", evenement => {
+    evenement.preventDefault();
+    void restaurer(evenement.target); // refus et erreurs affichés par restaurer
+  });
 
   el("[data-role=import]")?.addEventListener("submit", evenement => {
     evenement.preventDefault();
@@ -1811,6 +2210,12 @@ function demarrer(racine) {
     }
 
     examinerBrouillon();
+    // Marqueurs obsolètes de la version lue (RP-21.7) : déjà retirés du document, signalés à qui peut enregistrer.
+    const obsoletes = messageObsoletes(etat.lue?.marqueursObsoletes?.length);
+    if (modifiable && obsoletes) {
+      message(obsoletes, "avertissement");
+    }
+
     if (etat.mode === "guide" && etat.panneau === "fond") {
       el("[data-role=resume]").textContent = "Quatre étapes ; chaque étape s'enregistre comme une version, vous pouvez vous arrêter et reprendre.";
     }

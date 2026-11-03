@@ -1,4 +1,4 @@
-// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07 et S21-08 (navigateur réel, Chromium sans interface via
+// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07, S21-08 et S21-09 (navigateur réel, Chromium sans interface via
 // Playwright 1.55.0) : une responsable crée le plan du rez-de-chaussée par le parcours guidé (fond PNG synthétique de
 // 4 096 px importé, cote de calibration de 14,33 m, cote de contrôle de 8,90 m à moins de 1 %, avertissement au-delà de
 // 2 %), annule et rétablit, enregistre, trace une pièce à l'étape 3 « pièces zone par zone » ; l'atelier affiche la version
@@ -8,7 +8,11 @@
 // la version gagnante avec confirmation (décision du porteur du 02/11) ; le brouillon d'un autre compte est effacé à
 // l'ouverture, et tout brouillon à la déconnexion ; un lecteur n'a aucune commande d'édition et affiche le calque du
 // niveau inférieur ; mesure de fluidité (fond de 4 096 px, 1 000 sommets : glisser, molette, pincement à deux doigts,
-// sans puis avec un processeur ralenti 4 fois) ; aucune violation de la politique de sécurité du contenu.
+// sans puis avec un processeur ralenti 4 fois) ; S21-09 : case « objet de valeur » cochée dans l'inventaire, étape 4
+// « composants » du parcours guidé (objets de valeur jamais proposés, hors zone signalé), marqueur déplacé sans glisser,
+// composant devenu objet de valeur signalé et sa position jamais servie, même dans une ancienne version, historique,
+// version consultée en lecture seule et restaurée avec motif obligatoire ; aucune violation de la politique de sécurité
+// du contenu.
 // Usage, dans un dossier où playwright est installé (captures écrites dans ce dossier) :
 //   VERIF_URL=<adresse> VERIF_ORG=<organisation> VERIF_JETON=<jeton d'activation> node us21.mjs
 // (organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit).
@@ -137,6 +141,20 @@ const zone = async (nom, niveau) => {
 for (let i = 1; i <= 50; i++) await zone(`Salle ${i}`, "Rez-de-chaussée");
 await zone("Crypte", "Sous-sol");
 ok("structure créée (3 niveaux, 51 zones ; la tribune reste sans plan)", (await texte(resp)).includes("Salle 50"));
+// S21-09 : composants de la Salle 1, dont un équipement de culte et un coffre coché « objet de valeur »
+const composant = async (nom, corpsEtat, valeur = false) => {
+  await resp.goto(`${inventaire}?action=composant`);
+  await resp.fill("input[name='ComposantSaisi.Nom']", nom);
+  await resp.selectOption("select[name='ComposantSaisi.CorpsEtat']", corpsEtat);
+  await resp.selectOption("select[name='ComposantSaisi.ZoneId']", { label: "Salle 1 (Rez-de-chaussée)" });
+  if (valeur) await resp.check("input[name='ComposantSaisi.ObjetDeValeur']");
+  await envoyer();
+};
+await composant("Extincteur CO2 2 kg", "SecuriteIncendie");
+await composant("Bloc BAES", "EclairageSecurite");
+await composant("Calice", "EquipementsCulte");
+await composant("Coffre-fort", "Mobilier", true);
+ok("inventaire : case « objet de valeur » cochée et affichée sur la fiche", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui : jamais placé sur les plans"));
 
 // 3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir
 const plans = `${base}/organisations/${org}/plans`;
@@ -176,11 +194,26 @@ await resp.waitForFunction(() => document.querySelector("[data-etape=pieces]")?.
 const guide = await texte(resp, "[data-role=guide-zones]");
 ok("étape 3 : Salle 1 tracée, la zone suivante proposée", guide.includes("✓ Salle 1→ Salle ") && /→ Salle \d+/.test(guide), guide.slice(0, 60));
 await resp.screenshot({ path: "us21-guide-pieces-tablette.png" });
-await Promise.all([resp.waitForNavigation({ timeout: 30000 }), resp.click("[data-action=terminer-pieces]")]);
-await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.includes("Version 2"));
+await resp.click("[data-action=terminer-pieces]");
+await attendre(resp, "[data-panneau=composants]:not([hidden])");
+const liste4 = await texte(resp, "[data-role=composants-liste]");
+ok("version 2 (pièces) enregistrée, étape 4 « composants » : objets de valeur jamais proposés",
+  (await texte(resp, "[data-role=message]")).includes("Version 2 enregistrée") && (await resp.getAttribute("[data-etape=composants]", "aria-current")) === "step"
+  && liste4.includes("Extincteur CO2 2 kg") && liste4.includes("Bloc BAES") && !liste4.includes("Calice") && !liste4.includes("Coffre"), liste4);
+await resp.click("[data-role=composants-liste] li:has-text('Extincteur') button[data-placer]");
+await toucherRepere(resp, 17, 12);
+ok("extincteur placé dans sa pièce", (await texte(resp, "[data-role=message]")).includes("« Extincteur CO2 2 kg » placé"));
+await resp.click("[data-role=composants-liste] li:has-text('BAES') button[data-placer]");
+await toucherRepere(resp, 19.5, 12);
+ok("BAES placé hors du contour de sa zone : accepté, avertissement", (await texte(resp, "[data-role=message]")).includes("hors du contour de sa zone")
+  && (await texte(resp, "[data-etape=composants]")).includes("2 sur 2") && (await resp.locator("[data-role=marqueurs] .marqueur.hors-zone").count()) === 1);
+await resp.screenshot({ path: "us21-guide-composants-tablette.png" });
+await Promise.all([resp.waitForNavigation({ timeout: 30000 }), resp.click("[data-action=terminer-composants]")]);
+await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.includes("Version 3"));
 const resume = await texte(resp, "[data-role=resume]");
-ok("version 2 (pièces) enregistrée, atelier avec l'échelle et la cote de contrôle", (await texte(resp, "h1")).startsWith("Plan · Église")
-  && resume.includes("par Rose Responsable") && resume.includes("échelle calibrée (cote de contrôle"), resume);
+ok("version 3 (composants) enregistrée, atelier avec l'échelle, la cote de contrôle et les marqueurs nommés", (await texte(resp, "h1")).startsWith("Plan · Église")
+  && resume.includes("par Rose Responsable") && resume.includes("échelle calibrée (cote de contrôle")
+  && (await texte(resp, "[data-role=marqueurs]")).includes("Extincteur CO2 2 kg"), resume);
 await resp.screenshot({ path: "us21-atelier-tablette.png" });
 
 // 4. Pièces enregistrées par l'éditeur (relais JSON) : 50 contours de 20 sommets (1 000 sommets), et la crypte au sous-sol
@@ -204,7 +237,7 @@ const cercle = (cx, cy, r, n = 20) => Array.from({ length: n }, (_, k) => ({
 }));
 const salles = Array.from({ length: 50 }, (_, i) => ({ nom: `Salle ${i + 1}`, contour: cercle(2 + (i % 10) * 1.38, 2.3 + Math.floor(i / 10) * 1.7, 0.6) }));
 const niveaux = await resp.evaluate(() => Object.fromEntries([...document.querySelectorAll("nav[aria-label=Niveau] a")].map(a => [a.textContent, new URL(a.href).searchParams.get("niveau")])));
-ok("1 000 sommets enregistrés au rez-de-chaussée (version 3)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
+ok("1 000 sommets enregistrés au rez-de-chaussée (version 4)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
 ok("crypte enregistrée au sous-sol", (await enregistrerPieces(niveaux["Sous-sol"], [{ nom: "Crypte", contour: [{ x: 2, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 9 }, { x: 2, y: 9 }] }])) === 200);
 await resp.reload();
 await resp.waitForFunction(() => document.querySelectorAll("[data-role=pieces] polygon").length === 50);
@@ -336,6 +369,64 @@ const historique = await resp.evaluate(async () => {
 });
 ok(`version ${versionAvant + 2} = brouillon repris (plan sur grille), brouillon effacé`, historique === null && (await brouillons(resp)).length === 0);
 
+// 6 bis. S21-09 : composant devenu objet de valeur, marqueur déplacé sans glisser, historique et restauration
+await resp.goto(inventaire);
+await resp.click("a.nom-composant:has-text('Extincteur')"); await resp.waitForLoadState();
+await resp.click(".fiche-composant a:has-text('Modifier')"); await resp.waitForLoadState();
+await resp.check("input[name='ComposantSaisi.ObjetDeValeur']"); await envoyer();
+ok("extincteur coché « objet de valeur » dans l'inventaire", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui"));
+await resp.goto(plans);
+await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.includes(`Version ${v}`), versionAvant + 2);
+ok("marqueur devenu objet de valeur : signalé, plus affiché", (await texte(resp, "[data-role=message]")).includes("1 marqueur de composant n'est plus affiché")
+  && !(await texte(resp, "[data-role=marqueurs]")).includes("Extincteur") && (await texte(resp, "[data-role=marqueurs]")).includes("Bloc BAES"));
+const anciennes = await resp.evaluate(async v => {
+  const d = document.querySelector("#editeur-plan").dataset;
+  const lue = await (await fetch(`/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}/versions/${v}`)).json();
+  return { marqueurs: lue.contenu.composants.length, obsoletes: lue.marqueursObsoletes };
+}, 3);
+ok("position de l'objet de valeur jamais servie, même dans la version 3", anciennes.marqueurs === 1 && anciennes.obsoletes.length === 1, JSON.stringify(anciennes));
+await resp.click("[data-action=ajuster]");
+const baes = await resp.evaluate(() => { const c = document.querySelector("[data-role=marqueurs] circle"); return [Number(c.getAttribute("cx")), Number(c.getAttribute("cy"))]; });
+await toucherRepere(resp, baes[0], baes[1]);
+await attendre(resp, "[data-panneau=marqueur]:not([hidden])");
+ok("marqueur sélectionné : hors de sa zone signalé", (await texte(resp, "[data-role=marqueur-nom]")) === "Bloc BAES" && await resp.isVisible("[data-role=marqueur-hors-zone]"));
+// Salle 1 : cercle de 0,60 m autour de (2 ; 2,3), déplacé avec le fond par le recalage ; coordonnées saisies, puis 10 cm à droite.
+const centre = { x: Math.round((2 + decalage.x) * 100) / 100, y: Math.round((2.3 + decalage.y) * 100) / 100 };
+const virgule = v => String(Math.round(v * 100) / 100).replace(".", ",");
+await resp.fill("[data-champ=marqueur-x]", virgule(centre.x - 0.1)); await resp.press("[data-champ=marqueur-x]", "Tab");
+await resp.fill("[data-champ=marqueur-y]", virgule(centre.y)); await resp.press("[data-champ=marqueur-y]", "Tab");
+await resp.click("[data-panneau=marqueur] [data-pousser='1 0']");
+ok(`marqueur déplacé sans glisser au centre de sa pièce (${virgule(centre.x)} ; ${virgule(centre.y)})`,
+  (await resp.inputValue("[data-champ=marqueur-x]")) === virgule(centre.x) && await resp.isHidden("[data-role=marqueur-hors-zone]"), await resp.inputValue("[data-champ=marqueur-x]"));
+await resp.click("[data-panneau=marqueur] [data-action=deselectionner]");
+await resp.click("[data-outil=composant]");
+const liste = await texte(resp, "[data-role=composants-liste]");
+ok("outil « Composant » : l'objet de valeur n'est plus proposé", liste.includes("Bloc BAES") && !liste.includes("Extincteur"), liste);
+await resp.click("[data-action=enregistrer]");
+await resp.waitForFunction(v => document.querySelector("[data-role=message]")?.textContent.includes(`Version ${v} enregistrée.`), versionAvant + 3);
+await resp.click("[data-action=historique]");
+await attendre(resp, "[data-panneau=historique]:not([hidden]) [data-version]");
+const versions = await texte(resp, "[data-role=versions]");
+ok("historique : versions de la plus récente à la plus ancienne, auteur et motif", versions.startsWith(`Version ${versionAvant + 3}`)
+  && versions.includes("· courante") && versions.includes("Enregistrement concurrent") && versions.includes("Rose Responsable"), versions.slice(0, 120));
+await resp.click(`[data-version="${versionAvant}"]`);
+await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.startsWith(`Consultation en lecture seule · Version ${v}`), versionAvant);
+ok(`version ${versionAvant} consultée en lecture seule : fond recalé, objet de valeur absent, enregistrement impossible`,
+  (await resp.locator("[data-role=fond] image").count()) === 1 && !(await texte(resp, "[data-role=marqueurs]")).includes("Extincteur")
+  && await resp.isDisabled("[data-action=enregistrer]") && await resp.isDisabled("[data-outil=piece]"));
+await resp.screenshot({ path: "us21-historique-tablette.png" });
+await resp.click("[data-role=restaurer] button[type=submit]");
+ok("restauration sans motif refusée par l'éditeur", (await texte(resp, "[data-role=message]")).startsWith("Motif obligatoire"));
+await resp.fill("[data-role=restaurer] input[name=motif]", "Retour au plan recalé");
+await resp.click("[data-role=restaurer] button[type=submit]");
+await resp.waitForFunction(v => document.querySelector("[data-role=message]")?.textContent.includes(`elle devient la version ${v}`), versionAvant + 4);
+const restauration = await texte(resp, "[data-role=message]");
+const restauree = await lirePlanCourant(resp);
+ok(`version ${versionAvant} restaurée en version ${versionAvant + 4} avec motif, marqueur de l'objet de valeur retiré de la copie`,
+  restauration.includes("1 marqueur de composant a été retiré de la copie") && restauree.restaureDe === versionAvant && restauree.motif === "Retour au plan recalé"
+  && restauree.contenu.fond !== null && !restauree.contenu.composants.some(m => m.composantId === anciennes.obsoletes[0]), restauration);
+const versionFinale = versionAvant + 4;
+
 // 7. Cloisonnement : brouillon d'un autre compte effacé à l'ouverture ; tout brouillon effacé à la déconnexion
 await resp.evaluate(() => {
   const d = document.querySelector("#editeur-plan").dataset;
@@ -354,8 +445,14 @@ ok("aucun brouillon après la déconnexion (Clear-Site-Data)", (await brouillons
 // 8. Lecteur (même tablette) : atelier sans commande d'édition, calque du sous-sol
 await activer(resp, lienPasteur);
 await resp.goto(plans);
-await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.includes(`Version ${v}`), versionAvant + 2);
-ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond]").count()) === 0);
+await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.includes(`Version ${v}`), versionFinale);
+ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond], [data-outil=composant]").count()) === 0);
+await resp.click("[data-action=historique]");
+await attendre(resp, "[data-panneau=historique]:not([hidden]) [data-version]");
+await resp.click(`[data-version="${versionAvant}"]`);
+await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.startsWith("Consultation en lecture seule"));
+ok("lecteur : historique consultable, sans restauration", (await resp.locator("[data-role=restaurer]").count()) === 0);
+await resp.click("[data-action=fermer-historique]");
 await resp.click("[data-action=calque]");
 await resp.waitForSelector("[data-role=calque]:not([hidden]) polygon");
 ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttribute("[data-action=calque]", "aria-pressed")) === "true"

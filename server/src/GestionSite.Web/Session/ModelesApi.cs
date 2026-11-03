@@ -53,7 +53,7 @@ internal sealed record LotApi(string Unite, int Quantite, RepartitionApi? Repart
 internal sealed record ComposantApi(
     Guid Id, Guid ZoneId, string Nom, string CorpsEtat, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
     int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool SoumisAVerification, LotApi? Lot,
-    DateTimeOffset? RetireLe, string? MotifRetrait, uint Version);
+    DateTimeOffset? RetireLe, string? MotifRetrait, uint Version, bool ObjetDeValeur = false);
 
 internal sealed record ListeComposantsApi(IReadOnlyList<ComposantApi> Composants, bool Tronquee);
 

@@ -11,10 +11,12 @@ internal sealed record DemandeRepartition(int? Bon, int? Satisfaisant, int? Degr
 
 internal sealed record DemandeLot(string? Unite, int? Quantite, DemandeRepartition? Repartition);
 
-// Lot absent : composant individuel. Version : celle lue avec la fiche, exigée pour modifier.
+// Lot absent : composant individuel. Version : celle lue avec la fiche, exigée pour modifier. Objet de valeur absent : non à
+// la création, inchangé à la modification (S21-09).
 internal sealed record DemandeComposant(
     string? Nom, string? CorpsEtat, Guid? ZoneId, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
-    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool? SoumisAVerification, DemandeLot? Lot, uint? Version);
+    int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool? SoumisAVerification, DemandeLot? Lot, uint? Version,
+    bool? ObjetDeValeur = null);
 
 internal sealed record DemandeRetrait(string? Motif, uint? Version);
 
@@ -68,7 +70,8 @@ internal static class SaisieComposant
 
     internal static FicheComposant Fiche(DemandeComposant demande) => new(
         demande.Nom, Valeur<CorpsEtat>(demande.CorpsEtat, "corpsEtat"), demande.Emplacement, demande.Marque, demande.Modele, demande.NumeroSerie,
-        demande.AnneeMiseEnService, demande.MoisMiseEnService, demande.Remarques, demande.SoumisAVerification, Lot(demande.Lot));
+        demande.AnneeMiseEnService, demande.MoisMiseEnService, demande.Remarques, demande.SoumisAVerification, Lot(demande.Lot),
+        demande.ObjetDeValeur);
 
     internal static Guid Zone(DemandeComposant demande) => demande.ZoneId ?? throw new SaisieInvalideException("zoneId", "Zone obligatoire.");
 
