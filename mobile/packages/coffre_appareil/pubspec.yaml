@@ -1,0 +1,22 @@
+name: coffre_appareil
+description: "POC-03 (S04-01, expérimental) : Keystore Android, horloge monotone, écran éteint et réduction des photos."
+publish_to: 'none'
+version: 0.0.1
+
+environment:
+  sdk: ^3.13.1
+  flutter: 3.47.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+# Greffon natif seulement : l'interface Dart est dans l'application (lib/poc/tablette/plateforme.dart),
+# pour y être testée et couverte avec elle. Greffon local plutôt que canal dans MainActivity : WorkManager
+# démarre un moteur Flutter sans activité, qui n'enregistre que les greffons déclarés.
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: fr.gestionsite.coffre
+        pluginClass: CoffreAppareilPlugin
