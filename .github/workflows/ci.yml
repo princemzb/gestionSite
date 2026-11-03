@@ -56,7 +56,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: |
-          npm ci --prefix scripts/manuel --no-audit --no-fund
+          npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
           scripts/manuel/verifier.sh
 
   mobile:
@@ -161,6 +161,6 @@ jobs:
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           server/eng/verify-js.sh
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --prefix scripts/manuel --no-audit --no-fund
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
           scripts/manuel/verifier.sh
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

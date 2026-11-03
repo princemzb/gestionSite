@@ -4,12 +4,36 @@ import { Marked } from "marked";
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, PDFString, PDFHexString } from "pdf-lib";
 
 /** Identifiant d'ancre en fin de titre : « ## Qualifier un dossier {#dossiers-qualifier} ». */
-export const MOTIF_ANCRE = /\s*\{#([^}\s]*)\}\s*$/;
+export const MOTIF_ANCRE = /\{#([^}\s]*)\}$/;
 const ANCRE_VALIDE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CHAPITRE = /^\d{2}-[a-z0-9-]+\.md$/;
-const IMAGE = /!\[[^\]]*\]\(([^)\s]+)\)/g;
-const LIEN = /(?<!!)\[[^\]]*\]\(([^)\s]+)\)/g;
 const EXTERNE = /^(?:https?:|mailto:)/;
+
+/** Sépare l'ancre finale d'un titre : « Qualifier {#dossiers-qualifier} » → texte « Qualifier », ancre « dossiers-qualifier ». */
+export function separerAncre(texte) {
+  const nu = texte.trimEnd();
+  const ancre = MOTIF_ANCRE.exec(nu);
+  return ancre ? { texte: nu.slice(0, ancre.index).trimEnd(), ancre: ancre[1] } : { texte: nu, ancre: null };
+}
+
+/** Cibles des liens et images Markdown « [texte](cible) » et « ![légende](cible) », lues ligne par ligne sans expression rationnelle. */
+export function cibles(markdown) {
+  const resultat = [];
+  for (const ligne of markdown.split("\n")) {
+    let debut = 0; // un « [ » ne sert qu'au lien qui le suit, jamais à un « ]( » situé après un autre lien
+    let milieu = ligne.indexOf("](");
+    while (milieu !== -1) {
+      const fin = ligne.indexOf(")", milieu + 2);
+      if (fin === -1) break;
+      const crochet = ligne.lastIndexOf("[", milieu);
+      const cible = ligne.slice(milieu + 2, fin);
+      if (crochet >= debut && cible !== "" && !/\s/.test(cible)) resultat.push({ image: ligne[crochet - 1] === "!", cible });
+      debut = fin + 1;
+      milieu = ligne.indexOf("](", fin);
+    }
+  }
+  return resultat;
+}
 
 /** Chapitres du manuel (« 00-sommaire.md », « 01-principes.md »…), dans l'ordre de leur numéro. */
 export function ordonner(fichiers) {
@@ -31,10 +55,10 @@ export function horsCode(markdown) {
 export function titres(markdown) {
   const resultat = [];
   horsCode(markdown).split("\n").forEach((ligne, index) => {
-    const titre = /^(#{1,6})\s+(.+?)\s*$/.exec(ligne);
+    const titre = /^(#{1,6})[ \t]/.exec(ligne);
     if (titre) {
-      const ancre = MOTIF_ANCRE.exec(titre[2]);
-      resultat.push({ niveau: titre[1].length, texte: titre[2].replace(MOTIF_ANCRE, ""), ancre: ancre?.[1] ?? null, ligne: index + 1 });
+      const { texte, ancre } = separerAncre(ligne.slice(titre[1].length).trim());
+      resultat.push({ niveau: titre[1].length, texte, ancre, ligne: index + 1 });
     }
   });
   return resultat;
@@ -74,12 +98,13 @@ export function verifierManuel(chapitres, images) {
 
   for (const { fichier, markdown: source } of chapitres) {
     const markdown = horsCode(source); // un exemple ou un schéma n'est ni une image ni un lien du manuel
-    for (const [, cible] of markdown.matchAll(IMAGE)) {
-      const nom = cible.startsWith("images/") ? cible.slice("images/".length) : null;
-      if (nom === null || !presentes.has(nom)) erreurs.push(`${fichier} : image introuvable « ${cible} » (attendue dans images/).`);
-      else utilisees.add(nom);
-    }
-    for (const [, cible] of markdown.matchAll(LIEN)) {
+    for (const { image, cible } of cibles(markdown)) {
+      if (image) {
+        const nom = cible.startsWith("images/") ? cible.slice("images/".length) : null;
+        if (nom === null || !presentes.has(nom)) erreurs.push(`${fichier} : image introuvable « ${cible} » (attendue dans images/).`);
+        else utilisees.add(nom);
+        continue;
+      }
       if (EXTERNE.test(cible)) continue;
       const [chemin, ancre] = cible.split("#");
       const destination = chemin === "" ? fichier : chemin;
@@ -88,7 +113,7 @@ export function verifierManuel(chapitres, images) {
     }
   }
 
-  for (const nom of [...presentes].filter(n => !utilisees.has(n)).sort()) erreurs.push(`images/${nom} : image utilisée par aucun chapitre.`);
+  for (const nom of [...presentes].filter(n => !utilisees.has(n)).sort((a, b) => a.localeCompare(b, "fr"))) erreurs.push(`images/${nom} : image utilisée par aucun chapitre.`);
   return erreurs;
 }
 
@@ -104,11 +129,11 @@ export function rendreChapitre(markdown, { prefixeImages, ancresChapitres }) {
   const marked = new Marked({
     walkTokens(jeton) {
       if (jeton.type === "heading") {
-        const ancre = MOTIF_ANCRE.exec(jeton.text);
+        const { ancre } = separerAncre(jeton.text);
         const dernier = jeton.tokens.at(-1);
         if (ancre && dernier?.type === "text") {
-          jeton.ancre = ancre[1];
-          dernier.text = dernier.text.replace(MOTIF_ANCRE, "");
+          jeton.ancre = ancre;
+          dernier.text = separerAncre(dernier.text).texte;
         }
       } else if (jeton.type === "link" && !EXTERNE.test(jeton.href)) {
         const [chemin, ancre] = jeton.href.split("#");

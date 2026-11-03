@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, PDFName, PDFString } from "pdf-lib";
-import { assembler, ordonner, pagesDesAncres, remplirPages, rendreChapitre, sommaire, titres, verifierManuel } from "./assemblage.mjs";
+import { assembler, cibles, ordonner, separerAncre, pagesDesAncres, remplirPages, rendreChapitre, sommaire, titres, verifierManuel } from "./assemblage.mjs";
 
 const chapitre = (fichier, markdown) => ({ fichier, markdown });
 
@@ -21,6 +21,14 @@ test("titres lit niveau, texte et ancre, hors blocs de code", () => {
     { niveau: 2, texte: "Sans ancre", ancre: null, ligne: 6 },
     { niveau: 3, texte: "Avec **gras**", ancre: "t-gras", ligne: 7 },
   ]);
+});
+
+test("cibles lit liens et images, ignore les faux liens", () => {
+  assert.deepEqual(cibles("![a](images/a.png) et [b](02-b.md#x)\n[c](avec espace) ](orphelin) [d]() [e](sans fin"), [
+    { image: true, cible: "images/a.png" }, { image: false, cible: "02-b.md#x" },
+  ]);
+  assert.deepEqual(separerAncre("Titre {#t}  "), { texte: "Titre", ancre: "t" });
+  assert.deepEqual(separerAncre("Titre sans ancre "), { texte: "Titre sans ancre", ancre: null });
 });
 
 test("un manuel cohérent ne donne aucune erreur", () => {
