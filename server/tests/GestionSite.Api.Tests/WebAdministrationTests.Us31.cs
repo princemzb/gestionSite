@@ -107,6 +107,9 @@ public sealed partial class WebAdministrationTests
         var jeton = Uri.UnescapeDataString(lien[(lien.IndexOf("jeton=", StringComparison.Ordinal) + 6)..]);
         var court = await LireAsync(await PosterAsync(luc2, new Uri(lien).PathAndQuery, "reinitialisation",
             ("Saisie.Jeton", jeton), ("Saisie.MotDePasse", "court"), ("Saisie.Confirmation", "court")));
+        var differents = await LireAsync(await PosterAsync(luc2, new Uri(lien).PathAndQuery, "reinitialisation",
+            ("Saisie.Jeton", jeton), ("Saisie.MotDePasse", "une-autre-phrase-solide"), ("Saisie.Confirmation", "une-phrase-differente")));
+        Assert.Contains("Les deux mots de passe ne sont pas identiques.", differents, StringComparison.Ordinal);
         using var reinitialise = await PosterAsync(luc2, new Uri(lien).PathAndQuery, "reinitialisation",
             ("Saisie.Jeton", jeton), ("Saisie.MotDePasse", "une-autre-phrase-solide"), ("Saisie.Confirmation", "une-autre-phrase-solide"));
         var reutilise = await LireAsync(await PosterAsync(Navigateur(), new Uri(lien).PathAndQuery, "reinitialisation",
@@ -190,6 +193,56 @@ public sealed partial class WebAdministrationTests
         Assert.Contains("Cette invitation n'est plus valable.", plusValable, StringComparison.Ordinal);
         Assert.Contains("Vous n'avez encore accès à aucune organisation.", sansOrganisation, StringComparison.Ordinal);
         Assert.Contains("Troisième paroisse vous invite", sansOrganisation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ThePanelExplainsRefusalsAndWithdrawsThePlansRight()
+    {
+        using var admin = await AdministrateurConnecteAsync();
+        var (luc, site) = await MembreActifParLeWebAsync(admin, "luc@web.test", "Luc B.");
+        var panneau = $"{PageMembres}?membre={luc}";
+        await PosterAsync(admin, $"{panneau}&onglet=plans&site={site}", "plans", ("Plans.SiteId", site), ("Plans.Retirer", "false"), ("Plans.Motif", "Relevé"));
+
+        var confirmation = await LirePageAsync(admin, $"{panneau}&onglet=acces&confirmer=1");
+        var revocationSansMotif = await LireAsync(await PosterAsync(admin, $"{panneau}&onglet=acces&confirmer=1", "revocation", ("Revocation.Motif", " ")));
+        var version = Version().Match(await LirePageAsync(admin, panneau)).Groups[1].Value;
+        var aucunRole = await LireAsync(await PosterAsync(admin, panneau, "roles",
+            ("Roles.Version", version), ("Roles.Sites[0].SiteId", site), ("Roles.Sites[0].Valeur", ""), ("Roles.Motif", "Départ du site")));
+        var retirer = await LirePageAsync(admin, $"{panneau}&onglet=plans&site={site}");
+        using var retire = await PosterAsync(admin, $"{panneau}&onglet=plans&site={site}", "plans",
+            ("Plans.SiteId", site), ("Plans.Retirer", "true"), ("Plans.Motif", "Relevé terminé"));
+        var apresRetrait = await LirePageAsync(admin, Chemin(retire).Split('#')[0]);
+        // Invité par une autre organisation : son compte n'est plus « lié à aucune autre ».
+        await InviterDansUneAutreOrganisationAsync("luc@web.test");
+        var reinitialisation = await LireAsync(await PosterAsync(admin, $"{panneau}&onglet=acces", "reinitialisation"));
+
+        Assert.Contains("Son droit « modifier les plans » sur Site centre est retiré avec l'accès.", confirmation, StringComparison.Ordinal);
+        Assert.Contains("Indiquez le motif : il est inscrit au journal des habilitations.", revocationSansMotif, StringComparison.Ordinal);
+        Assert.Contains("Gardez au moins un rôle, ou révoquez son accès dans l'onglet Accès.", aucunRole, StringComparison.Ordinal);
+        Assert.Contains("Retirer à Luc B. le droit de modifier les plans de Site centre ?", retirer, StringComparison.Ordinal);
+        Assert.Contains("Luc B. ne pourra plus enregistrer de plan sur ce site", retirer, StringComparison.Ordinal);
+        Assert.Contains("Droit « modifier les plans » retiré à Luc B.", apresRetrait, StringComparison.Ordinal);
+        Assert.Contains("Lien impossible pour ce compte", reinitialisation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoNewActivationLinkForAnAccountThatExistedAlready()
+    {
+        using var admin = await AdministrateurConnecteAsync();
+        await InviterDansUneAutreOrganisationAsync("quelquun@web.test"); // ouvre une organisation dont l'administrateur a déjà un compte
+        var etape2 = await LireAsync(await PosterAsync(admin, PageMembres + "?inviter=1", "invitation",
+            ("Saisie.Etape", "1"), ("Saisie.Nom", "Admin Deux"), ("Saisie.Email", "admin2@web.test")));
+        await PosterAsync(admin, PageMembres, "invitation", ("Saisie.Etape", "2"), ("Saisie.Nom", "Admin Deux"), ("Saisie.Email", "admin2@web.test"),
+            ("Saisie.Roles[0].SiteId", SiteId().Match(etape2).Groups[1].Value), ("Saisie.Roles[0].Role", "Pasteur"));
+        var invite = MembreLien("Admin Deux").Match(await LirePageAsync(admin, PageMembres)).Groups[1].Value;
+
+        var acces = await LireAsync(await PosterAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces", "activation"));
+        var annulation = await LirePageAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces&confirmer=1");
+        using var annule = await PosterAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces&confirmer=1", "revocation", ("Revocation.Motif", "Erreur d'adresse"));
+
+        Assert.Contains("Pas de nouveau lien : son compte existait déjà", acces, StringComparison.Ordinal);
+        Assert.Contains("Son lien d'activation ne donnera plus accès à Église Saint-Paul.", annulation, StringComparison.Ordinal);
+        Assert.Contains("Invitation annulée.", await LirePageAsync(admin, Chemin(annule)), StringComparison.Ordinal);
     }
 
     // Membre invité par l'écran (technicien sur « Site centre ») puis activé par son lien ; rend son adhésion et le site.
