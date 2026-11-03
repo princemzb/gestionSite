@@ -563,7 +563,7 @@ form.formulaire-inventaire { padding: 0; }
 /* Pièces, ouvertures, escaliers et recalage (S21-08, maquettes A et C) : sélection en violet, tracé en cours, poignées. */
 .editeur { --plan-selection: #7569FF; --plan-ouverture: var(--surface); }
 .pieces .piece.selectionnee, .pieces .escalier.selectionnee { fill: var(--surface); stroke: var(--plan-selection); stroke-width: 3px; }
-.pieces .legende { font-weight: 400; fill: var(--encre-2); }
+.pieces .legende { font-weight: 400; font-size: 0.8em; fill: var(--encre-2); }
 .pieces .ouverture.porte { stroke: var(--encre); }
 .pieces .ouverture.baie { stroke: var(--plan-cote); stroke-dasharray: 6 3; }
 .pieces .ouverture.fenetre { stroke: var(--encre-2); stroke-width: 5px; stroke-dasharray: 2 2; }
@@ -580,7 +580,7 @@ form.formulaire-inventaire { padding: 0; }
 .editeur-pousser .bouton-vue { box-shadow: none; }
 .editeur-sommet { margin: 0; padding: 12px; border: 1px solid var(--bordure-forte); border-radius: 14px; display: flex; flex-direction: column; gap: 8px; }
 .editeur-sommet legend { padding: 0 4px; font-weight: 600; font-size: 14px; }
-.editeur-zones { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.editeur-zones { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
 .editeur-zones li { padding: 12px; border-radius: 12px; background: var(--etape-fond); color: var(--encre); }
 .editeur-zones li.faite { background: var(--succes-fond); color: var(--succes); }
 .editeur-zones li.courante { border: 2px solid var(--plan-selection); background: var(--surface); font-weight: 600; }
