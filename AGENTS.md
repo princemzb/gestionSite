@@ -21,6 +21,6 @@ Ce dépôt contient le cadrage (docs/) et le socle applicatif en construction (s
 
 ## Reprise
 Commencer par docs/pilotage/ETAT.md (état courant, PR en cours, blocages, prochaine action). Le mettre à jour à chaque étape significative : sous-carte ou US terminée, décision, PR ouverte ou fusionnée, blocage. Une reprise doit être possible sans aucun historique de conversation.
-Terminer avec carte, fichiers/commit, travail réalisé, tests exécutés, limites, blocages et prochaine action. Ne pas attribuer une recette humaine à l’agent lui-même.
+Terminer avec carte, fichiers/commit, travail réalisé, tests exécutés, limites, blocages et prochaine action. Ne pas attribuer une recette humaine à l’agent lui-même. Décision du porteur (3/11) : une recette automatisée visible (parcours e2e à vitesse humaine en préproduction, avec vidéo et rapport, voir OUT-02) vaut recette pour passer en Livré, sauf la recette terrain sur site réel, qui reste humaine.
 
 Les commandes applicatives seront documentées dans docs/dev/GUIDE.md lors du socle technique. Aucune n’est prescrite fictivement ici.

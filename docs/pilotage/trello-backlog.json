@@ -3318,6 +3318,26 @@
       "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Demande du porteur du 03/11.",
       "trelloId": "6ae978f07aeaf961f39afcc5",
       "trelloShortLink": "ixJurVgL"
+    },
+    {
+      "id": "OUT-02",
+      "name": "[OUT-02] Recette automatisée visible : parcours e2e à vitesse humaine, vidéo et rapport",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Mode recette commun aux scripts deploy/verification/usXX.mjs : navigateur visible à l'écran, vitesse humaine, bandeau de l'étape en cours, vidéo et captures par étape, rapport de recette (étapes réussies ou échouées, conclusion).",
+        "Recette d'US-08 complète en préproduction (QR, dépôt public avec photo et danger, accusé, dépôts reçus) avec les clés de test Turnstile.",
+        "Option tablette : pilotage de Chrome sur la Tab M11 par adb (Playwright Android), mesure de fluidité de l'éditeur sur l'appareil réel.",
+        "Règle inscrite dans AGENTS.md et TRELLO.md : la recette automatisée visible vaut recette pour Livré, sauf recette terrain."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Décision du porteur du 03/11.",
+      "trelloId": "6ae9897cc6a1ddb83eaaa00c",
+      "trelloShortLink": "tdDxz2q5"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
