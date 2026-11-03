@@ -51,6 +51,13 @@ internal static class DossiersPersistance
         }
     }
 
+    /// <summary>
+    /// Change la version du dossier (xmin) pour une écriture qui ne touche que ses interventions : une seconde demande faite
+    /// avec la version lue avant celle-ci est refusée (409 « modifie_entre_temps »).
+    /// </summary>
+    internal static void ChangerVersion(this MaintenanceDbContext context, Signalement dossier) =>
+        context.Entry(dossier).Property(s => s.Statut).IsModified = true;
+
     internal static void Tracer(
         this MaintenanceDbContext context, Signalement dossier, NatureEvenementDossier nature, Guid? auteurCompteId, DateTimeOffset le, object? detail) =>
         context.Journal.Add(new EvenementDossier(

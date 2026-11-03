@@ -41,6 +41,8 @@ if (args is ["migrer"])
 // Bornes de décodage des images (photos, fonds de plan) posées avant la première requête.
 LimitesImages.Poser();
 
+// Port dédié au planificateur (US-10, S10-02), s'il est configuré : seule sa route y répond.
+app.UseMaintenanceModule();
 app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();

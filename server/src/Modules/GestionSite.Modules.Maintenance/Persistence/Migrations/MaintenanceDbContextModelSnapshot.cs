@@ -430,6 +430,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dossier_id");
 
+                    b.Property<DateTimeOffset?>("ReexamenFixeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reexamen_fixe_le");
+
                     b.Property<string>("EtatFinal")
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)")
@@ -468,6 +472,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.Property<Guid?>("ReferentCompteId")
                         .HasColumnType("uuid")
                         .HasColumnName("referent_compte_id");
+
+                    b.Property<int>("ReportsReexamen")
+                        .HasColumnType("integer")
+                        .HasColumnName("reports_reexamen");
 
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")

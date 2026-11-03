@@ -228,7 +228,7 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     public DateTimeOffset? QualifieLe { get; private set; }
 
-    /// <summary>Première affectation : point de départ du délai de prise en charge (DEC-05).</summary>
+    /// <summary>Première affectation (affichée) ; le délai de prise en charge part de la qualification (US-10, Q7-A).</summary>
     public DateTimeOffset? AffecteLe { get; private set; }
 
     /// <summary>Premier démarrage d'une intervention : fin de la prise en charge.</summary>
@@ -255,9 +255,12 @@ internal sealed class Signalement : IAppartientAOrganisation
 
     internal bool Ouvert => StatutsOuverts.Contains(Statut);
 
-    /// <summary>Échéance de prise en charge (DEC-05) : affectation + délai, tant qu'aucune intervention n'a démarré.</summary>
+    /// <summary>
+    /// Échéance de prise en charge (DEC-05, décision du porteur du 02/11, US-10 Q7-A) : qualification + délai, tant
+    /// qu'aucune intervention n'a démarré ; un dossier qualifié mais jamais affecté a donc une échéance.
+    /// </summary>
     internal DateTimeOffset? EcheancePriseEnCharge =>
-        Ouvert && Priorite is { } priorite && AffecteLe is { } affecte && PrisEnChargeLe is null ? affecte + Delais.PriseEnCharge(priorite) : null;
+        Ouvert && Priorite is { } priorite && QualifieLe is { } qualifie && PrisEnChargeLe is null ? qualifie + Delais.PriseEnCharge(priorite) : null;
 
     /// <summary>
     /// Échéance de résolution (DEC-05) : qualification + délai + durée des attentes terminées, tant que le dossier est ouvert ;
@@ -538,6 +541,9 @@ internal enum NatureEvenementDossier
 
     /// <summary>Nouveau constat d'inspection rattaché à ce dossier ouvert (même composant, même critère, US-12).</summary>
     ConstatInspection = 12,
+
+    /// <summary>Date de réexamen d'une attente reportée (US-10, S10-03) : ancienne et nouvelle date, commentaire.</summary>
+    ReportReexamen = 13,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

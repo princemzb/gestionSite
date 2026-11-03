@@ -7,7 +7,10 @@ set -eu
 umask 077
 
 # Chaque processus part de son dossier : racine de contenu = wwwroot (styles) et appsettings.json.
-(cd /app/api && ASPNETCORE_URLS=http://127.0.0.1:8081 exec dotnet GestionSite.Api.dll) &
+# L'API écoute en local (8081, pour l'application web) et sur 8082, port dédié au planificateur (US-10, S10-02) :
+# joint par le seul Durable Object (jamais relayé au public, qui n'atteint que 8080), seule la route du planificateur
+# y répond, protégée par le jeton Planificateur__Jeton.
+(cd /app/api && ASPNETCORE_URLS="http://127.0.0.1:8081;http://0.0.0.0:8082" Planificateur__Port=8082 exec dotnet GestionSite.Api.dll) &
 API=$!
 
 # L’application web appelle l’API en interne (elle réessaie tant que l’API démarre). Derrière un relais TLS,
