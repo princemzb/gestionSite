@@ -31,9 +31,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # POC-03 (S04-01, expérimental) : versions exactes, licences MIT/BSD/Apache (docs/poc/POC-03.md).
+  coffre_appareil:
+    path: packages/coffre_appareil
+  pointycastle: 4.0.0
+  sqlite3: 3.8.0
+  workmanager: 0.10.10
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -45,6 +53,13 @@ dev_dependencies:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
+
+# POC-03 : SQLite remplacé par SQLCipher (édition communautaire) compilé par le paquet sqlite3
+# (binaires GitHub vérifiés par empreinte sha256, docs/poc/POC-03.md).
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlcipher
 
 # The following section is specific to Flutter packages.
 flutter:

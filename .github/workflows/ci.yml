@@ -38,14 +38,44 @@ jobs:
             server/artifacts/coverage-js
           if-no-files-found: ignore
 
+  # Vérification obligatoire : toujours exécutée (un contrôle requis sauté par un filtre « paths » resterait en attente),
+  # elle s'arrête aussitôt en succès quand seuls la documentation, l'application mobile ou l'outillage ont changé.
   image:
     name: Image du conteneur (isolation du rendu PDF)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fichiers de l'image ou du rendu PDF modifiés ?
+        id: changements
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "Base inconnue : vérification complète."
+            echo "verifier=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! modifies=$(git diff --name-only "$BASE...$GITHUB_SHA"); then
+            echo "Différence incalculable : vérification complète."
+            echo "verifier=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Sans objet seulement si tous les fichiers modifiés sont hors de l'image (documentation, application mobile,
+          # outillage, vérifications de la préproduction) : tout autre fichier, même nouveau, déclenche la vérification.
+          concernes=$(grep -v -E '^(docs/|mobile/|scripts/|deploy/verification/|[^/]+\.md$)' <<<"$modifies" || true)
+          if [ -n "$concernes" ]; then
+            printf 'Fichiers concernés :\n%s\n' "$concernes"
+            echo "verifier=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Aucun fichier de l'image modifié (documentation, mobile ou outillage seulement) : vérification sans objet."
+            echo "verifier=false" >> "$GITHUB_OUTPUT"
+          fi
       # Image construite en amd64 natif (plateforme de Cloudflare) : processus de rendu PDF isolé de l'API (SOC-05).
       - name: Construction de l'image et vérification de l'isolation du rendu PDF
+        if: steps.changements.outputs.verifier == 'true'
         run: server/eng/verify-image.sh linux/amd64
 
   tooling:
@@ -58,6 +88,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -W error -m unittest discover -s scripts/trello -v
+      # Manuel d'utilisation (DOC-01) : tests de l'assemblage du livret et contrôle des chapitres (ancres, images, liens).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - name: Manuel d'utilisation (tests et contrôle)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
+          scripts/manuel/verifier.sh
 
   mobile:
     name: Application Flutter (analyse et tests)
@@ -88,10 +128,10 @@ jobs:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
             -Dsonar.projectKey=${{ vars.SONAR_MOBILE_PROJECT_KEY || 'princemzb_gestionSite_mobile' }}
-            -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner
-            -Dsonar.tests=test
+            -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner,packages/coffre_appareil/android/src/main
+            -Dsonar.tests=test,integration_test,tool
             -Dsonar.dart.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.coverage.exclusions=android/**,ios/**
+            -Dsonar.coverage.exclusions=android/**,ios/**,packages/*/android/**
             -Dsonar.qualitygate.wait=true
 
   mobile-dependencies:
@@ -106,6 +146,7 @@ jobs:
           scan-args: |-
             --lockfile=mobile/pubspec.lock
             --lockfile=deploy/cloudflare/package-lock.json
+            --lockfile=scripts/manuel/package-lock.json
 
   sonar:
     name: SonarQube Cloud
@@ -156,11 +197,11 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.qualitygate.wait=true \
             /d:sonar.cs.opencover.reportsPaths="server/artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="server/tests/**,server/deploy/**,server/eng/isolation-rendu-pdf/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.mjs,server/src/GestionSite.Web/wwwroot/lib/**" \
+            /d:sonar.coverage.exclusions="server/tests/**,server/deploy/**,server/eng/isolation-rendu-pdf/**,scripts/**/test_*.py,server/**/Migrations/**,scripts/poc/**,scripts/manuel/livret.mjs,deploy/**,server/src/GestionSite.Web/wwwroot/*.js,server/src/GestionSite.Web/wwwroot/plans/*.mjs,server/src/GestionSite.Web/wwwroot/lib/**" \
             /d:sonar.cpd.exclusions="server/**/Migrations/**" \
-            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
+            /d:sonar.exclusions="server/artifacts/**,**/bin/**,**/obj/**,mobile/**,scripts/manuel/node_modules/**,scripts/manuel/sortie/**,server/**/Migrations/*.Designer.cs,server/**/Migrations/*ModelSnapshot.cs" \
             /d:sonar.python.coverage.reportPaths="coverage-python.xml" \
-            /d:sonar.javascript.lcov.reportPaths="$GITHUB_WORKSPACE/server/artifacts/coverage-js/lcov.info" \
+            /d:sonar.javascript.lcov.reportPaths="$GITHUB_WORKSPACE/server/artifacts/coverage-js/lcov.info,$GITHUB_WORKSPACE/scripts/manuel/sortie/lcov.info" \
             /d:sonar.cfamily.compile-commands="$RUNNER_TEMP/compile_commands.json"
           pip install --quiet --only-binary :all: coverage==7.6.10
           coverage run --source=scripts/trello --omit="*/test_*.py" -m unittest discover -s scripts/trello
@@ -170,4 +211,6 @@ jobs:
             --collect:"XPlat Code Coverage" --results-directory server/artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           server/eng/verify-js.sh
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
+          scripts/manuel/verifier.sh
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

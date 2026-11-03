@@ -7,6 +7,8 @@ namespace GestionSite.Web.Inventaire;
 
 internal sealed record DemandeCreationPlan(Guid? BatimentId, Guid? NiveauId);
 
+internal sealed record DemandeCreationZone(string? Nom, Guid? BatimentId, Guid? NiveauId);
+
 /// <summary>
 /// Relais JSON de l'éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : lecture d'un plan et de ses fonds, création du
 /// plan d'un niveau et enregistrement d'une version, vers l'API qui vérifie les droits et la géométrie. Écritures avec le
@@ -36,6 +38,13 @@ internal static class EditeurPlanEndpoints
                 RelayerAsync(contexte, antifalsification, () => session.ModifierAvecReponseAsync<JsonElement>(
                     $"{Api(organisationId, siteId)}/{planId}", corps, CancellationToken.None)))
             .RequireAuthorization().WithMetadata(new RequestSizeLimitAttribute(CorpsMax));
+        // Zone créée depuis l'éditeur (S21-08, RP-21.5) : relayée à l'inventaire, qui vérifie le droit de le modifier et
+        // inscrit la création à son journal ; l'éditeur ne la propose qu'à qui peut aussi enregistrer le plan.
+        endpoints.MapPost($"{Plans}/zones", (Guid organisationId, Guid siteId, DemandeCreationZone demande, SessionApi session, IAntiforgery antifalsification, HttpContext contexte) =>
+                RelayerAsync(contexte, antifalsification, () => session.EcrireAsync<JsonElement>(
+                    $"/organizations/{organisationId}/sites/{siteId}/inventory/zones",
+                    new { nom = demande.Nom, batimentId = demande.BatimentId, niveauId = demande.NiveauId }, CancellationToken.None)))
+            .RequireAuthorization();
         endpoints.MapGet($"{Plans}/{{planId:guid}}/fonds", (Guid organisationId, Guid siteId, Guid planId, SessionApi session, HttpContext contexte) =>
                 RelayerAsync(contexte, null, () => session.LireAsync<JsonElement>($"{Api(organisationId, siteId)}/{planId}/backgrounds", CancellationToken.None)))
             .RequireAuthorization();

@@ -31,8 +31,10 @@ internal sealed record CotePlan(PointPlan De, PointPlan A, double Distance);
 /// Fond de la version et sa calibration (S21-07, RP-21.4) : le dérivé d'affichage est posé coin haut gauche à l'origine du
 /// repère, axes de l'image et du repère confondus, à l'échelle de la cote de calibration (mètres par pixel = distance /
 /// longueur en pixels) ; la cote de contrôle, facultative, mesure l'écart de cette échelle sur une autre longueur connue.
+/// Le décalage, facultatif (S21-08, recalage entre niveaux par deux points homologues), translate le fond dans le
+/// repère : son coin haut gauche est posé en (x, y) mètres au lieu de l'origine, sans rotation ni changement d'échelle.
 /// </summary>
-internal sealed record FondPlan(Guid FondId, CotePlan Calibration, CotePlan? Controle);
+internal sealed record FondPlan(Guid FondId, CotePlan Calibration, CotePlan? Controle, PointPlan? Decalage = null);
 
 /// <summary>
 /// Contenu d'une version de plan de bâtiment, schéma 1 : JSON stocké tel quel et rendu tel quel (lisible par le web et

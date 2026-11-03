@@ -18,7 +18,7 @@ internal sealed record SaisieMarqueur(Guid? ComposantId, SaisiePoint? Position);
 
 internal sealed record SaisieCote(SaisiePoint? De, SaisiePoint? A, double? Distance);
 
-internal sealed record SaisieFond(Guid? FondId, SaisieCote? Calibration, SaisieCote? Controle);
+internal sealed record SaisieFond(Guid? FondId, SaisieCote? Calibration, SaisieCote? Controle, SaisiePoint? Decalage = null);
 
 internal sealed record SaisieContenuPlan(
     int? Schema, double? Nord, double? Altitude, double? HauteurSousPlafond, IReadOnlyList<SaisiePiece?>? Pieces,
@@ -281,7 +281,7 @@ internal static class ValidationPlan
     }
 
     // Fond importé pour ce plan, calibré (RP-21.4) : cote de calibration obligatoire, cote de contrôle facultative ; l'image
-    // calibrée reste dans les bornes du repère.
+    // calibrée reste dans les bornes du repère ; décalage facultatif (recalage entre niveaux), dans les bornes du repère.
     private static FondPlan Fond(SaisieFond saisie, CadrePlan cadre)
     {
         if (saisie.FondId is not { } fondId || cadre.Fonds?.GetValueOrDefault(fondId) is not { } image)
@@ -297,7 +297,15 @@ internal static class ValidationPlan
             throw Refus("contenu.fond.calibration.distance");
         }
 
-        return new FondPlan(fondId, calibration, controle);
+        // Recalage entre niveaux (S21-08, décision du porteur du 02/11) : translation du fond dans le repère, en mètres.
+        // L'image décalée reste, comme sans décalage, dans les bornes du repère.
+        var decalage = saisie.Decalage is null ? null : Point(saisie.Decalage, "contenu.fond.decalage");
+        if (decalage is not null && (decalage.X + (image.Largeur * metresParPixel) > Borne || decalage.Y + (image.Hauteur * metresParPixel) > Borne))
+        {
+            throw Refus("contenu.fond.decalage");
+        }
+
+        return new FondPlan(fondId, calibration, controle, decalage);
     }
 
     // Deux points de l'image (au centième de pixel), à 10 px au moins l'un de l'autre, et une distance réelle de 0,20 m à 5 km.
