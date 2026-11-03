@@ -101,7 +101,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Requete = Requete?.Trim() is { Length: > 0 } requete ? requete[..Math.Min(requete.Length, 100)] : null;
+        // 100 caractères au plus, sans couper en deux un caractère hors du plan de base (émoji).
+        Requete = Requete?.Trim() is { Length: > 0 } requete
+            ? requete[..(requete.Length > 100 && char.IsHighSurrogate(requete[99]) ? 99 : Math.Min(requete.Length, 100))]
+            : null;
         Resultats = Manuel.Chercher(Requete);
         (Organisation, RolesAppelant) = await AideChapitre.LireOrganisationAsync(Session, Navigation, OrganisationId);
     }

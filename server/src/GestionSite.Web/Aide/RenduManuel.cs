@@ -10,13 +10,13 @@ using Markdig.Syntax.Inlines;
 namespace GestionSite.Web.Aide;
 
 /// <summary>Contexte d'un rendu : où pointent les liens, quelles captures existent, ancres posées ou non.</summary>
-/// <param name="BaseLiens">Préfixe des pages d'aide (« /organisations/{id}/aide » ou « /aide »).</param>
+/// <param name="BaseLiens">Préfixe des pages d'aide (« /organisations/{id}/aide » ou « /aide ») ; null : aucun lien vers elles.</param>
 /// <param name="Chapitre">Chapitre rendu (« 05-dossiers ») : cible des liens « #ancre » d'un extrait.</param>
 /// <param name="Chapitres">Chapitres existants : un lien vers un autre fichier n'est gardé que s'il en est un.</param>
-/// <param name="Images">Captures existantes (« dossier-qualifier.png »).</param>
+/// <param name="Images">Captures existantes et leur version (« dossier-qualifier.png » → empreinte courte).</param>
 /// <param name="AvecAncres">Vrai pour un chapitre entier (titres avec leur identifiant, liens internes « #ancre »).</param>
 internal sealed record ContexteRendu(
-    string BaseLiens, string Chapitre, IReadOnlySet<string> Chapitres, IReadOnlySet<string> Images, bool AvecAncres);
+    string? BaseLiens, string Chapitre, IReadOnlySet<string> Chapitres, IReadOnlyDictionary<string, string> Images, bool AvecAncres);
 
 /// <summary>
 /// Rendu HTML d'un extrait du manuel (DOC-02). Le manuel est versionné et relu, mais le rendu reste sûr par construction :
@@ -106,7 +106,7 @@ internal static partial class RenduManuel
     {
         var legende = Texte(image);
         var nom = image.Url is { } url && url.StartsWith("images/", StringComparison.Ordinal) ? url["images/".Length..] : null;
-        if (nom is null || !contexte.Images.Contains(nom))
+        if (nom is null || !contexte.Images.TryGetValue(nom, out var version))
         {
             image.ReplaceBy(new LiteralInline(legende), copyChildren: false);
             return;
@@ -116,7 +116,7 @@ internal static partial class RenduManuel
         var encodeur = HtmlEncoder.Default;
         var classe = nom.EndsWith("-tel.png", StringComparison.Ordinal) ? "capture telephone" : "capture";
         image.ReplaceBy(new HtmlInline(
-            $"<span class=\"aide-figure\"><img class=\"{classe}\" src=\"/aide/images/{encodeur.Encode(nom)}\" alt=\"{encodeur.Encode(legende)}\" loading=\"lazy\">"
+            $"<span class=\"aide-figure\"><img class=\"{classe}\" src=\"/aide/images/{encodeur.Encode(nom)}?v={version}\" alt=\"{encodeur.Encode(legende)}\" loading=\"lazy\">"
             + $"<span class=\"legende\">{encodeur.Encode(legende)}</span></span>"), copyChildren: false);
     }
 
@@ -173,9 +173,12 @@ internal static partial class RenduManuel
         }
 
         var fragment = ancre is null ? string.Empty : $"#{ancre}";
-        return contexte.AvecAncres && chapitre == contexte.Chapitre && ancre is not null
-            ? fragment
-            : $"{contexte.BaseLiens}/{chapitre}{fragment}";
+        if (contexte.AvecAncres && chapitre == contexte.Chapitre && ancre is not null)
+        {
+            return fragment;
+        }
+
+        return contexte.BaseLiens is null ? null : $"{contexte.BaseLiens}/{chapitre}{fragment}";
     }
 
     private static void Deballer(LinkInline lien)

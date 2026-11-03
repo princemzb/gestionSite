@@ -18,7 +18,7 @@
             <button type="button" class="aide-fermer" popovertarget="aide-panneau" popovertargetaction="hide" aria-label="Fermer l'aide" autofocus><span aria-hidden="true">×</span></button>
         </div>
         <div class="aide-panneau-corps aide-contenu">
-            @((MarkupString)Manuel.RendreSection(section, BaseLiens))
+            @((MarkupString)Manuel.RendreSection(section, Public ? null : BaseLiens))
             @if (Autres.Count > 0)
             {
                 <nav class="aide-autres" aria-label="Sur cet écran aussi">

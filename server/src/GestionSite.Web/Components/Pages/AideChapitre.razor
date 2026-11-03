@@ -20,9 +20,9 @@ else
 {
     <PageTitle>@Courant.Titre · Aide · gestionSite</PageTitle>
     <a class="aide-retour" href="@BaseLiens">← Aide</a>
-    <article class="carte aide-chapitre aide-contenu" aria-labelledby="aide-chapitre-titre">
+    <article class="carte aide-chapitre aide-contenu" aria-labelledby="@Courant.Ancre">
         <span class="aide-surtitre">@(Courant.Numero == 0 ? "Manuel d'utilisation" : $"Chapitre {Courant.Numero}")</span>
-        <h1 id="aide-chapitre-titre">@Courant.Titre</h1>
+        <h1 id="@Courant.Ancre">@Courant.Titre</h1>
         @((MarkupString)Manuel.RendreChapitre(Courant, BaseLiens))
     </article>
     <nav class="aide-suite" aria-label="Chapitres voisins">

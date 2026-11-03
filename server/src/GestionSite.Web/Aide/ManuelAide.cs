@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
@@ -21,7 +23,14 @@ internal sealed record ChapitreManuel(string Nom, int Numero, string Titre, stri
 /// <param name="Chapitre">Chapitre de la section.</param>
 /// <param name="Corps">Markdown de la section sans son titre : sous-sections comprises (niveau 2 et plus), introduction seule pour un chapitre.</param>
 /// <param name="TexteRecherche">Texte brut propre à la section (sans ses sous-sections), pour la recherche.</param>
-internal sealed record SectionManuel(string Ancre, string Titre, int Niveau, ChapitreManuel Chapitre, string Corps, string TexteRecherche);
+internal sealed record SectionManuel(string Ancre, string Titre, int Niveau, ChapitreManuel Chapitre, string Corps, string TexteRecherche)
+{
+    /// <summary>Titre normalisé une fois au chargement (minuscules, sans accents) pour la recherche.</summary>
+    internal string TitreNormalise { get; } = ManuelAide.Normaliser(Titre);
+
+    /// <summary>Texte normalisé une fois au chargement, de même longueur que <see cref="TexteRecherche"/>.</summary>
+    internal string TexteNormalise { get; } = ManuelAide.Normaliser(TexteRecherche);
+}
 
 /// <summary>Résultat de recherche : section et extrait autour du premier mot trouvé.</summary>
 internal sealed record ResultatRecherche(SectionManuel Section, string Extrait);
@@ -36,10 +45,14 @@ internal sealed partial class ManuelAide
     private const string PrefixeImages = "manuel/images/";
     private const int ResultatsMax = 20;
 
+    // Préfixe provisoire des liens dans le HTML mis en cache, remplacé à l'affichage par celui de l'organisation.
+    private const string BaseProvisoire = "/__base-aide__";
+
     private readonly Dictionary<string, ChapitreManuel> _chapitres;
     private readonly Dictionary<string, SectionManuel> _sections = new(StringComparer.Ordinal);
     private readonly List<SectionManuel> _ordre = [];
     private readonly Dictionary<string, byte[]> _images;
+    private readonly ConcurrentDictionary<string, string> _rendus = new(StringComparer.Ordinal);
 
     internal ManuelAide(IEnumerable<(string Fichier, string Markdown)> chapitres, IReadOnlyDictionary<string, byte[]> images)
     {
@@ -61,7 +74,8 @@ internal sealed partial class ManuelAide
         }
 
         NomsChapitres = _chapitres.Keys.ToHashSet(StringComparer.Ordinal);
-        NomsImages = _images.Keys.ToHashSet(StringComparer.Ordinal);
+        // Version d'une capture (empreinte courte) dans son adresse : une capture remplacée n'est pas resservie depuis un cache.
+        VersionsImages = _images.ToDictionary(i => i.Key, i => Convert.ToHexStringLower(SHA256.HashData(i.Value))[..12], StringComparer.Ordinal);
         Edition = MotifEdition().Match(Chapitres.Count > 0 ? Chapitres[0].Markdown : string.Empty) is { Success: true } edition
             ? edition.Groups[1].Value
             : null;
@@ -72,7 +86,8 @@ internal sealed partial class ManuelAide
 
     internal IReadOnlySet<string> NomsChapitres { get; }
 
-    internal IReadOnlySet<string> NomsImages { get; }
+    /// <summary>Captures du manuel et leur version (« membres.png » → empreinte courte).</summary>
+    internal IReadOnlyDictionary<string, string> VersionsImages { get; }
 
     /// <summary>Date d'édition lue dans la présentation (« 3 novembre 2026 »), ou null.</summary>
     internal string? Edition { get; }
@@ -100,18 +115,28 @@ internal sealed partial class ManuelAide
 
     internal byte[]? Image(string nom) => _images.GetValueOrDefault(nom);
 
-    /// <summary>HTML d'une section (sans son titre) pour le panneau d'aide d'un écran.</summary>
-    internal string RendreSection(SectionManuel section, string baseLiens) =>
-        RenduManuel.Html(section.Corps, Contexte(baseLiens, section.Chapitre.Nom, avecAncres: false));
+    /// <summary>
+    /// HTML d'une section (sans son titre) pour le panneau d'aide d'un écran, rendu une fois puis gardé en mémoire. Sans
+    /// préfixe (écran public), les liens vers les pages d'aide, réservées aux comptes connectés, deviennent du texte.
+    /// </summary>
+    internal string RendreSection(SectionManuel section, string? baseLiens) => baseLiens is null
+        ? _rendus.GetOrAdd($"public:{section.Ancre}", _ => RenduManuel.Html(section.Corps, Contexte(null, section.Chapitre.Nom, avecAncres: false)))
+        : Prefixer(_rendus.GetOrAdd($"section:{section.Ancre}",
+            _ => RenduManuel.Html(section.Corps, Contexte(BaseProvisoire, section.Chapitre.Nom, avecAncres: false))), baseLiens);
 
     /// <summary>HTML d'un chapitre entier (titres avec leur ancre, sauf le titre de niveau 1 que la page affiche).</summary>
-    internal string RendreChapitre(ChapitreManuel chapitre, string baseLiens)
-    {
-        var lignes = chapitre.Markdown.Split('\n');
-        var premier = TitresHorsCode(lignes).FirstOrDefault(t => t.Niveau == 1);
-        var corps = premier is null ? chapitre.Markdown : string.Join('\n', lignes.Skip(premier.Ligne + 1));
-        return RenduManuel.Html(corps, Contexte(baseLiens, chapitre.Nom, avecAncres: true));
-    }
+    internal string RendreChapitre(ChapitreManuel chapitre, string baseLiens) =>
+        Prefixer(_rendus.GetOrAdd($"chapitre:{chapitre.Nom}", _ =>
+        {
+            var lignes = chapitre.Markdown.Split('\n');
+            var premier = TitresHorsCode(lignes).FirstOrDefault(t => t.Niveau == 1);
+            var corps = premier is null ? chapitre.Markdown : string.Join('\n', lignes.Skip(premier.Ligne + 1));
+            return RenduManuel.Html(corps, Contexte(BaseProvisoire, chapitre.Nom, avecAncres: true));
+        }), baseLiens);
+
+    // Le préfixe provisoire n'apparaît que dans les liens écrits par le rendu (href="/__base-aide__/…").
+    private static string Prefixer(string html, string baseLiens) =>
+        html.Replace($"href=\"{BaseProvisoire}/", $"href=\"{baseLiens}/", StringComparison.Ordinal);
 
     /// <summary>
     /// Recherche sans tenir compte des accents ni de la casse : sections dont le titre et le texte contiennent tous les mots
@@ -127,15 +152,14 @@ internal sealed partial class ManuelAide
         }
 
         return [.. _ordre
-            .Select(s => (Section: s, Titre: Normaliser(s.Titre), Texte: Normaliser(s.TexteRecherche)))
-            .Where(s => mots.All(m => s.Titre.Contains(m, StringComparison.Ordinal) || s.Texte.Contains(m, StringComparison.Ordinal)))
-            .OrderByDescending(s => mots.Any(m => s.Titre.Contains(m, StringComparison.Ordinal)))
+            .Where(s => mots.All(m => s.TitreNormalise.Contains(m, StringComparison.Ordinal) || s.TexteNormalise.Contains(m, StringComparison.Ordinal)))
+            .OrderByDescending(s => mots.Any(m => s.TitreNormalise.Contains(m, StringComparison.Ordinal)))
             .Take(ResultatsMax)
-            .Select(s => new ResultatRecherche(s.Section, Extrait(s.Section.TexteRecherche, mots)))];
+            .Select(s => new ResultatRecherche(s, Extrait(s, mots)))];
     }
 
-    private ContexteRendu Contexte(string baseLiens, string chapitre, bool avecAncres) =>
-        new(baseLiens, chapitre, NomsChapitres, NomsImages, avecAncres);
+    private ContexteRendu Contexte(string? baseLiens, string chapitre, bool avecAncres) =>
+        new(baseLiens, chapitre, NomsChapitres, VersionsImages, avecAncres);
 
     private static ChapitreManuel LireChapitre(string fichier, string markdown)
     {
@@ -161,7 +185,8 @@ internal sealed partial class ManuelAide
             // Fin du corps : titre suivant de même niveau ou plus haut ; un chapitre (niveau 1) s'arrête à sa première section.
             var limite = Math.Max(titre.Niveau, 2);
             var fin = titres.Skip(i + 1).FirstOrDefault(t => t.Niveau <= limite)?.Ligne ?? lignes.Length;
-            var finPropre = i + 1 < titres.Count ? Math.Min(titres[i + 1].Ligne, fin) : fin;
+            // Texte propre : jusqu'à la section suivante (un sous-titre sans ancre reste dans la section qui le contient).
+            var finPropre = Math.Min(titres.Skip(i + 1).FirstOrDefault(t => t.Ancre is not null)?.Ligne ?? lignes.Length, fin);
             var corps = string.Join('\n', lignes[(titre.Ligne + 1)..fin]).Trim('\n', '\r', ' ');
             var propre = string.Join('\n', SansCode(lignes[(titre.Ligne + 1)..finPropre]));
             yield return new SectionManuel(titre.Ancre, titre.Texte, titre.Niveau, chapitre, corps,
@@ -208,11 +233,12 @@ internal sealed partial class ManuelAide
         }
     }
 
-    private static string Extrait(string texte, string[] mots)
+    private static string Extrait(SectionManuel section, string[] mots)
     {
         const int Avant = 60;
         const int Longueur = 180;
-        var normalise = Normaliser(texte);
+        var texte = section.TexteRecherche;
+        var normalise = section.TexteNormalise;
         var position = mots.Select(m => normalise.IndexOf(m, StringComparison.Ordinal)).Where(p => p >= 0).DefaultIfEmpty(0).Min();
         // Normaliser conserve la longueur (une lettre accentuée devient une lettre) : la position vaut pour le texte d'origine.
         var debut = Math.Max(0, Math.Min(position, normalise.Length) - Avant);
@@ -236,6 +262,12 @@ internal sealed partial class ManuelAide
         var resultat = new StringBuilder(texte.Length);
         foreach (var caractere in texte)
         {
+            if (char.IsSurrogate(caractere))
+            {
+                resultat.Append(caractere); // hors du plan de base (émoji…) : gardé tel quel, jamais décomposé seul
+                continue;
+            }
+
             var decompose = caractere.ToString().Normalize(NormalizationForm.FormD);
             var lettre = decompose.Length > 0 && CharUnicodeInfo.GetUnicodeCategory(decompose[0]) != UnicodeCategory.NonSpacingMark
                 ? decompose[0]

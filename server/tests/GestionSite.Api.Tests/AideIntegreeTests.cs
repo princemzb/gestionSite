@@ -22,7 +22,7 @@ public sealed partial class AideIntegreeTests
         Assert.Equal(("05-dossiers", 5, "Dossiers", "dossiers"),
             (Manuel.Chapitres[5].Nom, Manuel.Chapitres[5].Numero, Manuel.Chapitres[5].Titre, Manuel.Chapitres[5].Ancre));
         Assert.True(Manuel.Sections.Count >= 81, $"{Manuel.Sections.Count} sections");
-        Assert.Equal(Directory.GetFiles(Path.Combine(Depot(), "docs", "manuel", "images"), "*.png").Length, Manuel.NomsImages.Count);
+        Assert.Equal(Directory.GetFiles(Path.Combine(Depot(), "docs", "manuel", "images"), "*.png").Length, Manuel.VersionsImages.Count);
         Assert.NotNull(Manuel.Edition);
         Assert.NotNull(Manuel.Image("connexion.png"));
         Assert.Null(Manuel.Image("../appsettings.json"));
@@ -69,7 +69,7 @@ public sealed partial class AideIntegreeTests
                 s => Assert.Contains($"id=\"{s.Ancre}\"", html, StringComparison.Ordinal));
             foreach (Match image in ImageRendue().Matches(html))
             {
-                Assert.Contains(image.Groups[1].Value, Manuel.NomsImages);
+                Assert.Equal(Manuel.VersionsImages[image.Groups[1].Value], image.Groups[2].Value); // adresse versionnée
             }
         }
     }
@@ -89,6 +89,45 @@ public sealed partial class AideIntegreeTests
         Assert.Contains("### Ajouter un bâtiment", structure.Corps, StringComparison.Ordinal); // sous-sections comprises
         Assert.DoesNotContain("Ajouter un bâtiment", structure.TexteRecherche, StringComparison.Ordinal);
         Assert.DoesNotContain("{#", Manuel.Section("inventaire-batiment")!.TexteRecherche, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderingIsCachedOncePerSectionWhateverTheOrganisation()
+    {
+        var section = Manuel.Section("depot-recus")!;
+
+        var premiere = Manuel.RendreSection(section, "/organisations/a/aide");
+        var seconde = Manuel.RendreSection(section, "/organisations/b/aide");
+
+        Assert.Equal(premiere.Replace("/organisations/a/", "/organisations/b/", StringComparison.Ordinal), seconde);
+        Assert.DoesNotContain("__base-aide__", seconde, StringComparison.Ordinal);
+        Assert.Same(Manuel.RendreSection(section, null), Manuel.RendreSection(section, null)); // rendu une seule fois
+    }
+
+    [Fact]
+    public void APublicScreenGetsNoLinkToTheMembersOnlyHelpPages()
+    {
+        var html = Manuel.RendreSection(Manuel.Section("depot-recus")!, baseLiens: null);
+
+        Assert.DoesNotContain("<a ", html, StringComparison.Ordinal);
+        Assert.Contains("voir le chapitre Dossiers", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASubheadingWithoutAnchorStaysSearchableInItsSection()
+    {
+        var manuel = new ManuelAide([("01-a.md", "# 1. A {#a}\n## B {#b}\nIntro.\n#### Cas particulier\nmotcache ici.\n## C {#c}\nFin.")],
+            new Dictionary<string, byte[]>());
+
+        Assert.Equal("b", Assert.Single(manuel.Chercher("motcache")).Section.Ancre);
+    }
+
+    [Fact]
+    public void ASearchWithAnEmojiDoesNotFail()
+    {
+        Assert.Empty(Manuel.Chercher("👍"));
+        Assert.Equal("a👍".Length, ManuelAide.Normaliser("A👍").Length);
+        Assert.Equal("\uD83D", ManuelAide.Normaliser("\uD83D")); // moitié d'émoji isolée (coupure à 100 caractères)
     }
 
     [Fact]
@@ -184,7 +223,7 @@ public sealed partial class AideIntegreeTests
         var html = RenduManuel.Html("![Écran « Membres »](images/membres.png)\n\n![Sur téléphone](images/mes-interventions-tel.png)\n\n"
             + "```mermaid\nflowchart TD\n  A --> B\n```\n\n```\ncode <b>\n```", Contexte(avecAncres: false));
 
-        Assert.Contains("<img class=\"capture\" src=\"/aide/images/membres.png\" alt=\"Écran « Membres »\" loading=\"lazy\">",
+        Assert.Contains($"<img class=\"capture\" src=\"/aide/images/membres.png?v={Manuel.VersionsImages["membres.png"]}\" alt=\"Écran « Membres »\" loading=\"lazy\">",
             System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         Assert.Contains("class=\"capture telephone\"", html, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(System.Net.WebUtility.HtmlDecode(html), "Écran « Membres »</span>")); // légende une seule fois
@@ -279,7 +318,7 @@ public sealed partial class AideIntegreeTests
     }
 
     private static ContexteRendu Contexte(bool avecAncres) =>
-        new("/aide", "05-dossiers", Manuel.NomsChapitres, Manuel.NomsImages, avecAncres);
+        new("/aide", "05-dossiers", Manuel.NomsChapitres, Manuel.VersionsImages, avecAncres);
 
     private static string Depot()
     {
@@ -295,6 +334,6 @@ public sealed partial class AideIntegreeTests
     [GeneratedRegex("<AideEcran Ecran=\"([a-z-]+)\"")]
     private static partial Regex AideDeclaree();
 
-    [GeneratedRegex("src=\"/aide/images/([^\"]+)\"")]
+    [GeneratedRegex("src=\"/aide/images/([^\"?]+)\\?v=([0-9a-f]{12})\"")]
     private static partial Regex ImageRendue();
 }

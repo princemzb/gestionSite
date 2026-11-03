@@ -104,9 +104,9 @@ public sealed partial class WebAideTests(InfrastructureFixture infrastructure) :
         var inconnu = await LirePageAsync(technicien, $"/organisations/{_organisation}/aide/99-inconnu");
         var sansOrganisation = await LirePageAsync(technicien, "/aide/10-workflows");
 
-        Assert.Contains("<h1 id=\"aide-chapitre-titre\">Dossiers</h1>", chapitre, StringComparison.Ordinal);
+        Assert.Contains("<h1 id=\"dossiers\">Dossiers</h1>", chapitre, StringComparison.Ordinal);
         Assert.Contains("<h2 id=\"dossiers-qualifier\">Qualifier un dossier</h2>", chapitre, StringComparison.Ordinal);
-        Assert.Contains("src=\"/aide/images/dossier-qualifier.png\"", chapitre, StringComparison.Ordinal);
+        Assert.Contains("src=\"/aide/images/dossier-qualifier.png?v=", chapitre, StringComparison.Ordinal);
         Assert.Contains($"href=\"/organisations/{_organisation}/aide/04-depot-public\">← Dépôt public par QR code</a>", chapitre, StringComparison.Ordinal);
         Assert.Contains($"href=\"/organisations/{_organisation}/aide/06-inventaire\">Inventaire →</a>", chapitre, StringComparison.Ordinal);
         Assert.Contains("Chapitre introuvable", inconnu, StringComparison.Ordinal);

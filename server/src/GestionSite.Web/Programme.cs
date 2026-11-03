@@ -61,7 +61,7 @@ internal static class Programme
         builder.Services.AddSingleton<LimiteParAdresse>();
         builder.Services.AddSingleton<LiensPublics>();
         // Aide intégrée (DOC-02) : manuel embarqué, lu une fois ; livret PDF produit à la construction de l'image.
-        builder.Services.AddSingleton(_ => ManuelAide.Charger());
+        builder.Services.AddSingleton(ManuelAide.Charger()); // au démarrage : un manuel incohérent empêche de démarrer
         builder.Services.AddSingleton(new LivretAide(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath,
             builder.Configuration["Web:Livret"] is { Length: > 0 } livret ? livret : Path.Combine("aide", "manuel-gestionsite.pdf")))));
 
