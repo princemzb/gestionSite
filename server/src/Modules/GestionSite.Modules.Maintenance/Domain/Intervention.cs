@@ -106,6 +106,16 @@ internal sealed class Intervention : IAppartientAOrganisation
     /// <summary>Date de réexamen de l'attente en cours (DEC-03 : obligatoire).</summary>
     public DateOnly? ReexamenLe { get; private set; }
 
+    /// <summary>
+    /// Instant où la date de réexamen en cours a été fixée, à la mise en attente ou au report (US-10, S10-03) : chaque
+    /// date fixée forme un cycle de rappels, et celle fixée le jour même après 8 h ne rappelle rien à son auteur ce jour-là ;
+    /// null hors attente, et pour une attente commencée avant S10-03.
+    /// </summary>
+    public DateTimeOffset? ReexamenFixeLe { get; private set; }
+
+    /// <summary>Nombre de reports de la date de réexamen pendant l'attente en cours (visible sur la fiche, S10-03).</summary>
+    public int ReportsReexamen { get; private set; }
+
     /// <summary>Compte rendu : actions réalisées (RG-06).</summary>
     public string? Actions { get; private set; }
 
@@ -146,18 +156,49 @@ internal sealed class Intervention : IAppartientAOrganisation
             throw new SaisieInvalideException("motif", "Motif d'attente inconnu.");
         }
 
-        // « Aujourd'hui » de l'utilisateur, où qu'il soit : de la date la plus en retard (UTC−12) à la plus avancée (UTC+14).
-        var auPlusTot = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(-12)).DateTime);
-        var auPlusTard = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(14)).DateTime).AddYears(1);
-        if (reexamenLe is not { } reexamen || reexamen < auPlusTot || reexamen > auPlusTard)
-        {
-            throw new SaisieInvalideException("reexamenLe", "Date de réexamen entre aujourd'hui et un an.");
-        }
-
+        var reexamen = DateReexamen(reexamenLe, maintenant);
         Statut = StatutIntervention.EnAttente;
         MotifAttente = motif;
         CommentaireAttente = Commentaire.Exiger(commentaire, motif == Domain.MotifAttente.Autre);
         ReexamenLe = reexamen;
+        ReexamenFixeLe = maintenant;
+        ReportsReexamen = 0;
+    }
+
+    /// <summary>
+    /// Report du réexamen d'une attente (US-10, S10-03, choix de l'agent révisable) : nouvelle date entre aujourd'hui et un
+    /// an, différente de l'actuelle, commentaire obligatoire ; le délai reste suspendu. Renvoie l'ancienne date et le
+    /// commentaire nettoyé (journal). Les rappels de réexamen repartent de la nouvelle date.
+    /// </summary>
+    internal (DateOnly Ancienne, string Commentaire) ReporterReexamen(DateOnly? nouvelle, string? commentaire, DateTimeOffset maintenant)
+    {
+        if (Statut != StatutIntervention.EnAttente || ReexamenLe is not { } ancienne)
+        {
+            throw new InterventionIncompatibleException(Statut);
+        }
+
+        var reexamen = DateReexamen(nouvelle, maintenant);
+        if (reexamen == ancienne)
+        {
+            throw new SaisieInvalideException("reexamenLe", "Choisissez une autre date que le réexamen actuel.");
+        }
+
+        var texte = Commentaire.Exiger(commentaire, obligatoire: false)
+            ?? throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour reporter le réexamen.");
+        ReexamenLe = reexamen;
+        ReexamenFixeLe = maintenant;
+        ReportsReexamen++;
+        return (ancienne, texte);
+    }
+
+    // « Aujourd'hui » de l'utilisateur, où qu'il soit : de la date la plus en retard (UTC−12) à la plus avancée (UTC+14).
+    private static DateOnly DateReexamen(DateOnly? reexamenLe, DateTimeOffset maintenant)
+    {
+        var auPlusTot = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(-12)).DateTime);
+        var auPlusTard = DateOnly.FromDateTime(maintenant.ToOffset(TimeSpan.FromHours(14)).DateTime).AddYears(1);
+        return reexamenLe is { } reexamen && reexamen >= auPlusTot && reexamen <= auPlusTard
+            ? reexamen
+            : throw new SaisieInvalideException("reexamenLe", "Date de réexamen entre aujourd'hui et un an.");
     }
 
     /// <summary>
@@ -206,6 +247,8 @@ internal sealed class Intervention : IAppartientAOrganisation
         MotifAttente = null;
         CommentaireAttente = null;
         ReexamenLe = null;
+        ReexamenFixeLe = null;
+        ReportsReexamen = 0;
     }
 }
 

@@ -2,9 +2,15 @@
 # Démarre l'API (interne) puis l'application web (publique) ; si l'une s'arrête, le conteneur s'arrête
 # et la plateforme le relance. Configuration et secrets : variables d'environnement (jamais dans l'image).
 set -eu
+# Fichiers créés par l'API et le web (formulaires mis en tampon dans /tmp, ImageMagick) : propriétaire seul. Le processus
+# de rendu PDF (compte rendupdf) partage /tmp et ne doit lire aucun fichier reçu d'une autre organisation (SOC-05).
+umask 077
 
 # Chaque processus part de son dossier : racine de contenu = wwwroot (styles) et appsettings.json.
-(cd /app/api && ASPNETCORE_URLS=http://127.0.0.1:8081 exec dotnet GestionSite.Api.dll) &
+# L'API écoute en local (8081, pour l'application web) et sur 8082, port dédié au planificateur (US-10, S10-02) :
+# joint par le seul Durable Object (jamais relayé au public, qui n'atteint que 8080), seule la route du planificateur
+# y répond, protégée par le jeton Planificateur__Jeton.
+(cd /app/api && ASPNETCORE_URLS="http://127.0.0.1:8081;http://0.0.0.0:8082" Planificateur__Port=8082 exec dotnet GestionSite.Api.dll) &
 API=$!
 
 # L’application web appelle l’API en interne (elle réessaie tant que l’API démarre). Derrière un relais TLS,

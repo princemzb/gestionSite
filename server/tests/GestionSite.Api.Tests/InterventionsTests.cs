@@ -36,8 +36,8 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
         Assert.Equal("Affecte", lu.GetProperty("statut").GetString());
         Assert.Equal(["Mise en sécurité", "Remplacement des tuiles"], lu.GetProperty("interventions").EnumerateArray().Select(i => i.GetProperty("titre").GetString()));
         Assert.Equal("Couverture Martin", lu.GetProperty("interventions")[1].GetProperty("prestataire").GetString());
-        var affecte = lu.GetProperty("affecteLe").GetDateTimeOffset();
-        Assert.Equal(affecte.AddDays(1), lu.GetProperty("echeancePriseEnCharge").GetDateTimeOffset()); // Haute : 1 jour (DEC-05)
+        var qualifie = lu.GetProperty("qualifieLe").GetDateTimeOffset();
+        Assert.Equal(qualifie.AddDays(1), lu.GetProperty("echeancePriseEnCharge").GetDateTimeOffset()); // Haute : 1 jour depuis la qualification (DEC-05, Q7-A)
         Assert.Equal(lu.GetProperty("qualifieLe").GetDateTimeOffset().AddDays(7), lu.GetProperty("echeanceResolution").GetDateTimeOffset());
     }
 

@@ -430,6 +430,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dossier_id");
 
+                    b.Property<DateTimeOffset?>("ReexamenFixeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reexamen_fixe_le");
+
                     b.Property<string>("EtatFinal")
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)")
@@ -469,6 +473,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("referent_compte_id");
 
+                    b.Property<int>("ReportsReexamen")
+                        .HasColumnType("integer")
+                        .HasColumnName("reports_reexamen");
+
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
@@ -505,6 +513,67 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasDatabaseName("ix_interventions_organisation_id_site_id_statut");
 
                     b.ToTable("interventions", "maintenance");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<DateTimeOffset?>("LueLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lue_le");
+
+                    b.Property<string>("Objet")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("objet");
+
+                    b.Property<Guid>("ObjetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("objet_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notifications");
+
+                    b.HasIndex("OrganisationId", "CompteId", "Cle")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notifications_organisation_id_compte_id_cle");
+
+                    b.HasIndex("OrganisationId", "CompteId", "Id")
+                        .HasDatabaseName("ix_notifications_organisation_id_compte_id_id");
+
+                    b.ToTable("notifications", "maintenance");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.OccurrencePreventive", b =>

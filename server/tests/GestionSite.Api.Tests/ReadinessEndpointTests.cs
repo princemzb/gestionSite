@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -95,6 +96,28 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Contains("Authentification:CleSignature", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("libexec/lanceur-rendu-pdf")]
+    [InlineData("/inexistant/lanceur-rendu-pdf")]
+    public async Task StartupFailsWithARelativePdfRenderingLauncher(string lanceur)
+    {
+        await using var factory = infrastructure.CreateApi().WithWebHostBuilder(b => b.UseSetting("PlansBatiment:RenduPdfLanceur", lanceur));
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains("PlansBatiment:RenduPdfLanceur", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartupFailsOutsideDevelopmentWithoutTheIsolatedPdfRenderingLauncher()
+    {
+        // Jamais de rendu PDF sous le compte de l'API hors développement (SOC-05) : démarrage refusé.
+        await using var factory = infrastructure.CreateApi().WithWebHostBuilder(b => b.UseEnvironment("Production"));
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains("PlansBatiment:RenduPdfLanceur", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

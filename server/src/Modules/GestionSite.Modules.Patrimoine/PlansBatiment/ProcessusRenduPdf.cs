@@ -27,15 +27,19 @@ internal sealed class PdfRefuseException(string code, string champ, string messa
 /// Rendu d'une page de PDF (US-21, RP-21.3, S21-05) dans un processus enfant (GestionSite.Modules.Patrimoine.RenduPdf,
 /// PDFium compilé sans V8 ni XFA) : un seul à la fois pour l'API, borné en temps (arrêt au-delà du délai) et en mémoire
 /// (posée par le noyau dans l'enfant), sans les variables d'environnement de l'API (aucun secret transmis). Un PDF piégé
-/// ne peut arrêter que l'enfant : son échec devient un refus de saisie, l'API reste debout.
+/// ne peut arrêter que l'enfant : son échec devient un refus de saisie, l'API reste debout. Dans l'image du conteneur,
+/// l'enfant passe par le lanceur isolé (<see cref="FondsPlanOptions.RenduPdfLanceur"/>, SOC-05) : il tourne sous un compte
+/// dédié, qui ne peut lire ni l'environnement, ni la mémoire, ni les fichiers de l'API, même si une faille de PDFium y
+/// fait exécuter du code.
 /// </summary>
 internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> options, ILogger<ProcessusRenduPdf> journal)
 {
     internal const string Programme = "GestionSite.Modules.Patrimoine.RenduPdf";
     private const int EnteteMax = 128;
     private const int ErreursMax = 4096;
+    private static readonly TimeSpan ErreursAttente = TimeSpan.FromSeconds(2);
     private static readonly SemaphoreSlim Seul = new(1);
-    private static readonly Lazy<string[]> Lancement = new(PreparerLancement);
+    private static readonly Lazy<string[]> LancementDirect = new(PreparerLancementDirect);
 
     /// <summary>
     /// Page <paramref name="page"/> (à partir de 1) rendue en PNG de <paramref name="cote"/> px de côté et
@@ -58,16 +62,17 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
     private async Task<PagePdfRendue> LancerAsync(byte[] pdf, int page, uint cote, ulong surface, CancellationToken cancellationToken)
     {
         var reglages = options.Value;
+        var lancement = reglages.RenduPdfLanceur is { } lanceur ? new[] { lanceur } : LancementDirect.Value;
         var info = new ProcessStartInfo
         {
-            FileName = Lancement.Value[0],
+            FileName = lancement[0],
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             WorkingDirectory = AppContext.BaseDirectory,
         };
-        foreach (var argument in Lancement.Value.Skip(1).Concat(
+        foreach (var argument in lancement.Skip(1).Concat(
             [page.ToString(CultureInfo.InvariantCulture), cote.ToString(CultureInfo.InvariantCulture), surface.ToString(CultureInfo.InvariantCulture),
              reglages.RenduPdfMemoireOctets.ToString(CultureInfo.InvariantCulture)]))
         {
@@ -83,6 +88,8 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
         using var delai = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         delai.CancelAfter(TimeSpan.FromSeconds(reglages.RenduPdfDelaiSecondes));
         var erreurs = LireErreursAsync(processus.StandardError.BaseStream);
+        var reussi = false;
+        var journalise = false;
         try
         {
             var envoi = EnvoyerAsync(processus.StandardInput.BaseStream, pdf, delai.Token);
@@ -91,10 +98,12 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
             await envoi.ConfigureAwait(false);
             if (processus.ExitCode != 0 || resultat is null)
             {
-                Journaliser(processus.ExitCode, await erreurs.ConfigureAwait(false));
+                journalise = true;
+                Journaliser(processus.ExitCode, await AttendreErreursAsync(erreurs).ConfigureAwait(false));
                 throw Illisible();
             }
 
+            reussi = true;
             return resultat;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -106,9 +115,14 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
         finally
         {
             // Jamais d'enfant laissé en vie (délai, abandon, refus lu avant sa fin) ; sa sortie d'erreur se termine avec lui.
-            processus.Kill(entireProcessTree: true);
+            // Lanceur isolé : l'API tue le lanceur (son compte) et le noyau tue l'enfant (autre compte, hors de sa portée,
+            // interdit de créer des processus) ; lancement direct : tout l'arbre.
+            processus.Kill(entireProcessTree: reglages.RenduPdfLanceur is null);
             await processus.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            await erreurs.ConfigureAwait(false);
+            if (!journalise && await AttendreErreursAsync(erreurs).ConfigureAwait(false) is { Length: > 0 } messages && reussi)
+            {
+                LogMessagesRendu(journal, messages); // rendu réussi avec un avertissement du lanceur (seccomp indisponible)
+            }
         }
     }
 
@@ -201,14 +215,35 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
         var lus = 0;
         var bloc = new byte[4096];
         int n;
-        while ((n = await erreurs.ReadAsync(bloc).ConfigureAwait(false)) > 0)
+        try
         {
-            var copie = Math.Min(n, ErreursMax - lus);
-            Array.Copy(bloc, 0, debut, lus, copie);
-            lus += copie;
+            while ((n = await erreurs.ReadAsync(bloc).ConfigureAwait(false)) > 0)
+            {
+                var copie = Math.Min(n, ErreursMax - lus);
+                Array.Copy(bloc, 0, debut, lus, copie);
+                lus += copie;
+            }
+        }
+        catch (Exception fermee) when (fermee is IOException or ObjectDisposedException)
+        {
+            // Lecture abandonnée (sortie d'erreur gardée ouverte par un autre processus, puis fermée avec le Process).
         }
 
         return Encoding.UTF8.GetString(debut, 0, lus);
+    }
+
+    // Sortie d'erreur attendue au plus 2 s après la fin du processus : un processus échappé au rendu qui la garderait
+    // ouverte ne bloque jamais l'API (ni ce rendu, ni les suivants) ; le ménage du lanceur suivant le tue (SOC-05).
+    private static async Task<string> AttendreErreursAsync(Task<string> erreurs)
+    {
+        try
+        {
+            return await erreurs.WaitAsync(ErreursAttente).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return "(sortie d'erreur encore ouverte par un autre processus)";
+        }
     }
 
     private void Journaliser(int code, string erreurs) => LogRenduEchoue(journal, code, erreurs.Length > 0 ? erreurs : "(aucune)");
@@ -216,9 +251,10 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
     private static PdfRefuseException Illisible() =>
         new("pdf_illisible", TraitementFonds.Champ, "PDF illisible ou trop lourd à rendre : exportez la page du plan en PDF simple ou en image (PNG ou JPEG).");
 
-    // Lancement : hôte dotnet du runtime courant, avec la configuration et le manifeste de dépendances de l'application
-    // (bibliothèque native de PDFium à sa place, publiée pour une plateforme ou non) ; ramasse-miettes réglé par l'environnement.
-    private static string[] PreparerLancement()
+    // Lancement direct (sans lanceur isolé) : hôte dotnet du runtime courant, avec la configuration et le manifeste de
+    // dépendances de l'application (bibliothèque native de PDFium à sa place, publiée pour une plateforme ou non) ;
+    // ramasse-miettes réglé par l'environnement.
+    internal static string[] PreparerLancementDirect()
     {
         var dotnet = Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", "..", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
         var dependances = ((string?)AppContext.GetData("APP_CONTEXT_DEPS_FILES"))?.Split(';')[0]
@@ -229,6 +265,9 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Rendu PDF arrêté : délai de {Delai} s dépassé.")]
     private static partial void LogDelaiDepasse(ILogger journal, int delai);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Rendu PDF réussi avec des messages : {Messages}")]
+    private static partial void LogMessagesRendu(ILogger journal, string messages);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Rendu PDF refusé (code de sortie {Code}) ; erreurs : {Erreurs}")]
     private static partial void LogRenduEchoue(ILogger journal, int code, string erreurs);

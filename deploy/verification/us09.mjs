@@ -63,6 +63,8 @@ const fiche = resp.url().split("&")[0];
 await resp.check("input[name='Qualification.Priorite'][value='Haute']");
 await envoyer(resp, "form:has(button:has-text('Enregistrer la qualification'))");
 ok("dossier qualifié (étape « Qualifié »)", await resp.locator("li[aria-current='step']:has-text('Qualifié')").count() === 1);
+// US-10 Q7-A : le délai de prise en charge court dès la qualification, avant toute affectation.
+ok("échéance de prise en charge affichée dès la qualification", (await resp.textContent(".delai-dossier")).includes("Prise en charge"));
 await resp.goto(`${fiche}&onglet=interventions`);
 await resp.fill("input[name='Affectation.Titre']", "Reprendre le solin");
 await resp.selectOption("select[name='Affectation.IntervenantCompteId']", { label: "Marc Technicien" });

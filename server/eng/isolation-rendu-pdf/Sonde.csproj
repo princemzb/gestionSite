@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sonde d'isolation du rendu PDF (SOC-05) : construite par le Dockerfile du même dossier pour server/eng/verify-image.sh,
+       jamais dans la solution ni dans l'image livrée. Même nom d'assemblage que le programme de rendu qu'elle remplace. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GestionSite.Modules.Patrimoine.RenduPdf</AssemblyName>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+</Project>

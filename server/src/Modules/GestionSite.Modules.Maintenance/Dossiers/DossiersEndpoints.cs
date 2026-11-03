@@ -23,6 +23,8 @@ internal sealed record DemandeVersion(uint? Version);
 
 internal sealed record DemandeAttente(string? Motif, string? Commentaire, DateOnly? ReexamenLe, uint? Version);
 
+internal sealed record DemandeReport(DateOnly? ReexamenLe, string? Commentaire, uint? Version);
+
 internal sealed record DemandeCloture(string? Actions, string? EtatFinal, uint? Version);
 
 internal sealed record DemandeReouverture(string? Motif, uint? Version);
@@ -54,6 +56,12 @@ internal static class DossiersEndpoints
             Guid orgId, Guid siteId, Guid id, int numero, DemandeAttente demande, ServiceInterventions service, CancellationToken ct) =>
         {
             await service.MettreEnAttenteAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        dossiers.MapPost("/{id:guid}/interventions/{numero:int}/review-date", async (
+            Guid orgId, Guid siteId, Guid id, int numero, DemandeReport demande, ServiceInterventions service, CancellationToken ct) =>
+        {
+            await service.ReporterReexamenAsync(orgId, siteId, id, numero, demande, ct).ConfigureAwait(false);
             return Results.NoContent();
         });
         dossiers.MapPost("/{id:guid}/interventions/{numero:int}/resume", async (

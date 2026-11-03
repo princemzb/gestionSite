@@ -28,6 +28,14 @@ internal sealed class FondsPlanOptions
     /// occupe 150 Mo, plus le PNG compressé, le reste pour PDFium et son environnement d'exécution, sous les 4 Gio du conteneur).
     /// </summary>
     public long RenduPdfMemoireOctets { get; init; } = 1024L * 1024 * 1024;
+
+    /// <summary>
+    /// Lanceur du rendu isolé (SOC-05), chemin absolu : programme setuid de l'image du conteneur qui exécute le processus de
+    /// rendu sous un compte dédié, sans droit sur l'API (server/deploy/lanceur-rendu-pdf.c). Obligatoire hors
+    /// développement (démarrage refusé) ; absent en développement et dans les tests : processus de rendu lancé directement,
+    /// sous le compte de l'API.
+    /// </summary>
+    public string? RenduPdfLanceur { get; init; }
 }
 
 // Page (à partir de 1, la première par défaut) et échelle 1:N déclarée : seulement pour un PDF (S21-05).

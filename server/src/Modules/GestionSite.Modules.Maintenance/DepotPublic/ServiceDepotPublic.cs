@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Photos;
@@ -25,8 +26,8 @@ internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant
 
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
 internal sealed class ServiceDepotPublic(
-    MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, IVerificationHumaine verification, LimiteDepots limites,
-    TimeProvider horloge)
+    MaintenanceDbContext context, ISitesPublics sites, IAnnuaireMembres annuaire, IStockageFichiers stockage, IVerificationHumaine verification,
+    LimiteDepots limites, TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
@@ -75,12 +76,13 @@ internal sealed class ServiceDepotPublic(
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
 
+        // Destinataires lus au moment de l'émission, une fois la demande acceptée, s'il y a quelque chose à notifier (S10-01).
+        var destinataires = await DestinatairesSite.LireSiAsync(EmissionNotifications.ANotifier(signalement), annuaire, site.SiteId, cancellationToken)
+            .ConfigureAwait(false);
         context.Signalements.Add(signalement);
         context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));
-        if (signalement.Danger)
-        {
-            context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), signalement));
-        }
+        // Alerte et notifications dans la même transaction que le dépôt : aucun auteur (déclarant public sans compte).
+        context.Declarer(signalement, destinataires, auteur: null, maintenant);
 
         try
         {
