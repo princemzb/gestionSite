@@ -236,6 +236,15 @@ Application web (S08-04) : formulaire public `/s/{code}` (choix : danger, incide
 
 Code de site : 10 caractères de `23456789ABCDEFGHJKMNPQRSTVWXYZ` (casse et tirets ignorés), un par site, créé avec le site (sites existants : attribué par la migration `SitesPublics`) ; filtré par organisation sauf pour la recherche par code (lecture RLS ouverte, le code étant la clé), écrit seulement par l'organisation du site (garde applicative + RLS).
 
+Centre de notifications (US-10, S10-01) : `/organizations/{orgId}/me/notifications…` — l'appelant authentifié, dans une organisation dont il est membre actif (sinon 404, comme pour une autre organisation). Source de vérité des notifications (pas de push ni d'e-mail dans S10-01).
+| Opération | Accès | Contenu et réponses |
+| --- | --- | --- |
+| GET / | Membre actif | facultatifs `nonLues` (true : non lues seulement), `limite` (1 à 100, 50 par défaut ; sinon 422 `champ` = `limite`), `avant` (identifiant de la dernière reçue) → `{notifications: [{id, type, siteId, objet: {type, id, titre}, creeLe, lueLe}], nonLues}` du plus récent au plus ancien ; `nonLues` = total des non lues visibles (pastille). Seules les notifications de l'appelant sur les sites où il a **encore** un rôle (`ConsulterSite`) au moment de la lecture ; un administrateur sans rôle de site reçoit une liste vide. `titre` : titre actuel du dossier (première ligne de sa description), relu à l'affichage, jamais stocké ; ni nom ni contact du déclarant |
+| POST /{id}/read | Destinataire | → 204 ; déjà lue : rien ne change (204) ; notification d'un autre compte, d'un site sans rôle ou inconnue : 404 |
+| POST /read | Membre actif | facultatif `jusqua` (identifiant de la plus récente affichée) → 204 ; marque lues ses notifications visibles non lues, celles d'identifiant ≤ `jusqua` s'il est donné (une alerte arrivée après l'affichage reste non lue) |
+
+Types (`type`) : `DangerSignale` (dépôt public, déclaration interne ou constat d'inspection avec danger : R/D et P/C du site, et personnes en charge d'une intervention ouverte du dossier, Q3-A), `ActiviteBloquee` (déclaration avec activité bloquée sans danger : R/D), `Affectation` (intervenant, ou référent interne du prestataire), `ClotureAutomatique` (dossier clôturé par la clôture de sa dernière intervention, T-03.11 : R/D), `ConstatRattache` (constat d'inspection sans danger rattaché à un dossier ouvert, T-03.19 : R/D). `objet.type` : `Dossier` (ouvert par sa fiche, droits revérifiés : une URL connue n'accorde aucun droit). Écrites dans la transaction de l'événement (`maintenance.notifications`, ADR-06 précisée) : l'auteur n'est jamais notifié ; une seule par destinataire et par événement (clé d'unicité), rejeu compris.
+
 ## Principes de contrat proposés
 Identifiants stables, horodatages avec fuseau, montants avec devise et précision définie, unités explicites.
 Commande sensible : clé d’idempotence et version attendue. Même clé/même contenu → même résultat ; même clé/contenu différent → erreur.
@@ -247,7 +256,7 @@ Les événements internes proposés portent identifiant, organisation, type, ins
 IA : entrée minimisée, sortie structurée avec hypothèses, éléments manquants et sources ; validation serveur avant utilisation.
 Produits : source, date, référence, variante, devise, prix, disponibilité et frais connus/inconnus.
 Email : destinataires confirmés, PDF validé/versionné, état en file/envoyé/échec ; « accepté par fournisseur » ne signifie pas lu.
-Push : indication minimale, lien privé soumis aux droits ; centre de notifications source de vérité.
+Push : indication minimale, lien privé soumis aux droits ; centre de notifications source de vérité (S10-01, section « Centre de notifications »). Un e-mail, un SMS ou un push ne porte jamais la description, le nom ni le contact du déclarant, ni le `titre` du centre (S10-09).
 Fichiers : envoi reprenable, empreinte, métadonnées privées ; contrôle avant rattachement.
 
 Référence de formalisation : [OpenAPI Specification](https://spec.openapis.org/oas/latest.html). La version utilisée sera figée selon l’outillage choisi.

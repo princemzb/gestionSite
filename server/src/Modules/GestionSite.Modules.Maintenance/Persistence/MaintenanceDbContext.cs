@@ -33,6 +33,8 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
 
     public DbSet<EvenementPlan> JournalPreventif => Set<EvenementPlan>();
 
+    public DbSet<Notification> Notifications => Set<Notification>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -131,6 +133,21 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
         });
 
         ConfigurerPreventif(modelBuilder);
+
+        // Centre de notifications (US-10, S10-01) : une ligne par destinataire et par événement, sans texte libre.
+        modelBuilder.Entity<Notification>(notification =>
+        {
+            notification.ToTable("notifications");
+            notification.HasKey(n => n.Id);
+            notification.Property(n => n.Id).ValueGeneratedNever();
+            notification.Property(n => n.Type).HasConversion<string>().HasMaxLength(32);
+            notification.Property(n => n.Objet).HasConversion<string>().HasMaxLength(16);
+            notification.Property(n => n.Cle).HasMaxLength(Notification.CleMax);
+            // Un événement, une notification par destinataire, même si l'émission est rejouée (T-04.11 pour S10-02).
+            notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Cle }).IsUnique();
+            // Centre d'un compte, du plus récent au plus ancien (identifiants ordonnés dans le temps), curseur « avant ».
+            notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Id });
+        });
 
         modelBuilder.Entity<PhotoSignalement>(photo =>
         {

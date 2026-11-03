@@ -8,7 +8,7 @@ Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 ad
 | ADR-03 | Client tablette installé avec stockage local protégé | Web seul : compatibilité localisation à démontrer | Essais Android/iPad |
 | ADR-04 | Commandes idempotentes et conflits explicites | Dernière écriture gagnante : incompatible avec arbitrage choisi | POC synchronisation |
 | ADR-05 | Fournisseurs IA/marchands derrière adaptateurs | Couplage direct : remplacement difficile | Essais et contrat fournisseur |
-| ADR-06 | Emission différée après transaction via journal d’événements à traiter | Appel direct : perte possible entre commit et envoi | Test panne et reprise |
+| ADR-06 | Emission différée après transaction via journal d’événements à traiter. Précisée par S10-01 (03/11, proposée) : les notifications du centre sont écrites dans la transaction de l'événement métier (même contexte du module Maintenance, qui produit tous les événements d'US-10) et servent de journal ; les canaux externes (S10-09) liront ce journal par une file d'envoi (état en file / envoyé / échec, reprise), sans jamais annuler l'action métier | Appel direct : perte possible entre commit et envoi ; boîte d'envoi séparée dès S10-01 : table et relais sans canal à servir ; module Notifications à part : transaction partagée entre deux contextes EF à construire | Test panne et reprise (S10-01 : un seul enregistrement pour l'événement et ses notifications, donc aucune notification sans événement ; reprise des envois : S10-09) |
 | ADR-07 | Position temporaire hors historique métier | Stockage des trajets : contraire au choix utilisateur | Revue sécurité et effacement |
 
 ## Forme obligatoire pour une décision adoptée

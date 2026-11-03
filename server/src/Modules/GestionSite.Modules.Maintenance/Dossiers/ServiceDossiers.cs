@@ -2,6 +2,7 @@ using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -149,11 +150,10 @@ internal sealed class ServiceDossiers(
             photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
+        var destinataires = await DestinatairesSite.LireSiAsync(EmissionNotifications.ANotifier(dossier), annuaire, siteId, cancellationToken)
+            .ConfigureAwait(false);
         context.Signalements.Add(dossier);
-        if (dossier.Danger)
-        {
-            context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), dossier));
-        }
+        context.Declarer(dossier, destinataires, compteId, maintenant); // alerte et notifications ; le déclarant n'est pas notifié
 
         Tracer(dossier, NatureEvenementDossier.Declaration, maintenant, detail: null);
         try
@@ -293,9 +293,11 @@ internal sealed class ServiceDossiers(
         context.Tracer(dossier, nature, compte.Id, le, detail);
 
     // Titre d'affichage : première ligne de la description, raccourcie.
-    internal static string Titre(Signalement dossier)
+    internal static string Titre(Signalement dossier) => Titre(dossier.Description);
+
+    internal static string Titre(string description)
     {
-        var ligne = dossier.Description.Split('\n', 2)[0].Trim();
+        var ligne = description.Split('\n', 2)[0].Trim();
         return ligne.Length <= TitreMax ? ligne : string.Concat(ligne.AsSpan(0, TitreMax - 1), "…");
     }
 
