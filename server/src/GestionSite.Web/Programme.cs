@@ -157,19 +157,17 @@ internal static class Programme
             await suite(contexte).ConfigureAwait(false);
         });
         // Formulaires avec photos (public, déclaration interne, clôture d'intervention, évaluation) : 3 photos de 10 Mo et le reste ;
-        // contrôle préventif : en plus, un rapport PDF de 10 Mo ; ailleurs, la limite de Kestrel (30 Mo).
+        // contrôle préventif : attribut de sa page (Controler.razor) ; ailleurs, la limite de Kestrel (30 Mo).
         app.Use(async (contexte, suite) =>
         {
             var chemin = contexte.Request.Path;
-            var organisation = chemin.StartsWithSegments("/organisations");
             var avecPhotos = chemin.StartsWithSegments("/s")
-                || (organisation && (chemin.Value!.Contains("/dossiers/", StringComparison.Ordinal)
+                || (chemin.StartsWithSegments("/organisations") && (chemin.Value!.Contains("/dossiers/", StringComparison.Ordinal)
                     || chemin.Value.EndsWith("/inventaire/evaluer", StringComparison.Ordinal)));
-            var avecRapport = organisation && chemin.Value!.EndsWith("/preventif/controler", StringComparison.Ordinal);
-            if (HttpMethods.IsPost(contexte.Request.Method) && (avecPhotos || avecRapport)
+            if (HttpMethods.IsPost(contexte.Request.Method) && avecPhotos
                 && contexte.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } taille)
             {
-                taille.MaxRequestBodySize = (avecRapport ? 44 : 34) * 1024 * 1024;
+                taille.MaxRequestBodySize = 34 * 1024 * 1024;
             }
 
             await suite(contexte).ConfigureAwait(false);

@@ -63,6 +63,16 @@ internal sealed class ServiceOccurrences(
     MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IEvaluationsInventaire evaluations, IAnnuaireMembres annuaire,
     IStockageFichiers stockage, CompteCourant compte, TimeProvider horloge)
 {
+    /// <summary>
+    /// Membres du site à qui confier un contrôle ou le suivi d'un prestataire (droit « Exécuter un contrôle »), lus par R/D
+    /// pour affecter ; l'affectation revérifie chaque compte (un intervenant interne est un technicien).
+    /// </summary>
+    internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
+        return await Intervenants.ListerAsync(annuaire, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Affectation de l'échéance courante, à la version lue de l'occurrence (0 tant qu'elle n'existe pas).</summary>
     internal async Task AffecterAsync(Guid organisationId, Guid siteId, Guid planId, DemandeAffectationControle demande, CancellationToken cancellationToken)
     {

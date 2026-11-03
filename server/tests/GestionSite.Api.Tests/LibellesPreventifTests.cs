@@ -71,7 +71,7 @@ public sealed class LibellesPreventifTests
     public void APlanWithoutPeriodIsOneOffAndDatesAreFrench()
     {
         Assert.Equal("ponctuel", LibellesPreventif.Periode(null));
-        Assert.Equal("05/03/2027", LibellesPreventif.Date(new DateOnly(2027, 3, 5)));
+        Assert.Equal("05/03/2027", Perimetre.Date(new DateOnly(2027, 3, 5)));
         Assert.Equal("05/03", LibellesPreventif.DateCourte(new DateOnly(2027, 3, 5)));
         Assert.Equal("Février 2027", LibellesPreventif.Mois(new DateOnly(2027, 2, 1)));
     }

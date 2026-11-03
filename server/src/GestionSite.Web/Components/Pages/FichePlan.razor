@@ -37,8 +37,8 @@ else
             }
             else if (p.Prochaine is { } e)
             {
-                <h2>Prochaine échéance : @LibellesPreventif.Date(e.Echeance) <span class="@($"echeance {LibellesPreventif.ClasseEtat(e.Etat)}")">@LibellesPreventif.Etat(e.Etat)</span></h2>
-                <p class="note">Fenêtre « À faire » ouverte le @LibellesPreventif.Date(e.OuvertureFenetre) · @LibellesPreventif.Periode(p.Periode)@(p.Mode == "Fixe" ? ", date fixe" : ", glissante") · aucune tolérance après l'échéance.</p>
+                <h2>Prochaine échéance : @Perimetre.Date(e.Echeance) <span class="@($"echeance {LibellesPreventif.ClasseEtat(e.Etat)}")">@LibellesPreventif.Etat(e.Etat)</span></h2>
+                <p class="note">Fenêtre « À faire » ouverte le @Perimetre.Date(e.OuvertureFenetre) · @LibellesPreventif.Periode(p.Periode)@(p.Mode == "Fixe" ? ", date fixe" : ", glissante") · aucune tolérance après l'échéance.</p>
                 @if (e.Intervenant is { } i)
                 {
                     <p>Affectée à @(i.Nom ?? i.Prestataire)@(i.Prestataire is not null && i.Referent is not null ? $" (référent : {i.Referent})" : "")</p>
@@ -108,7 +108,7 @@ else
             <h2>Plan</h2>
             <dl class="detail-plan">
                 <dt>Cible</dt><dd>@p.Cible.Libelle</dd>
-                <dt>Récurrence</dt><dd>@LibellesPreventif.Periode(p.Periode), échéance @(p.Mode == "Fixe" ? "fixe" : "glissante") (première le @LibellesPreventif.Date(p.PremiereEcheance))</dd>
+                <dt>Récurrence</dt><dd>@LibellesPreventif.Periode(p.Periode), échéance @(p.Mode == "Fixe" ? "fixe" : "glissante") (première le @Perimetre.Date(p.PremiereEcheance))</dd>
                 <dt>Intervenant habituel</dt><dd>@LibellesPreventif.Intervenant(p.TypeIntervenant)@(p.Intervenant is { } d ? $" · {d.Nom ?? d.Prestataire}" : "")</dd>
                 @if (p.DonneurOrdre is { } donneur)
                 {
@@ -146,11 +146,11 @@ else
                     <li>
                         @if (controle is not null)
                         {
-                            <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={controle.Id}")"><strong>@LibellesPreventif.Date(controle.RealiseLe)</strong></a>
+                            <a href="@($"/organisations/{OrganisationId}/preventif/controle?site={SiteCourant.Id}&controle={controle.Id}")"><strong>@Perimetre.Date(controle.RealiseLe)</strong></a>
                         }
                         else
                         {
-                            <strong>@LibellesPreventif.Date(o.RealiseeLe ?? o.SauteeLe ?? o.Echeance)</strong>
+                            <strong>@Perimetre.Date(o.RealiseeLe ?? o.SauteeLe ?? o.Echeance)</strong>
                         }
                         · @LibellesPreventif.Etat(o.Statut)
                         @if (controle is not null)
@@ -247,14 +247,19 @@ else
         }
     }
 
+    // Lectures indépendantes lancées ensemble ; la première en échec, dans cet ordre, donne le message (comme en séquence).
     private async Task ChargerAsync()
     {
-        Fiche = await Session.LireAsync<FichePlanApi>($"{Base}/plans/{PlanDemande}", CancellationToken.None);
-        Controles = await Session.LireAsync<List<ControleResumeApi>>($"{Base}/controls?planId={PlanDemande}", CancellationToken.None);
-        if (Planificateur)
-        {
-            Membres = await Session.LireAsync<List<IntervenantApi>>($"/organizations/{OrganisationId}/sites/{SiteCourant!.Id}/cases/assignees", CancellationToken.None);
-        }
+        var fiche = Session.LireAsync<FichePlanApi>($"{Base}/plans/{PlanDemande}", CancellationToken.None);
+        var controles = Session.LireAsync<List<ControleResumeApi>>($"{Base}/controls?planId={PlanDemande}", CancellationToken.None);
+        // Intervenants affectables : droit « Exécuter un contrôle », lus seulement par qui planifie.
+        var membres = Planificateur
+            ? Session.LireAsync<List<IntervenantApi>>($"{Base}/assignees", CancellationToken.None)
+            : Task.FromResult<List<IntervenantApi>>([]);
+        await Task.WhenAll(fiche, controles, membres);
+        Fiche = await fiche;
+        Controles = await controles;
+        Membres = await membres;
     }
 
     // Après un refus : la fiche est relue ; si la relecture échoue aussi, la fiche affichée reste, avec le message du refus.
