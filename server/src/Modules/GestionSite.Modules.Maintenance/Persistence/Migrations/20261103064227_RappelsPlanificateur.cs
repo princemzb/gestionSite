@@ -12,7 +12,7 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "en_attente_depuis",
+                name: "reexamen_fixe_le",
                 schema: "maintenance",
                 table: "interventions",
                 type: "timestamp with time zone",
@@ -58,7 +58,7 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
             migrationBuilder.Sql("DROP FUNCTION maintenance.organisations_a_planifier();");
 
             migrationBuilder.DropColumn(
-                name: "en_attente_depuis",
+                name: "reexamen_fixe_le",
                 schema: "maintenance",
                 table: "interventions");
 

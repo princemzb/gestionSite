@@ -10,7 +10,7 @@ namespace GestionSite.Modules.Maintenance.Planificateur;
 
 /// <summary>
 /// Accès au point d'entrée interne du planificateur (section « Planificateur ») : un jeton partagé avec le Worker
-/// (secret, au moins 32 caractères ; absent, le point d'entrée n'existe pas : 404), et en préproduction un port dédié,
+/// (secret, au moins 32 caractères ; absent ou trop court, le point d'entrée n'existe pas : 404), et en préproduction un port dédié,
 /// joignable par le seul Durable Object, sur lequel aucune autre route ne répond.
 /// </summary>
 public sealed class PlanificateurOptions
@@ -18,13 +18,14 @@ public sealed class PlanificateurOptions
     public const string Section = "Planificateur";
     internal const int JetonMin = 32;
 
-    /// <summary>Secret partagé avec le Worker (en-tête <c>X-Planificateur-Jeton</c>) ; vide : planificateur désactivé.</summary>
+    /// <summary>Secret partagé avec le Worker (en-tête <c>X-Planificateur-Jeton</c>) ; vide ou trop court : planificateur désactivé.</summary>
     public string? Jeton { get; set; }
 
     /// <summary>Port local réservé au planificateur (0 : aucun port dédié, développement et tests).</summary>
     public int Port { get; set; }
 
-    internal bool Active => !string.IsNullOrEmpty(Jeton);
+    // Jeton trop court : planificateur inactif (404), sans empêcher le reste de l'API de démarrer.
+    internal bool Active => Jeton is { Length: >= JetonMin };
 
     /// <summary>Jeton présenté identique (comparaison à temps constant, longueur comprise) et, si un port est dédié, reçu sur ce port.</summary>
     internal bool Autorise(HttpContext http)

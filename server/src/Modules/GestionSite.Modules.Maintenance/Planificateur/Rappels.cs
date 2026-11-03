@@ -61,7 +61,7 @@ internal static class Rappels
             if (dossier.EcheancePriseEnCharge is not null)
             {
                 Retenir(Delai(
-                    dossier, "pec", qualifie, qualifie, Delais.PriseEnCharge(priorite), enCharge,
+                    dossier, "pec", qualifie, Delais.PriseEnCharge(priorite), enCharge,
                     TypeNotification.PriseEnChargeProche, TypeNotification.PriseEnChargeDepassee, maintenant, dus));
             }
 
@@ -69,7 +69,7 @@ internal static class Rappels
             if (dossier.EcheanceResolution is not null)
             {
                 Retenir(Delai(
-                    dossier, "res", qualifie, qualifie + dossier.DureeAttente, Delais.Resolution(priorite), enCharge,
+                    dossier, "res", qualifie + dossier.DureeAttente, Delais.Resolution(priorite), enCharge,
                     TypeNotification.ResolutionProche, TypeNotification.ResolutionDepassee, maintenant, dus));
             }
         }
@@ -82,9 +82,11 @@ internal static class Rappels
         return new EcheancesDossier(dus, prochain);
     }
 
-    // Délai DEC-05 commencé à « debut » (temps d'attente déjà retiré) ; cycle : qualification du cycle en cours.
+    // Délai DEC-05 commencé à « debut » (temps d'attente déjà retiré). Cycle de seuils : l'échéance elle-même ; une
+    // requalification ou une reprise après attente qui la déplace ouvre un nouveau cycle (escalade et rappels quotidiens
+    // repartent de la nouvelle échéance), une réouverture aussi (nouvelle qualification).
     private static DateTimeOffset Delai(
-        Signalement dossier, string delai, DateTimeOffset cycle, DateTimeOffset debut, TimeSpan duree, List<Guid> enCharge,
+        Signalement dossier, string delai, DateTimeOffset debut, TimeSpan duree, List<Guid> enCharge,
         TypeNotification proche, TypeNotification depasse, DateTimeOffset maintenant, List<RappelDu> dus)
     {
         var alerte = debut + duree * 0.75;
@@ -94,7 +96,7 @@ internal static class Rappels
             return alerte;
         }
 
-        var cle = $"rappel:{delai}:{dossier.Id:N}:{cycle.ToUnixTimeMilliseconds()}";
+        var cle = $"rappel:{delai}:{dossier.Id:N}:{echeance.ToUnixTimeMilliseconds()}";
         if (maintenant < echeance)
         {
             // Personne en charge, R/D tant que le dossier n'est pas affecté (DEC-05, T-04.10, T-04.14).
@@ -135,11 +137,16 @@ internal static class Rappels
             return premier;
         }
 
-        var cle = $"rappel:reexamen:{intervention.Id:N}:{intervention.EnAttenteDepuis?.ToUnixTimeMilliseconds() ?? 0}:{jour:yyyyMMdd}";
+        var cle = $"rappel:reexamen:{intervention.Id:N}:{intervention.ReexamenFixeLe?.ToUnixTimeMilliseconds() ?? 0}:{jour:yyyyMMdd}";
         var escalade = jour.AddDays(JoursAvantEscaladeReexamen);
         if (maintenant < JourCivil.A(escalade, HeureReexamen))
         {
-            dus.Add(new RappelDu(dossier, TypeNotification.ReexamenAtteint, $"{cle}:j0", new CibleRappel(Encadrement: false, [intervention.EnCharge])));
+            // Date fixée après 8 h ce jour-là (ou pour un jour passé) : son auteur vient de la choisir, rien à lui rappeler.
+            if (intervention.ReexamenFixeLe is not { } fixe || fixe < premier)
+            {
+                dus.Add(new RappelDu(dossier, TypeNotification.ReexamenAtteint, $"{cle}:j0", new CibleRappel(Encadrement: false, [intervention.EnCharge])));
+            }
+
             return JourCivil.A(escalade, HeureReexamen);
         }
 

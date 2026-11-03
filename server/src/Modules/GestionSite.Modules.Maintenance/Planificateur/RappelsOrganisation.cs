@@ -19,6 +19,9 @@ internal sealed record BilanOrganisation(int Notifications, DateTimeOffset? Proc
 /// </summary>
 internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuaireMembres annuaire)
 {
+    /// <summary>Nouveau passage quand l'organisation était déjà en cours de traitement (réponse de l'autre passage peut-être perdue).</summary>
+    internal static readonly TimeSpan PassageConcurrent = TimeSpan.FromMinutes(1);
+
     internal async Task<BilanOrganisation> TraiterAsync(DateTimeOffset maintenant, CancellationToken cancellationToken)
     {
         var organisation = context.OrganisationRequise;
@@ -29,7 +32,8 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         if (!verrou[0])
         {
-            return new BilanOrganisation(0, null); // un autre passage traite cette organisation en ce moment
+            // Un autre passage traite cette organisation en ce moment : revenir sous peu (sa réponse peut se perdre).
+            return new BilanOrganisation(0, maintenant + PassageConcurrent);
         }
 
         var dossiers = await context.Signalements.AsNoTracking().Where(s => Signalement.StatutsOuverts.Contains(s.Statut))

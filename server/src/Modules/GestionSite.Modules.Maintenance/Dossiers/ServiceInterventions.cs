@@ -118,6 +118,7 @@ internal sealed class ServiceInterventions(
             .ConfigureAwait(false);
         var maintenant = horloge.GetUtcNow();
         var (ancienne, commentaire) = intervention.ReporterReexamen(demande.ReexamenLe, demande.Commentaire, maintenant);
+        context.ChangerVersion(dossier);
         context.Tracer(dossier, NatureEvenementDossier.ReportReexamen, compte.Id, maintenant, new
         {
             numero,

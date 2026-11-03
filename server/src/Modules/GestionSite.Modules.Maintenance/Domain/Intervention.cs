@@ -107,10 +107,11 @@ internal sealed class Intervention : IAppartientAOrganisation
     public DateOnly? ReexamenLe { get; private set; }
 
     /// <summary>
-    /// Début de l'attente en cours (US-10, S10-03) : distingue deux attentes successives dans les rappels de réexamen ;
+    /// Instant où la date de réexamen en cours a été fixée, à la mise en attente ou au report (US-10, S10-03) : chaque
+    /// date fixée forme un cycle de rappels, et celle fixée le jour même après 8 h ne rappelle rien à son auteur ce jour-là ;
     /// null hors attente, et pour une attente commencée avant S10-03.
     /// </summary>
-    public DateTimeOffset? EnAttenteDepuis { get; private set; }
+    public DateTimeOffset? ReexamenFixeLe { get; private set; }
 
     /// <summary>Nombre de reports de la date de réexamen pendant l'attente en cours (visible sur la fiche, S10-03).</summary>
     public int ReportsReexamen { get; private set; }
@@ -160,7 +161,7 @@ internal sealed class Intervention : IAppartientAOrganisation
         MotifAttente = motif;
         CommentaireAttente = Commentaire.Exiger(commentaire, motif == Domain.MotifAttente.Autre);
         ReexamenLe = reexamen;
-        EnAttenteDepuis = maintenant;
+        ReexamenFixeLe = maintenant;
         ReportsReexamen = 0;
     }
 
@@ -185,6 +186,7 @@ internal sealed class Intervention : IAppartientAOrganisation
         var texte = Commentaire.Exiger(commentaire, obligatoire: false)
             ?? throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour reporter le réexamen.");
         ReexamenLe = reexamen;
+        ReexamenFixeLe = maintenant;
         ReportsReexamen++;
         return (ancienne, texte);
     }
@@ -245,7 +247,7 @@ internal sealed class Intervention : IAppartientAOrganisation
         MotifAttente = null;
         CommentaireAttente = null;
         ReexamenLe = null;
-        EnAttenteDepuis = null;
+        ReexamenFixeLe = null;
         ReportsReexamen = 0;
     }
 }

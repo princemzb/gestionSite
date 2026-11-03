@@ -72,7 +72,9 @@ public sealed class PlanificateurTests(InfrastructureFixture infrastructure) : I
 
         Assert.Equal(2, passages.Sum(p => p.Notifications)); // Q8-A : R/D, une seule fois malgré quatre passages simultanés
         Assert.Equal(["AQualifier"], await TypesAsync(equipe.Delegue, null));
-        Assert.All(passages, p => Assert.Equal(recu.AddHours(48), p.ProchainPassage ?? recu.AddHours(48)));
+        // Le passage qui a traité l'organisation annonce le seuil suivant ; ceux qui l'ont trouvée occupée reviennent dans une minute.
+        Assert.Contains(recu.AddHours(48), passages.Select(p => p.ProchainPassage));
+        Assert.All(passages, p => Assert.True(p.ProchainPassage == recu.AddHours(48) || p.ProchainPassage == recu.AddHours(24) + RappelsOrganisation.PassageConcurrent));
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public sealed class PlanificateurTests(InfrastructureFixture infrastructure) : I
         await using var application = new NpgsqlConnection(Database.ApplicationConnectionString);
         await application.OpenAsync();
         var organisations = await GuidsAsync(application, "SELECT o FROM maintenance.organisations_a_planifier() AS o");
-        Assert.Equal([autre.OrganisationId, Organisation], organisations.Order());
+        Assert.Equal(new[] { autre.OrganisationId, Organisation }.Order(), organisations.Order());
         Assert.DoesNotContain(sansDossier.OrganisationId, organisations);
         // La variable du planificateur ne sert à rien au rôle applicatif, ni au propriétaire connecté directement.
         Assert.Equal(0L, await CompterAsync(application, "SET app.planificateur = 'on'; SELECT count(*) FROM maintenance.signalements"));
@@ -198,13 +200,55 @@ public sealed class PlanificateurTests(InfrastructureFixture infrastructure) : I
     }
 
     [Fact]
-    public void AShortTokenOrAnInvalidPortIsRefusedAtStartup()
+    public async Task AShortTokenOnlyDisablesThePlannerAndAnInvalidPortIsRefusedAtStartup()
     {
-        using var court = Infrastructure.CreateApi(Database).WithWebHostBuilder(b => b.UseSetting("Planificateur:Jeton", "trop-court"));
-        using var port = Infrastructure.CreateApi(Database).WithWebHostBuilder(b => b.UseSetting("Planificateur:Jeton", Jeton).UseSetting("Planificateur:Port", "70000"));
+        await using var court = Infrastructure.CreateApi(Database).WithWebHostBuilder(b => b.UseSetting("Planificateur:Jeton", "trop-court"));
+        await using var port = Infrastructure.CreateApi(Database).WithWebHostBuilder(b => b.UseSetting("Planificateur:Jeton", Jeton).UseSetting("Planificateur:Port", "70000"));
 
-        Assert.Contains("32 caractères", Assert.ThrowsAny<Exception>(() => court.CreateClient()).ToString(), StringComparison.Ordinal);
+        using var avecJetonCourt = await AppelerAsync(court, "trop-court");
+        using var sante = await EnvoyerSurPortAsync(court, "/health", port: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, avecJetonCourt.StatusCode); // planificateur inactif, le reste de l'API répond
+        Assert.Equal(HttpStatusCode.OK, sante.StatusCode);
         Assert.Contains("65535", Assert.ThrowsAny<Exception>(() => port.CreateClient()).ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheFunctionFollowsTheOpenStatusesOfACaseAndAReportWithAnOutdatedVersionIsRefused()
+    {
+        var source = await Database.CountAsync(
+            "SELECT count(*) FROM pg_proc WHERE proname = 'organisations_a_planifier' AND prosecdef AND " +
+            "prosrc LIKE '%''AQualifier'', ''Affecte'', ''EnCours'', ''EnAttente''%'");
+        Assert.Equal(["AQualifier", "Affecte", "EnCours", "EnAttente"], GestionSite.Modules.Maintenance.Domain.Signalement.StatutsOuverts.Select(s => s.ToString()));
+        Assert.Equal(1L, source); // même liste que Signalement.StatutsOuverts : à faire évoluer ensemble (nouvelle migration)
+
+        var equipe = await EquipeAsync();
+        var zone = await ZoneAsync(equipe.Technicien);
+        var dossier = await DeclarerAsync(equipe.Pasteur, zone);
+        await QualifierAsync(dossier, zone, equipe.Responsable, "Basse");
+        using (await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions", equipe.Responsable,
+            new { titre = "Commander", intervenantCompteId = await CompteAsync(equipe.Technicien), version = await VersionAsync(dossier, equipe.Responsable) }))
+        {
+        }
+
+        using (await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/start", equipe.Technicien, new { version = await VersionAsync(dossier, equipe.Responsable) }))
+        {
+        }
+
+        var aujourdhui = JourCivil.Du(DateTimeOffset.UtcNow);
+        using (await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/hold", equipe.Technicien,
+            new { motif = "Livraison", reexamenLe = aujourdhui.AddDays(2), version = await VersionAsync(dossier, equipe.Responsable) }))
+        {
+        }
+
+        var lue = await VersionAsync(dossier, equipe.Responsable);
+        using var premier = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/review-date", equipe.Technicien,
+            new { reexamenLe = aujourdhui.AddDays(9), commentaire = "Devis", version = lue });
+        using var second = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{dossier}/interventions/1/review-date", equipe.Responsable,
+            new { reexamenLe = aujourdhui.AddDays(4), commentaire = "Plus tôt", version = lue });
+
+        Assert.Equal(HttpStatusCode.NoContent, premier.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode); // version lue avant le premier report
     }
 
     // Port local simulé (TestServer n'en a pas) : en-tête de test lu avant tout le pipeline de l'application.

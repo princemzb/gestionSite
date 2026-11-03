@@ -433,9 +433,9 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dossier_id");
 
-                    b.Property<DateTimeOffset?>("EnAttenteDepuis")
+                    b.Property<DateTimeOffset?>("ReexamenFixeLe")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("en_attente_depuis");
+                        .HasColumnName("reexamen_fixe_le");
 
                     b.Property<string>("EtatFinal")
                         .HasMaxLength(24)

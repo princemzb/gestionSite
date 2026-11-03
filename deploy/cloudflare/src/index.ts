@@ -56,6 +56,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class GestionSite extends DurableObject<Env> {
   private demarrage?: Promise<void>;
   private verification?: Promise<void>;
+  private memorisation?: Promise<void>;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -72,7 +73,13 @@ export class GestionSite extends DurableObject<Env> {
       return indisponible();
     }
     try {
-      await this.conteneurPret(conteneur, adressePublique(request));
+      const origine = adressePublique(request);
+      this.memorisation ??= this.memoriserOrigine(origine).catch((e) => {
+        this.memorisation = undefined; // nouvel essai à la requête suivante
+        throw e;
+      });
+      await this.memorisation;
+      await this.conteneurPret(conteneur, origine);
       const reponse = await conteneur.getTcpPort(PORT_WEB).fetch(relayer(request));
       if (this.env.PLANIFICATEUR_JETON && !METHODES_LECTURE.has(request.method)) {
         this.ctx.waitUntil(this.planifierAvant(Date.now() + APRES_ECRITURE_MS).catch((e) => console.error(`Planificateur : ${e}`)));
@@ -166,13 +173,17 @@ export class GestionSite extends DurableObject<Env> {
     }
   }
 
-  // origine : adresse publique vue par le Worker (liens d'activation), sans la fixer dans le dépôt ; conservée pour
-  // qu'une alarme (sans requête) puisse redémarrer le conteneur avec la même adresse.
-  private async demarrer(conteneur: Container, origine: string): Promise<void> {
-    const env = this.env;
+  // Adresse publique conservée (une fois par vie de l'objet, dès la première requête) pour qu'une alarme, sans requête,
+  // puisse redémarrer le conteneur avec la même adresse.
+  private async memoriserOrigine(origine: string): Promise<void> {
     if ((await this.ctx.storage.get<string>(CLE_ORIGINE)) !== origine) {
       await this.ctx.storage.put(CLE_ORIGINE, origine);
     }
+  }
+
+  // origine : adresse publique vue par le Worker (liens d'activation), sans la fixer dans le dépôt.
+  private async demarrer(conteneur: Container, origine: string): Promise<void> {
+    const env = this.env;
     conteneur.start({
       image: conteneur.images.application,
       instance: "standard-1", // ½ vCPU, 4 Gio : deux processus .NET (le type « basic » n'existe pas dans ce mode)

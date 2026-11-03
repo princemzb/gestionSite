@@ -37,7 +37,6 @@ public static class MaintenanceModule
             .Validate(o => o.LimiteParSite > 0 && o.Fenetre > TimeSpan.Zero, "DepotPublic : limite et fenêtre positives.")
             .ValidateOnStart();
         services.AddOptions<PlanificateurOptions>().BindConfiguration(PlanificateurOptions.Section)
-            .Validate(o => !o.Active || o.Jeton!.Length >= PlanificateurOptions.JetonMin, "Planificateur:Jeton : 32 caractères au moins.")
             .Validate(o => o.Port is >= 0 and <= 65535, "Planificateur:Port : 0 (aucun port dédié) à 65535.")
             .ValidateOnStart();
         return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>()

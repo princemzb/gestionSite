@@ -99,16 +99,57 @@ public sealed class RappelsTests
     }
 
     [Fact]
-    public void ARequalificationKeepsTheCycleSoAThresholdAlreadyNotifiedKeepsItsKey()
+    public void AMovedDeadlineStartsANewCycleOfThresholdsWhileAnUnchangedOneKeepsItsKeys()
     {
         var dossier = Qualifie(PrioriteDossier.Basse, Lundi10h);
         var cleAvant = Rappels.Calculer(dossier, [], Lundi10h.AddDays(6)).Dus.Single().Cle; // 75 % de 7 jours
+        var memeEcheance = Rappels.Calculer(dossier, [], Lundi10h.AddDays(6).AddHours(1)).Dus.Single().Cle;
 
         dossier.Qualifier(PrioriteDossier.Normale, dossier.ZoneId!.Value, null, Lundi10h.AddDays(6));
-        var apres = Rappels.Calculer(dossier, [], Lundi10h.AddDays(6));
+        var apres = Rappels.Calculer(dossier, [], Lundi10h.AddDays(6)).Dus.Single(r => r.Type == TypeNotification.PriseEnChargeDepassee).Cle;
 
-        // Normale (3 jours) : dépassé depuis 3 jours ; la clé reste celle du cycle de qualification.
-        Assert.StartsWith(cleAvant[..cleAvant.LastIndexOf(':')], apres.Dus.Single(r => r.Type == TypeNotification.PriseEnChargeDepassee).Cle, StringComparison.Ordinal);
+        Assert.Equal(cleAvant, memeEcheance);
+        // Normale (3 jours) : dépassé depuis 3 jours, nouvelle échéance donc nouveau cycle (escalade et rappels repartent).
+        Assert.NotEqual(cleAvant[..cleAvant.LastIndexOf(':')], apres[..apres.LastIndexOf(':')]);
+        Assert.EndsWith(":j3", apres, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AResumptionAfterAnOverdueHoldEscalatesAgainAtTheNewResolutionDeadline()
+    {
+        var dossier = Qualifie(PrioriteDossier.Urgente, Lundi10h);
+        var intervention = Affecter(dossier, Lundi10h);
+        intervention.Demarrer(Lundi10h);
+        dossier.Synchroniser([intervention], Lundi10h);
+        var escalade = Rappels.Calculer(dossier, [intervention], Lundi10h.AddDays(2)).Dus.Single(r => r.Type == TypeNotification.ResolutionDepassee).Cle;
+
+        intervention.MettreEnAttente(MotifAttente.Livraison, null, new DateOnly(2026, 11, 20), Lundi10h.AddDays(3));
+        dossier.Synchroniser([intervention], Lundi10h.AddDays(3));
+        intervention.Reprendre();
+        dossier.Synchroniser([intervention], Lundi10h.AddDays(13)); // 10 jours d'attente ajoutés au délai
+        var nouvelle = Rappels.Calculer(dossier, [intervention], Lundi10h.AddDays(12)).Dus.Single(r => r.Type == TypeNotification.ResolutionDepassee).Cle;
+
+        Assert.EndsWith(":100", escalade, StringComparison.Ordinal);
+        Assert.EndsWith(":100", nouvelle, StringComparison.Ordinal);
+        Assert.NotEqual(escalade, nouvelle);
+    }
+
+    [Fact]
+    public void AReviewDateSetForTodayAfter8DoesNotRemindItsAuthorButStillEscalatesAtDay3()
+    {
+        var debut = new DateTimeOffset(2026, 11, 10, 13, 0, 0, TimeSpan.Zero); // 14 h à Paris
+        var dossier = Qualifie(PrioriteDossier.Normale, debut);
+        var intervention = Affecter(dossier, debut);
+        intervention.Demarrer(debut);
+        intervention.MettreEnAttente(MotifAttente.Livraison, null, new DateOnly(2026, 11, 10), debut);
+        dossier.Synchroniser([intervention], debut);
+
+        var unePlusTard = Rappels.Calculer(dossier, [intervention], debut.AddMinutes(1));
+        var j3 = Rappels.Calculer(dossier, [intervention], new DateTimeOffset(2026, 11, 13, 7, 0, 0, TimeSpan.Zero));
+
+        Assert.Empty(unePlusTard.Dus);
+        Assert.Equal(new DateTimeOffset(2026, 11, 13, 7, 0, 0, TimeSpan.Zero), unePlusTard.Prochain);
+        Assert.Equal(TypeNotification.ReexamenDepasse, Assert.Single(j3.Dus).Type);
     }
 
     [Fact]
