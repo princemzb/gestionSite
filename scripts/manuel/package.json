@@ -1,0 +1,16 @@
+{
+  "name": "gestionsite-manuel",
+  "private": true,
+  "description": "Livret PDF du manuel d'utilisation (docs/manuel) : contrôle des chapitres, assemblage et impression A4 avec Chromium.",
+  "type": "module",
+  "scripts": {
+    "livret": "node livret.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "marked": "18.1.1",
+    "mermaid": "12.2.0",
+    "pdf-lib": "1.17.1",
+    "playwright": "1.55.1"
+  }
+}
