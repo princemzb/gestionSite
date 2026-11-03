@@ -203,6 +203,11 @@ else
                     </InputSelect>
                     <span class="aide">Proposé pour l'électricité, l'éclairage de sécurité, la sécurité incendie, le chauffage, le gaz, les ascenseurs, le paratonnerre et les cloches.</span>
                 </label>
+                @* Décision du porteur du 03/11 (S21-09) : un objet de valeur n'est jamais placé sur un plan de bâtiment. *@
+                <div class="champ">
+                    <label class="case"><InputCheckbox @bind-Value="ComposantSaisi.ObjetDeValeur" /> Objet de valeur</label>
+                    <span class="aide">Coffre, trésor, sonorisation… : jamais placé sur les plans du bâtiment, et sa position disparaît des plans déjà enregistrés. Les équipements de culte ne sont jamais placés, case cochée ou non.</span>
+                </div>
                 <fieldset class="lot">
                     <legend>Quantité</legend>
                     <div class="ligne-champs">
@@ -383,6 +388,10 @@ else
                         }
                     }
                     <dt>Vérification périodique</dt><dd>@(c.SoumisAVerification ? "Oui" : "Non")</dd>
+                    @if (c.ObjetDeValeur)
+                    {
+                        <dt>Objet de valeur</dt><dd>Oui : jamais placé sur les plans</dd>
+                    }
                     @if (c.Emplacement is not null) { <dt>Emplacement</dt><dd>@c.Emplacement</dd> }
                     @if (c.Marque is not null || c.Modele is not null) { <dt>Marque · modèle</dt><dd>@string.Join(" · ", new[] { c.Marque, c.Modele }.Where(t => t is not null))</dd> }
                     @if (c.NumeroSerie is not null) { <dt>N° de série</dt><dd>@c.NumeroSerie</dd> }
@@ -947,6 +956,8 @@ else
 
         public string? Verification { get; set; }
 
+        public bool ObjetDeValeur { get; set; }
+
         public string Mode { get; set; } = "individuel";
 
         public int? Quantite { get; set; }
@@ -967,7 +978,7 @@ else
         {
             Id = c.Id, Version = c.Version, Nom = c.Nom, CorpsEtat = c.CorpsEtat, ZoneId = c.ZoneId, Emplacement = c.Emplacement,
             Marque = c.Marque, Modele = c.Modele, NumeroSerie = c.NumeroSerie, Annee = c.AnneeMiseEnService, Mois = c.MoisMiseEnService,
-            Remarques = c.Remarques, Verification = c.SoumisAVerification ? "oui" : "non", Mode = c.Lot is null ? "individuel" : "lot",
+            Remarques = c.Remarques, Verification = c.SoumisAVerification ? "oui" : "non", ObjetDeValeur = c.ObjetDeValeur, Mode = c.Lot is null ? "individuel" : "lot",
             Quantite = c.Lot?.Quantite, Unite = c.Lot?.Unite ?? "Unite", Bon = c.Lot?.Repartition?.Bon, Satisfaisant = c.Lot?.Repartition?.Satisfaisant,
             Degrade = c.Lot?.Repartition?.Degrade, Mauvais = c.Lot?.Repartition?.Mauvais, Critique = c.Lot?.Repartition?.Critique,
         };
@@ -983,6 +994,7 @@ else
                 nom = Nom, corpsEtat = CorpsEtat, zoneId = ZoneId, emplacement = Emplacement, marque = Marque, modele = Modele,
                 numeroSerie = NumeroSerie, anneeMiseEnService = Annee, moisMiseEnService = Mois, remarques = Remarques,
                 soumisAVerification = Verification switch { "oui" => true, "non" => (bool?)false, _ => null },
+                objetDeValeur = ObjetDeValeur,
                 lot = Mode == "lot" ? new { unite = Unite, quantite = Quantite, repartition } : null,
                 version = Version,
             };

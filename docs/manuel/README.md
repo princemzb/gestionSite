@@ -18,7 +18,7 @@ Ce dossier est la **source unique** du manuel d'utilisation de gestionSite (cart
 | `06-inventaire.md` | Bâtiments, niveaux, zones, composants, lots |
 | `07-evaluations.md` | Évaluations, état du site, grilles |
 | `08-preventif.md` | Classement ERP, plans proposés, calendrier, contrôles, vérification extérieure, non-conformités |
-| `09-plans.md` | Plans de bâtiment : parcours guidé, fond, calibration, atelier, brouillon et conflit |
+| `09-plans.md` | Plans de bâtiment : parcours guidé, fond, calibration, pièces, composants, atelier, historique et restauration, brouillon et conflit |
 | `10-workflows.md` | Cycles de vie en schémas (Mermaid) |
 | `11-glossaire.md`, `12-faq.md` | Glossaire, questions fréquentes |
 | `images/` | Captures d'écran (PNG en palette, < 300 Ko) |

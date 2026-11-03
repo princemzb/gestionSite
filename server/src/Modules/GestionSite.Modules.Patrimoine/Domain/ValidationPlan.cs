@@ -41,8 +41,8 @@ internal enum TypeLiaison
 /// <summary>Zone du bâtiment du plan, telle que l'inventaire la connaît.</summary>
 internal sealed record ZoneCadre(Guid Id, Guid? NiveauId, bool PartiesCommunes);
 
-/// <summary>Composant du site désigné par un marqueur.</summary>
-internal sealed record ComposantCadre(Guid Id, Guid ZoneId, CorpsEtat CorpsEtat, bool Retire);
+/// <summary>Composant du site désigné par un marqueur ; exclu des plans : objet de valeur (case cochée ou équipement de culte).</summary>
+internal sealed record ComposantCadre(Guid Id, Guid ZoneId, bool ExcluDesPlans, bool Retire);
 
 /// <summary>Fond importé pour ce plan : dimensions de son dérivé d'affichage, en pixels.</summary>
 internal sealed record FondCadre(Guid Id, int Largeur, int Hauteur);
@@ -261,9 +261,9 @@ internal static class ValidationPlan
             var champ = $"contenu.composants[{rang}]";
             var saisie = saisies[rang];
             // Composant actif du site, dans une zone de ce bâtiment et de ce niveau, placé une seule fois. Les objets de
-            // valeur (équipements de culte) ne sont jamais placés (décision du porteur du 30/10, RP-21.7).
+            // valeur (équipements de culte, case « objet de valeur ») ne sont jamais placés (décisions des 30/10 et 03/11, RP-21.7).
             if (saisie.ComposantId is not { } composantId || !cadre.Composants.TryGetValue(composantId, out var composant)
-                || composant.Retire || ObjetDeValeur(composant.CorpsEtat)
+                || composant.Retire || composant.ExcluDesPlans
                 || !cadre.Zones.TryGetValue(composant.ZoneId, out var zone) || zone.NiveauId != cadre.NiveauId || !places.Add(composantId))
             {
                 throw Refus($"{champ}.composantId");
@@ -330,9 +330,6 @@ internal static class ValidationPlan
             : throw Refus(champ);
 
     private static double Longueur(PointPlan de, PointPlan a) => Math.Sqrt(((a.X - de.X) * (a.X - de.X)) + ((a.Y - de.Y) * (a.Y - de.Y)));
-
-    /// <summary>Objet de valeur (trésor, objets de culte, coffre) : jamais de marqueur sur un plan (décision du 30/10).</summary>
-    internal static bool ObjetDeValeur(CorpsEtat corpsEtat) => corpsEtat == CorpsEtat.EquipementsCulte;
 
     // Polygone simple : 3 à 500 sommets distincts consécutifs, sans auto-intersection, d'au moins 0,25 m².
     private static (List<PointPlan> Contour, Polygon Forme) Contour(IReadOnlyList<SaisiePoint?>? saisie, string champ, ref int points)
