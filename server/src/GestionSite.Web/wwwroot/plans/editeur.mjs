@@ -249,7 +249,7 @@ function demarrer(racine) {
     contenu.escaliers.forEach((escalier, index) => {
       creer("polygon", { points: pointsSvg(escalier.contour), class: `escalier${memeSelection("escalier", index) ? " selectionnee" : ""}` }, groupe);
       if (avecNoms) {
-        texteSvg(groupe, centre(escalier.contour), `${libelleType(escalier.type)} → ${nomNiveau(cadre, escalier.versNiveauId)}`, "legende");
+        texteSvg(groupe, centre(escalier.contour), `${libelleType(escalier.type)} → ${nomNiveau(cadre, escalier.versNiveauId)}`, "etiquette-liaison");
       }
     });
 
