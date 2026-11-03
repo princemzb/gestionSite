@@ -1,7 +1,7 @@
 // Éditeur de plans de bâtiment (US-21, S21-09, RP-21.8, ADR-11) : historique des versions et restauration. Fonctions
 // pures, sans DOM ni réseau : textes de la liste paginée, corps de la restauration (motif obligatoire), bilan et refus.
 
-import { formaterDate, messageRefus } from "./plan.mjs";
+import { conflit, formaterDate, messageRefus } from "./plan.mjs";
 
 /** Versions demandées par page (l'API en accepte de 1 à 200). */
 export const VERSIONS_PAR_PAGE = 20;
@@ -28,7 +28,7 @@ export function precisionsVersion(version) {
 
 /** Numéro à passer en `avant` pour la page suivante (plus ancienne), ou null si la page reçue est la dernière. */
 export function avantSuivant(page, limite = VERSIONS_PAR_PAGE) {
-  return Array.isArray(page) && page.length >= limite && page.length > 0 ? page.at(-1).version : null;
+  return Array.isArray(page) && page.length > 0 && page.length >= limite ? page.at(-1).version : null;
 }
 
 /** Ajoute une page à la liste déjà affichée, sans doublon (un renvoi de la même page ne répète rien). */
@@ -66,10 +66,11 @@ export function bilanRestauration(source, reponse) {
 
 /** Message à l'utilisateur pour un refus de restauration (conflit, motif, session) ; les autres refus comme un enregistrement. */
 export function messageRefusRestauration(statut, probleme) {
-  if (statut === 409 && probleme?.code === "version_depassee") {
-    const qui = probleme.auteur ? ` par ${probleme.auteur}` : "";
-    const quand = probleme.modifieLe ? ` le ${formaterDate(probleme.modifieLe)}` : "";
-    return `Ce plan a été modifié entre-temps${qui}${quand} (version ${probleme.versionCourante}) : rien n'a été restauré. Rechargez la page, puis recommencez.`;
+  const enConflit = conflit(statut, probleme);
+  if (enConflit) {
+    const qui = enConflit.auteur ? ` par ${enConflit.auteur}` : "";
+    const quand = enConflit.modifieLe ? ` le ${formaterDate(enConflit.modifieLe)}` : "";
+    return `Ce plan a été modifié entre-temps${qui}${quand} (version ${enConflit.versionCourante}) : rien n'a été restauré. Rechargez la page, puis recommencez.`;
   }
 
   if (statut === 422 && probleme?.champ === "motif") {

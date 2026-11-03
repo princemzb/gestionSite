@@ -158,6 +158,7 @@ public sealed class PlansBatimentTests(InfrastructureFixture infrastructure) : I
         Assert.Empty(v2.GetProperty("contenu").GetProperty("composants").EnumerateArray());
         var lu = await LireAsync($"{Base}/components/{coffre}", technicien);
         Assert.True(lu.GetProperty("composant").GetProperty("objetDeValeur").GetBoolean());
+        Assert.True(lu.GetProperty("composant").GetProperty("excluDesPlans").GetBoolean());
         Assert.Equal(1, await Database.CountAsync(
             "SELECT count(*) FROM patrimoine.journal_inventaire WHERE nature = 'Modification' " +
             "AND avant = '{\"objetDeValeur\": false}'::jsonb AND apres = '{\"objetDeValeur\": true}'::jsonb"));

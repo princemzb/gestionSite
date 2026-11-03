@@ -570,15 +570,32 @@ else
     // zone l'est, pour le dire dans le panneau de la pièce. Noms insérés par textContent.
     private async Task<string> ComposantsAsync(string api, BatimentApi batiment)
     {
+        // Règle d'exclusion de l'API (exclusDesPlans) : une seule source. Liste du bâtiment bornée à 1 000 composants ;
+        // tronquée, elle est relue zone par zone pour ce niveau, pour ne manquer aucun composant placable.
+        var zonesDuPlan = batiment.Zones.Where(z => z.NiveauId == NiveauCourant?.Id).Select(z => z.Id).ToList();
         var liste = await Session.LireAsync<ListeComposantsApi>($"{api}/components?batimentId={batiment.Id}", CancellationToken.None);
-        var zonesDuPlan = batiment.Zones.Where(z => z.NiveauId == NiveauCourant?.Id).Select(z => z.Id).ToHashSet();
-        var duPlan = liste.Composants.Where(c => c.RetireLe is null && zonesDuPlan.Contains(c.ZoneId)).ToList();
-        static bool Exclu(ComposantApi c) => c.ObjetDeValeur || c.CorpsEtat == "EquipementsCulte";
+        var tronquee = false;
+        List<ComposantApi> duPlan;
+        if (!liste.Tronquee)
+        {
+            duPlan = [.. liste.Composants.Where(c => zonesDuPlan.Contains(c.ZoneId))];
+        }
+        else
+        {
+            duPlan = [];
+            foreach (var zone in zonesDuPlan)
+            {
+                var parZone = await Session.LireAsync<ListeComposantsApi>($"{api}/components?zoneId={zone}", CancellationToken.None);
+                duPlan.AddRange(parZone.Composants);
+                tronquee |= parZone.Tronquee;
+            }
+        }
+
         return JsonSerializer.Serialize(new
         {
-            placables = duPlan.Where(c => !Exclu(c)).Select(c => new { id = c.Id, nom = c.Nom, zoneId = c.ZoneId }),
-            exclus = duPlan.Where(Exclu).GroupBy(c => c.ZoneId).ToDictionary(g => g.Key, g => g.Count()),
-            tronquee = liste.Tronquee,
+            placables = duPlan.Where(c => !c.ExcluDesPlans).Select(c => new { id = c.Id, nom = c.Nom, zoneId = c.ZoneId }),
+            exclus = duPlan.Where(c => c.ExcluDesPlans).GroupBy(c => c.ZoneId).ToDictionary(g => g.Key, g => g.Count()),
+            tronquee,
         });
     }
 

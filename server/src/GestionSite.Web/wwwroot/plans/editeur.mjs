@@ -4,8 +4,8 @@
 
 import { ecrireBrouillon, effacerBrouillon, cleBrouillon, lireBrouillon, purgerAutresComptes } from "./noyau/brouillon.mjs";
 import {
-  avancementComposants, deplacerMarqueur, etatsComposants, horsZone, marqueurSous, messageMarqueur, messageObsoletes, nomMarqueur, placerMarqueur,
-  positionnerMarqueur, retirerMarqueur,
+  avancementComposants, deplacerMarqueur, etatsComposants, horsZone, marqueursHorsZone, marqueurSous, messageMarqueur, messageObsoletes, nomMarqueur,
+  nomsComposants, placerMarqueur, positionnerMarqueur, retirerMarqueur,
 } from "./noyau/composants.mjs";
 import {
   bornesFond, defautCote, distanceProposee, ecartControle, formaterEcart, formaterMetres, lireDistance, longueurPixels, messageDefaut,
@@ -69,6 +69,7 @@ function demarrer(racine) {
   const composantsPlan = lireJson(d.composants, {});
   const placables = Array.isArray(composantsPlan.placables) ? composantsPlan.placables : [];
   const exclus = composantsPlan.exclus && typeof composantsPlan.exclus === "object" ? composantsPlan.exclus : {};
+  const noms = nomsComposants(placables);
 
   const etat = {
     mode: d.mode,
@@ -292,11 +293,12 @@ function demarrer(racine) {
   function rendreMarqueurs(contenu) {
     const groupe = couches.marqueurs;
     groupe.replaceChildren();
+    const dehors = marqueursHorsZone(contenu);
     contenu.composants.forEach((marqueur, index) => {
-      const classes = ["marqueur", horsZone(contenu, marqueur) ? "hors-zone" : "", memeSelection("marqueur", index) ? "selectionne" : ""].filter(Boolean).join(" ");
+      const classes = ["marqueur", dehors.has(index) ? "hors-zone" : "", memeSelection("marqueur", index) ? "selectionne" : ""].filter(Boolean).join(" ");
       const g = creer("g", { class: classes }, groupe);
       creer("circle", { cx: marqueur.position.x, cy: marqueur.position.y, r: 0.25 }, g);
-      texteSvg(g, marqueur.position, nomMarqueur(placables, marqueur.composantId));
+      texteSvg(g, marqueur.position, nomMarqueur(noms, marqueur.composantId));
     });
   }
 
@@ -616,7 +618,7 @@ function demarrer(racine) {
   function rendrePanneauMarqueur(s) {
     const contenu = affiche().contenu;
     const marqueur = contenu.composants[s.index];
-    el("[data-role=marqueur-nom]").textContent = nomMarqueur(placables, marqueur.composantId);
+    el("[data-role=marqueur-nom]").textContent = nomMarqueur(noms, marqueur.composantId);
     el("[data-role=marqueur-zone]").textContent = nomZone(cadre, marqueur.zoneId);
     el("[data-role=marqueur-hors-zone]").hidden = !horsZone(contenu, marqueur);
     for (const axe of ["x", "y"]) {
@@ -1108,6 +1110,10 @@ function demarrer(racine) {
         ? `Version ${reponse.donnees.version} enregistrée. ${dehors} composant${dehors > 1 ? "s sont placés" : " est placé"} hors du contour de ${dehors > 1 ? "leur" : "sa"} zone : vérifiez l'emplacement.`
         : `Version ${reponse.donnees.version} enregistrée.`, dehors ? "avertissement" : "succes");
       reinitialiserVersions();
+      if (etat.panneau === "historique") {
+        void chargerVersions(); // historique ouvert : la nouvelle version y apparaît
+      }
+
       rendre();
       return true;
     }
@@ -1198,6 +1204,10 @@ function demarrer(racine) {
       return;
     }
 
+    if (etat.enCours || etat.chargementEchoue) {
+      return; // enregistrement en cours ou plan illisible : aucune modification (changer l'ignorerait)
+    }
+
     const resultat = placerMarqueur(present(), composant, point);
     if (resultat.defaut) {
       message(messageMarqueur(resultat.defaut), "avertissement");
@@ -1206,7 +1216,12 @@ function demarrer(racine) {
 
     etat.aPlacer = null;
     changer(resultat.document);
-    const dehors = horsZone(present().contenu, present().contenu.composants[resultat.index]);
+    const marqueur = present().contenu.composants[resultat.index];
+    if (!marqueur) {
+      return;
+    }
+
+    const dehors = horsZone(present().contenu, marqueur);
     message(dehors ? `« ${composant.nom} » est hors du contour de sa zone : accepté, vérifiez l'emplacement.` : `« ${composant.nom} » placé.`,
       dehors ? "avertissement" : "succes");
   }
@@ -1619,6 +1634,8 @@ function demarrer(racine) {
     etat.outil = "selection";
     etat.selection = null;
     etat.aPlacer = null;
+    etat.mesure = { de: null, a: null }; // une cote mesurée ne reste pas sur une autre version
+    el("[data-role=mesure]").hidden = true;
     message("");
     rendre();
     if (!etat.versions.chargees) {
@@ -1643,13 +1660,19 @@ function demarrer(racine) {
 
   // Une ancienne version s'affiche telle qu'enregistrée (marqueurs de composants retirés depuis compris, RP-21.7) ; la
   // position d'un objet de valeur n'est jamais servie par le serveur.
+  let demandeConsultee = 0;
   async function consulterVersion(numero) {
+    const demande = ++demandeConsultee; // deux choix rapides : seule la dernière réponse s'affiche
     if (numero === etat.versionLue) {
       revenirVersionCourante();
       return;
     }
 
     const reponse = await appeler("GET", `${base}/${etat.planId}/versions/${numero}`);
+    if (demande !== demandeConsultee || etat.panneau !== "historique") {
+      return;
+    }
+
     if (reponse.statut !== 200) {
       message(messageRefus(reponse.statut, reponse.probleme), "danger");
       return;
@@ -1664,7 +1687,7 @@ function demarrer(racine) {
 
   async function restaurer(formulaire) {
     const source = etat.consultation?.lue.version;
-    if (source == null || etat.enCours) {
+    if (source == null || etat.enCours || etat.chargementEchoue || etat.reprise) {
       return;
     }
 
@@ -1691,17 +1714,20 @@ function demarrer(racine) {
     }
 
     const lue = await lirePlan();
-    if (lue) {
-      charger(lue);
-    }
-
     formulaire.reset();
     reinitialiserVersions();
     etat.panneau = "proprietes";
     etat.consultation = null;
     etat.rendus.fond = undefined;
     const bilan = bilanRestauration(source, reponse.donnees);
-    message(bilan.texte, bilan.genre);
+    if (lue) {
+      charger(lue);
+      message(bilan.texte, bilan.genre);
+    } else {
+      // Relecture impossible : rien n'est modifiable tant que la page n'est pas rechargée (la version lue serait fausse).
+      etat.chargementEchoue = true;
+      message(`${bilan.texte} Le plan n'a pas pu être relu : rechargez la page avant de continuer.`, "danger");
+    }
     rendre();
     ajusterVue();
   }

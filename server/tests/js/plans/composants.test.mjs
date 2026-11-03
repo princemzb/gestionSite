@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  MARQUEURS_MAX, avancementComposants, deplacerMarqueur, etatsComposants, horsZone, marqueurSous, messageMarqueur, messageObsoletes,
-  nomMarqueur, placerMarqueur, positionnerMarqueur, rangMarqueur, retirerMarqueur,
+  MARQUEURS_MAX, avancementComposants, deplacerMarqueur, etatsComposants, horsZone, marqueursHorsZone, marqueurSous, messageMarqueur,
+  messageObsoletes, nomMarqueur, nomsComposants, placerMarqueur, positionnerMarqueur, rangMarqueur, retirerMarqueur,
 } from "../../../src/GestionSite.Web/wwwroot/plans/noyau/composants.mjs";
 
 const rectangle = (x, y, l, h) => [{ x, y }, { x: x + l, y }, { x: x + l, y: y + h }, { x, y: y + h }];
@@ -67,6 +67,12 @@ describe("état des marqueurs", () => {
     assert.equal(horsZone(c, { zoneId: "nef", position: { x: 10, y: 4 } }), false); // bord couvert, comme le serveur
     assert.equal(horsZone(c, { zoneId: "nef", position: { x: 12, y: 4 } }), true);
     assert.equal(horsZone(c, { zoneId: "sacristie", position: { x: 5, y: 4 } }), true);
+    const avecMarqueurs = contenu([
+      { composantId: "a", zoneId: "nef", position: { x: 5, y: 4 } },
+      { composantId: "b", zoneId: "nef", position: { x: 12, y: 4 } },
+      { composantId: "c", zoneId: "sacristie", position: { x: 1, y: 1 } },
+    ]);
+    assert.deepEqual([...marqueursHorsZone(avecMarqueurs)], [1, 2]);
   });
 
   it("désigne le marqueur le plus proche à la tolérance près", () => {
@@ -91,8 +97,9 @@ describe("état des marqueurs", () => {
   });
 
   it("nomme un marqueur, ou dit que son composant n'est plus placable ici", () => {
-    assert.equal(nomMarqueur([extincteur], "extincteur"), "Extincteur CO2 2 kg");
-    assert.equal(nomMarqueur([extincteur], "inconnu"), "Composant retiré ou déplacé");
+    const noms = nomsComposants([extincteur, baes]);
+    assert.equal(nomMarqueur(noms, "extincteur"), "Extincteur CO2 2 kg");
+    assert.equal(nomMarqueur(noms, "inconnu"), "Composant retiré ou déplacé");
   });
 
   it("signale les marqueurs obsolètes de la version lue", () => {

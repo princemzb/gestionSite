@@ -71,8 +71,12 @@ export function retirerMarqueur(document, index) {
  * serveur « marqueur_hors_zone », jamais un refus.
  */
 export function horsZone(contenu, marqueur) {
-  const piece = contenu.pieces.find(p => p.zoneId === marqueur.zoneId);
-  return !piece || !(contient(piece.contour, marqueur.position) || distanceBord(piece.contour, marqueur.position) <= BORD);
+  return dehors(contenu.pieces.find(p => p.zoneId === marqueur.zoneId), marqueur.position);
+}
+
+// Hors de la pièce (ou pièce absente) ; le bord compte comme dedans.
+function dehors(piece, position) {
+  return !piece || !(contient(piece.contour, position) || distanceBord(piece.contour, position) <= BORD);
 }
 
 /** Rang du marqueur le plus proche du point, à `tolerance` mètres au plus, ou -1. */
@@ -90,19 +94,41 @@ export function marqueurSous(contenu, point, tolerance) {
 }
 
 /**
+ * Rangs des marqueurs hors du contour de leur zone, en un passage (une pièce par zone, indexée une fois) : le rendu le
+ * recalcule à chaque image d'un glissement.
+ */
+export function marqueursHorsZone(contenu) {
+  const pieces = new Map(contenu.pieces.map(p => [p.zoneId, p]));
+  const rangs = new Set();
+  contenu.composants.forEach((m, rang) => {
+    if (dehors(pieces.get(m.zoneId), m.position)) {
+      rangs.add(rang);
+    }
+  });
+  return rangs;
+}
+
+/**
  * Composants placables avec leur état sur ce contenu, dans l'ordre donné : { composant, index (rang du marqueur ou -1),
  * horsZone }. Avec `zoneId`, seulement ceux de cette zone (panneau d'une pièce, maquette A).
  */
 export function etatsComposants(contenu, placables, zoneId = null) {
+  const rangs = new Map(contenu.composants.map((m, rang) => [m.composantId, rang]));
+  const horsDeLeurZone = marqueursHorsZone(contenu);
   return placables.filter(c => zoneId == null || c.zoneId === zoneId).map(composant => {
-    const index = rangMarqueur(contenu, composant.id);
-    return { composant, index, horsZone: index >= 0 && horsZone(contenu, contenu.composants[index]) };
+    const index = rangs.get(composant.id) ?? -1;
+    return { composant, index, horsZone: horsDeLeurZone.has(index) };
   });
 }
 
+/** Noms des composants placables, par identifiant (index construit une fois). */
+export function nomsComposants(placables) {
+  return new Map(placables.map(c => [c.id, c.nom]));
+}
+
 /** Nom affiché d'un marqueur : celui du composant, ou « Composant retiré ou déplacé » s'il n'est plus placable ici. */
-export function nomMarqueur(placables, composantId) {
-  return placables.find(c => c.id === composantId)?.nom ?? "Composant retiré ou déplacé";
+export function nomMarqueur(noms, composantId) {
+  return noms.get(composantId) ?? "Composant retiré ou déplacé";
 }
 
 /** Composants placés et à placer sur ce contenu (« 3 placés sur 5 »). */
