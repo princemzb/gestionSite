@@ -3,6 +3,9 @@
 // secrets du Worker (wrangler secret put), transmis au conteneur par variables d'environnement.
 // Politique « durable_object » (imposée par Cloudflare pour ce compte) : le Durable Object démarre lui-même
 // le conteneur via ctx.container, la bibliothèque @cloudflare/containers ne gérant pas encore ce mode.
+// Planificateur des rappels (US-10, S10-02) : l'alarme du Durable Object est réglée sur le prochain seuil réel renvoyé
+// par l'API (pas de réveil périodique : chaque réveil garde le conteneur allumé 15 min), avancée à une minute après
+// toute écriture (une qualification peut créer un seuil plus proche), plus un déclencheur quotidien de secours.
 import { DurableObject } from "cloudflare:workers";
 
 interface Env {
@@ -23,6 +26,8 @@ interface Env {
   TURNSTILE_SECRET?: string;
   // Clé de site (publique) du widget, affichée par le formulaire ; hors dépôt comme le reste du compte.
   TURNSTILE_CLE_SITE?: string;
+  // Secret partagé avec l'API pour le point d'entrée interne du planificateur (S10-02) ; absent : aucun rappel planifié.
+  PLANIFICATEUR_JETON?: string;
 }
 
 const SECRETS_REQUIS = [
@@ -31,6 +36,20 @@ const SECRETS_REQUIS = [
 const PORT_WEB = 8080;
 const VEILLE_MS = 15 * 60 * 1000; // mise en veille après 15 min sans requête (ADR-08 : démarrage à froid accepté)
 const ATTENTE_MAX_MS = 60_000;
+// Planificateur : port dédié de l'API (seule sa route y répond), jamais celui que le Worker relaie au public.
+const PORT_PLANIFICATEUR = 8082;
+const ROUTE_PLANIFICATEUR = "/interne/planificateur/passage";
+const APRES_ECRITURE_MS = 60_000; // passage une minute après une écriture, conteneur déjà éveillé
+const ECART_MIN_MS = 30_000; // jamais d'alarme immédiate en boucle
+const CLE_ORIGINE = "origine"; // adresse publique, pour démarrer le conteneur depuis une alarme (sans requête)
+const METHODES_LECTURE = new Set(["GET", "HEAD", "OPTIONS"]);
+
+interface BilanPlanificateur {
+  organisations: number;
+  notifications: number;
+  echecs: number;
+  prochainPassage: string | null;
+}
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -53,20 +72,73 @@ export class GestionSite extends DurableObject<Env> {
       return indisponible();
     }
     try {
-      // Un déploiement ne redémarre pas un conteneur déjà lancé : une fois par vie de l'objet (donc après
-      // chaque déploiement), arrêter celui qui tourne encore sur une image précédente.
-      this.verification ??= this.arreterSiImagePerimee(conteneur);
-      await this.verification;
-      if (!conteneur.running) {
-        this.demarrage ??= this.demarrer(conteneur, adressePublique(request)).finally(() => (this.demarrage = undefined));
+      await this.conteneurPret(conteneur, adressePublique(request));
+      const reponse = await conteneur.getTcpPort(PORT_WEB).fetch(relayer(request));
+      if (this.env.PLANIFICATEUR_JETON && !METHODES_LECTURE.has(request.method)) {
+        this.ctx.waitUntil(this.planifierAvant(Date.now() + APRES_ECRITURE_MS).catch((e) => console.error(`Planificateur : ${e}`)));
       }
-      if (this.demarrage) {
-        await this.demarrage;
-      }
-      return await conteneur.getTcpPort(PORT_WEB).fetch(relayer(request));
+      return reponse;
     } catch (erreur) {
       console.error(`Relais impossible : ${erreur}`);
       return indisponible();
+    }
+  }
+
+  // Alarme : un passage du planificateur, puis l'alarme réglée sur le prochain seuil renvoyé par l'API. Une erreur
+  // (conteneur qui ne démarre pas, API en échec) est levée : Cloudflare rejoue l'alarme avec un délai croissant.
+  async alarm(): Promise<void> {
+    const jeton = this.env.PLANIFICATEUR_JETON;
+    const conteneur = this.ctx.container;
+    const origine = await this.ctx.storage.get<string>(CLE_ORIGINE);
+    if (!jeton || !conteneur || !origine) {
+      console.warn(`Planificateur inactif : ${raisonInactif(jeton, conteneur)}`);
+      return;
+    }
+    await this.conteneurPret(conteneur, origine);
+    const reponse = await conteneur.getTcpPort(PORT_PLANIFICATEUR).fetch(`http://localhost${ROUTE_PLANIFICATEUR}`, {
+      method: "POST",
+      headers: { "X-Planificateur-Jeton": jeton },
+    });
+    if (!reponse.ok) {
+      await reponse.body?.cancel();
+      throw new Error(`Planificateur : réponse ${reponse.status}`);
+    }
+    const bilan = (await reponse.json()) as BilanPlanificateur;
+    console.log(
+      `Planificateur : ${bilan.organisations} organisation(s), ${bilan.notifications} notification(s), ` +
+        `${bilan.echecs} échec(s), prochain passage ${bilan.prochainPassage ?? "aucun"}`,
+    );
+    if (bilan.prochainPassage) {
+      await this.planifierAvant(Date.parse(bilan.prochainPassage));
+    }
+  }
+
+  // Déclencheur quotidien de secours (« scheduled » du Worker) : un passage tout de suite, par l'alarme (rejouée en cas d'échec).
+  async passageDeSecours(): Promise<void> {
+    if (this.env.PLANIFICATEUR_JETON) {
+      await this.ctx.storage.setAlarm(Date.now());
+    }
+  }
+
+  // Alarme avancée à « instant » si elle est plus tardive, absente ou déjà passée ; jamais à moins de 30 s.
+  private async planifierAvant(instant: number): Promise<void> {
+    const cible = Math.max(instant, Date.now() + ECART_MIN_MS);
+    const actuelle = await this.ctx.storage.getAlarm();
+    if (actuelle === null || actuelle <= Date.now() || actuelle > cible) {
+      await this.ctx.storage.setAlarm(cible);
+    }
+  }
+
+  private async conteneurPret(conteneur: Container, origine: string): Promise<void> {
+    // Un déploiement ne redémarre pas un conteneur déjà lancé : une fois par vie de l'objet (donc après
+    // chaque déploiement), arrêter celui qui tourne encore sur une image précédente.
+    this.verification ??= this.arreterSiImagePerimee(conteneur);
+    await this.verification;
+    if (!conteneur.running) {
+      this.demarrage ??= this.demarrer(conteneur, origine).finally(() => (this.demarrage = undefined));
+    }
+    if (this.demarrage) {
+      await this.demarrage;
     }
   }
 
@@ -94,9 +166,13 @@ export class GestionSite extends DurableObject<Env> {
     }
   }
 
-  // origine : adresse publique vue par le Worker (liens d'activation), sans la fixer dans le dépôt.
+  // origine : adresse publique vue par le Worker (liens d'activation), sans la fixer dans le dépôt ; conservée pour
+  // qu'une alarme (sans requête) puisse redémarrer le conteneur avec la même adresse.
   private async demarrer(conteneur: Container, origine: string): Promise<void> {
     const env = this.env;
+    if ((await this.ctx.storage.get<string>(CLE_ORIGINE)) !== origine) {
+      await this.ctx.storage.put(CLE_ORIGINE, origine);
+    }
     conteneur.start({
       image: conteneur.images.application,
       instance: "standard-1", // ½ vCPU, 4 Gio : deux processus .NET (le type « basic » n'existe pas dans ce mode)
@@ -120,6 +196,8 @@ export class GestionSite extends DurableObject<Env> {
         Web__CleSiteTurnstile: env.TURNSTILE_CLE_SITE ?? "",
         // Adresse du visiteur pour la limite par adresse : réécrite par Cloudflare à chaque requête, jamais celle du client.
         Web__EnteteAdresseClient: "CF-Connecting-IP",
+        // Point d'entrée interne du planificateur (port dédié : voir server/deploy/demarrer.sh).
+        Planificateur__Jeton: env.PLANIFICATEUR_JETON ?? "",
       },
     });
     await conteneur.setInactivityTimeout(VEILLE_MS);
@@ -145,6 +223,13 @@ export class GestionSite extends DurableObject<Env> {
     }
     throw new Error("Le conteneur n'est pas devenu disponible");
   }
+}
+
+function raisonInactif(jeton: string | undefined, conteneur: Container | undefined): string {
+  if (!jeton) {
+    return "PLANIFICATEUR_JETON absent";
+  }
+  return conteneur ? "adresse publique encore inconnue (aucune requête reçue depuis la création de l'objet)" : "conteneur absent";
 }
 
 // Hôte de la requête (seul le nom workers.dev du Worker y mène), toujours en https et sans port
@@ -177,5 +262,9 @@ function relayer(request: Request): Request {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return env.GESTIONSITE.getByName("preproduction").fetch(request);
+  },
+  // Déclencheur quotidien de secours du planificateur (wrangler.jsonc, « triggers ») : rattrape une alarme perdue.
+  async scheduled(_controleur: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(env.GESTIONSITE.getByName("preproduction").passageDeSecours());
   },
 } satisfies ExportedHandler<Env>;

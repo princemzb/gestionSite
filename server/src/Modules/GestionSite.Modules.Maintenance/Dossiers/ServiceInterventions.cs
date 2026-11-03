@@ -105,6 +105,30 @@ internal sealed class ServiceInterventions(
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Report du réexamen d'une attente par la personne en charge ou R/D (US-10, S10-03) : nouvelle date et commentaire,
+    /// tracés au journal avec l'ancienne date ; le délai reste suspendu et les rappels de réexamen repartent de la nouvelle date.
+    /// </summary>
+    internal async Task ReporterReexamenAsync(
+        Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeReport demande, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
+            .ConfigureAwait(false);
+        var maintenant = horloge.GetUtcNow();
+        var (ancienne, commentaire) = intervention.ReporterReexamen(demande.ReexamenLe, demande.Commentaire, maintenant);
+        context.Tracer(dossier, NatureEvenementDossier.ReportReexamen, compte.Id, maintenant, new
+        {
+            numero,
+            ancienne,
+            nouvelle = intervention.ReexamenLe,
+            commentaire,
+        });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Reprise datée (DEC-03) : le temps d'attente du dossier s'ajoute à son délai de résolution.</summary>
     internal async Task ReprendreAsync(Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeVersion demande, CancellationToken cancellationToken)
     {
