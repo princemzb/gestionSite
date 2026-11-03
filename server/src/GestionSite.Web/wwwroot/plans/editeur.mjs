@@ -1,28 +1,46 @@
-// Éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : colle DOM mince entre la page Plans (data-*) et le noyau pur
-// (plans/noyau/*.mjs, testé par node:test). Aucun style ni script en ligne (CSP), textContent pour tout texte saisi,
+// Éditeur de plans de bâtiment (US-21, S21-07, S21-08, ADR-11) : colle DOM mince entre la page Plans (data-*) et le noyau
+// pur (plans/noyau/*.mjs, testé par node:test). Aucun style ni script en ligne (CSP), textContent pour tout texte saisi,
 // fond servi par l'application web (<image href>, img-src 'self'). Vérifiée dans un navigateur réel (Playwright).
 
 import { ecrireBrouillon, effacerBrouillon, cleBrouillon, lireBrouillon, purgerAutresComptes } from "./noyau/brouillon.mjs";
 import {
   bornesFond, defautCote, distanceProposee, ecartControle, formaterEcart, formaterMetres, lireDistance, longueurPixels, messageDefaut,
-  metresParPixel, metresParPixelDeclares, pixelVersRepere, pointImage, repereVersPixel,
+  metresParPixel, metresParPixelDeclares, pointImage,
 } from "./noyau/calibration.mjs";
+import {
+  accrocher, ajouterSommet, autresNiveaux, avancement, changerZone, commencerTrace, contoursAccrochage, defautEscalier, defautOuverture,
+  defautPiece, deplacerElement, deplacerSommet, elementSous, fermeLeTrace, fermerTrace, formaterSurface, glisserOuverture, insererSommet,
+  largeurOuverture, libelleType, messageDessin, modifierEscalier, modifierOuverture, nomNiveau, nomZone, poserOuverture, premierDefaut,
+  regler, supprimerElement, supprimerSommet, TYPES_OUVERTURE, zonesALaMarge, zonesDessinables, zonesRestantes,
+} from "./noyau/dessin.mjs";
+import { perimetre } from "./noyau/geometrie.mjs";
 import { annuler, appliquer, creerHistorique, peutAnnuler, peutRetablir, retablir } from "./noyau/historique.mjs";
 import { distance } from "./noyau/mesures.mjs";
 import {
-  abandonnerSaisie, bornesAffichees, centre, commencerCalibration, conflit, controleFond, corpsEnregistrement, descriptionFond,
-  documentDepuisVersion, echelleFond, estModifie, fixerDistance, formaterDate, messageRefus, pointsSvg, poserPoint, resumeVersion,
-  retirerFond, validerCalibration,
+  abandonnerSaisie, appliquerDecalage, bornesAffichees, centre, commencerCalibration, conflit, controleFond, corpsEnregistrement,
+  decalageFond, descriptionFond, documentDepuisVersion, echelleFond, estModifie, fixerDistance, formaterDate, messageRefus, pointsSvg,
+  poserPoint, resumeVersion, retirerFond, validerCalibration,
 } from "./noyau/plan.mjs";
+import * as recalage from "./noyau/recalage.mjs";
 import { ajuster, deplacer, echelleVue, pasGrille, pincer, redimensionner, versRepere, viewBox, zoomer } from "./noyau/vue.mjs";
 
 const SVG = "http://www.w3.org/2000/svg";
 const ECHELLE_PROVISOIRE = 0.01; // fond pas encore calibré : 1 cm par pixel, le temps de poser la cote
 const SEUIL_GLISSER = 6; // pixels : en deçà, un appui est un toucher (pose d'un point), pas un glissement
+const TOLERANCE_PIXELS = 12; // accrochage et désignation : 12 pixels à l'écran, quel que soit le zoom
+const PAS_CLAVIER = 0.1; // déplacement d'un élément au clavier ou par les boutons (10 cm ; 1 cm pour un sommet)
 
 const racine = document.getElementById("editeur-plan");
 if (racine) {
   demarrer(racine);
+}
+
+function lireJson(texte, defaut) {
+  try {
+    return JSON.parse(texte || "null") ?? defaut;
+  } catch {
+    return defaut;
+  }
 }
 
 function demarrer(racine) {
@@ -33,13 +51,12 @@ function demarrer(racine) {
   const el = selecteur => page.querySelector(selecteur);
   const tous = selecteur => [...page.querySelectorAll(selecteur)];
   const svg = el("[data-role=svg]");
-  const couches = { fond: el("[data-role=fond]"), calque: el("[data-role=calque]"), pieces: el("[data-role=pieces]"), cotes: el("[data-role=cotes]") };
-  let zones = {};
-  try {
-    zones = JSON.parse(d.zones || "{}");
-  } catch {
-    zones = {};
-  }
+  const couches = {
+    fond: el("[data-role=fond]"), calque: el("[data-role=calque]"), pieces: el("[data-role=pieces]"), selection: el("[data-role=selection]"),
+    cotes: el("[data-role=cotes]"),
+  };
+  const cadre = lireJson(d.cadre, { niveauId: null, zones: [], niveaux: [] });
+  const zones = lireJson(d.zones, {});
 
   const etat = {
     mode: d.mode,
@@ -52,6 +69,11 @@ function demarrer(racine) {
     panneau: d.mode === "guide" ? "fond" : "proprietes",
     cible: "calibration",
     outil: "selection",
+    selection: null,
+    apercu: null,
+    recalage: null,
+    typeOuverture: "Porte",
+    liaison: { type: "Escalier", versNiveauId: autresNiveaux(cadre)[0]?.id ?? null },
     echelleSaisie: null,
     vue: null,
     affichage: null,
@@ -59,9 +81,10 @@ function demarrer(racine) {
     mesure: { de: null, a: null },
     reprise: null,
     enCours: false,
-    rendus: { pieces: null, fond: null, calque: null },
+    rendus: { pieces: null, fond: null },
   };
   const present = () => etat.historique.present;
+  const affiche = () => etat.apercu ?? present();
 
   // ——— Stockage local (brouillon), réseau, messages ———
   function stockage() {
@@ -116,7 +139,7 @@ function demarrer(racine) {
 
   // ——— Fond affiché et échelle de travail ———
   const fondInfo = id => etat.fonds.find(f => f.id === id) ?? null;
-  const fondAffiche = () => present().saisie?.fondId ?? present().contenu.fond?.fondId ?? null;
+  const fondAffiche = () => affiche().saisie?.fondId ?? affiche().contenu.fond?.fondId ?? null;
   const image = info => ({ largeur: info.largeurAffichage, hauteur: info.hauteurAffichage });
 
   function echelleTravail() {
@@ -124,13 +147,23 @@ function demarrer(racine) {
       return etat.echelleSaisie ?? ECHELLE_PROVISOIRE;
     }
 
-    return echelleFond(present().contenu) ?? ECHELLE_PROVISOIRE;
+    return echelleFond(affiche().contenu) ?? ECHELLE_PROVISOIRE;
+  }
+
+  // Coin haut gauche du fond affiché dans le repère : son recalage, gardé pendant qu'on recalibre le même fond.
+  function origineFond() {
+    const contenu = affiche().contenu;
+    return contenu.fond && contenu.fond.fondId === fondAffiche() ? decalageFond(contenu) : { x: 0, y: 0 };
   }
 
   function bornesActuelles() {
     const info = fondInfo(fondAffiche());
-    return bornesAffichees(present().contenu, info ? bornesFond(image(info), echelleTravail()) : null);
+    const o = origineFond();
+    const b = info ? bornesFond(image(info), echelleTravail()) : null;
+    return bornesAffichees(affiche().contenu, b ? { minX: b.minX + o.x, minY: b.minY + o.y, maxX: b.maxX + o.x, maxY: b.maxY + o.y } : null);
   }
+
+  const tolerance = () => TOLERANCE_PIXELS * (etat.vue ? echelleVue(etat.vue, etat.affichage) : 0.05);
 
   // ——— Vue ———
   let vuePlanifiee = false;
@@ -163,10 +196,12 @@ function demarrer(racine) {
     svg.setAttribute("viewBox", viewBox(etat.vue));
     const metres = echelleVue(etat.vue, etat.affichage);
     // Textes et points à taille constante à l'écran : une seule valeur par couche, recalculée à chaque vue.
-    couches.pieces.setAttribute("font-size", String(13 * metres));
-    couches.cotes.setAttribute("font-size", String(13 * metres));
-    for (const point of couches.cotes.querySelectorAll("circle")) {
-      point.setAttribute("r", String(7 * metres));
+    for (const couche of [couches.pieces, couches.cotes, couches.selection]) {
+      couche.setAttribute("font-size", String(13 * metres));
+    }
+
+    for (const point of [...couches.cotes.querySelectorAll("circle"), ...couches.selection.querySelectorAll("circle")]) {
+      point.setAttribute("r", String((point.classList.contains("actif") || point.classList.contains("premier") ? 10 : 7) * metres));
     }
 
     const pas = pasGrille(etat.vue, etat.affichage);
@@ -191,31 +226,74 @@ function demarrer(racine) {
     return element;
   }
 
+  function texteSvg(parent, point, contenu, classe) {
+    const t = creer("text", { x: point.x, y: point.y, ...(classe ? { class: classe } : {}) }, parent);
+    t.textContent = contenu;
+    return t;
+  }
+
+  function memeSelection(genre, index) {
+    return etat.selection?.genre === genre && etat.selection.index === index;
+  }
+
   function rendreGeometrie(groupe, contenu, avecNoms) {
     groupe.replaceChildren();
-    for (const piece of contenu.pieces) {
-      creer("polygon", { points: pointsSvg(piece.contour) }, groupe);
+    contenu.pieces.forEach((piece, index) => {
+      const classes = ["piece", memeSelection("piece", index) ? "selectionnee" : ""].filter(Boolean).join(" ");
+      creer("polygon", { points: pointsSvg(piece.contour), class: classes }, groupe);
       if (avecNoms) {
-        const c = centre(piece.contour);
-        const nom = creer("text", { x: c.x, y: c.y }, groupe);
-        nom.textContent = zones[piece.zoneId] ?? "Zone";
+        texteSvg(groupe, centre(piece.contour), zones[piece.zoneId] ?? nomZone(cadre, piece.zoneId));
       }
-    }
+    });
+
+    contenu.escaliers.forEach((escalier, index) => {
+      creer("polygon", { points: pointsSvg(escalier.contour), class: `escalier${memeSelection("escalier", index) ? " selectionnee" : ""}` }, groupe);
+      if (avecNoms) {
+        texteSvg(groupe, centre(escalier.contour), `${libelleType(escalier.type)} → ${nomNiveau(cadre, escalier.versNiveauId)}`, "legende");
+      }
+    });
 
     if (!avecNoms) {
       return;
     }
 
-    for (const escalier of contenu.escaliers) {
-      creer("polygon", { points: pointsSvg(escalier.contour), class: "escalier" }, groupe);
-    }
-
-    for (const ouverture of contenu.ouvertures) {
-      creer("line", { x1: ouverture.de.x, y1: ouverture.de.y, x2: ouverture.a.x, y2: ouverture.a.y, class: "ouverture" }, groupe);
-    }
+    contenu.ouvertures.forEach((ouverture, index) => {
+      creer("line", {
+        x1: ouverture.de.x, y1: ouverture.de.y, x2: ouverture.a.x, y2: ouverture.a.y,
+        class: `ouverture ${ouverture.type.toLowerCase()}${memeSelection("ouverture", index) ? " selectionnee" : ""}`,
+      }, groupe);
+    });
 
     for (const marqueur of contenu.composants) {
       creer("circle", { cx: marqueur.position.x, cy: marqueur.position.y, r: 0.25, class: "composant" }, groupe);
+    }
+  }
+
+  // Poignées de la sélection (sommets), tracé en cours et points du recalage.
+  function rendreSelection() {
+    const groupe = couches.selection;
+    groupe.replaceChildren();
+    const contenu = affiche().contenu;
+    const s = etat.selection;
+    if (s && s.genre !== "ouverture") {
+      const element = contenu[s.genre === "piece" ? "pieces" : "escaliers"][s.index];
+      element?.contour.forEach((p, sommet) => creer("circle", { cx: p.x, cy: p.y, r: 0.1, class: `sommet${s.sommet === sommet ? " actif" : ""}` }, groupe));
+    }
+
+    const trace = affiche().trace;
+    if (trace && trace.points.length > 0) {
+      creer("polyline", { points: pointsSvg(trace.points), class: "trace" }, groupe);
+      trace.points.forEach((p, rang) => creer("circle", { cx: p.x, cy: p.y, r: 0.1, class: `sommet${rang === 0 ? " premier" : ""}` }, groupe));
+    }
+
+    if (etat.recalage) {
+      const o = origineFond();
+      etat.recalage.points.forEach((p, rang) => {
+        const surCalque = rang % 2 === 0;
+        const point = surCalque ? p : { x: p.x + o.x, y: p.y + o.y };
+        creer("circle", { cx: point.x, cy: point.y, r: 0.1, class: surCalque ? "recalage-calque" : "recalage-fond" }, groupe);
+        texteSvg(groupe, { x: point.x, y: point.y }, String(Math.floor(rang / 2) + 1), "numero");
+      });
     }
   }
 
@@ -223,7 +301,8 @@ function demarrer(racine) {
     const id = fondAffiche();
     const info = fondInfo(id);
     const metres = echelleTravail();
-    const cleRendu = info ? `${id}:${metres}` : null;
+    const o = origineFond();
+    const cleRendu = info ? `${id}:${metres}:${o.x}:${o.y}` : null;
     if (etat.rendus.fond === cleRendu) {
       return;
     }
@@ -233,7 +312,7 @@ function demarrer(racine) {
     el("[data-role=fond-texte]").textContent = info ? `Fond : ${descriptionFond(info)}` : id ? "Fond en cours de chargement" : "Plan sur grille métrique";
     if (info) {
       creer("image", {
-        href: `${base}/${etat.planId}/fonds/${id}`, x: 0, y: 0, width: info.largeurAffichage * metres, height: info.hauteurAffichage * metres,
+        href: `${base}/${etat.planId}/fonds/${id}`, x: o.x, y: o.y, width: info.largeurAffichage * metres, height: info.hauteurAffichage * metres,
         preserveAspectRatio: "none",
       }, couches.fond);
     }
@@ -242,10 +321,13 @@ function demarrer(racine) {
   function segment(de, a, classe, texte) {
     creer("line", { x1: de.x, y1: de.y, x2: a.x, y2: a.y, class: classe }, couches.cotes);
     if (texte) {
-      const etiquette = creer("text", { x: (de.x + a.x) / 2, y: (de.y + a.y) / 2 }, couches.cotes);
-      etiquette.textContent = texte;
+      texteSvg(couches.cotes, { x: (de.x + a.x) / 2, y: (de.y + a.y) / 2 }, texte);
     }
   }
+
+  // Point de l'image (pixels) dans le repère, et inversement, à l'échelle de travail et à l'origine du fond.
+  const pixelVersPlan = (point, metres) => ({ x: point.x * metres + origineFond().x, y: point.y * metres + origineFond().y });
+  const planVersPixel = (point, metres) => ({ x: (point.x - origineFond().x) / metres, y: (point.y - origineFond().y) / metres });
 
   function rendreCotes() {
     couches.cotes.replaceChildren();
@@ -255,8 +337,8 @@ function demarrer(racine) {
     if (saisie) {
       for (const cible of ["calibration", "controle"]) {
         const cote = saisie[cible];
-        const de = cote.de ? pixelVersRepere(cote.de, metres) : null;
-        const a = cote.a ? pixelVersRepere(cote.a, metres) : null;
+        const de = cote.de ? pixelVersPlan(cote.de, metres) : null;
+        const a = cote.a ? pixelVersPlan(cote.a, metres) : null;
         if (de && a) {
           segment(de, a, cible, cote.distance != null ? formaterMetres(cote.distance) : "?");
         }
@@ -334,15 +416,199 @@ function demarrer(racine) {
     el("[data-role=prop-controle]").textContent = controle
       ? `${formaterMetres(controle.declaree)} mesurés, ${formaterMetres(controle.mesuree)} sur le plan · écart ${formaterEcart(controle.ecart)}${controle.avertissement ? " (au-delà de 2 %)" : ""}`
       : contenu.fond ? "Aucune" : "—";
+    const decalage = decalageFond(contenu);
+    el("[data-role=prop-recalage]").textContent = !contenu.fond
+      ? "—"
+      : contenu.fond.decalage ? `Fond décalé de ${formaterMetres(decalage.x)} ; ${formaterMetres(decalage.y)}` : "Aucun (fond à l'origine)";
     const recalibrer = el("[data-action=recalibrer]");
     if (recalibrer) {
       recalibrer.hidden = !contenu.fond;
     }
 
+    const recaler = el("[data-action=recaler]");
+    if (recaler) {
+      recaler.hidden = !contenu.fond;
+    }
+
+    el("[data-role=pieces-compte]").textContent =
+      `${contenu.pieces.length} pièce${contenu.pieces.length > 1 ? "s" : ""}, ${contenu.ouvertures.length} ouverture${contenu.ouvertures.length > 1 ? "s" : ""}, ${contenu.escaliers.length} escalier${contenu.escaliers.length > 1 ? "s" : ""} ou ascenseur${contenu.escaliers.length > 1 ? "s" : ""}`;
     if (etat.mode === "atelier") {
       el("[data-role=resume]").textContent = estModifie(present(), etat.reference)
         ? `${resumeVersion(etat.lue, etat.reference.contenu)} · modifications non enregistrées`
         : resumeVersion(etat.lue, etat.reference.contenu);
+    }
+  }
+
+  // Liste déroulante remplie par textContent (noms saisis par les utilisateurs).
+  function remplirListe(liste, options, valeur) {
+    liste.replaceChildren(...options.map(([cleOption, libelle, desactivee]) => {
+      const option = document.createElement("option");
+      option.value = cleOption;
+      option.textContent = libelle;
+      option.disabled = Boolean(desactivee);
+      return option;
+    }));
+    liste.value = valeur ?? "";
+  }
+
+  function optionsZones(zoneActuelle) {
+    const dessinees = new Set(present().contenu.pieces.map(p => p.zoneId));
+    return [["", "Choisir une zone…", true], ...zonesDessinables(cadre).map(z => [z.id, dessinees.has(z.id) && z.id !== zoneActuelle ? `${z.nom} (déjà tracée)` : z.nom, dessinees.has(z.id) && z.id !== zoneActuelle])];
+  }
+
+  const optionsNiveaux = () => [["", "Choisir le niveau…", true], ...autresNiveaux(cadre).map(n => [n.id, n.nom])];
+  const optionsLiaison = () => [["Escalier", "Escalier"], ["Ascenseur", "Ascenseur"]];
+
+  function defautAffiche(zone, defaut) {
+    zone.textContent = defaut ? messageDessin(defaut, cadre) : "";
+    zone.hidden = !defaut;
+  }
+
+  function rendrePanneauTrace() {
+    const trace = present().trace;
+    const genre = trace?.genre ?? (etat.outil === "escalier" ? "escalier" : "piece");
+    el("[data-role=trace-titre]").textContent = genre === "piece" ? "Nouvelle pièce" : "Nouvel escalier ou ascenseur";
+    el("[data-role=trace-piece]").hidden = genre !== "piece";
+    el("[data-role=trace-escalier]").hidden = genre !== "escalier";
+    if (genre === "piece") {
+      const zoneTrace = trace?.zoneId ?? zonesRestantes(present().contenu, cadre)[0]?.id ?? "";
+      remplirListe(el("[data-champ=trace-zone]"), optionsZones(null), zoneTrace);
+    } else {
+      remplirListe(el("[data-champ=trace-type]"), optionsLiaison(), trace?.type ?? etat.liaison.type);
+      remplirListe(el("[data-champ=trace-niveau]"), optionsNiveaux(), trace?.versNiveauId ?? etat.liaison.versNiveauId);
+    }
+
+    const sommets = trace?.points.length ?? 0;
+    el("[data-role=trace-consigne]").textContent = sommets === 0
+      ? `Touchez les angles ${genre === "piece" ? "de la pièce" : "de la cage"} un à un sur le plan (faces intérieures des murs).`
+      : sommets < 3
+        ? `${sommets} sommet${sommets > 1 ? "s" : ""} : touchez le suivant.`
+        : `${sommets} sommets : touchez le premier sommet ou « Fermer ${genre === "piece" ? "la pièce" : "le contour"} ».`;
+    const restantes = zonesRestantes(present().contenu, cadre).length;
+    el("[data-role=trace-toutes]").hidden = genre !== "piece" || restantes > 0;
+  }
+
+  function rendrePanneauPiece(s) {
+    const contenu = affiche().contenu;
+    const piece = contenu.pieces[s.index];
+    el("[data-role=piece-nom]").textContent = nomZone(cadre, piece.zoneId);
+    remplirListe(el("[data-champ=piece-zone]"), optionsZones(piece.zoneId), piece.zoneId);
+    el("[data-role=piece-surface]").textContent = formaterSurface(piece.contour);
+    el("[data-role=piece-perimetre]").textContent = formaterMetres(perimetre(piece.contour));
+    el("[data-role=piece-sommets]").textContent = String(piece.contour.length);
+    defautAffiche(el("[data-role=piece-defaut]"), defautPiece(contenu, cadre, s.index));
+    rendreSommet("piece", piece.contour, s);
+  }
+
+  function rendreSommet(prefixe, contour, s) {
+    const zone = el(`[data-role=${prefixe}-sommet]`);
+    zone.hidden = s.sommet == null;
+    if (s.sommet == null) {
+      return;
+    }
+
+    const p = contour[s.sommet];
+    el(`[data-role=${prefixe}-sommet-titre]`).textContent = `Sommet ${s.sommet + 1} sur ${contour.length}`;
+    for (const axe of ["x", "y"]) {
+      const champ = el(`[data-champ=${prefixe}-${axe}]`);
+      if (document.activeElement !== champ) {
+        champ.value = String(p[axe]).replace(".", ",");
+      }
+    }
+
+    el(`[data-role=${prefixe}-sommet] [data-action=supprimer-sommet]`).disabled = contour.length <= 3;
+  }
+
+  function rendrePanneauOuverture(s) {
+    const contenu = affiche().contenu;
+    const o = contenu.ouvertures[s.index];
+    el("[data-role=ouverture-nom]").textContent = `${libelleType(o.type)} · ${o.zones.map(z => nomZone(cadre, z)).join(" ↔ ")}${o.zones.length === 1 ? " ↔ extérieur" : ""}`;
+    remplirListe(el("[data-champ=ouverture-type]"), TYPES_OUVERTURE.map(t => [t, libelleType(t)]), o.type);
+    const champ = el("[data-champ=ouverture-largeur]");
+    if (document.activeElement !== champ) {
+      champ.value = String(largeurOuverture(o)).replace(".", ",");
+    }
+
+    const autres = contenu.pieces.filter(p => p.zoneId !== o.zones[0]).map(p => [p.zoneId, nomZone(cadre, p.zoneId)]);
+    remplirListe(el("[data-champ=ouverture-face]"), [["", "Extérieur"], ...autres], o.zones[1] ?? "");
+    defautAffiche(el("[data-role=ouverture-defaut]"), defautOuverture(contenu, s.index));
+  }
+
+  function rendrePanneauEscalier(s) {
+    const contenu = affiche().contenu;
+    const e = contenu.escaliers[s.index];
+    el("[data-role=escalier-nom]").textContent = `${libelleType(e.type)} vers ${nomNiveau(cadre, e.versNiveauId)}`;
+    remplirListe(el("[data-champ=escalier-type]"), optionsLiaison(), e.type);
+    remplirListe(el("[data-champ=escalier-niveau]"), optionsNiveaux(), e.versNiveauId);
+    el("[data-role=escalier-surface]").textContent = formaterSurface(e.contour);
+    defautAffiche(el("[data-role=escalier-defaut]"), defautEscalier(contenu, cadre, s.index));
+    rendreSommet("escalier", e.contour, s);
+  }
+
+  function rendrePanneauRecalage() {
+    const r = etat.recalage;
+    if (!r) {
+      return;
+    }
+
+    el("[data-role=recalage-consigne]").textContent = recalage.consigne(r);
+    const resultat = el("[data-role=recalage-resultat]");
+    const calcul = recalage.etape(r) ? null : recalage.calculer(r);
+    resultat.hidden = !calcul;
+    if (calcul) {
+      resultat.textContent = calcul.defaut
+        ? recalage.messageDefaut(calcul.defaut)
+        : `Fond décalé de ${formaterMetres(calcul.decalage.x)} ; ${formaterMetres(calcul.decalage.y)} · écart des distances ${formaterEcart(calcul.ecart)}${calcul.avertissement ? " : au-delà de 2 %, les points ne se correspondent pas bien (ou l'échelle diffère) ; vérifiez-les." : " ✓"}`;
+      resultat.className = `alerte ${calcul.defaut || calcul.avertissement ? "avertissement" : "succes"}`;
+    }
+
+    el("[data-action=valider-recalage]").disabled = !calcul || Boolean(calcul.defaut);
+  }
+
+  function rendrePanneauGuide() {
+    const contenu = present().contenu;
+    const { total, faites } = avancement(contenu, cadre);
+    const dessinees = new Set(contenu.pieces.map(p => p.zoneId));
+    const courante = present().trace?.zoneId;
+    const liste = el("[data-role=guide-zones]");
+    liste.replaceChildren(...zonesDessinables(cadre).map(z => {
+      const item = document.createElement("li");
+      item.textContent = `${dessinees.has(z.id) ? "✓ " : z.id === courante ? "→ " : ""}${z.nom}`;
+      item.className = dessinees.has(z.id) ? "faite" : z.id === courante ? "courante" : "";
+      return item;
+    }));
+    el("[data-etape=pieces]").textContent = `3 · Pièces (${faites} sur ${total} zone${total > 1 ? "s" : ""})`;
+    const sommets = present().trace?.points.length ?? 0;
+    el("[data-role=guide-consigne]").textContent = courante
+      ? `${nomZone(cadre, courante)} : touchez les angles de la pièce un à un (${sommets} sommet${sommets > 1 ? "s" : ""}), puis « Fermer la pièce ».`
+      : "Toutes les zones du niveau ont leur contour : terminez l'étape.";
+    el("[data-action=zone-suivante]").disabled = !courante;
+  }
+
+  function panneauCourant() {
+    if (etat.panneau !== "proprietes") {
+      return etat.panneau;
+    }
+
+    if (present().trace || etat.outil === "piece" || etat.outil === "escalier") {
+      return "trace";
+    }
+
+    return etat.selection ? etat.selection.genre : "proprietes";
+  }
+
+  function rendrePanneaux() {
+    const panneau = panneauCourant();
+    for (const zone of tous("[data-panneau]")) {
+      zone.hidden = zone.dataset.panneau !== panneau;
+    }
+
+    const rendus = {
+      trace: rendrePanneauTrace, piece: () => rendrePanneauPiece(etat.selection), ouverture: () => rendrePanneauOuverture(etat.selection),
+      escalier: () => rendrePanneauEscalier(etat.selection), recalage: rendrePanneauRecalage, pieces: rendrePanneauGuide,
+    };
+    if (modifiable || panneau === "proprietes") {
+      rendus[panneau]?.();
     }
   }
 
@@ -358,20 +624,25 @@ function demarrer(racine) {
     const enregistrer = el("[data-action=enregistrer]");
     if (enregistrer) {
       enregistrer.textContent = `Enregistrer la version ${etat.versionLue + 1}`;
-      enregistrer.disabled = etat.enCours || etat.chargementEchoue || Boolean(present().saisie) || !estModifie(present(), etat.reference) || Boolean(etat.reprise);
+      enregistrer.disabled = etat.enCours || etat.chargementEchoue || Boolean(present().saisie) || Boolean(present().trace)
+        || !estModifie(present(), etat.reference) || Boolean(etat.reprise);
     }
 
     for (const bouton of tous("[data-outil]")) {
       bouton.setAttribute("aria-pressed", String(bouton.dataset.outil === etat.outil));
     }
 
-    svg.classList.toggle("pointage", etat.panneau === "calibration" || etat.outil === "cote");
-    for (const panneau of tous("[data-panneau]")) {
-      panneau.hidden = panneau.dataset.panneau !== etat.panneau;
+    const fermer = el("[data-action=fermer-trace]");
+    if (fermer) {
+      const trace = present().trace;
+      fermer.hidden = !trace;
+      fermer.disabled = !trace || trace.points.length < 3;
+      fermer.textContent = trace?.genre === "escalier" ? "Fermer le contour" : "Fermer la pièce";
     }
 
+    svg.classList.toggle("pointage", etat.panneau === "calibration" || etat.panneau === "recalage" || etat.panneau === "pieces" || etat.outil !== "selection");
     const etapes = tous("[data-etape]");
-    const courante = etat.panneau === "calibration" ? 1 : 0;
+    const courante = { fond: 0, calibration: 1, pieces: 2 }[etat.panneau] ?? 0;
     etapes.forEach((etape, rang) => {
       etape.classList.toggle("faite", rang < courante);
       if (rang === courante) {
@@ -383,15 +654,20 @@ function demarrer(racine) {
   }
 
   function rendre() {
-    if (etat.rendus.pieces !== present().contenu) {
-      etat.rendus.pieces = present().contenu;
-      rendreGeometrie(couches.pieces, present().contenu, true);
+    const contenu = affiche().contenu;
+    const cleRendu = `${etat.selection?.genre}:${etat.selection?.index}`;
+    if (etat.rendus.pieces !== contenu || etat.rendus.selection !== cleRendu) {
+      etat.rendus.pieces = contenu;
+      etat.rendus.selection = cleRendu;
+      rendreGeometrie(couches.pieces, contenu, true);
     }
 
     rendreFond();
     rendreCotes();
+    rendreSelection();
     rendrePanneauCalibration();
     rendreProprietes();
+    rendrePanneaux();
     rendreCommandes();
     planifierVue();
   }
@@ -408,7 +684,7 @@ function demarrer(racine) {
       return;
     }
 
-    if (estModifie(present(), etat.reference) || present().saisie) {
+    if (estModifie(present(), etat.reference) || present().saisie || present().trace) {
       ecrireBrouillon(local, {
         compteId: d.compte, organisationId: d.organisation, planId: etat.planId, versionLue: etat.versionLue, document: present(),
         modifieLe: new Date().toISOString(),
@@ -425,13 +701,22 @@ function demarrer(racine) {
 
   // Aucune modification pendant un enregistrement : elle serait effacée par le rechargement de la version enregistrée.
   function changer(document) {
-    if (etat.enCours || etat.chargementEchoue) {
+    if (etat.enCours || etat.chargementEchoue || !modifiable) {
       return;
     }
 
     etat.historique = appliquer(etat.historique, document);
     memoriserBrouillon();
     rendre();
+  }
+
+  // Sélection encore valable après une modification (élément supprimé : plus de sélection).
+  function verifierSelection() {
+    const s = etat.selection;
+    const listeSel = s ? present().contenu[{ piece: "pieces", ouverture: "ouvertures", escalier: "escaliers" }[s.genre]] : null;
+    if (s && (!listeSel || s.index >= listeSel.length || (s.sommet != null && s.sommet >= (listeSel[s.index].contour?.length ?? 0)))) {
+      etat.selection = null;
+    }
   }
 
   // Annuler, rétablir : le panneau et l'échelle de travail suivent la calibration en cours du document.
@@ -450,9 +735,9 @@ function demarrer(racine) {
       etat.panneau = etat.mode === "guide" ? "fond" : "proprietes";
     }
 
+    verifierSelection();
     memoriserBrouillon();
     rendre();
-    ajusterVue();
   }
 
   function charger(lue) {
@@ -460,6 +745,7 @@ function demarrer(racine) {
     etat.versionLue = lue?.version ?? 0;
     etat.reference = documentDepuisVersion(lue);
     etat.historique = creerHistorique(etat.reference);
+    etat.selection = null;
     etat.rendus.pieces = null;
   }
 
@@ -486,24 +772,27 @@ function demarrer(racine) {
     }
 
     const brouillon = lireBrouillon(local, cleCourante);
-    if (!brouillon || brouillon.versionLue > etat.versionLue || !estModifie(brouillon.document, etat.reference) && !brouillon.document.saisie) {
+    const document = brouillon ? { trace: null, ...brouillon.document } : null;
+    if (!brouillon || brouillon.versionLue > etat.versionLue || !estModifie(document, etat.reference) && !document.saisie && !document.trace) {
       effacerBrouillon(local, cleCourante);
       return;
     }
 
     const quand = formaterDate(brouillon.modifieLe);
     if (brouillon.versionLue === etat.versionLue) {
-      etat.historique = appliquer(etat.historique, brouillon.document);
-      if (brouillon.document.saisie) {
-        etat.echelleSaisie = echelleInitiale(brouillon.document.saisie.fondId, brouillon.document);
+      etat.historique = appliquer(etat.historique, document);
+      if (document.saisie) {
+        etat.echelleSaisie = echelleInitiale(document.saisie.fondId, document);
         etat.panneau = "calibration";
+      } else if (document.trace) {
+        etat.outil = document.trace.genre;
       }
 
       afficherBrouillon(`Brouillon non enregistré repris (modifié le ${quand}).`, { reprendre: false });
       return;
     }
 
-    etat.reprise = { document: brouillon.document, versionCourante: etat.versionLue };
+    etat.reprise = { document, versionCourante: etat.versionLue };
     afficherBrouillon(
       `Votre brouillon du ${quand} (sur la version ${brouillon.versionLue}) n'a pas été enregistré : le plan est passé à la version ${etat.versionLue}${etat.lue?.auteur ? ` (${etat.lue.auteur})` : ""}.`,
       { reprendre: true });
@@ -570,7 +859,26 @@ function demarrer(racine) {
     return true;
   }
 
+  // Défaut détecté par l'éditeur avant l'envoi : l'élément fautif est sélectionné et son défaut expliqué.
+  function refuserDefaut() {
+    const defaut = premierDefaut(present().contenu, cadre);
+    if (!defaut) {
+      return false;
+    }
+
+    etat.outil = "selection";
+    etat.panneau = etat.mode === "guide" ? etat.panneau : "proprietes";
+    etat.selection = defaut.genre === "plan" ? null : { genre: defaut.genre, index: defaut.index };
+    message(`À corriger avant d'enregistrer : ${messageDessin(defaut.defaut, cadre)}`, "danger");
+    rendre();
+    return true;
+  }
+
   async function enregistrer(motif) {
+    if (refuserDefaut()) {
+      return false;
+    }
+
     etat.enCours = true;
     rendreCommandes();
     const corps = corpsEnregistrement(present(), etat.versionLue, crypto.randomUUID(), motif);
@@ -589,7 +897,7 @@ function demarrer(racine) {
         // Relecture impossible : la version enregistrée devient la référence, pour ne pas renvoyer une version dépassée.
         etat.versionLue = reponse.donnees.version;
         etat.lue = { ...etat.lue, version: reponse.donnees.version, le: null, auteur: null };
-        etat.reference = { contenu: enregistre.contenu, saisie: null };
+        etat.reference = { contenu: enregistre.contenu, saisie: null, trace: null };
         etat.historique = creerHistorique(etat.reference);
       }
 
@@ -618,8 +926,61 @@ function demarrer(racine) {
     etat.echelleSaisie = echelleInitiale(fondId, present());
     etat.cible = "calibration";
     etat.panneau = "calibration";
+    etat.selection = null;
     changer(commencerCalibration(present(), fondId));
     ajusterVue();
+  }
+
+  function selectionner(selection) {
+    etat.selection = selection;
+    rendre();
+  }
+
+  // Tracé de pièce ou de liaison : premier toucher, sommets accrochés, fermeture sur le premier sommet.
+  function toucherTrace(point) {
+    let document = present();
+    if (!document.trace) {
+      const genre = etat.outil === "escalier" ? "escalier" : "piece";
+      const options = genre === "piece"
+        ? { zoneId: el("[data-champ=trace-zone]")?.value || zonesRestantes(document.contenu, cadre)[0]?.id || null }
+        : { ...etat.liaison };
+      document = commencerTrace(document, genre, options);
+    }
+
+    const contours = [...contoursAccrochage(document.contenu), document.trace.points, ...(etat.calque.affiche ? contoursAccrochage(etat.calque.contenu) : [])];
+    const { point: accroche } = accrocher(point, contours, tolerance());
+    if (fermeLeTrace(document.trace, accroche, tolerance())) {
+      changer(document);
+      fermer();
+      return;
+    }
+
+    changer(ajouterSommet(document, accroche));
+  }
+
+  function fermer() {
+    const resultat = fermerTrace(present(), cadre);
+    if (resultat.defaut) {
+      message(messageDessin(resultat.defaut, cadre), "avertissement");
+      rendre();
+      return;
+    }
+
+    message("");
+    const genre = present().trace.genre;
+    changer(resultat.document);
+    if (etat.panneau === "pieces") {
+      // Parcours guidé : la zone suivante se trace aussitôt.
+      const suivante = zonesRestantes(present().contenu, cadre)[0];
+      if (suivante) {
+        changer(commencerTrace(present(), "piece", { zoneId: suivante.id }));
+      }
+
+      return;
+    }
+
+    etat.outil = "selection";
+    selectionner({ genre, index: resultat.index });
   }
 
   function toucher(position) {
@@ -627,7 +988,7 @@ function demarrer(racine) {
     const saisie = present().saisie;
     if (etat.panneau === "calibration" && saisie) {
       const info = fondInfo(saisie.fondId);
-      const pixel = info ? pointImage(repereVersPixel(point, etat.echelleSaisie), image(info)) : null;
+      const pixel = info ? pointImage(planVersPixel(point, etat.echelleSaisie), image(info)) : null;
       if (!pixel) {
         message("Touchez à l'intérieur du fond.", "avertissement");
         return;
@@ -645,6 +1006,11 @@ function demarrer(racine) {
       return;
     }
 
+    if (etat.panneau === "recalage" && etat.recalage) {
+      toucherRecalage(point);
+      return;
+    }
+
     if (etat.outil === "cote") {
       etat.mesure = !etat.mesure.de || etat.mesure.a ? { de: point, a: null } : { ...etat.mesure, a: point };
       const sortie = el("[data-role=mesure]");
@@ -652,7 +1018,53 @@ function demarrer(racine) {
       sortie.textContent = etat.mesure.a ? `Cote mesurée : ${formaterMetres(distance(etat.mesure.de, etat.mesure.a))}` : "";
       rendreCotes();
       planifierVue();
+      return;
     }
+
+    if (!modifiable) {
+      return;
+    }
+
+    if (etat.panneau === "pieces" || etat.outil === "piece" || etat.outil === "escalier") {
+      if (etat.panneau !== "pieces" || present().trace) {
+        toucherTrace(point);
+      }
+
+      return;
+    }
+
+    if (etat.outil === "ouverture") {
+      const resultat = poserOuverture(present(), etat.typeOuverture, point, tolerance());
+      if (resultat.defaut) {
+        message(messageDessin(resultat.defaut, cadre), "avertissement");
+        return;
+      }
+
+      message("");
+      changer(resultat.document);
+      selectionner({ genre: "ouverture", index: resultat.index });
+      return;
+    }
+
+    selectionner(elementSous(present().contenu, point, tolerance(), etat.selection));
+  }
+
+  // Recalage : points du calque accrochés à ses contours, points du fond exprimés depuis son coin haut gauche.
+  function toucherRecalage(point) {
+    const r = etat.recalage;
+    if (!recalage.etape(r)) {
+      return;
+    }
+
+    if (recalage.surCalque(r)) {
+      const { point: accroche } = accrocher(point, contoursAccrochage(etat.calque.contenu), tolerance());
+      etat.recalage = recalage.poserPoint(r, accroche);
+    } else {
+      const o = origineFond();
+      etat.recalage = recalage.poserPoint(r, { x: point.x - o.x, y: point.y - o.y });
+    }
+
+    rendre();
   }
 
   async function validerEchelle() {
@@ -676,9 +1088,9 @@ function demarrer(racine) {
     changer(resultat.document);
     ajusterVue();
     if (etat.mode === "guide") {
-      // Parcours guidé : chaque étape s'enregistre comme une version (maquette C).
+      // Parcours guidé : chaque étape s'enregistre comme une version (maquette C), puis les pièces zone par zone.
       if (await enregistrer("Calibration du fond")) {
-        passerEnAtelier();
+        commencerEtapePieces();
       }
     } else {
       message("Échelle validée : enregistrez la version pour la conserver.", "succes");
@@ -693,7 +1105,7 @@ function demarrer(racine) {
 
       changer(retirerFond(present()));
       if (await enregistrer("Plan sur grille métrique")) {
-        passerEnAtelier();
+        commencerEtapePieces();
       }
 
       return;
@@ -704,7 +1116,36 @@ function demarrer(racine) {
     ajusterVue();
   }
 
-  // Étapes 3 et 4 du parcours (pièces, composants) : S21-08 et S21-09 ; en attendant, l'atelier.
+  // Étape 3 du parcours guidé : les zones du niveau tracées une à une ; l'étape 4 (composants) arrive avec S21-09.
+  function commencerEtapePieces() {
+    etat.panneau = "pieces";
+    etat.outil = "piece";
+    const suivante = zonesRestantes(present().contenu, cadre)[0];
+    if (suivante) {
+      etat.historique = appliquer(etat.historique, commencerTrace(present(), "piece", { zoneId: suivante.id }));
+    }
+
+    rendre();
+    ajusterVue();
+  }
+
+  function zoneSuivante() {
+    const restantes = zonesRestantes(present().contenu, cadre);
+    const courante = present().trace?.zoneId;
+    const rang = restantes.findIndex(z => z.id === courante);
+    const suivante = restantes[(rang + 1) % restantes.length];
+    if (suivante && suivante.id !== courante) {
+      changer(commencerTrace(present(), "piece", { zoneId: suivante.id }));
+    }
+  }
+
+  async function terminerPieces() {
+    changer({ ...present(), trace: null });
+    if (!estModifie(present(), etat.reference) || (await enregistrer("Pièces tracées"))) {
+      passerEnAtelier();
+    }
+  }
+
   function passerEnAtelier() {
     window.location.reload();
   }
@@ -743,23 +1184,99 @@ function demarrer(racine) {
     choisirFond(reponse.donnees.id);
   }
 
-  async function basculerCalque(bouton) {
-    etat.calque.affiche = !etat.calque.affiche;
-    if (etat.calque.affiche && !etat.calque.contenu) {
-      const reponse = await appeler("GET", `${base}/${d.planInferieur}`);
-      if (reponse.statut !== 200) {
-        etat.calque.affiche = false;
-        message(messageRefus(reponse.statut, reponse.probleme), "danger");
-        return;
-      }
-
-      etat.calque.contenu = documentDepuisVersion(reponse.donnees).contenu;
-      rendreGeometrie(couches.calque, etat.calque.contenu, false);
+  async function chargerCalque() {
+    if (etat.calque.contenu) {
+      return true;
     }
 
-    couches.calque.toggleAttribute("hidden", !etat.calque.affiche); // élément SVG : pas de propriété hidden
-    bouton.setAttribute("aria-pressed", String(etat.calque.affiche));
-    bouton.textContent = `Calque ${d.niveauInferieur} : ${etat.calque.affiche ? "affiché" : "masqué"}`;
+    const reponse = await appeler("GET", `${base}/${d.planInferieur}`);
+    if (reponse.statut !== 200) {
+      message(messageRefus(reponse.statut, reponse.probleme), "danger");
+      return false;
+    }
+
+    etat.calque.contenu = documentDepuisVersion(reponse.donnees).contenu;
+    rendreGeometrie(couches.calque, etat.calque.contenu, false);
+    return true;
+  }
+
+  function afficherCalque(affiche) {
+    etat.calque.affiche = affiche;
+    couches.calque.toggleAttribute("hidden", !affiche); // élément SVG : pas de propriété hidden
+    const bouton = el("[data-action=calque]");
+    bouton?.setAttribute("aria-pressed", String(affiche));
+    if (bouton) {
+      bouton.textContent = `Calque ${d.niveauInferieur} : ${affiche ? "affiché" : "masqué"}`;
+    }
+  }
+
+  async function basculerCalque() {
+    if (!etat.calque.affiche && !(await chargerCalque())) {
+      return;
+    }
+
+    afficherCalque(!etat.calque.affiche);
+  }
+
+  async function commencerRecalage() {
+    if (!d.planInferieur || !(await chargerCalque())) {
+      message(`Recalage impossible : le niveau inférieur n'a pas encore de plan enregistré.`, "avertissement");
+      return;
+    }
+
+    if (etat.calque.contenu.pieces.length + etat.calque.contenu.escaliers.length === 0) {
+      message(`Le plan du niveau ${d.niveauInferieur} n'a encore ni pièce ni escalier : rien à quoi recaler ce fond.`, "avertissement");
+      return;
+    }
+
+    afficherCalque(true);
+    etat.recalage = recalage.creerRecalage();
+    etat.retourRecalage = etat.panneau;
+    etat.panneau = "recalage";
+    etat.selection = null;
+    message("");
+    rendre();
+  }
+
+  function finirRecalage() {
+    etat.recalage = null;
+    etat.panneau = etat.retourRecalage === "pieces" ? "pieces" : "proprietes";
+    rendre();
+  }
+
+  function validerRecalage() {
+    const calcul = recalage.calculer(etat.recalage);
+    if (calcul.defaut) {
+      return;
+    }
+
+    finirRecalage();
+    changer(appliquerDecalage(present(), calcul.decalage));
+    ajusterVue();
+    message(etat.mode === "guide"
+      ? "Fond recalé sur le niveau inférieur : il sera enregistré avec les pièces."
+      : "Fond recalé sur le niveau inférieur : enregistrez la version pour le conserver.", calcul.avertissement ? "avertissement" : "succes");
+  }
+
+  async function creerZone(formulaire) {
+    const nom = formulaire.elements.nom.value.trim();
+    if (!nom) {
+      message("Saisissez le nom de la nouvelle zone.", "avertissement");
+      return;
+    }
+
+    const reponse = await appeler("POST", `${base}/zones`, { nom, batimentId: d.batiment, niveauId: d.niveau || null });
+    if (reponse.statut !== 200) {
+      message(messageRefus(reponse.statut, reponse.probleme), "danger");
+      return;
+    }
+
+    const zone = { id: reponse.donnees.id, nom, niveauId: d.niveau || null, partiesCommunes: false };
+    cadre.zones.push(zone);
+    zones[zone.id] = nom;
+    formulaire.reset();
+    message(`Zone « ${nom} » ajoutée à l'inventaire : tracez maintenant son contour.`);
+    changer(present().trace ? regler(present(), { zoneId: zone.id }) : commencerTrace(present(), "piece", { zoneId: zone.id }));
   }
 
   async function reprendreBrouillon() {
@@ -770,7 +1287,7 @@ function demarrer(racine) {
     }
 
     charger(lue);
-    etat.historique = appliquer(etat.historique, { ...reprise.document, saisie: null });
+    etat.historique = appliquer(etat.historique, { ...reprise.document, saisie: null, trace: null });
     etat.echelleSaisie = null;
     etat.panneau = "proprietes";
     masquerBrouillon();
@@ -810,13 +1327,71 @@ function demarrer(racine) {
     ajusterVue();
   }
 
-  // ——— Gestes : un doigt glisse la vue (ou pose un point s'il ne bouge pas), deux doigts zooment ———
+  // ——— Modifications de l'élément sélectionné (boutons, champs, clavier) ———
+  function modifierSelection(fabrique) {
+    if (!etat.selection) {
+      return;
+    }
+
+    changer(fabrique(present(), etat.selection));
+    verifierSelection();
+    rendre();
+  }
+
+  function deplacerSelection(dx, dy) {
+    const s = etat.selection;
+    if (!s) {
+      return;
+    }
+
+    if (s.sommet != null) {
+      const contour = present().contenu[s.genre === "piece" ? "pieces" : "escaliers"][s.index].contour;
+      const p = contour[s.sommet];
+      modifierSelection(doc => deplacerSommet(doc, s, s.sommet, { x: p.x + dx, y: p.y + dy }));
+    } else {
+      modifierSelection(doc => deplacerElement(doc, s, dx, dy));
+    }
+  }
+
+  function supprimerSelection() {
+    const s = etat.selection;
+    if (!s) {
+      return;
+    }
+
+    if (s.sommet != null) {
+      modifierSelection(doc => supprimerSommet(doc, s, s.sommet));
+      etat.selection = { genre: s.genre, index: s.index };
+    } else {
+      changer(supprimerElement(present(), s));
+      etat.selection = null;
+    }
+
+    rendre();
+  }
+
+  // ——— Gestes : un doigt glisse la vue (ou pose un point s'il ne bouge pas), deux doigts zooment ; avec la sélection,
+  // glisser un sommet ou l'élément sélectionné le déplace (alternatives sans glisser : boutons et clavier) ———
   const pointeurs = new Map();
   let geste = null;
   const position = evenement => {
     const rect = svg.getBoundingClientRect();
     return { x: evenement.clientX - rect.left, y: evenement.clientY - rect.top };
   };
+
+  function cibleGlisser(ecran) {
+    if (!modifiable || etat.outil !== "selection" || etat.panneau !== "proprietes" || !etat.selection || !etat.vue) {
+      return null;
+    }
+
+    const point = versRepere(etat.vue, etat.affichage, ecran);
+    const sous = elementSous(present().contenu, point, tolerance(), etat.selection);
+    if (sous && sous.genre === etat.selection.genre && sous.index === etat.selection.index) {
+      return { ...sous, depart: point };
+    }
+
+    return null;
+  }
 
   svg.addEventListener("pointerdown", evenement => {
     if (evenement.pointerType === "mouse" && evenement.button !== 0) {
@@ -826,11 +1401,28 @@ function demarrer(racine) {
     svg.setPointerCapture?.(evenement.pointerId);
     pointeurs.set(evenement.pointerId, position(evenement));
     if (pointeurs.size === 1) {
-      geste = { type: "glisser", depart: position(evenement), dernier: position(evenement), deplace: false };
+      geste = { type: "glisser", depart: position(evenement), dernier: position(evenement), deplace: false, element: cibleGlisser(position(evenement)) };
     } else if (pointeurs.size === 2) {
+      etat.apercu = null;
       geste = { type: "pincer", avant: [...pointeurs.values()] };
     }
   });
+
+  function apercuGlisser(element, ecran) {
+    const point = versRepere(etat.vue, etat.affichage, ecran);
+    if (element.sommet != null) {
+      const contours = [...contoursAccrochage(present().contenu, element), ...(etat.calque.affiche ? contoursAccrochage(etat.calque.contenu) : [])];
+      return deplacerSommet(present(), element, element.sommet, accrocher(point, contours, tolerance()).point);
+    }
+
+    if (element.genre === "ouverture") {
+      const o = present().contenu.ouvertures[element.index];
+      const l = Math.hypot(o.a.x - o.de.x, o.a.y - o.de.y) || 1;
+      return glisserOuverture(present(), element.index, ((point.x - element.depart.x) * (o.a.x - o.de.x) + (point.y - element.depart.y) * (o.a.y - o.de.y)) / l);
+    }
+
+    return deplacerElement(present(), element, point.x - element.depart.x, point.y - element.depart.y);
+  }
 
   svg.addEventListener("pointermove", evenement => {
     if (!pointeurs.has(evenement.pointerId) || !geste || !etat.vue) {
@@ -849,7 +1441,10 @@ function demarrer(racine) {
         geste.deplace = true;
       }
 
-      if (geste.deplace) {
+      if (geste.deplace && geste.element) {
+        etat.apercu = apercuGlisser(geste.element, p);
+        rendre();
+      } else if (geste.deplace) {
         etat.vue = deplacer(etat.vue, etat.affichage, p.x - geste.dernier.x, p.y - geste.dernier.y);
         planifierVue();
       }
@@ -864,7 +1459,15 @@ function demarrer(racine) {
     }
 
     pointeurs.delete(evenement.pointerId);
-    if (geste?.type === "glisser" && !geste.deplace && !annule && pointeurs.size === 0 && etat.vue) {
+    if (geste?.type === "glisser" && geste.element && etat.apercu) {
+      const apercu = etat.apercu;
+      etat.apercu = null;
+      if (!annule) {
+        changer(apercu); // une seule étape d'historique pour tout le glissement
+      }
+
+      rendre();
+    } else if (geste?.type === "glisser" && !geste.deplace && !annule && pointeurs.size === 0 && etat.vue) {
       toucher(position(evenement));
     }
 
@@ -914,7 +1517,38 @@ function demarrer(racine) {
     return true;
   }
 
+  const fleches = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   svg.addEventListener("keydown", evenement => {
+    // Élément sélectionné : les flèches le déplacent (un sommet de 1 cm, un élément de 10 cm ; Maj : dix fois plus),
+    // Suppr l'efface, Échap le désélectionne ou abandonne le tracé.
+    if (modifiable && etat.selection && fleches[evenement.key]) {
+      const pas = (etat.selection.sommet != null ? 0.01 : PAS_CLAVIER) * (evenement.shiftKey ? 10 : 1);
+      deplacerSelection(fleches[evenement.key][0] * pas, fleches[evenement.key][1] * pas);
+      evenement.preventDefault();
+      return;
+    }
+
+    if (modifiable && etat.selection && (evenement.key === "Delete" || evenement.key === "Backspace")) {
+      supprimerSelection();
+      evenement.preventDefault();
+      return;
+    }
+
+    if (evenement.key === "Escape") {
+      if (present().trace && etat.panneau !== "pieces") {
+        changer({ ...present(), trace: null });
+      }
+
+      selectionner(null);
+      return;
+    }
+
+    if (evenement.key === "Enter" && present().trace) {
+      fermer();
+      evenement.preventDefault();
+      return;
+    }
+
     const touches = { ArrowLeft: "gauche", ArrowRight: "droite", ArrowUp: "haut", ArrowDown: "bas", "+": "zoom-avant", "=": "zoom-avant", "-": "zoom-arriere", 0: "ajuster" };
     if (touches[evenement.key] && commandeVue(touches[evenement.key])) {
       evenement.preventDefault();
@@ -931,6 +1565,18 @@ function demarrer(racine) {
     deplacerHistorique(evenement.key.toLowerCase() === "y" || evenement.shiftKey);
   });
 
+  function choisirOutil(outil) {
+    if (present().trace && etat.panneau !== "pieces") {
+      changer({ ...present(), trace: null });
+    }
+
+    etat.outil = outil;
+    etat.selection = null;
+    etat.mesure = { de: null, a: null };
+    el("[data-role=mesure]").hidden = true;
+    rendre();
+  }
+
   page.addEventListener("click", evenement => {
     const cible = evenement.target.closest("button");
     if (!cible || !page.contains(cible)) {
@@ -938,16 +1584,25 @@ function demarrer(racine) {
     }
 
     if (cible.dataset.outil) {
-      etat.outil = cible.dataset.outil;
-      etat.mesure = { de: null, a: null };
-      el("[data-role=mesure]").hidden = true;
-      rendre();
+      choisirOutil(cible.dataset.outil);
       return;
     }
 
     if (cible.dataset.cible) {
       etat.cible = cible.dataset.cible;
       rendre();
+      return;
+    }
+
+    if (cible.dataset.pousser) {
+      const [dx, dy] = cible.dataset.pousser.split(" ").map(Number);
+      const s = etat.selection;
+      if (s?.genre === "ouverture") {
+        modifierSelection(doc => glisserOuverture(doc, s.index, dx * PAS_CLAVIER));
+      } else {
+        deplacerSelection(dx * PAS_CLAVIER, dy * PAS_CLAVIER);
+      }
+
       return;
     }
 
@@ -960,13 +1615,30 @@ function demarrer(racine) {
       annuler: () => deplacerHistorique(false),
       retablir: () => deplacerHistorique(true),
       enregistrer: () => enregistrer(null),
-      calque: () => basculerCalque(cible),
+      calque: basculerCalque,
       "changer-fond": () => { etat.panneau = "fond"; rendre(); },
       recalibrer: () => choisirFond(present().contenu.fond.fondId),
+      recaler: commencerRecalage,
+      "recalage-recommencer": () => { etat.recalage = recalage.creerRecalage(); rendre(); },
+      "recalage-annuler": finirRecalage,
+      "valider-recalage": validerRecalage,
       "fermer-panneau": () => { etat.panneau = "proprietes"; rendre(); },
       "retour-fond": () => { etat.echelleSaisie = null; etat.panneau = "fond"; changer(abandonnerSaisie(present())); ajusterVue(); },
       "valider-calibration": validerEchelle,
       grille: commencerGrille,
+      "fermer-trace": fermer,
+      "abandonner-trace": () => { changer({ ...present(), trace: null }); choisirOutil("selection"); },
+      "zone-suivante": zoneSuivante,
+      "terminer-pieces": terminerPieces,
+      "inserer-sommet": () => {
+        const s = etat.selection;
+        modifierSelection(doc => insererSommet(doc, s, s.sommet));
+        etat.selection = { ...s, sommet: s.sommet + 1 };
+        rendre();
+      },
+      "supprimer-sommet": supprimerSelection,
+      "supprimer-element": () => { etat.selection = etat.selection && { genre: etat.selection.genre, index: etat.selection.index }; supprimerSelection(); },
+      deselectionner: () => selectionner(null),
       "brouillon-abandonner": abandonnerBrouillon,
       "brouillon-reprendre": () => {
         el("[data-role=brouillon-texte]").textContent =
@@ -993,10 +1665,79 @@ function demarrer(racine) {
     });
   }
 
+  // Champs des panneaux de dessin (listes et longueurs saisies, au clavier : alternative au glisser).
+  const champs = {
+    "trace-zone": valeur => present().trace && changer(regler(present(), { zoneId: valeur || null })),
+    "trace-type": valeur => {
+      etat.liaison.type = valeur;
+      if (present().trace) {
+        changer(regler(present(), { type: valeur }));
+      }
+    },
+    "trace-niveau": valeur => {
+      etat.liaison.versNiveauId = valeur || null;
+      if (present().trace) {
+        changer(regler(present(), { versNiveauId: valeur || null }));
+      }
+    },
+    "piece-zone": valeur => valeur && modifierSelection((doc, s) => changerZone(doc, s.index, valeur)),
+    "ouverture-type": valeur => {
+      etat.typeOuverture = valeur;
+      modifierSelection((doc, s) => modifierOuverture(doc, s.index, { type: valeur }));
+    },
+    "ouverture-face": valeur => modifierSelection((doc, s) => modifierOuverture(doc, s.index, { enFace: valeur || null })),
+    "escalier-type": valeur => modifierSelection((doc, s) => modifierEscalier(doc, s.index, { type: valeur })),
+    "escalier-niveau": valeur => modifierSelection((doc, s) => modifierEscalier(doc, s.index, { versNiveauId: valeur || null })),
+  };
+  for (const [nom, appliquerChamp] of Object.entries(champs)) {
+    el(`[data-champ=${nom}]`)?.addEventListener("change", evenement => appliquerChamp(evenement.target.value));
+  }
+
+  function lireMetres(champ, appliquerValeur) {
+    el(`[data-champ=${champ}]`)?.addEventListener("change", evenement => {
+      const texte = evenement.target.value.trim().replace(/\s/g, "").replace(/m$/i, "").replace(",", ".");
+      const valeur = /^-?\d+(\.\d+)?$/.test(texte) ? Number(texte) : null;
+      if (valeur == null) {
+        message("Saisissez un nombre de mètres, par exemple 4,25.", "avertissement");
+        return;
+      }
+
+      appliquerValeur(valeur);
+    });
+  }
+
+  lireMetres("ouverture-largeur", valeur => modifierSelection((doc, s) => modifierOuverture(doc, s.index, { largeur: valeur })));
+  for (const prefixe of ["piece", "escalier"]) {
+    for (const axe of ["x", "y"]) {
+      lireMetres(`${prefixe}-${axe}`, valeur => {
+        const s = etat.selection;
+        const p = present().contenu[s.genre === "piece" ? "pieces" : "escaliers"][s.index].contour[s.sommet];
+        modifierSelection(doc => deplacerSommet(doc, s, s.sommet, { ...p, [axe]: valeur }));
+      });
+    }
+  }
+
   el("[data-role=import]")?.addEventListener("submit", evenement => {
     evenement.preventDefault();
     void importer(evenement.target); // refus et erreurs affichés par importer
   });
+
+  for (const formulaire of tous("[data-role=creer-zone]")) {
+    formulaire.addEventListener("submit", evenement => {
+      evenement.preventDefault();
+      void creerZone(evenement.target);
+    });
+  }
+
+  // Zones listées à côté du plan, sans contour : Parties communes et zones sans niveau (RP-21.5).
+  for (const liste of tous("[data-role=zones-marge]")) {
+    liste.replaceChildren(...zonesALaMarge(cadre).map(z => {
+      const item = document.createElement("li");
+      item.textContent = z.nom;
+      return item;
+    }));
+    liste.closest("[data-role=marge]")?.toggleAttribute("hidden", zonesALaMarge(cadre).length === 0);
+  }
 
   new ResizeObserver(() => {
     const apres = mesurerAffichage();

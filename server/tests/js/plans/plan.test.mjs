@@ -233,6 +233,7 @@ describe("refus du serveur", () => {
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.escaliers" }), /escalier ou ascenseur\./);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "inconnu" }), /: saisie\./);
     assert.match(messageRefus(503, null), /indisponible/);
+    assert.match(messageRefus(409, { code: "nom_existant" }), /porte déjà ce nom/);
   });
 });
 

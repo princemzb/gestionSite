@@ -378,6 +378,10 @@ export function messageRefus(statut, probleme) {
     case 413:
       return "Fichier trop volumineux : 25 Mo au plus.";
     case 409:
+      if (probleme?.code === "nom_existant") {
+        return "Une zone de ce bâtiment porte déjà ce nom : choisissez-en un autre.";
+      }
+
       if (probleme?.code === "plan_existant") {
         return "Ce niveau a déjà un plan, créé entre-temps : rechargez la page.";
       }

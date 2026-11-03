@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 
 import {
   abandonnerTrace, accrocher, ajouterSommet, autresNiveaux, avancement, changerZone, commencerTrace, contoursAccrochage, defautEscalier,
-  defautOuverture, defautPiece, deplacerElement, deplacerSommet, elementSous, fermeLeTrace, fermerTrace, glisserOuverture, insererSommet,
+  defautOuverture, defautPiece, deplacerElement, formaterSurface, deplacerSommet, elementSous, fermeLeTrace, fermerTrace, glisserOuverture, insererSommet,
   largeurOuverture, libelleType, messageDessin, modifierEscalier, modifierOuverture, nomNiveau, nomZone, pieceEnFace, poserOuverture,
   premierDefaut, regler, supprimerElement, supprimerSommet, zonesALaMarge, zonesDessinables, zonesRestantes,
 } from "../../../src/GestionSite.Web/wwwroot/plans/noyau/dessin.mjs";
@@ -63,6 +63,7 @@ describe("zones et niveaux", () => {
     assert.equal(nomZone(cadre, "x"), "Zone");
     assert.equal(libelleType("Fenetre"), "Fenêtre");
     assert.equal(libelleType("Autre"), "Autre");
+    assert.equal(formaterSurface(rectangle(0, 0, 4.6, 6.5)), "29,9 m²");
   });
 });
 

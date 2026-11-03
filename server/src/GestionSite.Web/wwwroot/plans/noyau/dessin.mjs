@@ -548,6 +548,13 @@ export function poserOuverture(document, type, point, tolerance) {
   return { document: { ...document, contenu: { ...contenu, ouvertures: [...contenu.ouvertures, ouverture] } }, index: contenu.ouvertures.length };
 }
 
+const surfaces = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+/** Surface d'un contour au dixième de m² (« 29,9 m² »). */
+export function formaterSurface(contour) {
+  return `${surfaces.format(aire(contour))} m²`;
+}
+
 /** Largeur d'une ouverture, en mètres au centimètre. */
 export function largeurOuverture(ouverture) {
   return arrondirAuCentimetre(longueur(ouverture.de, ouverture.a));

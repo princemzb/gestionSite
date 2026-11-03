@@ -5,9 +5,10 @@
 @inject SessionApi Session
 @inject NavigationManager Navigation
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antifalsification
-@* Éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : maquettes validées « Atelier » (A, plan enregistré) et parcours
-   guidé (C, nouveau plan). La page rend la structure et passe ses paramètres en attributs data-* ; le module
-   plans/editeur.mjs charge le plan en JSON et gère la vue, la calibration, l'historique et le brouillon local. *@
+@* Éditeur de plans de bâtiment (US-21, S21-07, S21-08, ADR-11) : maquettes validées « Atelier » (A, plan enregistré) et
+   parcours guidé (C, nouveau plan). La page rend la structure et passe ses paramètres en attributs data-* ; le module
+   plans/editeur.mjs charge le plan en JSON et gère la vue, la calibration, les pièces, ouvertures et escaliers, le
+   recalage entre niveaux, l'historique et le brouillon local. *@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="plans" />
 <main class="admin-contenu editeur-page">
@@ -98,11 +99,20 @@ else
         <div class="editeur" id="editeur-plan" data-mode="@Mode" data-organisation="@OrganisationId" data-site="@SiteCourant.Id"
              data-batiment="@BatimentCourant.Id" data-niveau="@NiveauCourant?.Id" data-plan="@PlanCourant?.Id" data-compte="@CompteId"
              data-modifiable="@(Modifiable ? "true" : "false")" data-jeton="@Jeton" data-niveau-nom="@NomNiveau"
-             data-plan-inferieur="@PlanInferieur?.Id" data-niveau-inferieur="@NiveauInferieur?.Nom" data-zones="@ZonesJson">
+             data-plan-inferieur="@PlanInferieur?.Id" data-niveau-inferieur="@NiveauInferieur?.Nom" data-zones="@ZonesJson" data-cadre="@CadreJson">
             @if (Mode == "atelier")
             {
                 <div class="carte editeur-outils" role="toolbar" aria-label="Outils">
                     <button type="button" class="outil" data-outil="selection" aria-pressed="true" title="Sélection et déplacement de la vue"><span aria-hidden="true">↖</span><span class="visuellement-masque">Sélection</span></button>
+                    @if (Modifiable)
+                    {
+                        <button type="button" class="outil" data-outil="piece" aria-pressed="false" title="Pièce : tracer le contour d'une zone"><span aria-hidden="true">▱</span><span class="visuellement-masque">Pièce</span></button>
+                        <button type="button" class="outil" data-outil="ouverture" aria-pressed="false" title="Porte, baie ou fenêtre sur une arête"><span aria-hidden="true">⌒</span><span class="visuellement-masque">Porte, baie ou fenêtre</span></button>
+                        @if (NiveauCourant is not null && Niveaux.Count > 1)
+                        {
+                            <button type="button" class="outil" data-outil="escalier" aria-pressed="false" title="Escalier ou ascenseur vers un autre niveau"><span aria-hidden="true">≡</span><span class="visuellement-masque">Escalier ou ascenseur</span></button>
+                        }
+                    }
                     <button type="button" class="outil" data-outil="cote" aria-pressed="false" title="Cote : mesurer une longueur"><span aria-hidden="true">↔</span><span class="visuellement-masque">Cote</span></button>
                     <span class="outils-espace"></span>
                     <button type="button" class="outil" data-action="annuler" title="Annuler" disabled><span aria-hidden="true">↶</span><span class="visuellement-masque">Annuler</span></button>
@@ -117,6 +127,7 @@ else
                     <g data-role="fond"></g>
                     <g data-role="calque" class="calque-inferieur" hidden></g>
                     <g data-role="pieces" class="pieces"></g>
+                    <g data-role="selection" class="selection"></g>
                     <g data-role="cotes" class="cotes"></g>
                 </svg>
                 <div class="editeur-pastille">
@@ -130,6 +141,10 @@ else
                     @if (Mode == "guide")
                     {
                         <button type="button" class="bouton-vue" data-action="annuler" disabled>↶ Annuler</button>
+                    }
+                    @if (Modifiable)
+                    {
+                        <button type="button" class="bouton-vue bouton-vue-principal" data-action="fermer-trace" hidden disabled>Fermer la pièce</button>
                     }
                     <button type="button" class="bouton-vue" data-action="zoom-avant" aria-label="Zoom avant">+</button>
                     <button type="button" class="bouton-vue" data-action="zoom-arriere" aria-label="Zoom arrière">−</button>
@@ -149,6 +164,8 @@ else
                         <dt>Fond</dt><dd data-role="prop-fond">Aucun (grille métrique)</dd>
                         <dt>Échelle</dt><dd data-role="prop-echelle">—</dd>
                         <dt>Cote de contrôle</dt><dd data-role="prop-controle">—</dd>
+                        <dt>Recalage</dt><dd data-role="prop-recalage">—</dd>
+                        <dt>Dessin</dt><dd data-role="pieces-compte">—</dd>
                     </dl>
                     <p class="note" data-role="mesure" hidden></p>
                     @if (Modifiable)
@@ -156,9 +173,14 @@ else
                         <div class="editeur-actions-panneau">
                             <button type="button" class="bouton-secondaire" data-action="changer-fond">Changer de fond</button>
                             <button type="button" class="bouton-secondaire" data-action="recalibrer" hidden>Recalibrer</button>
+                            @if (PlanInferieur is not null)
+                            {
+                                <button type="button" class="bouton-secondaire" data-action="recaler" hidden>Recaler sur @(NiveauInferieur!.Nom)</button>
+                            }
                         </div>
+                        <p class="note">Outils à gauche : pièce (une zone de l'inventaire par contour), porte, baie ou fenêtre posée sur une arête, escalier ou ascenseur vers un autre niveau. Touchez un élément pour le modifier.</p>
                     }
-                    <p class="note">Pièces, ouvertures, escaliers et composants : bientôt dans l'éditeur.</p>
+                    @ZonesMarge
                 </div>
 
                 @if (Modifiable)
@@ -213,6 +235,120 @@ else
                             <button type="button" class="bouton-principal" data-action="valider-calibration">Valider l'échelle</button>
                         </div>
                     </div>
+
+                    <div data-panneau="pieces" hidden>
+                        <h2>Zones du niveau à tracer</h2>
+                        <ol class="editeur-zones" data-role="guide-zones"></ol>
+                        <p class="note" data-role="guide-consigne"></p>
+                        @if (PlanInferieur is not null)
+                        {
+                            <button type="button" class="bouton-secondaire" data-action="recaler">Recaler le fond sur @(NiveauInferieur!.Nom)</button>
+                        }
+                        @FormulaireZone
+                        @ZonesMarge
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="zone-suivante">Zone suivante</button>
+                            <button type="button" class="bouton-principal" data-action="terminer-pieces">Terminer les pièces</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="trace" hidden>
+                        <h2 data-role="trace-titre">Nouvelle pièce</h2>
+                        <div data-role="trace-piece">
+                            <label class="champ">Zone de l'inventaire
+                                <select data-champ="trace-zone"></select>
+                            </label>
+                            <p class="note" data-role="trace-toutes" hidden>Toutes les zones de ce niveau ont déjà leur contour.</p>
+                            @FormulaireZone
+                        </div>
+                        <div data-role="trace-escalier" hidden>
+                            <label class="champ">Type
+                                <select data-champ="trace-type"></select>
+                            </label>
+                            <label class="champ">Vers le niveau
+                                <select data-champ="trace-niveau"></select>
+                            </label>
+                        </div>
+                        <p class="note" data-role="trace-consigne"></p>
+                        <p class="note">Les sommets s'accrochent aux angles et aux murs voisins (et au calque affiché) ; zoomez pour pointer précisément. Annuler retire le dernier sommet.</p>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="abandonner-trace">Abandonner</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="piece" hidden>
+                        <h2 data-role="piece-nom">Pièce sélectionnée</h2>
+                        <label class="champ">Zone de l'inventaire
+                            <select data-champ="piece-zone"></select>
+                        </label>
+                        <dl class="editeur-proprietes">
+                            <dt>Surface</dt><dd data-role="piece-surface"></dd>
+                            <dt>Périmètre</dt><dd data-role="piece-perimetre"></dd>
+                            <dt>Sommets</dt><dd data-role="piece-sommets"></dd>
+                        </dl>
+                        <p class="alerte danger" data-role="piece-defaut" hidden></p>
+                        @Sommet("piece")
+                        @Deplacer("la pièce")
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
+                            <button type="button" class="bouton-danger" data-action="supprimer-element">Supprimer la pièce</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="ouverture" hidden>
+                        <h2 data-role="ouverture-nom">Ouverture</h2>
+                        <label class="champ">Type
+                            <select data-champ="ouverture-type"></select>
+                        </label>
+                        <label class="champ">Largeur
+                            <input type="text" inputmode="decimal" data-champ="ouverture-largeur" autocomplete="off" />
+                            <span class="aide">mètres, de 0,20 à 30</span>
+                        </label>
+                        <label class="champ">Relie aussi
+                            <select data-champ="ouverture-face"></select>
+                        </label>
+                        <p class="alerte danger" data-role="ouverture-defaut" hidden></p>
+                        <div class="editeur-pousser" role="group" aria-label="Faire glisser le long du mur">
+                            <button type="button" class="bouton-vue" data-pousser="-1 0">◀ 10 cm</button>
+                            <button type="button" class="bouton-vue" data-pousser="1 0">10 cm ▶</button>
+                        </div>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
+                            <button type="button" class="bouton-danger" data-action="supprimer-element">Supprimer l'ouverture</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="escalier" hidden>
+                        <h2 data-role="escalier-nom">Escalier</h2>
+                        <label class="champ">Type
+                            <select data-champ="escalier-type"></select>
+                        </label>
+                        <label class="champ">Vers le niveau
+                            <select data-champ="escalier-niveau"></select>
+                        </label>
+                        <dl class="editeur-proprietes">
+                            <dt>Surface</dt><dd data-role="escalier-surface"></dd>
+                        </dl>
+                        <p class="alerte danger" data-role="escalier-defaut" hidden></p>
+                        @Sommet("escalier")
+                        @Deplacer("l'escalier")
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
+                            <button type="button" class="bouton-danger" data-action="supprimer-element">Supprimer</button>
+                        </div>
+                    </div>
+
+                    <div data-panneau="recalage" hidden>
+                        <h2>Recaler le fond sur @(NiveauInferieur?.Nom ?? "le niveau inférieur")</h2>
+                        <p class="note">Touchez deux fois le même point du bâtiment (angle de mur, cage d'escalier), d'abord sur le calque en pointillés du niveau inférieur, puis sur le fond de ce niveau. Le fond est seulement déplacé : l'échelle reste celle de la calibration.</p>
+                        <p class="note" data-role="recalage-consigne"></p>
+                        <p class="alerte" data-role="recalage-resultat" hidden></p>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="recalage-annuler">Annuler</button>
+                            <button type="button" class="bouton-secondaire" data-action="recalage-recommencer">Recommencer</button>
+                            <button type="button" class="bouton-principal" data-action="valider-recalage" disabled>Valider le recalage</button>
+                        </div>
+                    </div>
                 }
             </aside>
         </div>
@@ -263,6 +399,13 @@ else
 
     private string ZonesJson { get; set; } = "{}";
 
+    // Cadre du dessin (S21-08) : niveau du plan, zones du bâtiment et niveaux (cibles des escaliers), comme le serveur.
+    private string CadreJson { get; set; } = "{}";
+
+    // Création d'une zone depuis l'éditeur (RP-21.5) : seulement avec les deux droits, enregistrer le plan et modifier
+    // l'inventaire (technicien, responsable ou délégué du site) ; l'API de l'inventaire reste juge et l'inscrit au journal.
+    private bool CreerZones { get; set; }
+
     private string? Message { get; set; }
 
     // Plan masse d'un bâtiment sans niveau (RP-21.1).
@@ -303,6 +446,9 @@ else
             Modifiable = (await Session.LireAsync<DroitsPlansApi>($"{api}/building-plans/rights", CancellationToken.None)).ModifierPlans;
             // Noms des zones du bâtiment, pour les étiquettes des pièces (insérés par textContent dans l'éditeur).
             ZonesJson = JsonSerializer.Serialize(batiment.Zones.ToDictionary(z => z.Id, z => z.Nom));
+            CadreJson = JsonSerializer.Serialize(
+                new { niveauId = NiveauCourant?.Id, zones = batiment.Zones, niveaux = batiment.Niveaux }, JsonSerializerOptions.Web);
+            CreerZones = Modifiable && Perimetre.ARole(Organisation, site.Id, "Technicien", "Responsable", "Delegue");
             Jeton = Contexte is null ? null : Antifalsification.GetAndStoreTokens(Contexte).RequestToken;
         }
         catch (SessionExpireeException)
@@ -318,6 +464,56 @@ else
             Message = "Service momentanément indisponible : réessayez dans un instant.";
         }
     }
+
+    // Zones listées à côté du plan, sans contour (Parties communes, zones sans niveau), remplies par l'éditeur.
+    private static RenderFragment ZonesMarge => __builder =>
+    {
+        <div class="editeur-marge" data-role="marge" hidden>
+            <h3>Sans contour sur ce plan</h3>
+            <ul data-role="zones-marge"></ul>
+            <p class="note">Parties communes et zones sans niveau : toujours sélectionnables pour déclarer un problème.</p>
+        </div>
+    };
+
+    private RenderFragment FormulaireZone => __builder =>
+    {
+        @if (CreerZones)
+        {
+            <form class="editeur-zone" data-role="creer-zone">
+                <label class="champ">Nouvelle zone de l'inventaire <span class="aide">(sur ce niveau)</span>
+                    <input type="text" name="nom" maxlength="120" autocomplete="off" />
+                </label>
+                <button type="submit" class="bouton-secondaire">Créer la zone</button>
+            </form>
+        }
+    };
+
+    // Sommet sélectionné : coordonnées saisies au clavier, insertion et suppression (alternative au glisser).
+    private static RenderFragment Sommet(string prefixe) => __builder =>
+    {
+        <fieldset class="editeur-sommet" data-role="@($"{prefixe}-sommet")" hidden>
+            <legend data-role="@($"{prefixe}-sommet-titre")">Sommet</legend>
+            <div class="editeur-champs-pdf">
+                <label class="champ">X (m)<input type="text" inputmode="decimal" data-champ="@($"{prefixe}-x")" autocomplete="off" /></label>
+                <label class="champ">Y (m)<input type="text" inputmode="decimal" data-champ="@($"{prefixe}-y")" autocomplete="off" /></label>
+            </div>
+            <div class="editeur-actions-panneau">
+                <button type="button" class="bouton-secondaire" data-action="inserer-sommet">Insérer un sommet après</button>
+                <button type="button" class="bouton-secondaire" data-action="supprimer-sommet">Supprimer ce sommet</button>
+            </div>
+        </fieldset>
+    };
+
+    // Déplacement par boutons (alternative au glisser, WCAG 2.5.7) : 10 cm par appui, le sommet sélectionné ou l'élément.
+    private static RenderFragment Deplacer(string quoi) => __builder =>
+    {
+        <div class="editeur-pousser" role="group" aria-label="@($"Déplacer {quoi} ou le sommet sélectionné de 10 cm")">
+            <button type="button" class="bouton-vue" data-pousser="-1 0" aria-label="Vers la gauche">←</button>
+            <button type="button" class="bouton-vue" data-pousser="0 -1" aria-label="Vers le haut">↑</button>
+            <button type="button" class="bouton-vue" data-pousser="0 1" aria-label="Vers le bas">↓</button>
+            <button type="button" class="bouton-vue" data-pousser="1 0" aria-label="Vers la droite">→</button>
+        </div>
+    };
 
     private string Url(Guid batimentId, Guid? niveauId) =>
         $"/organisations/{OrganisationId}/plans?site={SiteCourant!.Id}&batiment={batimentId}{(niveauId is { } n ? $"&niveau={n}" : "")}";
