@@ -20,7 +20,8 @@ public static class IdentiteModule
         services.AddIdentitePersistence().AddAuthentificationIdentite()
             .AddScoped<Autorisations>().AddScoped<IAutorisations>(p => p.GetRequiredService<Autorisations>())
             .AddScoped<ISitesPublics, RechercheSitesPublics>().AddScoped<IAnnuaireMembres, AnnuaireMembres>().AddScoped<ServiceLiensPublics>()
-            .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>().AddScoped<ServiceInvitations>();
+            .AddScoped<AccesOrganisation>().AddScoped<ServiceMembres>().AddScoped<ServiceActivation>().AddScoped<ServiceInvitations>()
+            .AddScoped<ServiceReinitialisation>();
 
     public static IEndpointRouteBuilder MapIdentiteEndpoints(this IEndpointRouteBuilder endpoints) =>
         endpoints.MapAuthentification().MapOrganisations();

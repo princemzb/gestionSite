@@ -201,7 +201,9 @@ public sealed class MembresTests(InfrastructureFixture infrastructure) : IAsyncL
 
         Assert.Equal(HttpStatusCode.Conflict, depart.StatusCode);
         Assert.Equal(HttpStatusCode.Created, invitation.StatusCode);
-        Assert.Equal("dernier_administrateur", (await Json(depart)).GetProperty("code").GetString());
+        // Se retirer soi-même est refusé en premier depuis US-31 (décision du 03/11) ; la règle du dernier administrateur
+        // reste la garde des révocations croisées simultanées.
+        Assert.Equal("propre_acces", (await Json(depart)).GetProperty("code").GetString());
     }
 
     [Fact]

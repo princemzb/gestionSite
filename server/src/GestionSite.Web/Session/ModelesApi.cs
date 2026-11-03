@@ -5,15 +5,32 @@ internal sealed record JetonsApi(string JetonAcces, DateTimeOffset AccesExpireLe
 
 internal sealed record MoiApi(Guid CompteId, string? Email, IReadOnlyList<OrganisationApi> Organisations, IReadOnlyList<InvitationApi>? Invitations);
 
-internal sealed record InvitationApi(Guid MembreId, Guid OrganisationId, string Organisation);
+public sealed record InvitationApi(
+    Guid MembreId, Guid OrganisationId, string Organisation, DateTimeOffset? InviteLe = null, string? InvitePar = null, IReadOnlyList<RoleInviteApi>? Roles = null);
+
+public sealed record RoleInviteApi(string Role, Guid? SiteId, string? Site);
 
 internal sealed record OrganisationApi(Guid Id, string Nom, IReadOnlyList<RoleApi> Roles, IReadOnlyList<SiteApi> Sites);
 
-internal sealed record RoleApi(string Role, Guid? SiteId);
+public sealed record RoleApi(string Role, Guid? SiteId);
 
-internal sealed record SiteApi(Guid Id, string Nom);
+public sealed record SiteApi(Guid Id, string Nom);
 
-internal sealed record MembreApi(Guid MembreId, Guid CompteId, string Nom, string? Email, bool InvitationEnAttente, int Version, IReadOnlyList<RoleApi> Roles);
+public sealed record MembreApi(
+    Guid MembreId, Guid CompteId, string Nom, string? Email, bool InvitationEnAttente, int Version, IReadOnlyList<RoleApi> Roles,
+    IReadOnlyList<DroitNominatifApi>? DroitsNominatifs = null);
+
+public sealed record DroitNominatifApi(string Droit, Guid SiteId);
+
+/// <summary>Entrée du journal des habilitations (RG-31) ; Nom : personne concernée, Auteur : null pour la plateforme.</summary>
+public sealed record EntreeJournalApi(
+    Guid Id, Guid MembreId, Guid CompteId, string? Nom, string Nature, Guid? AuteurCompteId, string? Auteur, DateTimeOffset Le, string? Motif,
+    IReadOnlyList<RoleApi>? RolesAvant, IReadOnlyList<RoleApi>? RolesApres, IReadOnlyList<DroitNominatifApi>? DroitsAvant, IReadOnlyList<DroitNominatifApi>? DroitsApres);
+
+/// <summary>Interventions et contrôles ouverts confiés à une personne sur un site (avertissement avant révocation, US-31).</summary>
+public sealed record AffectationsSiteApi(Guid SiteId, int Interventions, int Controles);
+
+internal sealed record LienReinitialisationApi(string Jeton, DateTimeOffset ExpireLe);
 
 internal sealed record ActivationApi(string Jeton, DateTimeOffset ExpireLe);
 

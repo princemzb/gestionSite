@@ -422,6 +422,57 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                     b.ToTable("organisations", "identite");
                 });
 
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Reinitialisation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuteurCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auteur_compte_id");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<byte[]>("Empreinte")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .HasColumnName("empreinte")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("ExpireLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expire_le");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<DateTimeOffset?>("UtiliseLe")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("utilise_le");
+
+                    b.HasKey("Id")
+                        .HasName("pk_reinitialisations");
+
+                    b.HasIndex("CompteId")
+                        .HasDatabaseName("ix_reinitialisations_compte_id");
+
+                    b.HasIndex("Empreinte")
+                        .IsUnique()
+                        .HasDatabaseName("ix_reinitialisations_empreinte");
+
+                    b.ToTable("reinitialisations", "identite");
+                });
+
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.RoleAttribue", b =>
                 {
                     b.Property<Guid>("Id")
@@ -663,6 +714,16 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_membres_organisations_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Identite.Domain.Reinitialisation", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Identite.Domain.Compte", null)
+                        .WithMany()
+                        .HasForeignKey("CompteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_reinitialisations_comptes_compte_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Identite.Domain.RoleAttribue", b =>

@@ -1,9 +1,26 @@
-@* Navigation latérale de l'administration (maquette C, UX-02) : entrées selon les rôles dans l'organisation. *@
+@* Navigation latérale de l'administration (maquette C, UX-02) : entrées selon les rôles dans l'organisation.
+   US-31 (maquette 4A) : sélecteur d'organisation (deux organisations ou plus) et carte des invitations en attente. *@
+@inject SessionApi Session
 <nav class="admin-nav" aria-label="Navigation principale">
     <span class="marque">gestionSite</span>
     @if (OrganisationId != Guid.Empty)
     {
-        <span class="organisation">@Organisation</span>
+        @if (Autres.Count > 0)
+        {
+            <details class="organisation-choix">
+                <summary><small>Organisation</small><span>@Organisation</span></summary>
+                <ul aria-label="Changer d'organisation">
+                    @foreach (var autre in Autres)
+                    {
+                        <li><a href="@($"/?organisation={autre.Id}")">@autre.Nom</a></li>
+                    }
+                </ul>
+            </details>
+        }
+        else
+        {
+            <span class="organisation">@Organisation</span>
+        }
         @if (Interne)
         {
             <a href="@($"/organisations/{OrganisationId}/etat")" aria-current="@(Courant == "etat" ? "page" : null)">État du site</a>
@@ -37,6 +54,15 @@
         <button type="submit">Se déconnecter</button>
     </form>
 </nav>
+@if (Invitations.Count > 0)
+{
+    <div class="admin-invitations">
+        @foreach (var invitation in Invitations)
+        {
+            <CarteInvitation Invitation="invitation" OrganisationActuelle="@Organisation" />
+        }
+    </div>
+}
 
 @code {
     [Parameter] public Guid OrganisationId { get; set; }
@@ -59,4 +85,25 @@
 
     // Lien public et QR : administrateur, responsable et délégués (décision du 28/10).
     private bool Encadrement => Administrateur || Roles.Contains("Responsable") || Roles.Contains("Delegue");
+
+    private IReadOnlyList<OrganisationApi> Autres { get; set; } = [];
+
+    private IReadOnlyList<InvitationApi> Invitations { get; set; } = [];
+
+    // Profil déjà lu par la page pendant la requête (SessionApi.MoiAsync) : aucun appel en plus. Une erreur ici ne bloque
+    // pas la navigation : la page signale déjà la session expirée ou l'indisponibilité.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var moi = await Session.MoiAsync(CancellationToken.None);
+            Autres = [.. moi.Organisations.Where(o => o.Id != OrganisationId)];
+            Invitations = moi.Invitations ?? [];
+        }
+        catch (Exception erreur) when (erreur is SessionExpireeException or RefusApiException)
+        {
+            Autres = [];
+            Invitations = [];
+        }
+    }
 }

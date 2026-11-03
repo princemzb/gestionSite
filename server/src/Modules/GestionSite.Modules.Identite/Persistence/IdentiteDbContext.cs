@@ -34,6 +34,8 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
 
     public DbSet<Activation> Activations => Set<Activation>();
 
+    public DbSet<Reinitialisation> Reinitialisations => Set<Reinitialisation>();
+
     public DbSet<EvenementHabilitation> JournalHabilitations => Set<EvenementHabilitation>();
 
     public DbSet<DroitNominatif> DroitsNominatifs => Set<DroitNominatif>();
@@ -95,6 +97,18 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             // Deux activations simultanées du même lien : une seule réussit.
             activation.Property(a => a.UtiliseLe).IsConcurrencyToken();
             activation.HasOne<Compte>().WithMany().HasForeignKey(a => a.CompteId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Reinitialisation>(lien =>
+        {
+            lien.ToTable("reinitialisations");
+            lien.HasKey(l => l.Id);
+            lien.Property(l => l.Id).ValueGeneratedNever();
+            lien.Property(l => l.Empreinte).HasMaxLength(Reinitialisation.EmpreinteLength).IsFixedLength();
+            lien.HasIndex(l => l.Empreinte).IsUnique();
+            // Deux usages simultanés du même lien : un seul réussit.
+            lien.Property(l => l.UtiliseLe).IsConcurrencyToken();
+            lien.HasOne<Compte>().WithMany().HasForeignKey(l => l.CompteId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<JetonRenouvellement>(jeton =>

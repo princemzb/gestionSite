@@ -1,0 +1,598 @@
+@using GestionSite.Web.Administration
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject Microsoft.Extensions.Options.IOptions<WebOptions> Options
+@* Gestion d'un membre (maquettes 2B et 3A, US-31) : panneau latéral à onglets Rôles / Plans / Accès, un motif par action.
+   Chaque action est une opération tracée de l'API (journal des habilitations) ; l'API reste juge des droits. *@
+
+<a class="tiroir-fond" href="@Liste" aria-label="Fermer le panneau"></a>
+<aside id="panneau" class="tiroir" aria-labelledby="titre-panneau">
+    <div class="tiroir-tete">
+        <div>
+            <h2 id="titre-panneau">@Membre.Nom</h2>
+            <span class="petit">@Membre.Email · <span class="@(Membre.InvitationEnAttente ? "etat-attente" : "etat-actif")">@(Membre.InvitationEnAttente ? "Invitation en attente" : "Actif")</span></span>
+        </div>
+        <a class="fermer" href="@Liste" aria-label="Fermer">✕</a>
+    </div>
+    <nav class="segments" aria-label="Gestion de @Membre.Nom">
+        <a href="@Adresse("roles")" aria-current="@(Onglet == "roles" ? "page" : null)">Rôles</a>
+        <a href="@Adresse("plans")" aria-current="@(Onglet == "plans" ? "page" : null)">Plans</a>
+        <a href="@Adresse("acces")" aria-current="@(Onglet == "acces" ? "page" : null)">Accès</a>
+    </nav>
+
+    @if (MessageReussite is not null)
+    {
+        <p role="status" class="alerte succes">@MessageReussite</p>
+    }
+    @if (Erreur is not null)
+    {
+        <p role="alert" class="alerte danger">@((MarkupString)Erreur)</p>
+    }
+
+    @switch (Onglet)
+    {
+        case "plans":
+            <p class="note">Peut modifier les plans du bâtiment, site par site.</p>
+            @if (Membre.InvitationEnAttente)
+            {
+                <p class="alerte information">Le droit « plans » s'accorde une fois l'invitation acceptée.</p>
+            }
+            <div class="lignes">
+                @foreach (var site in Sites)
+                {
+                    var roles = RolesSur(site.Id);
+                    var accorde = DroitPlans(site.Id);
+                    <div>
+                        <span class="tx">
+                            <strong>@site.Nom</strong>
+                            @if (roles.Count == 0)
+                            {
+                                <span class="petit">Pas de rôle sur ce site : donnez-lui d'abord un rôle (onglet Rôles).</span>
+                            }
+                            else if (roles.Any(r => r is "Responsable" or "Delegue"))
+                            {
+                                <span class="petit">@LibellesRoles.Libelle(roles.First(r => r is "Responsable" or "Delegue")) · inclus dans son rôle</span>
+                            }
+                            else if (accorde)
+                            {
+                                <span class="petit">@string.Join(", ", roles.Select(LibellesRoles.Libelle)) · @Accord(site.Id)</span>
+                            }
+                            else
+                            {
+                                <span class="petit">@string.Join(", ", roles.Select(LibellesRoles.Libelle))</span>
+                            }
+                        </span>
+                        @if (roles.Count == 0 || Membre.InvitationEnAttente || roles.Any(r => r is "Responsable" or "Delegue"))
+                        {
+                            <span class="interrupteur inactif @(roles.Any(r => r is "Responsable" or "Delegue") ? "actif" : null)" role="img"
+                                  aria-label="@(roles.Any(r => r is "Responsable" or "Delegue") ? "Inclus dans le rôle" : "Non modifiable")"></span>
+                        }
+                        else
+                        {
+                            <a class="interrupteur @(accorde ? "actif" : null)" href="@($"{Adresse("plans")}&site={site.Id}#panneau")"
+                               aria-label="@(accorde ? $"Retirer le droit sur {site.Nom}" : $"Accorder le droit sur {site.Nom}")"></a>
+                        }
+                    </div>
+                }
+            </div>
+            @if (SiteChoisi is { } choisi && Sites.FirstOrDefault(s => s.Id == choisi) is { } siteChoisi && !Membre.InvitationEnAttente && RolesSur(choisi).Count > 0)
+            {
+                var retirer = DroitPlans(choisi);
+                <div class="encadre">
+                    <strong>@(retirer ? $"Retirer à {Membre.Nom} le droit de modifier les plans de {siteChoisi.Nom} ?" : $"Accorder sur {siteChoisi.Nom}")</strong>
+                    @if (retirer)
+                    {
+                        <p class="note">@Membre.Nom ne pourra plus enregistrer de plan sur ce site dès sa prochaine action. Ses versions déjà enregistrées restent dans l'historique du plan.</p>
+                    }
+                    else if (Membre.CompteId == CompteAppelant)
+                    {
+                        <p class="alerte avertissement">Vous vous accordez ce droit à vous-même. L'action est inscrite au journal des habilitations à votre nom.</p>
+                    }
+                    <EditForm Model="SaisiePlans" FormName="plans" OnSubmit="DroitPlansAsync" class="formulaire-etapes">
+                        <input type="hidden" name="Plans.SiteId" value="@choisi" />
+                        <input type="hidden" name="Plans.Retirer" value="@(retirer ? "true" : "false")" />
+                        <ChampMotif Nom="Plans.Motif" Valeur="@SaisiePlans.Motif" Erreur="@ErreurMotif" />
+                        <div class="actions">
+                            <a class="bouton-secondaire lien-bouton" href="@Adresse("plans")">Annuler</a>
+                            <button type="submit" class="@(retirer ? "bouton-danger plein" : "bouton-principal")">@(retirer ? "Retirer le droit" : "Accorder le droit")</button>
+                        </div>
+                    </EditForm>
+                </div>
+            }
+            break;
+
+        case "acces":
+            @if (LienCree is not null)
+            {
+                <p class="note">@(LienEstActivation ? "Nouveau lien d'activation" : "Lien de réinitialisation") pour @Membre.Nom. Copiez-le et transmettez-le vous-même : il ne sera plus affiché et vaut @(LienEstActivation ? "72 heures" : "1 heure").</p>
+                <code class="lien-activation">@LienCree</code>
+            }
+            @if (Membre.InvitationEnAttente)
+            {
+                <h3>Invitation en attente</h3>
+                <p class="note">Le lien d'activation n'est plus affiché. Créez-en un nouveau si @Membre.Nom ne l'a pas reçu ou s'il a expiré (valable 72 heures). Possible seulement si votre organisation a créé son compte ; s'il avait déjà un compte, l'invitation l'attend dans son espace.</p>
+                <div class="actions gauche">
+                    <EditForm Model="Vide" FormName="activation" OnSubmit="NouveauLienActivationAsync">
+                        <button type="submit" class="bouton-secondaire">Nouveau lien d'activation</button>
+                    </EditForm>
+                    @if (!Confirmer)
+                    {
+                        <a class="bouton-danger lien-bouton" href="@($"{Adresse("acces")}&confirmer=1#panneau")">Annuler l'invitation…</a>
+                    }
+                </div>
+            }
+            else if (Membre.CompteId == CompteAppelant)
+            {
+                <h3>Accès à l'organisation</h3>
+                <p class="note">Vous ne pouvez pas révoquer votre propre accès : un autre administrateur doit le faire.</p>
+            }
+            else
+            {
+                <h3>Accès à l'organisation</h3>
+                <p class="note">Révoquer coupe l'accès de @Membre.Nom à @OrganisationNom dès sa prochaine action. Son historique est conservé.</p>
+                @if (!Confirmer)
+                {
+                    <a class="bouton-danger lien-bouton" href="@($"{Adresse("acces")}&confirmer=1#panneau")">Révoquer l'accès…</a>
+                }
+            }
+            @if (Confirmer && Membre.CompteId != CompteAppelant)
+            {
+                <div class="carte confirmation">
+                    <h3>@(Membre.InvitationEnAttente ? $"Annuler l'invitation de {Membre.Nom} ?" : $"Révoquer l'accès de {Membre.Nom} ?")</h3>
+                    <ul class="note">
+                        @if (Membre.InvitationEnAttente)
+                        {
+                            <li>Son lien d'activation ne donnera plus accès à @OrganisationNom.</li>
+                        }
+                        else
+                        {
+                            <li>@Membre.Nom perd l'accès à @OrganisationNom dès sa prochaine action, même en cours de session.</li>
+                            <li>Sa session reste ouverte pour ses autres organisations, s'il y en a.</li>
+                        }
+                        @foreach (var droit in (Membre.DroitsNominatifs ?? []))
+                        {
+                            <li>Son droit « modifier les plans » sur @NomSite(droit.SiteId) est retiré avec l'accès.</li>
+                        }
+                        <li>Son historique est conservé : dossiers, interventions, journal.</li>
+                    </ul>
+                    @if (Affectations.Count > 0)
+                    {
+                        <p class="alerte avertissement"><strong>@ResumeAffectations(Affectations) lui sont confiés.</strong> Ils restent à son nom : un responsable du site devra les réaffecter.</p>
+                    }
+                    <EditForm Model="SaisieRevocation" FormName="revocation" OnSubmit="RevoquerAsync" class="formulaire-etapes">
+                        <ChampMotif Nom="Revocation.Motif" Valeur="@SaisieRevocation.Motif" Erreur="@ErreurMotif" />
+                        <div class="actions">
+                            <a class="bouton-secondaire lien-bouton" href="@Adresse("acces")">Annuler</a>
+                            <button type="submit" class="bouton-danger plein">@(Membre.InvitationEnAttente ? "Annuler l'invitation" : "Révoquer l'accès")</button>
+                        </div>
+                    </EditForm>
+                </div>
+            }
+            @if (!Membre.InvitationEnAttente && Membre.CompteId != CompteAppelant && Administrateur)
+            {
+                <h3>Mot de passe de @Membre.Nom</h3>
+                <p class="note">Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran : adressez-vous à l'équipe du projet.</p>
+            }
+            else if (!Membre.InvitationEnAttente && Membre.CompteId != CompteAppelant)
+            {
+                <h3>Mot de passe de @Membre.Nom</h3>
+                <p class="note">Créez un lien si @Membre.Nom a oublié son mot de passe. Transmettez-le vous-même : il n'est affiché qu'une fois et vaut 1 heure. Tous ses appareils seront déconnectés à l'utilisation du lien.</p>
+                <span class="petit">Possible seulement pour un compte créé par votre organisation et lié à aucune autre. Inscrit au journal des habilitations.</span>
+                <EditForm Model="Vide" FormName="reinitialisation" OnSubmit="LienReinitialisationAsync" class="actions gauche">
+                    <button type="submit" class="bouton-secondaire">Créer un lien de réinitialisation</button>
+                </EditForm>
+            }
+            <h3>Historique de ses accès</h3>
+            @if (Historique.Count == 0)
+            {
+                <p class="note">Aucune entrée.</p>
+            }
+            else
+            {
+                <ol class="journal">
+                    @foreach (var entree in Historique)
+                    {
+                        <li>
+                            <b>@Perimetre.Date(entree.Le) · @LibellesJournal.Nature(entree.Nature)</b>
+                            @foreach (var ligne in LibellesJournal.Details(entree, NomsSites))
+                            {
+                                <span>@ligne</span>
+                            }
+                            <span class="petit">par @(entree.Auteur ?? "la plateforme")</span>
+                            @if (entree.Motif is { Length: > 0 } motif)
+                            {
+                                <span class="motif">« @motif »</span>
+                            }
+                        </li>
+                    }
+                </ol>
+            }
+            <a href="@($"/organisations/{OrganisationId}/membres?vue=journal")">Tout le journal des habilitations</a>
+            break;
+
+        default:
+            <EditForm Model="SaisieRoles" FormName="roles" OnSubmit="RolesAsync" class="formulaire-etapes">
+                <input type="hidden" name="Roles.Version" value="@SaisieRoles.Version" />
+                <div class="lignes">
+                    @for (var i = 0; i < Sites.Count; i++)
+                    {
+                        var index = i;
+                        var site = Sites[index];
+                        var actuel = SaisieRoles.Sites![index].Valeur ?? string.Empty;
+                        var combinaison = RolesSur(site.Id).Count > 1 ? string.Join(",", RolesSur(site.Id)) : null;
+                        <div>
+                            <span class="tx">
+                                <strong id="@($"site-{site.Id}")">@site.Nom</strong>
+                                @if (DroitPlans(site.Id))
+                                {
+                                    <span class="avertissement-site">Retirer son rôle ici retire aussi son droit « plans » sur ce site.</span>
+                                }
+                                @if (Affectations.FirstOrDefault(a => a.SiteId == site.Id) is { } ouvertes)
+                                {
+                                    <span class="avertissement-site">@ResumeAffectations([ouvertes]) lui sont confiés ici : en retirant son rôle, un responsable du site devra les réaffecter.</span>
+                                }
+                            </span>
+                            <input type="hidden" name="@($"Roles.Sites[{index}].SiteId")" value="@site.Id" />
+                            <select name="@($"Roles.Sites[{index}].Valeur")" aria-labelledby="@($"site-{site.Id}")">
+                                <option value="" selected="@(actuel.Length == 0)">Aucun rôle</option>
+                                @if (combinaison is not null)
+                                {
+                                    <option value="@combinaison" selected="@(actuel == combinaison)">@string.Join(" + ", RolesSur(site.Id).Select(LibellesRoles.Libelle))</option>
+                                }
+                                @foreach (var (codeRole, libelle) in LibellesRoles.DeSite)
+                                {
+                                    <option value="@codeRole" selected="@(actuel == codeRole)">@libelle</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div>
+                        @if (Membre.CompteId == CompteAppelant && Administrateur)
+                        {
+                            <input type="hidden" name="Roles.Administrateur" value="true" />
+                            <span class="tx">
+                                <label class="case"><input type="checkbox" checked disabled /> Administrateur de toute l'organisation</label>
+                                <span class="petit">Vous ne pouvez pas retirer votre propre rôle d'administrateur : un autre administrateur doit le faire.</span>
+                            </span>
+                        }
+                        else
+                        {
+                            <label class="case"><input type="checkbox" name="Roles.Administrateur" value="true" checked="@SaisieRoles.Administrateur" /> Administrateur de toute l'organisation</label>
+                        }
+                    </div>
+                </div>
+                <ChampMotif Nom="Roles.Motif" Valeur="@SaisieRoles.Motif" Erreur="@ErreurMotif" />
+                <div class="actions">
+                    <a class="bouton-secondaire lien-bouton" href="@Liste">Fermer</a>
+                    <button type="submit" class="bouton-principal">Enregistrer les rôles</button>
+                </div>
+            </EditForm>
+            break;
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public Guid OrganisationId { get; set; }
+
+    [Parameter, EditorRequired] public string OrganisationNom { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public MembreApi Membre { get; set; } = null!;
+
+    [Parameter, EditorRequired] public IReadOnlyList<SiteApi> Sites { get; set; } = [];
+
+    /// <summary>Compte de l'administrateur connecté : il ne peut ni se révoquer ni retirer son propre rôle d'administrateur.</summary>
+    [Parameter] public Guid CompteAppelant { get; set; }
+
+    /// <summary>« roles » (défaut), « plans » ou « acces ».</summary>
+    [Parameter] public string Onglet { get; set; } = "roles";
+
+    /// <summary>Site dont le droit « plans » est en cours de modification (onglet Plans).</summary>
+    [Parameter] public Guid? SiteChoisi { get; set; }
+
+    /// <summary>Confirmation de la révocation (ou de l'annulation de l'invitation) affichée.</summary>
+    [Parameter] public bool Confirmer { get; set; }
+
+    /// <summary>Issue de l'action précédente (après redirection) : roles, plans-accorde, plans-retire.</summary>
+    [Parameter] public string? Issue { get; set; }
+
+    [Parameter] public IReadOnlyList<EntreeJournalApi> Historique { get; set; } = [];
+
+    [Parameter] public IReadOnlyList<AffectationsSiteApi> Affectations { get; set; } = [];
+
+    [SupplyParameterFromForm(Name = "Roles", FormName = "roles")]
+    private SaisieRolesMembre? FormulaireRoles { get; set; }
+
+    [SupplyParameterFromForm(Name = "Plans", FormName = "plans")]
+    private SaisieDroitPlans? FormulairePlans { get; set; }
+
+    [SupplyParameterFromForm(Name = "Revocation", FormName = "revocation")]
+    private SaisieRevocationMembre? FormulaireRevocation { get; set; }
+
+    private SaisieRolesMembre SaisieRoles { get; set; } = new();
+
+    private SaisieDroitPlans SaisiePlans => FormulairePlans ??= new();
+
+    private SaisieRevocationMembre SaisieRevocation => FormulaireRevocation ??= new();
+
+    private readonly object Vide = new();
+
+    private string? Erreur { get; set; }
+
+    private string? ErreurMotif { get; set; }
+
+    private string? LienCree { get; set; }
+
+    private bool LienEstActivation { get; set; }
+
+    private string Liste => $"/organisations/{OrganisationId}/membres";
+
+    private bool Administrateur => Membre.Roles.Any(r => r.Role == "Administrateur");
+
+    private IReadOnlyDictionary<Guid, string> NomsSites => Sites.ToDictionary(s => s.Id, s => s.Nom);
+
+    private string? MessageReussite => Issue switch
+    {
+        "roles" => $"Accès de {Membre.Nom} enregistrés. Ils s'appliquent dès sa prochaine action.",
+        "plans-accorde" => $"Droit « modifier les plans » accordé à {Membre.Nom}.",
+        "plans-retire" => $"Droit « modifier les plans » retiré à {Membre.Nom}. Il s'applique dès sa prochaine action.",
+        _ => null,
+    };
+
+    protected override void OnParametersSet()
+    {
+        // Formulaire des rôles : l'état actuel du membre (une liste de choix par site), remplacé par la saisie postée, site par
+        // site (un site ajouté entre-temps garde son état actuel).
+        SaisieRoles = EtatActuel();
+        if (FormulaireRoles is { } poste)
+        {
+            SaisieRoles.Version = poste.Version;
+            SaisieRoles.Administrateur = poste.Administrateur;
+            SaisieRoles.Motif = poste.Motif;
+            foreach (var ligne in SaisieRoles.Sites!)
+            {
+                ligne.Valeur = poste.Sites?.FirstOrDefault(p => p.SiteId == ligne.SiteId)?.Valeur ?? string.Empty;
+            }
+        }
+    }
+
+    private SaisieRolesMembre EtatActuel() => new()
+    {
+        Version = Membre.Version,
+        Administrateur = Administrateur,
+        Sites = [.. Sites.Select(s => new RoleSiteSaisi { SiteId = s.Id, Valeur = string.Join(",", RolesSur(s.Id)) })],
+    };
+
+    private string Adresse(string onglet) => $"{Liste}?membre={Membre.MembreId}&onglet={onglet}";
+
+    private List<string> RolesSur(Guid siteId) =>
+        [.. Membre.Roles.Where(r => r.SiteId == siteId).Select(r => r.Role).OrderBy(r => Array.FindIndex(LibellesRoles.DeSite, d => d.Code == r))];
+
+    private bool DroitPlans(Guid siteId) => Membre.DroitsNominatifs?.Any(d => d.Droit == "ModifierPlans" && d.SiteId == siteId) == true;
+
+    private string NomSite(Guid siteId) => NomsSites.GetValueOrDefault(siteId) ?? "un site";
+
+    // Date et auteur de l'accord, lus dans l'historique du membre (dernière attribution sur ce site).
+    private string Accord(Guid siteId)
+    {
+        var attribution = Historique.FirstOrDefault(e => e.Nature == "AttributionDroit"
+            && (e.DroitsApres ?? []).Any(d => d.SiteId == siteId) && !(e.DroitsAvant ?? []).Any(d => d.SiteId == siteId));
+        return attribution is null ? "accordé" : $"accordé le {Perimetre.Date(attribution.Le)} par {attribution.Auteur ?? "la plateforme"}";
+    }
+
+    private static string ResumeAffectations(IEnumerable<AffectationsSiteApi> affectations)
+    {
+        var interventions = affectations.Sum(a => a.Interventions);
+        var controles = affectations.Sum(a => a.Controles);
+        var parties = new List<string>();
+        if (interventions > 0)
+        {
+            parties.Add(interventions == 1 ? "1 intervention ouverte" : $"{interventions} interventions ouvertes");
+        }
+
+        if (controles > 0)
+        {
+            parties.Add(controles == 1 ? "1 contrôle à faire" : $"{controles} contrôles à faire");
+        }
+
+        return string.Join(" et ", parties);
+    }
+
+    private bool ExigerMotif(string? motif)
+    {
+        ErreurMotif = string.IsNullOrWhiteSpace(motif) ? "Indiquez le motif : il est inscrit au journal des habilitations." : null;
+        return ErreurMotif is null;
+    }
+
+    private async Task RolesAsync()
+    {
+        if (!ExigerMotif(SaisieRoles.Motif))
+        {
+            return;
+        }
+
+        var roles = new List<object>();
+        if (SaisieRoles.Administrateur)
+        {
+            roles.Add(new { role = "Administrateur", siteId = (Guid?)null });
+        }
+
+        foreach (var site in (SaisieRoles.Sites ?? []).Where(s => s.SiteId is not null && !string.IsNullOrEmpty(s.Valeur)))
+        {
+            roles.AddRange(site.Valeur!.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(r => (object)new { role = r, siteId = site.SiteId }));
+        }
+
+        if (roles.Count == 0)
+        {
+            Erreur = "Gardez au moins un rôle, ou révoquez son accès dans l'onglet Accès.";
+            return;
+        }
+
+        await AgirAsync(
+            () => Session.ModifierAsync($"/organizations/{OrganisationId}/members/{Membre.MembreId}",
+                new { roles, version = SaisieRoles.Version, motif = ChampMotif.Ligne(SaisieRoles.Motif) }, CancellationToken.None),
+            "roles", "roles");
+    }
+
+    private async Task DroitPlansAsync()
+    {
+        if (!ExigerMotif(SaisiePlans.Motif) || SaisiePlans.SiteId is not { } site)
+        {
+            return;
+        }
+
+        var chemin = $"/organizations/{OrganisationId}/members/{Membre.MembreId}/rights/ModifierPlans/sites/{site}";
+        await AgirAsync(
+            SaisiePlans.Retirer
+                ? () => Session.SupprimerAsync(chemin, new { motif = ChampMotif.Ligne(SaisiePlans.Motif) }, CancellationToken.None)
+                : () => Session.ModifierAsync(chemin, new { motif = ChampMotif.Ligne(SaisiePlans.Motif) }, CancellationToken.None),
+            "plans", SaisiePlans.Retirer ? "plans-retire" : "plans-accorde");
+    }
+
+    private async Task RevoquerAsync()
+    {
+        if (!ExigerMotif(SaisieRevocation.Motif))
+        {
+            return;
+        }
+
+        try
+        {
+            await Session.SupprimerAsync($"/organizations/{OrganisationId}/members/{Membre.MembreId}", new { motif = ChampMotif.Ligne(SaisieRevocation.Motif) }, CancellationToken.None);
+            Navigation.NavigateTo($"{Liste}?issue={(Membre.InvitationEnAttente ? "invitation-annulee" : "revoque")}");
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus)
+        {
+            Erreur = Message(refus);
+        }
+    }
+
+    private async Task NouveauLienActivationAsync()
+    {
+        try
+        {
+            var lien = await Session.EcrireAsync<ActivationApi>($"/organizations/{OrganisationId}/members/{Membre.MembreId}/activation", new { }, CancellationToken.None);
+            LienCree = $"{AdressePublique.Racine(Options.Value, Navigation.BaseUri)}activation?jeton={Uri.EscapeDataString(lien.Jeton)}";
+            LienEstActivation = true;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus)
+        {
+            Erreur = refus.Code == "activation_impossible"
+                ? "Pas de nouveau lien : son compte existait déjà (l'invitation l'attend dans son espace) ou a déjà été activé."
+                : Message(refus);
+        }
+    }
+
+    private async Task LienReinitialisationAsync()
+    {
+        try
+        {
+            var lien = await Session.EcrireAsync<LienReinitialisationApi>($"/organizations/{OrganisationId}/members/{Membre.MembreId}/password-reset", new { }, CancellationToken.None);
+            LienCree = $"{AdressePublique.Racine(Options.Value, Navigation.BaseUri)}reinitialisation?jeton={Uri.EscapeDataString(lien.Jeton)}";
+            LienEstActivation = false;
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus)
+        {
+            Erreur = refus.Code == "reinitialisation_administrateur"
+                ? "Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran : adressez-vous à l'équipe du projet."
+                : refus.Code == "reinitialisation_impossible"
+                ? "Lien impossible pour ce compte : il doit avoir été créé par votre organisation et n'être lié à aucune autre. Sinon, adressez-vous à l'équipe du projet."
+                : Message(refus);
+        }
+    }
+
+    // Action tracée puis retour au panneau (le formulaire n'est pas renvoyé en cas de rechargement).
+    private async Task AgirAsync(Func<Task> action, string onglet, string issue)
+    {
+        try
+        {
+            await action();
+            Navigation.NavigateTo($"{Adresse(onglet)}&issue={issue}#panneau");
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus) when (refus.Code == "version_depassee")
+        {
+            // Rien n'est écrit : ses accès actuels sont relus et affichés, le motif saisi est gardé.
+            var motif = SaisieRoles.Motif;
+            var relu = (await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None))
+                .FirstOrDefault(m => m.MembreId == Membre.MembreId);
+            if (relu is not null)
+            {
+                Membre = relu;
+            }
+
+            SaisieRoles = EtatActuel();
+            SaisieRoles.Motif = motif;
+            Erreur = $"<strong>Les accès de {System.Net.WebUtility.HtmlEncode(Membre.Nom)} ont changé depuis l'ouverture de cette page.</strong> Rien n'a été enregistré. Ses accès actuels sont affichés : refaites votre changement, votre motif est conservé.";
+        }
+        catch (RefusApiException refus)
+        {
+            Erreur = Message(refus);
+        }
+    }
+
+    private string Message(RefusApiException refus) => refus.Code switch
+    {
+        "dernier_administrateur" => "<strong>L'organisation doit garder au moins un administrateur.</strong> Nommez d'abord un autre administrateur actif, puis recommencez.",
+        "propre_administration" => "Vous ne pouvez pas retirer votre propre rôle d'administrateur : un autre administrateur doit le faire.",
+        "propre_acces" => "Vous ne pouvez pas révoquer votre propre accès : un autre administrateur doit le faire.",
+        "membre_non_eligible" => "<strong>Droit non accordé.</strong> Ce droit s'accorde à un membre ayant accepté son invitation et ayant un rôle sur ce site. Rechargez la page pour voir ses rôles actuels.",
+        "roles_requis" => "Gardez au moins un rôle, ou révoquez son accès dans l'onglet Accès.",
+        "donnee_invalide" when refus.Champ == "motif" => MotifInvalide(),
+        "introuvable" => "Ce membre n'existe plus ou a déjà été révoqué. Rechargez la liste.",
+        _ => System.Net.WebUtility.HtmlEncode(refus.Message),
+    };
+
+    private string MotifInvalide()
+    {
+        ErreurMotif = "Le motif doit tenir sur une ligne, 200 caractères au plus.";
+        return "Motif refusé : corrigez-le puis recommencez.";
+    }
+
+    private sealed class SaisieRolesMembre
+    {
+        public int Version { get; set; }
+
+        public bool Administrateur { get; set; }
+
+        public List<RoleSiteSaisi>? Sites { get; set; }
+
+        public string? Motif { get; set; }
+    }
+
+    private sealed class RoleSiteSaisi
+    {
+        public Guid? SiteId { get; set; }
+
+        /// <summary>Code du rôle, plusieurs séparés par des virgules (rôles cumulés sur ce site), vide : aucun rôle.</summary>
+        public string? Valeur { get; set; }
+    }
+
+    private sealed class SaisieDroitPlans
+    {
+        public Guid? SiteId { get; set; }
+
+        public bool Retirer { get; set; }
+
+        public string? Motif { get; set; }
+    }
+
+    private sealed class SaisieRevocationMembre
+    {
+        public string? Motif { get; set; }
+    }
+}

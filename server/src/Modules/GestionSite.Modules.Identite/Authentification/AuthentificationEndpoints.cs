@@ -17,7 +17,15 @@ internal sealed record ReponseJetons(string JetonAcces, DateTimeOffset AccesExpi
 internal sealed record ReponseMoi(
     Guid CompteId, string? Email, IReadOnlyList<OrganisationAutorisee> Organisations, IReadOnlyList<InvitationEnAttente> Invitations);
 
-internal sealed record InvitationEnAttente(Guid MembreId, Guid OrganisationId, string Organisation);
+/// <summary>
+/// Invitation en attente vue par son titulaire (décision du 03/11, US-31) : organisation, rôles proposés par site, qui
+/// invite (null : la plateforme) et date.
+/// </summary>
+internal sealed record InvitationEnAttente(
+    Guid MembreId, Guid OrganisationId, string Organisation, DateTimeOffset InviteLe, string? InvitePar, IReadOnlyList<RoleInvite> Roles);
+
+/// <summary>Rôle proposé ; Site : nom du site, null pour l'administrateur (toute l'organisation).</summary>
+internal sealed record RoleInvite(string Role, Guid? SiteId, string? Site);
 
 internal sealed record OrganisationAutorisee(Guid Id, string Nom, IReadOnlyList<RoleAutorise> Roles, IReadOnlyList<SiteAutorise> Sites);
 
@@ -54,7 +62,8 @@ internal static class AuthentificationEndpoints
     /// Adhésions actives du compte, toutes organisations confondues : lecture permise par les politiques
     /// RLS « par compte » (aucune organisation courante), filtres d'organisation volontairement ignorés.
     /// </summary>
-    private static async Task<IResult> MoiAsync(IdentiteDbContext context, CompteCourant compte, CancellationToken cancellationToken)
+    private static async Task<IResult> MoiAsync(
+        IdentiteDbContext context, CompteCourant compte, Membres.ServiceInvitations invitationsService, CancellationToken cancellationToken)
     {
         var compteId = compte.Id!.Value;
         var email = await context.Users.Where(c => c.Id == compteId).Select(c => c.Email).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
@@ -67,9 +76,10 @@ internal static class AuthentificationEndpoints
         var sites = await context.Sites.IgnoreQueryFilters()
             .Where(s => organisationIds.Contains(s.OrganisationId)).ToListAsync(cancellationToken).ConfigureAwait(false);
 
-        var invitations = membres
-            .Where(m => m.AccepteLe is null && organisations.ContainsKey(m.OrganisationId))
-            .Select(m => new InvitationEnAttente(m.Id, m.OrganisationId, organisations[m.OrganisationId].Nom))
+        var enAttente = membres.Where(m => m.AccepteLe is null && organisations.ContainsKey(m.OrganisationId)).ToList();
+        var invitations = (await invitationsService.DetaillerAsync(enAttente, cancellationToken).ConfigureAwait(false))
+            .Select(d => new InvitationEnAttente(d.Membre.Id, d.Membre.OrganisationId, organisations[d.Membre.OrganisationId].Nom, d.Membre.CreeLe, d.InvitePar,
+                [.. d.Roles.Select(r => new RoleInvite(r.Role, r.SiteId, r.Site))]))
             .OrderBy(i => i.Organisation)
             .ToList();
         var autorisees = membres

@@ -19,6 +19,7 @@ erDiagram
 
 ## Agrégats proposés
 - Identité : compte global, adhésion à organisation, rôles et sites attribués, appareil, profil local.
+- Liens de réinitialisation du mot de passe (US-31) : table globale `identite.reinitialisations`, comme les liens d'activation : empreinte SHA-256 seulement, valable 1 h, usage unique, organisation émettrice et administrateur auteur. La condition « compte lié à aucune autre organisation » est lue par la fonction `SECURITY DEFINER identite.compte_lie_a_une_autre_organisation`, qui ne rend qu'un booléen (même construction que `maintenance.organisations_a_planifier` : politique réservée au propriétaire, ouverte pendant l'exécution seulement).
 - Patrimoine : bâtiments/niveaux/zones, composants, catégories, grilles versionnées, évaluations et pièces jointes.
 - Maintenance : dossier (incident/besoin), déclarant, événements, interventions, périodes d’attente, inspections et occurrences.
 - Finance : estimation révisée/lignes/sources, décision technique, enveloppe périodique, autorisation, engagement, exception finance, dépenses.

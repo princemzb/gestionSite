@@ -1,5 +1,6 @@
 using Amazon.Runtime;
 using Amazon.S3;
+using GestionSite.Web.Administration;
 using GestionSite.Web.Aide;
 using GestionSite.Web.Components;
 using GestionSite.Web.Dossiers;
@@ -183,6 +184,7 @@ internal static class Programme
         app.UseAntiforgery();
         app.MapPost("/deconnexion", SessionApi.DeconnecterAsync).RequireAuthorization();
         app.MapSitesAdministration();
+        app.MapInvitations();
         app.MapActionsDossier();
         app.MapPhotosEvaluation();
         app.MapFondsPlan();
