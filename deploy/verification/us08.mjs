@@ -33,6 +33,12 @@ const activer = async (p, lien) => {
 };
 const texte = async (p, selecteur = "body") => ((await p.textContent(selecteur)) ?? "").replace(/\s+/g, " ");
 
+async function finir() {
+  violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
+  await ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
+  await r.terminer();
+}
+
 // Photo synthétique (PNG 800 × 600, bandes de signalisation jaunes et noires) : aucune donnée réelle.
 function photoSynthetique() {
   const [l, h] = [800, 600];
@@ -102,6 +108,13 @@ await tel.setInputFiles("input[name='photos']", { name: "danger.png", mimeType: 
 await tel.fill("input[name='Saisie.Nom']", "Visiteur Vérification");
 await tel.fill("input[name='Saisie.Contact']", "visiteur@demo.gestionsite.test");
 await ok("widget Turnstile chargé", await tel.locator(".cf-turnstile").count() === 1);
+// Seules les clés de test « toujours réussi » (1x…AA visible, 1x…BB invisible) laissent passer un navigateur automatisé : avec
+// de vraies clés (production), le dépôt réel n'est pas vérifiable ici, ce qui est dit sans échec.
+if (!/^1x0{20}(AA|BB)$/.test(await tel.getAttribute(".cf-turnstile", "data-sitekey") ?? "")) {
+  console.log("NON VÉRIFIÉ dépôt réel, Dépôts reçus et notifications : clé Turnstile réelle (défi non franchissable par un automate)");
+  await finir();
+  process.exit(0);
+}
 const defi = await tel.waitForFunction(() => document.querySelector("input[name='cf-turnstile-response']")?.value.length > 0, null, { timeout: 60000 })
   .then(() => true, () => false);
 await ok("défi Turnstile franchi (clés de test de la préproduction)", defi);
@@ -137,10 +150,12 @@ await tech.screenshot({ path: "us08-depots.png", fullPage: true });
 if (chaineBase) {
   await r.etape("5. Centre de notifications (en base) : alerte pour la responsable");
   const champs = Object.fromEntries(chaineBase.split(";").filter(Boolean).map(c => [c.slice(0, c.indexOf("=")).trim(), c.slice(c.indexOf("=") + 1)]));
+  // Compte de session toujours réécrit (vide si le compte est introuvable : aucune ligne lisible), et comptes dénombrés.
   const sql = `SET app.organisation_id = :'org';
-SELECT set_config('app.compte_id', id::text, false) FROM identite.comptes WHERE normalized_email = upper(:'resp') \\g /dev/null
+SELECT 'comptes=' || count(*) FROM identite.comptes WHERE normalized_email IN (upper(:'resp'), upper(:'tech'));
+SELECT set_config('app.compte_id', coalesce((SELECT id::text FROM identite.comptes WHERE normalized_email = upper(:'resp')), ''), false) \\g /dev/null
 SELECT 'responsable=' || coalesce(string_agg(type, ',' ORDER BY type), '') FROM maintenance.notifications;
-SELECT set_config('app.compte_id', id::text, false) FROM identite.comptes WHERE normalized_email = upper(:'tech') \\g /dev/null
+SELECT set_config('app.compte_id', coalesce((SELECT id::text FROM identite.comptes WHERE normalized_email = upper(:'tech')), ''), false) \\g /dev/null
 SELECT 'technicien=' || count(*) FROM maintenance.notifications;
 SELECT 'alertes=' || count(*) FROM maintenance.alertes_danger;
 `;
@@ -150,13 +165,12 @@ SELECT 'alertes=' || count(*) FROM maintenance.alertes_danger;
     env: { ...process.env, PGHOST: champs.Host, PGDATABASE: champs.Database, PGUSER: champs.Username, PGPASSWORD: champs.Password, PGSSLMODE: "require" },
   });
   const lu = Object.fromEntries((psql.stdout ?? "").split("\n").filter(l => l.includes("=")).map(l => l.split("=")));
-  await ok("lecture du centre de notifications en base", psql.status === 0, psql.status === 0 ? "" : (psql.stderr ?? "").split("\n")[0]);
+  await ok("lecture du centre de notifications en base (responsable et technicien retrouvés)", psql.status === 0 && lu.comptes === "2",
+    psql.status === 0 ? `comptes : ${lu.comptes}` : (psql.stderr ?? "").split("\n")[0]);
   await ok("alerte de danger enregistrée avec le dépôt", lu.alertes === "1", `alertes : ${lu.alertes}`);
   await ok("notification « DangerSignale » pour la responsable du site", lu.responsable === "DangerSignale", `responsable : ${lu.responsable || "aucune"}`);
   await ok("aucune notification pour le technicien (sans intervention en charge)", lu.technicien === "0", `technicien : ${lu.technicien}`);
 } else {
   console.log("NON VÉRIFIÉ centre de notifications (VERIF_BASE absente)");
 }
-violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
-await ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
-await r.terminer();
+await finir();

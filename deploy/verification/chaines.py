@@ -1,8 +1,9 @@
 """Chaîne de connexion (format Npgsql) d'un rôle de la base de préproduction, construite depuis le Trousseau macOS.
 
-Usage : python3 -I chaines.py migrator|app — la chaîne est écrite sur la sortie standard pour être capturée dans une
-variable par lancer.sh, jamais affichée ni écrite sur disque. Services lus : gestionsite-preprod-neon-owner (hôte et base),
-gestionsite-preprod-pg-migrator et gestionsite-preprod-pg-app (mots de passe des rôles, DEPLOIEMENT étapes 1 et 2).
+Usage : python3 -I chaines.py migrator|app [migrator|app] — une chaîne par ligne sur la sortie standard, capturée dans
+une variable par lancer.sh (Trousseau lu une fois par service), jamais affichée ni écrite sur disque. Services lus :
+gestionsite-preprod-neon-owner (hôte et base), gestionsite-preprod-pg-migrator et gestionsite-preprod-pg-app (mots de
+passe des rôles, DEPLOIEMENT étapes 1 et 2).
 """
 import subprocess
 import sys
@@ -17,12 +18,13 @@ def trousseau(service):
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in SERVICES:
-        sys.exit("usage : chaines.py migrator|app")
-    role = sys.argv[1]
+    roles = sys.argv[1:]
+    if not roles or any(role not in SERVICES for role in roles):
+        sys.exit("usage : chaines.py migrator|app [migrator|app]")
     proprietaire = urlparse(trousseau("gestionsite-preprod-neon-owner"))
-    print(f"Host={proprietaire.hostname};Database={proprietaire.path.lstrip('/')};Username=gestionsite_{role};"
-          f"Password={trousseau(SERVICES[role])};SSL Mode=Require")
+    for role in roles:
+        print(f"Host={proprietaire.hostname};Database={proprietaire.path.lstrip('/')};Username=gestionsite_{role};"
+              f"Password={trousseau(SERVICES[role])};SSL Mode=Require")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@
 // RECETTE_LENTEUR (ms entre deux actions, défaut 400), RECETTE_PAUSE (ms après chaque contrôle, défaut 1200).
 import { chromium } from "playwright";
 import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const actif = process.env.RECETTE === "1";
@@ -19,7 +19,8 @@ const lenteur = Number(process.env.RECETTE_LENTEUR ?? 400);
 const pause = Number(process.env.RECETTE_PAUSE ?? 1200);
 const attendre = ms => new Promise(r => setTimeout(r, ms));
 const echapper = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-// Méthodes d'une page qui en font la page « courante » (celle que montrent le bandeau et les captures).
+// Méthodes d'une page qui en font la page « courante » (celle que montrent le bandeau et les captures) ; les actions
+// passant par page.mouse, page.keyboard ou une session CDP suivent en général une de ces méthodes sur la même page.
 const ACTIONS = ["goto", "reload", "click", "fill", "check", "selectOption", "setInputFiles", "press", "textContent", "inputValue",
   "getAttribute", "locator", "isVisible", "waitForSelector", "waitForFunction", "waitForLoadState", "evaluate", "setViewportSize", "screenshot"];
 
@@ -67,12 +68,10 @@ export function recette(us) {
   const etat = { etape: "démarrage", resultat: "…", couleur: "#9ca3af", controles: 0 };
   let navigateur;
   let courante;
-  let evaluerOriginal;
-  let capturerOriginal;
   let fini = false;
   let dossier;
   if (actif) {
-    const racine = process.env.RECETTE_DOSSIER ?? join(dirname(fileURLToPath(import.meta.url)), "recettes");
+    const racine = resolve(process.env.RECETTE_DOSSIER ?? join(dirname(fileURLToPath(import.meta.url)), "recettes"));
     dossier = join(racine, `recette-${us}-${horodatage(debut)}`);
     mkdirSync(join(dossier, "captures"), { recursive: true });
     process.chdir(dossier); // les captures nommées des scripts rejoignent le rapport
@@ -89,7 +88,7 @@ export function recette(us) {
   const afficher = async page => {
     if (!actif || !page || page.isClosed()) return;
     try {
-      await evaluerOriginal.call(page, dessinerBandeau, [us.toUpperCase(), etat.etape, etat.resultat, etat.couleur]);
+      await Object.getPrototypeOf(page).evaluate.call(page, dessinerBandeau, [us.toUpperCase(), etat.etape, etat.resultat, etat.couleur]);
     } catch {
       // page en cours de navigation : le bandeau sera redessiné au chargement suivant
     }
@@ -98,15 +97,9 @@ export function recette(us) {
   const suivre = (page, libelle) => {
     libelles.set(page, libelle);
     courante ??= page;
+    // Surcharge propre à cette page (le prototype partagé de Playwright reste intact) : une action la rend courante.
     const prototype = Object.getPrototypeOf(page);
-    if (!evaluerOriginal) {
-      evaluerOriginal = prototype.evaluate;
-      capturerOriginal = prototype.screenshot;
-      for (const nom of ACTIONS) {
-        const original = prototype[nom];
-        prototype[nom] = function (...args) { courante = this; return original.apply(this, args); };
-      }
-    }
+    for (const nom of ACTIONS) page[nom] = (...args) => { courante = page; return prototype[nom].apply(page, args); };
     page.on("load", () => { afficher(page); });
   };
 
@@ -118,7 +111,7 @@ export function recette(us) {
     let capture = null;
     if (courante && !courante.isClosed()) {
       capture = `captures/${String(journal.filter(e => e.type === "controle").length + 1).padStart(2, "0")}.png`;
-      try { await capturerOriginal.call(courante, { path: capture }); } catch { capture = null; }
+      try { await Object.getPrototypeOf(courante).screenshot.call(courante, { path: capture }); } catch { capture = null; }
     }
     journal.push({ type: "controle", nom, reussi, detail, capture, page: libelles.get(courante) ?? "", t: new Date() });
   }

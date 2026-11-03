@@ -10,10 +10,11 @@
 # Aucun secret n'est affiché ni écrit : chaînes Neon (chaines.py) et jeton d'activation passent par l'environnement des
 # processus ; la chaîne applicative est transmise au script (VERIF_BASE) pour les vérifications en base (us08).
 set -u
-V=${0:A:h}; R=${V:h:h}; n=${1:-}; t=$(date +%m%d%H%M%S)
-[[ -n $n && -f $V/$n.mjs ]] || { echo "usage : lancer.sh usXX (script usXX.mjs de deploy/verification)"; exit 2; }
+V=${0:A:h}; R=${V:h:h}; n=${1:-}; t=$(date +%Y%m%d%H%M%S)
+[[ $n == us[0-9][0-9] && -f $V/$n.mjs ]] || { echo "usage : lancer.sh usXX (script usXX.mjs de deploy/verification)"; exit 2; }
 [[ -d $V/node_modules/playwright ]] || { echo "dépendances absentes : cd deploy/verification && npm ci"; exit 2; }
-migrator=$(python3 -I $V/chaines.py migrator) && app=$(python3 -I $V/chaines.py app) || { echo "Trousseau : chaînes Neon illisibles"; exit 1; }
+chaines=("${(@f)$(python3 -I $V/chaines.py migrator app)}") && (( ${#chaines} == 2 )) || { echo "Trousseau : chaînes Neon illisibles"; exit 1; }
+migrator=${chaines[1]}; app=${chaines[2]}
 url=$(security find-generic-password -s gestionsite-preprod-url -w) || { echo "Trousseau : adresse de préproduction illisible"; exit 1; }
 compilation=(); [[ ${SANS_COMPILATION:-0} == 1 ]] && compilation=(--no-build)
 sortie=$(cd $R && ASPNETCORE_ENVIRONMENT=Production ConnectionStrings__Migrations=$migrator ConnectionStrings__Main=$app \
@@ -24,6 +25,12 @@ org=$(print -r -- "$sortie" | sed -n 's/^Organisation ouverte : //p')
 jeton=$(print -r -- "$sortie" | sed -n 's/^Jeton d.activation.*) : //p')
 [[ -z $org || -z $jeton ]] && { echo "ouverture impossible"; print -r -- "$sortie" | grep -v -i jeton | tail -5; exit 1; }
 echo "organisation fictive : $org"
-# Captures de la vérification rapide dans un dossier ignoré par git (en recette, recette.mjs range tout dans le rapport).
-captures=$V/recettes/verification-$n-$t; mkdir -p $captures
-cd $captures && VERIF_URL=$url VERIF_ORG=$org VERIF_JETON=$jeton VERIF_BASE=$app node $V/$n.mjs
+# En recette, recette.mjs range tout dans le rapport (RECETTE_DOSSIER rendu absolu) ; sinon, captures de la vérification
+# rapide dans un dossier ignoré par git.
+if [[ ${RECETTE:-} == 1 ]]; then
+  [[ -n ${RECETTE_DOSSIER:-} ]] && export RECETTE_DOSSIER=${RECETTE_DOSSIER:a}
+  dossier=$V
+else
+  dossier=$V/recettes/verification-$n-$t; mkdir -p $dossier
+fi
+cd $dossier && VERIF_URL=$url VERIF_ORG=$org VERIF_JETON=$jeton VERIF_BASE=$app node $V/$n.mjs
