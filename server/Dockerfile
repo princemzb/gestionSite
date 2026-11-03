@@ -1,4 +1,4 @@
-# Image de préproduction (DEP-01, ADR-08) : API (interne, 127.0.0.1:8081) + application web (publique, :8080).
+# Image de préproduction (DEP-01, ADR-08) : API (interne, 127.0.0.1:8081 ; planificateur :8082, S10-02) + application web (publique, :8080).
 # Construire depuis la racine du dépôt : docker build --platform linux/amd64 -f server/Dockerfile .
 # Isolation du rendu PDF (SOC-05) vérifiée par server/eng/verify-image.sh.
 

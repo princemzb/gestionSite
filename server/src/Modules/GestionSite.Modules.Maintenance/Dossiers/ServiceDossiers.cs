@@ -20,7 +20,7 @@ internal sealed record DossierResume(
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
     string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe, string? MotifAttente, string? CommentaireAttente, DateOnly? ReexamenLe,
-    string? Actions, string? EtatFinal, DateTimeOffset? ClotureeLe, IReadOnlyList<int> Photos, bool PhotoExigee);
+    string? Actions, string? EtatFinal, DateTimeOffset? ClotureeLe, IReadOnlyList<int> Photos, bool PhotoExigee, int ReportsReexamen = 0);
 
 internal sealed record EvenementDossierLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
@@ -109,7 +109,7 @@ internal sealed class ServiceDossiers(
                 i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
                 i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe,
                 i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe, i.Actions, i.EtatFinal?.ToString(), i.ClotureeLe,
-                [.. photosInterventions[i.Id]], i.PhotoExigee ?? PhotoExigee.Pour(dossier, lieu)))],
+                [.. photosInterventions[i.Id]], i.PhotoExigee ?? PhotoExigee.Pour(dossier, lieu), i.ReportsReexamen))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,

@@ -21,6 +21,9 @@
     "bindings": [{ "name": "GESTIONSITE", "class_name": "GestionSite" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GestionSite"] }],
+  // Déclencheur de secours du planificateur (US-10, S10-02) : un passage par jour, 7 h 05 UTC (8 h 05 ou 9 h 05 à
+  // Paris, après les rappels de réexamen de 8 h). Les rappels partent normalement par l'alarme du Durable Object.
+  "triggers": { "crons": ["5 7 * * *"] },
   "vars": {
     // Adresse publique : déduite de la requête par le Worker. Point d'accès R2 (juridiction UE) : secret R2_URL.
     "R2_COMPARTIMENT": "gestionsite-preprod",

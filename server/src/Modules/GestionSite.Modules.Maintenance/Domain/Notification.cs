@@ -19,6 +19,29 @@ internal enum TypeNotification
 
     /// <summary>Constat d'inspection rattaché à un dossier ouvert (T-03.19) : R/D du site.</summary>
     ConstatRattache = 5,
+
+    // Rappels du planificateur (S10-02, S10-03) : une notification par destinataire et par seuil (clé « rappel:… »).
+
+    /// <summary>75 % du délai de prise en charge (DEC-05) : personne en charge, R/D si le dossier n'est pas affecté.</summary>
+    PriseEnChargeProche = 6,
+
+    /// <summary>Délai de prise en charge dépassé : escalade aux R/D, puis rappel quotidien aux R/D et à la personne en charge.</summary>
+    PriseEnChargeDepassee = 7,
+
+    /// <summary>75 % du délai de résolution (DEC-05, T-04.14) : personne en charge, R/D si le dossier n'est pas affecté.</summary>
+    ResolutionProche = 8,
+
+    /// <summary>Délai de résolution dépassé : escalade aux R/D, puis rappel quotidien aux R/D et à la personne en charge.</summary>
+    ResolutionDepassee = 9,
+
+    /// <summary>Dossier resté « À qualifier » 24 h, puis toutes les 24 h (Q8-A) : R/D du site.</summary>
+    AQualifier = 10,
+
+    /// <summary>Jour du réexamen d'une attente, à 8 h (Q9-A) : personne en charge de l'intervention.</summary>
+    ReexamenAtteint = 11,
+
+    /// <summary>Réexamen sans reprise ni report : escalade aux R/D à J+3, puis rappel hebdomadaire aux R/D et à la personne en charge.</summary>
+    ReexamenDepasse = 12,
 }
 
 /// <summary>Nature de l'objet visé, ouvert après contrôle des droits (« une URL connue n'accorde aucun droit »).</summary>

@@ -30,6 +30,9 @@ internal sealed class DestinatairesSite
     internal IEnumerable<Guid> ResponsablesDelegues() =>
         _membres.Where(m => m.Roles.Any(Encadrement.Contains)).Select(m => m.CompteId);
 
+    /// <summary>Comptes donnés encore membres actifs du site (rappels : personne en charge révoquée ou sans rôle exclue).</summary>
+    internal IEnumerable<Guid> Membres(IEnumerable<Guid> comptes) => comptes.Where(c => _membres.Any(m => m.CompteId == c));
+
     /// <summary>
     /// Alerte de danger (Q3-A, décision du 02/11) : R/D du site pour agir, pasteurs et coordinateurs pour information, et
     /// les personnes en charge d'une intervention ouverte du dossier, si elles sont encore membres du site.
