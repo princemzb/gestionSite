@@ -141,6 +141,16 @@ Découpage (cadrage §3, révisé le 02/11) : S10-01 centre de notifications et 
 - Lecture : par le seul destinataire, dans une organisation dont il est membre actif, sur les sites où il a encore un rôle ; un membre révoqué n'y a plus accès ; « tout marquer lu » peut s'arrêter à la plus récente affichée. Seconde barrière en base : la RLS ne montre une notification qu'à son destinataire et le rôle applicatif ne peut modifier que la date de lecture (ni suppression ni autre colonne).
 - Conservation (6 mois, cadrage §1.5) : purge à faire avec DEC-07, non implémentée.
 
+### Planificateur et rappels — règles d'implémentation (S10-02, S10-03, choix de l'agent, révisables)
+- **Délai de prise en charge (Q7-A)** : `echeancePriseEnCharge` = qualification + délai DEC-05 tant qu'aucune intervention n'a démarré ; les échéances affichées des dossiers ouverts changent sans migration (calcul à la lecture).
+- **Seuils DEC-05** (prise en charge et résolution, cette dernière suspendue pendant une attente) : 75 % → personne en charge (intervenant ou référent du prestataire de chaque intervention ouverte), R/D si le dossier n'est pas affecté ; 100 % → R/D (escalade) ; puis toutes les 24 h exactes (même heure, sauf décalage d'une heure au changement d'heure : délais en durées exactes) → R/D **et** personne en charge (choix de l'agent : DEC-05 ne nomme pas les destinataires du rappel quotidien).
+- **Q8-A** : dossier « À qualifier » non qualifié, 24 h après la réception (ou la réouverture, nouveau cycle), puis toutes les 24 h → R/D.
+- **Q9-A** : jour du réexamen à 8 h (Paris, heure d'été ou d'hiver du jour) → personne en charge de l'intervention ; J+3 à 8 h → R/D ; puis chaque semaine à 8 h → R/D et personne en charge. Une nouvelle attente ou un report forment un nouveau cycle ; la reprise arrête les rappels.
+- **Report du réexamen** (cadrage §1.2) : par la personne en charge ou R/D (droit de documenter + en charge, sinon `QualifierAffecter`), nouvelle date entre aujourd'hui et un an et différente de l'actuelle, commentaire obligatoire ; journal « ReportReexamen » (ancienne et nouvelle date, commentaire) ; nombre de reports de l'attente en cours sur la fiche. Le délai reste suspendu.
+- **Un seuil = une notification par destinataire** : clé d'unicité (cycle compris : qualification, réception ou réouverture, début de l'attente) ; une requalification garde le cycle, un seuil déjà notifié n'est pas renvoyé ; seul le seuil le plus avancé atteint est émis (pas de rattrapage des seuils intermédiaires après une interruption).
+- **Destinataires calculés à l'envoi** parmi les membres actuels du site ; une personne en charge qui n'est plus membre est remplacée par les R/D. Aucun auteur : personne n'est exclu. Notifications enregistrées à l'heure exacte du passage (les heures calmes, Q11, ne concernent que l'e-mail et le SMS de S10-09).
+- **Planificateur** : alarme du Durable Object au prochain seuil réel (pas de réveil périodique), avancée à une minute après toute écriture, déclencheur de secours quotidien ; point d'entrée interne à jeton sur un port dédié ; organisations parcourues par une fonction `SECURITY DEFINER` qui ne renvoie que leurs identifiants, puis traitées chacune sous sa RLS (CONTRATS « Planificateur », DEPLOIEMENT).
+
 ## Stocks — US-15, V, 30 octobre 2026 (porteur du projet) — en attente d'US-14
 Cadrage : docs/pilotage/cadrage/US-15.md. Décisions du 30/10 (QCM) :
 - Transfert entre sites : un R/D de l'un ou l'autre site fait toutes les étapes (préparation, départ, réception).
@@ -234,7 +244,7 @@ Priorité fixée par R/D à la qualification, indépendamment du danger déclar�
 
 - Délais comptés en temps calendaire (week-ends et jours fériés inclus), pour toutes les priorités. Ce sont des cibles de suivi, pas des engagements de service.
 - Les périodes « En attente » suspendent le délai de résolution ; l’ancienneté totale reste affichée.
-- Délai de prise en charge (décision du porteur du 02/11, US-10 Q7) : il court de la **qualification** jusqu'au démarrage de la première intervention, et non plus de l'affectation ; un dossier qualifié mais jamais affecté a donc une échéance et des rappels (conforme à T-04.10 et T-04.14). Le code d'US-09 (départ à l'affectation) est corrigé par la sous-carte S10-02.
+- Délai de prise en charge (décision du porteur du 02/11, US-10 Q7) : il court de la **qualification** jusqu'au démarrage de la première intervention, et non plus de l'affectation ; un dossier qualifié mais jamais affecté a donc une échéance et des rappels (conforme à T-04.10 et T-04.14). Le code d'US-09 (départ à l'affectation) est corrigé par la sous-carte S10-02 (fait le 03/11).
 - Rappels : à 75 % du délai, rappel à la personne en charge (R/D si non affecté, sinon technicien affecté). À 100 %, escalade au responsable et aux délégués du site, puis rappel quotidien tant que le délai est dépassé. Une relance ne crée pas de doublon de notification pour le même seuil.
 - Récurrence : au moins 3 dossiers (hors « classée sans suite » et doublons rattachés) sur le même composant ou la même zone en 12 mois glissants.
 
