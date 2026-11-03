@@ -1,5 +1,6 @@
 package fr.gestionsite.coffre
 
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -19,7 +20,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
+import android.view.WindowManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -42,13 +46,16 @@ import kotlin.math.max
  *   sinon dans l'environnement d'exécution sécurisé (TEE). Elles chiffrent les clés des bases, jamais les données.
  * - Horloge monotone (`elapsedRealtime`, sommeil compris) et compteur de démarrages : la limite de 24 h
  *   ne dépend pas de l'heure de la tablette, modifiable par l'utilisateur.
- * - Événement « écran éteint » : verrouillage immédiat du profil.
+ * - Événement « écran éteint » : début de la grâce de 5 minutes avant le verrouillage du profil.
+ * - Contenu protégé (`FLAG_SECURE`, posé par `MainActivity`) : lu ici pour les essais.
  * - Réduction des photos à 2560 px, réorientées, réencodées en JPEG sans métadonnées (comme le serveur).
  *
  * Les opérations lentes (Keystore, StrongBox, décodage d'image) tournent hors du fil principal.
  */
-class CoffreAppareilPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+class CoffreAppareilPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     private lateinit var contexte: Context
+    /** Absente dans le moteur d'arrière-plan de WorkManager. */
+    private var activite: Activity? = null
     private lateinit var canal: MethodChannel
     private lateinit var canalEcran: EventChannel
     private lateinit var travail: ExecutorService
@@ -71,9 +78,29 @@ class CoffreAppareilPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Eve
         travail.shutdown()
     }
 
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        activite = binding.activity
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        activite = null
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        activite = binding.activity
+    }
+
+    override fun onDetachedFromActivity() {
+        activite = null
+    }
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "infos" -> result.success(infos())
+            // null : aucune fenêtre (moteur d'arrière-plan).
+            "contenuMasque" -> result.success(
+                activite?.window?.attributes?.flags?.let { it and WindowManager.LayoutParams.FLAG_SECURE != 0 },
+            )
             "horloge" -> result.success(horloge())
             // Dossier privé de l'application exclu de toute sauvegarde (allowBackup=false en plus).
             "dossier" -> result.success(contexte.noBackupFilesDir.absolutePath)

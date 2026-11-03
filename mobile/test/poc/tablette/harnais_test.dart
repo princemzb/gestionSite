@@ -72,7 +72,7 @@ void main() {
     expect(find.textContaining('sans design'), findsOneWidget);
     await tester.tap(find.text('Infos'));
     await tester.pump();
-    await tester.tap(find.text('Verrouiller'));
+    await tester.tap(find.text('Verrouiller / changer d\'utilisateur'));
     await tester.pump();
     expect(find.text('Verrouillé'), findsOneWidget);
 

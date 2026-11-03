@@ -24,6 +24,8 @@ void main() {
               };
             case 'horloge':
               return {'monotoneMs': 5, 'demarrages': 2, 'muraleMs': 9};
+            case 'contenuMasque':
+              return true;
             case 'dossier':
               return '/data/user/0/fr.gestionsite.terrain/no_backup';
             case 'creerCle':
@@ -72,6 +74,7 @@ void main() {
       [5, 2, 9],
     );
     expect(await plateforme.dossier(), endsWith('no_backup'));
+    expect(await plateforme.contenuMasque(), isTrue);
   });
 
   test('clés : création, chiffrement, erreurs traduites', () async {

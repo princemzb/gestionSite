@@ -125,6 +125,10 @@ class PlateformeAndroid implements Coffre, HorlogeAppareil, ReducteurPhoto {
   Future<String> dossier() async =>
       (await canal.invokeMethod<String>('dossier'))!;
 
+  /// `FLAG_SECURE` posé sur la fenêtre (R13-05) : aperçu des applications
+  /// récentes vide, captures refusées. `null` sans fenêtre (arrière-plan).
+  Future<bool?> contenuMasque() => canal.invokeMethod<bool>('contenuMasque');
+
   /// Un événement à chaque extinction de l'écran : instant de la diffusion sur
   /// l'horloge monotone (ms).
   Stream<int> get ecranEteint =>

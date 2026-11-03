@@ -432,7 +432,10 @@ class _HarnaisPoc03State extends State<HarnaisPoc03>
                     'Déverrouiller',
                     () => _controleur.deverrouiller(_pin.text),
                   ),
-                  _bouton('Verrouiller', () async => _controleur.verrouiller()),
+                  _bouton(
+                    'Verrouiller / changer d\'utilisateur',
+                    () async => _controleur.verrouiller(),
+                  ),
                   _bouton('État', _controleur.etat),
                   _bouton(
                     'Saisie avec photo',
