@@ -9,6 +9,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
 <main class="admin-contenu preventif">
+<AideEcran Ecran="preventif" OrganisationId="@OrganisationId" />
 <PageTitle>Préventif · gestionSite</PageTitle>
 
 @if (SiteCourant is null || Plans is null)

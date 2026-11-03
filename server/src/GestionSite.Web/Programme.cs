@@ -1,5 +1,6 @@
 using Amazon.Runtime;
 using Amazon.S3;
+using GestionSite.Web.Aide;
 using GestionSite.Web.Components;
 using GestionSite.Web.Dossiers;
 using GestionSite.Web.Inventaire;
@@ -59,6 +60,10 @@ internal static class Programme
         });
         builder.Services.AddSingleton<LimiteParAdresse>();
         builder.Services.AddSingleton<LiensPublics>();
+        // Aide intégrée (DOC-02) : manuel embarqué, lu une fois ; livret PDF produit à la construction de l'image.
+        builder.Services.AddSingleton(_ => ManuelAide.Charger());
+        builder.Services.AddSingleton(new LivretAide(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath,
+            builder.Configuration["Web:Livret"] is { Length: > 0 } livret ? livret : Path.Combine("aide", "manuel-gestionsite.pdf")))));
 
         // Clés de chiffrement des cookies : à conserver entre redémarrages (sinon déconnexion de tous).
         var cles = builder.Services.AddDataProtection().SetApplicationName("gestionsite-web");
@@ -183,6 +188,7 @@ internal static class Programme
         app.MapFondsPlan();
         app.MapEditeurPlan();
         app.MapActionsPreventif();
+        app.MapAide();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
         {

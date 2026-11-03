@@ -8,6 +8,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="interventions" />
 <main class="admin-contenu mes-interventions">
+<AideEcran Ecran="interventions" OrganisationId="@OrganisationId" />
 <PageTitle>Mes interventions · gestionSite</PageTitle>
 <h1>Mes interventions</h1>
 @if (Message is not null)

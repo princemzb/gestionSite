@@ -9,6 +9,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
 <main class="admin-contenu">
+<AideEcran Ecran="dossier" OrganisationId="@OrganisationId" />
 <PageTitle>Dossier · gestionSite</PageTitle>
 
 @if (Dossier is not { } d || SiteCourant is null)

@@ -4,6 +4,7 @@
 
 <PageTitle>Activer mon compte · gestionSite</PageTitle>
 
+<AideEcran Ecran="activation" Public="true" />
 <h2>Activer mon compte</h2>
 <EditForm Model="Saisie" FormName="activation" OnSubmit="ActiverAsync" class="formulaire pleine-largeur">
     <input type="hidden" name="Saisie.Jeton" value="@(Saisie.Jeton ?? Jeton)" />

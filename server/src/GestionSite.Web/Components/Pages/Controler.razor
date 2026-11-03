@@ -11,6 +11,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="preventif" />
 <main class="admin-contenu evaluation controle">
+<AideEcran Ecran="controler" OrganisationId="@OrganisationId" />
 <PageTitle>Contrôler · gestionSite</PageTitle>
 
 @if (Plan?.Prochaine is not { } echeance)

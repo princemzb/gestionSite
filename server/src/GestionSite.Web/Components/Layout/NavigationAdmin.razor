@@ -8,6 +8,7 @@
         {
             <a href="@($"/organisations/{OrganisationId}/etat")" aria-current="@(Courant == "etat" ? "page" : null)">État du site</a>
             <a href="@($"/organisations/{OrganisationId}/dossiers")" aria-current="@(Courant == "dossiers" ? "page" : null)">Dossiers</a>
+            <a href="@($"/organisations/{OrganisationId}/depots")" aria-current="@(Courant == "depots" ? "page" : null)">Dépôts reçus</a>
             @if (Terrain)
             {
                 <a href="@($"/organisations/{OrganisationId}/interventions")" aria-current="@(Courant == "interventions" ? "page" : null)">Mes interventions</a>
@@ -29,6 +30,8 @@
             <a href="@($"/organisations/{OrganisationId}/membres")" aria-current="@(Courant == "membres" ? "page" : null)">Membres</a>
         }
     }
+    @* Aide intégrée (DOC-02) : pour tous, avec ou sans organisation. *@
+    <a href="@(OrganisationId == Guid.Empty ? "/aide" : $"/organisations/{OrganisationId}/aide")" aria-current="@(Courant == "aide" ? "page" : null)">Aide</a>
     <form method="post" action="/deconnexion">
         <AntiforgeryToken />
         <button type="submit">Se déconnecter</button>
@@ -43,7 +46,7 @@
     /// <summary>Rôles de l'appelant dans l'organisation (« Administrateur », « Responsable »…).</summary>
     [Parameter] public IReadOnlyCollection<string> Roles { get; set; } = [];
 
-    /// <summary>Entrée courante : « etat », « dossiers », « interventions », « inventaire », « grilles », « sites » ou « membres ».</summary>
+    /// <summary>Entrée courante : « etat », « dossiers », « depots », « interventions », « inventaire », « grilles », « sites », « membres » ou « aide ».</summary>
     [Parameter] public string Courant { get; set; } = string.Empty;
 
     private bool Administrateur => Roles.Contains("Administrateur");

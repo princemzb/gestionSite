@@ -1,0 +1,79 @@
+@using GestionSite.Web.Aide
+@inject ManuelAide Manuel
+@inject LivretAide Livret
+@* Aide sur cet écran (DOC-02, maquette A validée le 03/11) : panneau latéral (sur tablette et téléphone, il monte du bas)
+   avec la rubrique du manuel. Popover HTML natif, sans script : ouverture et fermeture au clavier, Échap ferme et rend le
+   focus au bouton, clic à l'extérieur ferme ; conforme à la politique de sécurité du contenu (aucun script ni style en ligne). *@
+@if (Section is { } section)
+{
+    <div class="aide-barre">
+        <button type="button" class="bouton-aide" popovertarget="aide-panneau"><span class="aide-pastille" aria-hidden="true">?</span>Aide sur cet écran</button>
+    </div>
+    <aside id="aide-panneau" class="aide-panneau" popover role="dialog" aria-labelledby="aide-panneau-titre">
+        <div class="aide-panneau-entete">
+            <div>
+                <span class="aide-surtitre">Aide · @Surtitre(section.Chapitre)</span>
+                <h2 id="aide-panneau-titre">@section.Titre</h2>
+            </div>
+            <button type="button" class="aide-fermer" popovertarget="aide-panneau" popovertargetaction="hide" aria-label="Fermer l'aide" autofocus><span aria-hidden="true">×</span></button>
+        </div>
+        <div class="aide-panneau-corps aide-contenu">
+            @((MarkupString)Manuel.RendreSection(section, BaseLiens))
+            @if (Autres.Count > 0)
+            {
+                <nav class="aide-autres" aria-label="Sur cet écran aussi">
+                    <span>Sur cet écran aussi</span>
+                    @foreach (var autre in Autres)
+                    {
+                        <a href="@Lien(autre)">@autre.Titre</a>
+                    }
+                </nav>
+            }
+        </div>
+        @if (!Public)
+        {
+            <div class="aide-panneau-pied">
+                <a class="bouton-principal bouton-lien" href="@($"{BaseLiens}/{section.Chapitre.Nom}#{section.Ancre}")">Lire tout le chapitre @section.Chapitre.Titre</a>
+                <div class="aide-livret">
+                    @if (Livret.Libelle is { } libelle)
+                    {
+                        <a href="@LivretAide.Adresse">Livret complet (@libelle)</a>
+                    }
+                    @if (Manuel.Edition is { } edition)
+                    {
+                        <span>Manuel du @edition</span>
+                    }
+                </div>
+            </div>
+        }
+    </aside>
+}
+
+@code {
+    /// <summary>Clé de l'écran dans <see cref="EcransAide.Ecrans"/> (« dossiers », « dossier »…).</summary>
+    [Parameter, EditorRequired] public string Ecran { get; set; } = string.Empty;
+
+    /// <summary>Organisation affichée : les liens restent dans ses pages d'aide (menu et rôles conservés).</summary>
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    /// <summary>Écran sans session (connexion, activation) : ni lien vers les pages d'aide ni livret, réservés aux comptes connectés.</summary>
+    [Parameter] public bool Public { get; set; }
+
+    private SectionManuel? Section { get; set; }
+
+    private IReadOnlyList<SectionManuel> Autres { get; set; } = [];
+
+    private string BaseLiens => OrganisationId == Guid.Empty ? "/aide" : $"/organisations/{OrganisationId}/aide";
+
+    protected override void OnParametersSet()
+    {
+        var ecran = EcransAide.Ecrans.GetValueOrDefault(Ecran);
+        Section = ecran is null ? null : Manuel.Section(ecran.Ancre);
+        Autres = Public || ecran is null ? [] : [.. ecran.Autres.Select(Manuel.Section).OfType<SectionManuel>()];
+    }
+
+    private string Lien(SectionManuel section) => $"{BaseLiens}/{section.Chapitre.Nom}#{section.Ancre}";
+
+    internal static string Surtitre(ChapitreManuel chapitre) =>
+        chapitre.Numero == 0 ? chapitre.Titre : $"Chapitre {chapitre.Numero}, {chapitre.Titre}";
+}
