@@ -1,26 +1,27 @@
-// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07 (navigateur réel, Chromium sans interface via Playwright
-// 1.55.0) : une responsable crée le plan du rez-de-chaussée par le parcours guidé (fond PNG synthétique de 4 096 px importé,
+// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07 (navigateur réel, Playwright 1.55.0 ;
+// recette visible avec RECETTE=1) : une responsable crée le plan du rez-de-chaussée par le parcours guidé (fond PNG synthétique de 4 096 px importé,
 // cote de calibration de 14,33 m, cote de contrôle de 8,90 m à moins de 1 %, avertissement au-delà de 2 %), annule et
 // rétablit, enregistre ; l'atelier affiche la version et l'échelle ; un conflit 409 conserve le brouillon, repris sur
 // la version gagnante avec confirmation (décision du porteur du 02/11) ; le brouillon d'un autre compte est effacé à
 // l'ouverture, et tout brouillon à la déconnexion ; un lecteur n'a aucune commande d'édition et affiche le calque du
 // niveau inférieur ; mesure de fluidité (fond de 4 096 px, 1 000 sommets : glisser, molette, pincement à deux doigts,
 // sans puis avec un processeur ralenti 4 fois) ; aucune violation de la politique de sécurité du contenu.
-// Usage, dans un dossier où playwright est installé (captures écrites dans ce dossier) :
-//   VERIF_URL=<adresse> VERIF_ORG=<organisation> VERIF_JETON=<jeton d'activation> node us21.mjs
-// (organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit).
-import { chromium } from "playwright";
+// Usage : deploy/verification/lancer.sh us21 (ou VERIF_URL=<adresse publique> VERIF_ORG=<organisation>
+// VERIF_JETON=<jeton d'activation> node us21.mjs ; captures dans le dossier courant, ou dans le rapport en recette) ;
+// organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
 import { randomBytes } from "node:crypto";
 import { deflateSync } from "node:zlib";
+import { recette } from "./recette.mjs";
 
 const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
 if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
 const mdp = randomBytes(12).toString("hex") + "-verif";
-const ok = (nom, cond, detail = "") => { console.log((cond ? "OK    " : "ÉCHEC ") + nom + (detail ? ` (${detail})` : "")); if (!cond) process.exit(1); };
-const b = await chromium.launch();
+const r = recette("us21");
+const ok = r.ok;
+const b = await r.lancer();
 const violations = [];
-const nouveauContexte = async (largeur = 1440, hauteur = 900, tactile = false) => {
-  const contexte = await b.newContext({ viewport: { width: largeur, height: hauteur }, hasTouch: tactile });
+const nouveauContexte = async (libelle, largeur = 1440, hauteur = 900, tactile = false) => {
+  const contexte = await r.contexte({ viewport: { width: largeur, height: hauteur }, hasTouch: tactile }, libelle);
   await contexte.addInitScript(() => document.addEventListener("securitypolicyviolation", e => console.error(`Content-Security-Policy ${e.violatedDirective} ${e.blockedURI}`)));
   return contexte;
 };
@@ -72,7 +73,8 @@ async function toucherPixel(p, px, py) {
 const brouillons = p => p.evaluate(() => Object.keys(localStorage).filter(c => c.startsWith("gestionsite.brouillon-plan.v1:")));
 
 // 1. Administrateur : invitations d'une responsable (édition) et d'un pasteur (lecture)
-const admin = await ouvrir(await nouveauContexte());
+await r.etape("1. Administrateur : invitations d'une responsable (édition) et d'un pasteur (lecture)");
+const admin = await ouvrir(await nouveauContexte("Administrateur"));
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
 const inviter = async (nom, role) => {
   await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
@@ -85,12 +87,13 @@ const inviter = async (nom, role) => {
 };
 const lienResponsable = await inviter("Rose Responsable", "Responsable");
 const lienPasteur = await inviter("Paul Pasteur", "Pasteur");
-ok("invitations créées (responsable, pasteur)", lienResponsable.includes("/activation?jeton=") && lienPasteur.includes("/activation?jeton="));
-const contexteTablette = await nouveauContexte(1280, 800, true); // format de la Tab M11, écran tactile
+await ok("invitations créées (responsable, pasteur)", lienResponsable.includes("/activation?jeton=") && lienPasteur.includes("/activation?jeton="));
+const contexteTablette = await nouveauContexte("Tablette (responsable puis pasteur)", 1280, 800, true); // format de la Tab M11, écran tactile
 const resp = await ouvrir(contexteTablette);
 await activer(resp, lienResponsable);
 
 // 2. Inventaire : église (sous-sol, rez-de-chaussée), 50 zones au rez-de-chaussée, une crypte au sous-sol
+await r.etape("2. Inventaire : église (sous-sol, rez-de-chaussée), 50 zones au rez-de-chaussée, une crypte au sous-sol");
 const inventaire = `${base}/organisations/${org}/inventaire`;
 const envoyer = async () => cliquer(resp, "form.formulaire-inventaire button[type=submit]");
 await resp.goto(`${inventaire}?action=batiment`);
@@ -107,18 +110,19 @@ const zone = async (nom, niveau) => {
 };
 for (let i = 1; i <= 50; i++) await zone(`Salle ${i}`, "Rez-de-chaussée");
 await zone("Crypte", "Sous-sol");
-ok("structure créée (2 niveaux, 51 zones)", (await texte(resp)).includes("Salle 50"));
+await ok("structure créée (2 niveaux, 51 zones)", (await texte(resp)).includes("Salle 50"));
 
 // 3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir
+await r.etape("3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir");
 const plans = `${base}/organisations/${org}/plans`;
 await resp.goto(plans);
-ok("parcours guidé proposé pour un niveau sans plan", (await texte(resp, "h1")).includes("Nouveau plan · Église · Rez-de-chaussée")
+await ok("parcours guidé proposé pour un niveau sans plan", (await texte(resp, "h1")).includes("Nouveau plan · Église · Rez-de-chaussée")
   && (await texte(resp)).includes("Masquez d'abord les noms du cartouche"));
 await resp.setInputFiles("input[name=fichier]", { name: "plan-synthetique.png", mimeType: "image/png", buffer: pngSynthetique() });
 await resp.click("button:has-text('Importer ce fond')");
 await resp.waitForSelector("[data-panneau=calibration]:not([hidden])", { timeout: 90000 });
 await resp.waitForSelector("[data-role=fond] image");
-ok("fond importé, étape « Calibrer l'échelle »", (await resp.getAttribute("[data-etape=calibration]", "aria-current")) === "step");
+await ok("fond importé, étape « Calibrer l'échelle »", (await resp.getAttribute("[data-etape=calibration]", "aria-current")) === "step");
 await toucherPixel(resp, 248, 300);
 await toucherPixel(resp, 3114, 300);
 await resp.fill("[data-champ=calibration]", "14,33"); await resp.press("[data-champ=calibration]", "Tab");
@@ -127,24 +131,25 @@ await toucherPixel(resp, 248, 300);
 await toucherPixel(resp, 248, 2080);
 await resp.fill("[data-champ=controle]", "8,50"); await resp.press("[data-champ=controle]", "Tab");
 const avertissement = await texte(resp, "[data-role=resultat-controle]");
-ok("avertissement au-delà de 2 % (contrôle saisi à 8,50 m)", avertissement.includes("au-delà de 2 %"), avertissement);
+await ok("avertissement au-delà de 2 % (contrôle saisi à 8,50 m)", avertissement.includes("au-delà de 2 %"), avertissement);
 await resp.fill("[data-champ=controle]", "8,90"); await resp.press("[data-champ=controle]", "Tab");
 const controle = await texte(resp, "[data-role=resultat-controle]");
 const ecart = Number(/écart ([\d,]+) %/.exec(controle)?.[1].replace(",", "."));
-ok("cote de contrôle de 8,90 m à moins de 1 % (recette 14,33 / 8,90 m)", ecart < 1 && controle.includes("✓"), controle);
+await ok("cote de contrôle de 8,90 m à moins de 1 % (recette 14,33 / 8,90 m)", ecart < 1 && controle.includes("✓"), controle);
 await resp.screenshot({ path: "us21-calibration-tablette.png" });
 await resp.click("[data-action=annuler]");
-ok("annuler retire la dernière saisie", (await resp.inputValue("[data-champ=controle]")) === "8,5");
+await ok("annuler retire la dernière saisie", (await resp.inputValue("[data-champ=controle]")) === "8,5");
 await resp.keyboard.press("Control+y");
-ok("rétablir (Ctrl+Y) la remet", (await resp.inputValue("[data-champ=controle]")) === "8,9");
+await ok("rétablir (Ctrl+Y) la remet", (await resp.inputValue("[data-champ=controle]")) === "8,9");
 await Promise.all([resp.waitForNavigation({ timeout: 30000 }), resp.click("[data-action=valider-calibration]")]);
 await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.includes("Version 1"));
 const resume = await texte(resp, "[data-role=resume]");
-ok("version 1 enregistrée, atelier avec l'échelle et la cote de contrôle", (await texte(resp, "h1")).startsWith("Plan · Église")
+await ok("version 1 enregistrée, atelier avec l'échelle et la cote de contrôle", (await texte(resp, "h1")).startsWith("Plan · Église")
   && resume.includes("par Rose Responsable") && resume.includes("échelle calibrée (cote de contrôle"), resume);
 await resp.screenshot({ path: "us21-atelier-tablette.png" });
 
 // 4. Pièces enregistrées par l'éditeur (relais JSON) : 50 contours de 20 sommets (1 000 sommets), et la crypte au sous-sol
+await r.etape("4. Pièces enregistrées par l'éditeur (relais JSON) : 50 contours de 20 sommets (1 000 sommets), et la crypte au sous-sol");
 const enregistrerPieces = async (niveau, pieces) => resp.evaluate(async ([niveau, pieces]) => {
   const d = document.querySelector("#editeur-plan").dataset;
   const plansBase = `/organisations/${d.organisation}/sites/${d.site}/plans-batiment`;
@@ -165,13 +170,14 @@ const cercle = (cx, cy, r, n = 20) => Array.from({ length: n }, (_, k) => ({
 }));
 const salles = Array.from({ length: 50 }, (_, i) => ({ nom: `Salle ${i + 1}`, contour: cercle(2 + (i % 10) * 1.38, 2.3 + Math.floor(i / 10) * 1.7, 0.6) }));
 const niveaux = await resp.evaluate(() => Object.fromEntries([...document.querySelectorAll("nav[aria-label=Niveau] a")].map(a => [a.textContent, new URL(a.href).searchParams.get("niveau")])));
-ok("1 000 sommets enregistrés au rez-de-chaussée (version 2)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
-ok("crypte enregistrée au sous-sol", (await enregistrerPieces(niveaux["Sous-sol"], [{ nom: "Crypte", contour: [{ x: 2, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 9 }, { x: 2, y: 9 }] }])) === 200);
+await ok("1 000 sommets enregistrés au rez-de-chaussée (version 2)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
+await ok("crypte enregistrée au sous-sol", (await enregistrerPieces(niveaux["Sous-sol"], [{ nom: "Crypte", contour: [{ x: 2, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 9 }, { x: 2, y: 9 }] }])) === 200);
 await resp.reload();
 await resp.waitForFunction(() => document.querySelectorAll("[data-role=pieces] polygon").length === 50);
-ok("atelier : 50 pièces et leurs noms affichés", (await resp.locator("[data-role=pieces] text").count()) === 50);
+await ok("atelier : 50 pièces et leurs noms affichés", (await resp.locator("[data-role=pieces] text").count()) === 50);
 
 // 5. Mesure de fluidité : durées des images (requestAnimationFrame) pendant glisser, molette et pincement
+await r.etape("5. Mesure de fluidité : durées des images (requestAnimationFrame) pendant glisser, molette et pincement");
 async function mesurer(p, ralenti) {
   const cdp = await p.context().newCDPSession(p);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: ralenti });
@@ -194,18 +200,19 @@ async function mesurer(p, ralenti) {
 }
 const avantPincement = await resp.getAttribute("[data-role=svg]", "viewBox");
 const normale = await mesurer(resp, 1);
-ok("le pincement à deux doigts zoome la vue", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== avantPincement);
+await ok("le pincement à deux doigts zoome la vue", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== avantPincement);
 const ralentie = await mesurer(resp, 4);
 const f = m => `${m.images} images, médiane ${m.mediane.toFixed(1)} ms, 95e centile ${m.p95.toFixed(1)} ms, max ${m.max.toFixed(1)} ms, > 50 ms : ${m.au_dela_50ms}`;
 console.log(`MESURE fluidité (Chromium ${b.version()}, fond 4 096 px, 1 000 sommets) — processeur normal : ${f(normale)}`);
 console.log(`MESURE fluidité — processeur ralenti 4× : ${f(ralentie)}`);
-ok("fluidité : médiane sous 20 ms (processeur normal)", normale.mediane < 20, f(normale));
+await ok("fluidité : médiane sous 20 ms (processeur normal)", normale.mediane < 20, f(normale));
 
 // 6. Brouillon : modification non enregistrée, conflit 409, reprise confirmée sur la version gagnante
+await r.etape("6. Brouillon : modification non enregistrée, conflit 409, reprise confirmée sur la version gagnante");
 await resp.click("[data-action=changer-fond]");
 await resp.click("[data-action=grille]");
 await resp.waitForTimeout(500);
-ok("brouillon local écrit pour ce compte et ce plan", (await brouillons(resp)).length === 1);
+await ok("brouillon local écrit pour ce compte et ce plan", (await brouillons(resp)).length === 1);
 const concurrent = await resp.evaluate(async () => {
   const d = document.querySelector("#editeur-plan").dataset;
   const chemin = `/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}`;
@@ -213,52 +220,54 @@ const concurrent = await resp.evaluate(async () => {
   const r = await fetch(chemin, { method: "PUT", headers: { "Content-Type": "application/json", RequestVerificationToken: d.jeton }, body: JSON.stringify({ commandeId: crypto.randomUUID(), version: lue.version, motif: "Enregistrement concurrent", contenu: lue.contenu }) });
   return r.status;
 });
-ok("version 3 enregistrée par ailleurs entre-temps", concurrent === 200);
+await ok("version 3 enregistrée par ailleurs entre-temps", concurrent === 200);
 await resp.click("[data-action=enregistrer]");
 await resp.waitForSelector("[data-role=brouillon]:not([hidden])");
 const conflit = await texte(resp, "[data-role=message]");
-ok("409 : version gagnante nommée, rien d'écrasé, brouillon conservé", conflit.includes("modifié entre-temps par Rose Responsable") && conflit.includes("version 3")
+await ok("409 : version gagnante nommée, rien d'écrasé, brouillon conservé", conflit.includes("modifié entre-temps par Rose Responsable") && conflit.includes("version 3")
   && (await brouillons(resp)).length === 1, conflit);
 await resp.click("[data-action=brouillon-reprendre]");
-ok("reprise demandée : confirmation exigée", (await texte(resp, "[data-role=brouillon-texte]")).startsWith("Confirmez") && await resp.isVisible("[data-action=brouillon-confirmer]"));
+await ok("reprise demandée : confirmation exigée", (await texte(resp, "[data-role=brouillon-texte]")).startsWith("Confirmez") && await resp.isVisible("[data-action=brouillon-confirmer]"));
 await resp.click("[data-action=brouillon-confirmer]");
 await resp.waitForSelector("[data-action=enregistrer]:not([disabled])");
-ok("bouton « Enregistrer la version 4 »", (await texte(resp, "[data-action=enregistrer]")) === "Enregistrer la version 4");
+await ok("bouton « Enregistrer la version 4 »", (await texte(resp, "[data-action=enregistrer]")) === "Enregistrer la version 4");
 await resp.click("[data-action=enregistrer]");
 await resp.waitForFunction(() => document.querySelector("[data-role=message]")?.textContent.includes("Version 4 enregistrée"));
 const historique = await resp.evaluate(async () => {
   const d = document.querySelector("#editeur-plan").dataset;
   return (await (await fetch(`/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}`)).json()).contenu.fond;
 });
-ok("version 4 = brouillon repris (plan sur grille), brouillon effacé", historique === null && (await brouillons(resp)).length === 0);
+await ok("version 4 = brouillon repris (plan sur grille), brouillon effacé", historique === null && (await brouillons(resp)).length === 0);
 
 // 7. Cloisonnement : brouillon d'un autre compte effacé à l'ouverture ; tout brouillon effacé à la déconnexion
+await r.etape("7. Cloisonnement : brouillon d'un autre compte effacé à l'ouverture ; tout brouillon effacé à la déconnexion");
 await resp.evaluate(() => {
   const d = document.querySelector("#editeur-plan").dataset;
   localStorage.setItem(`gestionsite.brouillon-plan.v1:0190f5a2-1111-7000-8000-000000000001:${d.organisation}:${d.plan}`, "{}");
 });
 await resp.reload(); await resp.waitForTimeout(500);
-ok("brouillon d'un autre compte effacé à l'ouverture de l'éditeur", (await brouillons(resp)).length === 0);
+await ok("brouillon d'un autre compte effacé à l'ouverture de l'éditeur", (await brouillons(resp)).length === 0);
 await resp.click("[data-action=changer-fond]");
 await resp.click("[data-role=fonds-liste] button >> nth=0"); // calibration commencée, non enregistrée
 await resp.waitForTimeout(500);
-ok("brouillon en cours avant la déconnexion", (await brouillons(resp)).length === 1);
+await ok("brouillon en cours avant la déconnexion", (await brouillons(resp)).length === 1);
 await cliquer(resp, "form[action='/deconnexion'] button");
 await resp.goto(`${base}/connexion`);
-ok("aucun brouillon après la déconnexion (Clear-Site-Data)", (await brouillons(resp)).length === 0);
+await ok("aucun brouillon après la déconnexion (Clear-Site-Data)", (await brouillons(resp)).length === 0);
 
 // 8. Lecteur (même tablette) : atelier sans commande d'édition, calque du sous-sol
+await r.etape("8. Lecteur (même tablette) : atelier sans commande d'édition, calque du sous-sol");
 await activer(resp, lienPasteur);
 await resp.goto(plans);
 await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.includes("Version 4"));
-ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond]").count()) === 0);
+await ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond]").count()) === 0);
 await resp.click("[data-action=calque]");
 await resp.waitForSelector("[data-role=calque]:not([hidden]) polygon");
-ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttribute("[data-action=calque]", "aria-pressed")) === "true"
+await ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttribute("[data-action=calque]", "aria-pressed")) === "true"
   && (await texte(resp, "[data-action=calque]")).includes("Sous-sol : affiché"));
 await resp.click("[data-action=zoom-avant]"); await resp.click("[data-action=gauche]"); await resp.click("[data-action=ajuster]");
-ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
+await ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
 await resp.screenshot({ path: "us21-lecteur-calque.png" });
 
-ok("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", violations.length === 0, violations.join(" | "));
-await b.close();
+await ok("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", violations.length === 0, violations.join(" | "));
+await r.terminer();
