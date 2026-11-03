@@ -24,3 +24,7 @@ __pycache__/
 **/obj/
 **/artifacts/
 **/TestResults/
+
+# Vérifications de préproduction : dépendances et rapports de recette (vidéos, captures) hors dépôt
+deploy/verification/node_modules/
+deploy/verification/recettes/

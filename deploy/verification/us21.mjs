@@ -1,5 +1,5 @@
-// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07, S21-08 et S21-09 (navigateur réel, Chromium sans interface via
-// Playwright 1.55.0) : une responsable crée le plan du rez-de-chaussée par le parcours guidé (fond PNG synthétique de
+// Vérification de l'éditeur de plans de bâtiment, US-21 S21-07, S21-08 et S21-09 (navigateur réel, Playwright 1.55.0 ;
+// recette visible avec RECETTE=1) : une responsable crée le plan du rez-de-chaussée par le parcours guidé (fond PNG synthétique de
 // 4 096 px importé, cote de calibration de 14,33 m, cote de contrôle de 8,90 m à moins de 1 %, avertissement au-delà de
 // 2 %), annule et rétablit, enregistre, trace une pièce à l'étape 3 « pièces zone par zone » ; l'atelier affiche la version
 // et l'échelle ; S21-08 dans l'atelier : zone créée depuis l'éditeur, pièce tracée puis cotée au centimètre par ses sommets
@@ -13,34 +13,22 @@
 // composant devenu objet de valeur signalé et sa position jamais servie, même dans une ancienne version, historique,
 // version consultée en lecture seule et restaurée avec motif obligatoire ; aucune violation de la politique de sécurité
 // du contenu.
-// Usage, dans un dossier où playwright est installé (captures écrites dans ce dossier) :
-//   VERIF_URL=<adresse> VERIF_ORG=<organisation> VERIF_JETON=<jeton d'activation> node us21.mjs
-// (organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit).
-import { chromium } from "playwright";
-import { randomBytes } from "node:crypto";
+// Usage : deploy/verification/lancer.sh us21 (ou VERIF_URL=<adresse publique> VERIF_ORG=<organisation>
+// VERIF_JETON=<jeton d'activation> node us21.mjs ; captures dans le dossier courant, ou dans le rapport en recette) ;
+// organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
 import { deflateSync } from "node:zlib";
+import { preparer } from "./commun.mjs";
 
-const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
-if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
-const mdp = randomBytes(12).toString("hex") + "-verif";
-const ok = (nom, cond, detail = "") => { console.log((cond ? "OK    " : "ÉCHEC ") + nom + (detail ? ` (${detail})` : "")); if (!cond) process.exit(1); };
-const b = await chromium.launch();
-const violations = [];
-const nouveauContexte = async (largeur = 1440, hauteur = 900, tactile = false) => {
-  const contexte = await b.newContext({ viewport: { width: largeur, height: hauteur }, hasTouch: tactile });
+const { r, ok, b, base, org, jeton, surveiller, activer, inviter, finir, violations } = await preparer("us21");
+const nouveauContexte = async (libelle, largeur = 1440, hauteur = 900, tactile = false) => {
+  const contexte = await r.contexte({ viewport: { width: largeur, height: hauteur }, hasTouch: tactile }, libelle);
   await contexte.addInitScript(() => document.addEventListener("securitypolicyviolation", e => console.error(`Content-Security-Policy ${e.violatedDirective} ${e.blockedURI}`)));
   return contexte;
 };
 const ouvrir = async contexte => {
-  const p = await contexte.newPage();
-  p.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${p.url()} → ${m.text()}`); });
+  const p = surveiller(await contexte.newPage());
   p.on("pageerror", e => violations.push(`${p.url()} → erreur JavaScript : ${e.message}`));
   return p;
-};
-const activer = async (p, lien) => {
-  await p.goto(lien, { timeout: 90000 });
-  await p.fill("input[type=password] >> nth=0", mdp); await p.fill("input[type=password] >> nth=1", mdp);
-  await p.click("button[type=submit]"); await p.waitForLoadState();
 };
 const cliquer = async (p, selecteur) => { await Promise.all([p.waitForNavigation(), p.click(selecteur)]); };
 const texte = async (p, selecteur = "main") => (await p.textContent(selecteur)) ?? "";
@@ -98,32 +86,25 @@ async function attendre(p, selecteur) {
     await p.waitForSelector(selecteur, { timeout: 15000 });
   } catch {
     await p.screenshot({ path: "us21-echec.png" });
-    ok(`attente de ${selecteur}`, false, (await p.textContent("[data-role=message]")) ?? "");
+    await ok(`attente de ${selecteur}`, false, (await p.textContent("[data-role=message]")) ?? "");
   }
 }
 
 const brouillons = p => p.evaluate(() => Object.keys(localStorage).filter(c => c.startsWith("gestionsite.brouillon-plan.v1:")));
 
 // 1. Administrateur : invitations d'une responsable (édition) et d'un pasteur (lecture)
-const admin = await ouvrir(await nouveauContexte());
+await r.etape("1. Administrateur : invitations d'une responsable (édition) et d'un pasteur (lecture)");
+const admin = await ouvrir(await nouveauContexte("Administrateur"));
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
-const inviter = async (nom, role) => {
-  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-  await admin.fill("input[name='Saisie.Nom']", nom);
-  await admin.fill("input[name='Saisie.Email']", `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
-  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-  await admin.selectOption("main select >> nth=0", role);
-  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-  return (await admin.textContent("code.lien-activation")).trim();
-};
-const lienResponsable = await inviter("Rose Responsable", "Responsable");
-const lienPasteur = await inviter("Paul Pasteur", "Pasteur");
-ok("invitations créées (responsable, pasteur)", lienResponsable.includes("/activation?jeton=") && lienPasteur.includes("/activation?jeton="));
-const contexteTablette = await nouveauContexte(1280, 800, true); // format de la Tab M11, écran tactile
+const lienResponsable = (await inviter(admin, "Rose Responsable", "Responsable")).lien;
+const lienPasteur = (await inviter(admin, "Paul Pasteur", "Pasteur")).lien;
+await ok("invitations créées (responsable, pasteur)", lienResponsable.includes("/activation?jeton=") && lienPasteur.includes("/activation?jeton="));
+const contexteTablette = await nouveauContexte("Tablette (responsable puis pasteur)", 1280, 800, true); // format de la Tab M11, écran tactile
 const resp = await ouvrir(contexteTablette);
 await activer(resp, lienResponsable);
 
 // 2. Inventaire : église (sous-sol, rez-de-chaussée), 50 zones au rez-de-chaussée, une crypte au sous-sol
+await r.etape("2. Inventaire : église (sous-sol, rez-de-chaussée), 50 zones au rez-de-chaussée, une crypte au sous-sol");
 const inventaire = `${base}/organisations/${org}/inventaire`;
 const envoyer = async () => cliquer(resp, "form.formulaire-inventaire button[type=submit]");
 await resp.goto(`${inventaire}?action=batiment`);
@@ -140,7 +121,7 @@ const zone = async (nom, niveau) => {
 };
 for (let i = 1; i <= 50; i++) await zone(`Salle ${i}`, "Rez-de-chaussée");
 await zone("Crypte", "Sous-sol");
-ok("structure créée (3 niveaux, 51 zones ; la tribune reste sans plan)", (await texte(resp)).includes("Salle 50"));
+await ok("structure créée (3 niveaux, 51 zones ; la tribune reste sans plan)", (await texte(resp)).includes("Salle 50"));
 // S21-09 : composants de la Salle 1, dont un équipement de culte et un coffre coché « objet de valeur »
 const composant = async (nom, corpsEtat, valeur = false) => {
   await resp.goto(`${inventaire}?action=composant`);
@@ -154,18 +135,19 @@ await composant("Extincteur CO2 2 kg", "SecuriteIncendie");
 await composant("Bloc BAES", "EclairageSecurite");
 await composant("Calice", "EquipementsCulte");
 await composant("Coffre-fort", "Mobilier", true);
-ok("inventaire : case « objet de valeur » cochée et affichée sur la fiche", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui : jamais placé sur les plans"));
+await ok("inventaire : case « objet de valeur » cochée et affichée sur la fiche", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui : jamais placé sur les plans"));
 
 // 3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir
+await r.etape("3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir");
 const plans = `${base}/organisations/${org}/plans`;
 await resp.goto(plans);
-ok("parcours guidé proposé pour un niveau sans plan", (await texte(resp, "h1")).includes("Nouveau plan · Église · Rez-de-chaussée")
+await ok("parcours guidé proposé pour un niveau sans plan", (await texte(resp, "h1")).includes("Nouveau plan · Église · Rez-de-chaussée")
   && (await texte(resp)).includes("Masquez d'abord les noms du cartouche"));
 await resp.setInputFiles("input[name=fichier]", { name: "plan-synthetique.png", mimeType: "image/png", buffer: pngSynthetique() });
 await resp.click("button:has-text('Importer ce fond')");
 await resp.waitForSelector("[data-panneau=calibration]:not([hidden])", { timeout: 90000 });
 await resp.waitForSelector("[data-role=fond] image");
-ok("fond importé, étape « Calibrer l'échelle »", (await resp.getAttribute("[data-etape=calibration]", "aria-current")) === "step");
+await ok("fond importé, étape « Calibrer l'échelle »", (await resp.getAttribute("[data-etape=calibration]", "aria-current")) === "step");
 await toucherPixel(resp, 248, 300);
 await toucherPixel(resp, 3114, 300);
 await resp.fill("[data-champ=calibration]", "14,33"); await resp.press("[data-champ=calibration]", "Tab");
@@ -174,49 +156,50 @@ await toucherPixel(resp, 248, 300);
 await toucherPixel(resp, 248, 2080);
 await resp.fill("[data-champ=controle]", "8,50"); await resp.press("[data-champ=controle]", "Tab");
 const avertissement = await texte(resp, "[data-role=resultat-controle]");
-ok("avertissement au-delà de 2 % (contrôle saisi à 8,50 m)", avertissement.includes("au-delà de 2 %"), avertissement);
+await ok("avertissement au-delà de 2 % (contrôle saisi à 8,50 m)", avertissement.includes("au-delà de 2 %"), avertissement);
 await resp.fill("[data-champ=controle]", "8,90"); await resp.press("[data-champ=controle]", "Tab");
 const controle = await texte(resp, "[data-role=resultat-controle]");
 const ecart = Number(/écart ([\d,]+) %/.exec(controle)?.[1].replace(",", "."));
-ok("cote de contrôle de 8,90 m à moins de 1 % (recette 14,33 / 8,90 m)", ecart < 1 && controle.includes("✓"), controle);
+await ok("cote de contrôle de 8,90 m à moins de 1 % (recette 14,33 / 8,90 m)", ecart < 1 && controle.includes("✓"), controle);
 await resp.screenshot({ path: "us21-calibration-tablette.png" });
 await resp.click("[data-action=annuler]");
-ok("annuler retire la dernière saisie", (await resp.inputValue("[data-champ=controle]")) === "8,5");
+await ok("annuler retire la dernière saisie", (await resp.inputValue("[data-champ=controle]")) === "8,5");
 await resp.keyboard.press("Control+y");
-ok("rétablir (Ctrl+Y) la remet", (await resp.inputValue("[data-champ=controle]")) === "8,9");
+await ok("rétablir (Ctrl+Y) la remet", (await resp.inputValue("[data-champ=controle]")) === "8,9");
 await resp.click("[data-action=valider-calibration]");
 await resp.waitForSelector("[data-panneau=pieces]:not([hidden])", { timeout: 30000 });
-ok("version 1 enregistrée, étape 3 « pièces zone par zone »", (await texte(resp, "[data-role=message]")).includes("Version 1 enregistrée")
+await ok("version 1 enregistrée, étape 3 « pièces zone par zone »", (await texte(resp, "[data-role=message]")).includes("Version 1 enregistrée")
   && (await texte(resp, "[data-etape=pieces]")).includes("0 sur 50 zones") && (await resp.getAttribute("[data-etape=pieces]", "aria-current")) === "step");
 for (const [x, y] of [[16, 11], [18, 11], [18, 13], [16, 13]]) await toucherRepere(resp, x, y);
 await resp.click("[data-action=fermer-trace]");
 await resp.waitForFunction(() => document.querySelector("[data-etape=pieces]")?.textContent.includes("1 sur 50 zones"));
 const guide = await texte(resp, "[data-role=guide-zones]");
-ok("étape 3 : Salle 1 tracée, la zone suivante proposée", guide.includes("✓ Salle 1→ Salle ") && /→ Salle \d+/.test(guide), guide.slice(0, 60));
+await ok("étape 3 : Salle 1 tracée, la zone suivante proposée", guide.includes("✓ Salle 1→ Salle ") && /→ Salle \d+/.test(guide), guide.slice(0, 60));
 await resp.screenshot({ path: "us21-guide-pieces-tablette.png" });
 await resp.click("[data-action=terminer-pieces]");
 await attendre(resp, "[data-panneau=composants]:not([hidden])");
 const liste4 = await texte(resp, "[data-role=composants-liste]");
-ok("version 2 (pièces) enregistrée, étape 4 « composants » : objets de valeur jamais proposés",
+await ok("version 2 (pièces) enregistrée, étape 4 « composants » : objets de valeur jamais proposés",
   (await texte(resp, "[data-role=message]")).includes("Version 2 enregistrée") && (await resp.getAttribute("[data-etape=composants]", "aria-current")) === "step"
   && liste4.includes("Extincteur CO2 2 kg") && liste4.includes("Bloc BAES") && !liste4.includes("Calice") && !liste4.includes("Coffre"), liste4);
 await resp.click("[data-role=composants-liste] li:has-text('Extincteur') button[data-placer]");
 await toucherRepere(resp, 17, 12);
-ok("extincteur placé dans sa pièce", (await texte(resp, "[data-role=message]")).includes("« Extincteur CO2 2 kg » placé"));
+await ok("extincteur placé dans sa pièce", (await texte(resp, "[data-role=message]")).includes("« Extincteur CO2 2 kg » placé"));
 await resp.click("[data-role=composants-liste] li:has-text('BAES') button[data-placer]");
 await toucherRepere(resp, 19.5, 12);
-ok("BAES placé hors du contour de sa zone : accepté, avertissement", (await texte(resp, "[data-role=message]")).includes("hors du contour de sa zone")
+await ok("BAES placé hors du contour de sa zone : accepté, avertissement", (await texte(resp, "[data-role=message]")).includes("hors du contour de sa zone")
   && (await texte(resp, "[data-etape=composants]")).includes("2 sur 2") && (await resp.locator("[data-role=marqueurs] .marqueur.hors-zone").count()) === 1);
 await resp.screenshot({ path: "us21-guide-composants-tablette.png" });
 await Promise.all([resp.waitForNavigation({ timeout: 30000 }), resp.click("[data-action=terminer-composants]")]);
 await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.includes("Version 3"));
 const resume = await texte(resp, "[data-role=resume]");
-ok("version 3 (composants) enregistrée, atelier avec l'échelle, la cote de contrôle et les marqueurs nommés", (await texte(resp, "h1")).startsWith("Plan · Église")
+await ok("version 3 (composants) enregistrée, atelier avec l'échelle, la cote de contrôle et les marqueurs nommés", (await texte(resp, "h1")).startsWith("Plan · Église")
   && resume.includes("par Rose Responsable") && resume.includes("échelle calibrée (cote de contrôle")
   && (await texte(resp, "[data-role=marqueurs]")).includes("Extincteur CO2 2 kg"), resume);
 await resp.screenshot({ path: "us21-atelier-tablette.png" });
 
 // 4. Pièces enregistrées par l'éditeur (relais JSON) : 50 contours de 20 sommets (1 000 sommets), et la crypte au sous-sol
+await r.etape("4. Pièces enregistrées par l'éditeur (relais JSON) : 50 contours de 20 sommets (1 000 sommets), et la crypte au sous-sol");
 const enregistrerPieces = async (niveau, pieces) => resp.evaluate(async ([niveau, pieces]) => {
   const d = document.querySelector("#editeur-plan").dataset;
   const plansBase = `/organisations/${d.organisation}/sites/${d.site}/plans-batiment`;
@@ -237,13 +220,14 @@ const cercle = (cx, cy, r, n = 20) => Array.from({ length: n }, (_, k) => ({
 }));
 const salles = Array.from({ length: 50 }, (_, i) => ({ nom: `Salle ${i + 1}`, contour: cercle(2 + (i % 10) * 1.38, 2.3 + Math.floor(i / 10) * 1.7, 0.6) }));
 const niveaux = await resp.evaluate(() => Object.fromEntries([...document.querySelectorAll("nav[aria-label=Niveau] a")].map(a => [a.textContent, new URL(a.href).searchParams.get("niveau")])));
-ok("1 000 sommets enregistrés au rez-de-chaussée (version 4)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
-ok("crypte enregistrée au sous-sol", (await enregistrerPieces(niveaux["Sous-sol"], [{ nom: "Crypte", contour: [{ x: 2, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 9 }, { x: 2, y: 9 }] }])) === 200);
+await ok("1 000 sommets enregistrés au rez-de-chaussée (version 4)", (await enregistrerPieces(niveaux["Rez-de-chaussée"], salles)) === 200);
+await ok("crypte enregistrée au sous-sol", (await enregistrerPieces(niveaux["Sous-sol"], [{ nom: "Crypte", contour: [{ x: 2, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 9 }, { x: 2, y: 9 }] }])) === 200);
 await resp.reload();
 await resp.waitForFunction(() => document.querySelectorAll("[data-role=pieces] polygon").length === 50);
-ok("atelier : 50 pièces et leurs noms affichés", (await resp.locator("[data-role=pieces] text").count()) === 50);
+await ok("atelier : 50 pièces et leurs noms affichés", (await resp.locator("[data-role=pieces] text").count()) === 50);
 
 // 5. Mesure de fluidité : durées des images (requestAnimationFrame) pendant glisser, molette et pincement
+await r.etape("5. Mesure de fluidité : durées des images (requestAnimationFrame) pendant glisser, molette et pincement");
 async function mesurer(p, ralenti) {
   const cdp = await p.context().newCDPSession(p);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: ralenti });
@@ -266,20 +250,21 @@ async function mesurer(p, ralenti) {
 }
 const avantPincement = await resp.getAttribute("[data-role=svg]", "viewBox");
 const normale = await mesurer(resp, 1);
-ok("le pincement à deux doigts zoome la vue", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== avantPincement);
+await ok("le pincement à deux doigts zoome la vue", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== avantPincement);
 const ralentie = await mesurer(resp, 4);
 const f = m => `${m.images} images, médiane ${m.mediane.toFixed(1)} ms, 95e centile ${m.p95.toFixed(1)} ms, max ${m.max.toFixed(1)} ms, > 50 ms : ${m.au_dela_50ms}`;
 console.log(`MESURE fluidité (Chromium ${b.version()}, fond 4 096 px, 1 000 sommets) — processeur normal : ${f(normale)}`);
 console.log(`MESURE fluidité — processeur ralenti 4× : ${f(ralentie)}`);
-ok("fluidité : médiane sous 20 ms (processeur normal)", normale.mediane < 20, f(normale));
+await ok("fluidité : médiane sous 20 ms (processeur normal)", normale.mediane < 20, f(normale));
 
 // 5 bis. S21-08 dans l'atelier : zone créée, pièce cotée au centimètre, chevauchement, porte, escalier, recalage
+await r.etape("5 bis. S21-08 dans l'atelier : zone créée, pièce cotée au centimètre, chevauchement, porte, escalier, recalage");
 await resp.click("[data-action=ajuster]"); // vue entière : la chapelle se trace en haut à droite du fond, hors des salles
 await resp.click("[data-outil=piece]");
 await resp.fill("[data-panneau=trace] [data-role=creer-zone] input[name=nom]", "Chapelle");
 await resp.click("[data-panneau=trace] [data-role=creer-zone] button[type=submit]");
 await resp.waitForFunction(() => document.querySelector("[data-role=message]")?.textContent.includes("Zone « Chapelle » ajoutée"));
-ok("zone « Chapelle » créée depuis l'éditeur (responsable : plans et inventaire)", (await resp.inputValue("[data-champ=trace-zone]")) !== "");
+await ok("zone « Chapelle » créée depuis l'éditeur (responsable : plans et inventaire)", (await resp.inputValue("[data-champ=trace-zone]")) !== "");
 for (const [x, y] of [[16.03, 1.02], [18.98, 0.97], [19.02, 4.01], [15.98, 3.99]]) await toucherRepere(resp, x, y);
 await toucherRepere(resp, 16.03, 1.02); // retour sur le premier sommet : la pièce se ferme
 await attendre(resp, "[data-panneau=piece]:not([hidden])");
@@ -294,7 +279,7 @@ for (let k = 0; k < 4; k++) {
 }
 const perimetre = await texte(resp, "[data-role=piece-perimetre]");
 const surface = await texte(resp, "[data-role=piece-surface]");
-ok("pièce cotée au centimètre : 3,00 × 3,00 m (périmètre 12,00 m, 9,0 m²)", perimetre === "12,00 m" && surface === "9,0 m²", `${perimetre} ${surface}`);
+await ok("pièce cotée au centimètre : 3,00 × 3,00 m (périmètre 12,00 m, 9,0 m²)", perimetre === "12,00 m" && surface === "9,0 m²", `${perimetre} ${surface}`);
 await resp.click("[data-panneau=piece] [data-action=deselectionner]");
 await resp.click("[data-outil=piece]");
 await resp.fill("[data-panneau=trace] [data-role=creer-zone] input[name=nom]", "Sacristie");
@@ -302,20 +287,20 @@ await resp.click("[data-panneau=trace] [data-role=creer-zone] button[type=submit
 await resp.waitForFunction(() => document.querySelector("[data-role=message]")?.textContent.includes("Zone « Sacristie » ajoutée"));
 for (const [x, y] of [[18.4, 2.4], [20.2, 2.4], [20.2, 3.6]]) await toucherRepere(resp, x, y);
 await resp.click("[data-action=fermer-trace]");
-ok("chevauchement de plus de 5 cm refusé par l'éditeur, message clair", (await texte(resp, "[data-role=message]")).includes("chevauche « Chapelle » de plus de 5 cm"));
+await ok("chevauchement de plus de 5 cm refusé par l'éditeur, message clair", (await texte(resp, "[data-role=message]")).includes("chevauche « Chapelle » de plus de 5 cm"));
 await resp.click("[data-action=abandonner-trace]");
 await resp.click("[data-outil=ouverture]");
 await toucherRepere(resp, 17.5, 1.03);
 await attendre(resp, "[data-panneau=ouverture]:not([hidden])");
 await resp.fill("[data-champ=ouverture-largeur]", "1,20"); await resp.press("[data-champ=ouverture-largeur]", "Tab");
-ok("porte posée sur une arête de la chapelle, largeur 1,20 m", (await texte(resp, "[data-role=ouverture-nom]")).startsWith("Porte · Chapelle")
+await ok("porte posée sur une arête de la chapelle, largeur 1,20 m", (await texte(resp, "[data-role=ouverture-nom]")).startsWith("Porte · Chapelle")
   && (await resp.inputValue("[data-champ=ouverture-largeur]")) === "1,2" && await resp.isHidden("[data-role=ouverture-defaut]"));
 await resp.click("[data-outil=escalier]");
-ok("escalier : vers le sous-sol proposé", (await resp.locator("[data-champ=trace-niveau] option:checked").textContent()) === "Sous-sol");
+await ok("escalier : vers le sous-sol proposé", (await resp.locator("[data-champ=trace-niveau] option:checked").textContent()) === "Sous-sol");
 for (const [x, y] of [[16.5, 2], [17.5, 2], [17.5, 3.5], [16.5, 3.5]]) await toucherRepere(resp, x, y);
 await resp.click("[data-action=fermer-trace]");
 await attendre(resp, "[data-panneau=escalier]:not([hidden])");
-ok("escalier vers le sous-sol tracé", (await texte(resp, "[data-role=escalier-nom]")) === "Escalier vers Sous-sol");
+await ok("escalier vers le sous-sol tracé", (await texte(resp, "[data-role=escalier-nom]")) === "Escalier vers Sous-sol");
 await resp.click("[data-panneau=escalier] [data-action=deselectionner]");
 await resp.click("[data-outil=selection]");
 // Recalage sur le calque du sous-sol : crypte (2 ; 2)-(9 ; 9), mêmes angles touchés sur le fond en (2,5 ; 1,5) et (9,5 ; 8,5).
@@ -324,25 +309,26 @@ await attendre(resp, "[data-panneau=recalage]:not([hidden])");
 await toucherRepere(resp, 2.05, 1.97); await toucherRepere(resp, 2.5, 1.5);
 await toucherRepere(resp, 8.96, 9.04); await toucherRepere(resp, 9.5, 8.5);
 const recalage = await texte(resp, "[data-role=recalage-resultat]");
-ok("recalage : translation déduite, écart des distances sous 2 %", recalage.includes("Fond décalé de") && recalage.includes("✓"), recalage);
+await ok("recalage : translation déduite, écart des distances sous 2 %", recalage.includes("Fond décalé de") && recalage.includes("✓"), recalage);
 await resp.click("[data-action=valider-recalage]");
 await resp.click("[data-action=enregistrer]");
 await resp.waitForFunction(() => /Version \d+ enregistrée/.test(document.querySelector("[data-role=message]")?.textContent ?? ""));
 const s2108 = await lirePlanCourant(resp);
 const chapelle = s2108.contenu.pieces.find(p => p.contour.length === 4 && Math.abs(p.contour[1].x - p.contour[0].x - 3) < 1e-9);
 const decalage = s2108.contenu.fond.decalage;
-ok("version relue : fond recalé d'environ (-0,50 ; +0,50) m, chapelle de 3,00 m déplacée avec lui, porte et escalier vers le sous-sol",
+await ok("version relue : fond recalé d'environ (-0,50 ; +0,50) m, chapelle de 3,00 m déplacée avec lui, porte et escalier vers le sous-sol",
   Math.abs(decalage.x + 0.5) <= 0.04 && Math.abs(decalage.y - 0.5) <= 0.04 && chapelle && Math.abs(chapelle.contour[0].x - 16 - decalage.x) < 1e-9
   && s2108.contenu.ouvertures.length === 1 && s2108.contenu.escaliers[0].versNiveauId === niveaux["Sous-sol"],
   JSON.stringify({ decalage, chapelle: chapelle?.contour[0] }));
 await resp.screenshot({ path: "us21-atelier-pieces-tablette.png" });
 
 // 6. Brouillon : modification non enregistrée, conflit 409, reprise confirmée sur la version gagnante
+await r.etape("6. Brouillon : modification non enregistrée, conflit 409, reprise confirmée sur la version gagnante");
 const versionAvant = s2108.version;
 await resp.click("[data-action=changer-fond]");
 await resp.click("[data-action=grille]");
 await resp.waitForTimeout(500);
-ok("brouillon local écrit pour ce compte et ce plan", (await brouillons(resp)).length === 1);
+await ok("brouillon local écrit pour ce compte et ce plan", (await brouillons(resp)).length === 1);
 const concurrent = await resp.evaluate(async () => {
   const d = document.querySelector("#editeur-plan").dataset;
   const chemin = `/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}`;
@@ -350,120 +336,122 @@ const concurrent = await resp.evaluate(async () => {
   const r = await fetch(chemin, { method: "PUT", headers: { "Content-Type": "application/json", RequestVerificationToken: d.jeton }, body: JSON.stringify({ commandeId: crypto.randomUUID(), version: lue.version, motif: "Enregistrement concurrent", contenu: lue.contenu }) });
   return r.status;
 });
-ok(`version ${versionAvant + 1} enregistrée par ailleurs entre-temps`, concurrent === 200);
+await ok(`version ${versionAvant + 1} enregistrée par ailleurs entre-temps`, concurrent === 200);
 await resp.click("[data-action=enregistrer]");
 await resp.waitForSelector("[data-role=brouillon]:not([hidden])");
 const conflit = await texte(resp, "[data-role=message]");
-ok("409 : version gagnante nommée, rien d'écrasé, brouillon conservé", conflit.includes("modifié entre-temps par Rose Responsable") && conflit.includes(`version ${versionAvant + 1}`)
+await ok("409 : version gagnante nommée, rien d'écrasé, brouillon conservé", conflit.includes("modifié entre-temps par Rose Responsable") && conflit.includes(`version ${versionAvant + 1}`)
   && (await brouillons(resp)).length === 1, conflit);
 await resp.click("[data-action=brouillon-reprendre]");
-ok("reprise demandée : confirmation exigée", (await texte(resp, "[data-role=brouillon-texte]")).startsWith("Confirmez") && await resp.isVisible("[data-action=brouillon-confirmer]"));
+await ok("reprise demandée : confirmation exigée", (await texte(resp, "[data-role=brouillon-texte]")).startsWith("Confirmez") && await resp.isVisible("[data-action=brouillon-confirmer]"));
 await resp.click("[data-action=brouillon-confirmer]");
 await resp.waitForSelector("[data-action=enregistrer]:not([disabled])");
-ok(`bouton « Enregistrer la version ${versionAvant + 2} »`, (await texte(resp, "[data-action=enregistrer]")) === `Enregistrer la version ${versionAvant + 2}`);
+await ok(`bouton « Enregistrer la version ${versionAvant + 2} »`, (await texte(resp, "[data-action=enregistrer]")) === `Enregistrer la version ${versionAvant + 2}`);
 await resp.click("[data-action=enregistrer]");
 await resp.waitForFunction(v => document.querySelector("[data-role=message]")?.textContent.includes(`Version ${v} enregistrée`), versionAvant + 2);
 const historique = await resp.evaluate(async () => {
   const d = document.querySelector("#editeur-plan").dataset;
   return (await (await fetch(`/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}`)).json()).contenu.fond;
 });
-ok(`version ${versionAvant + 2} = brouillon repris (plan sur grille), brouillon effacé`, historique === null && (await brouillons(resp)).length === 0);
+await ok(`version ${versionAvant + 2} = brouillon repris (plan sur grille), brouillon effacé`, historique === null && (await brouillons(resp)).length === 0);
 
 // 6 bis. S21-09 : composant devenu objet de valeur, marqueur déplacé sans glisser, historique et restauration
+await r.etape("6 bis. S21-09 : composant devenu objet de valeur, marqueur déplacé sans glisser, historique et restauration");
 await resp.goto(inventaire);
 await resp.click("a.nom-composant:has-text('Extincteur')"); await resp.waitForLoadState();
 await resp.click(".fiche-composant a:has-text('Modifier')"); await resp.waitForLoadState();
 await resp.check("input[name='ComposantSaisi.ObjetDeValeur']"); await envoyer();
-ok("extincteur coché « objet de valeur » dans l'inventaire", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui"));
+await ok("extincteur coché « objet de valeur » dans l'inventaire", (await texte(resp, ".fiche-composant")).includes("Objet de valeurOui"));
 await resp.goto(plans);
 await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.includes(`Version ${v}`), versionAvant + 2);
-ok("marqueur devenu objet de valeur : signalé, plus affiché", (await texte(resp, "[data-role=message]")).includes("1 marqueur de composant n'est plus affiché")
+await ok("marqueur devenu objet de valeur : signalé, plus affiché", (await texte(resp, "[data-role=message]")).includes("1 marqueur de composant n'est plus affiché")
   && !(await texte(resp, "[data-role=marqueurs]")).includes("Extincteur") && (await texte(resp, "[data-role=marqueurs]")).includes("Bloc BAES"));
 const anciennes = await resp.evaluate(async v => {
   const d = document.querySelector("#editeur-plan").dataset;
   const lue = await (await fetch(`/organisations/${d.organisation}/sites/${d.site}/plans-batiment/${d.plan}/versions/${v}`)).json();
   return { marqueurs: lue.contenu.composants.length, obsoletes: lue.marqueursObsoletes };
 }, 3);
-ok("position de l'objet de valeur jamais servie, même dans la version 3", anciennes.marqueurs === 1 && anciennes.obsoletes.length === 1, JSON.stringify(anciennes));
+await ok("position de l'objet de valeur jamais servie, même dans la version 3", anciennes.marqueurs === 1 && anciennes.obsoletes.length === 1, JSON.stringify(anciennes));
 await resp.click("[data-action=ajuster]");
 const baes = await resp.evaluate(() => { const c = document.querySelector("[data-role=marqueurs] circle"); return [Number(c.getAttribute("cx")), Number(c.getAttribute("cy"))]; });
 await toucherRepere(resp, baes[0], baes[1]);
 await attendre(resp, "[data-panneau=marqueur]:not([hidden])");
-ok("marqueur sélectionné : hors de sa zone signalé", (await texte(resp, "[data-role=marqueur-nom]")) === "Bloc BAES" && await resp.isVisible("[data-role=marqueur-hors-zone]"));
+await ok("marqueur sélectionné : hors de sa zone signalé", (await texte(resp, "[data-role=marqueur-nom]")) === "Bloc BAES" && await resp.isVisible("[data-role=marqueur-hors-zone]"));
 // Salle 1 : cercle de 0,60 m autour de (2 ; 2,3), déplacé avec le fond par le recalage ; coordonnées saisies, puis 10 cm à droite.
 const centre = { x: Math.round((2 + decalage.x) * 100) / 100, y: Math.round((2.3 + decalage.y) * 100) / 100 };
 const virgule = v => String(Math.round(v * 100) / 100).replace(".", ",");
 await resp.fill("[data-champ=marqueur-x]", virgule(centre.x - 0.1)); await resp.press("[data-champ=marqueur-x]", "Tab");
 await resp.fill("[data-champ=marqueur-y]", virgule(centre.y)); await resp.press("[data-champ=marqueur-y]", "Tab");
 await resp.click("[data-panneau=marqueur] [data-pousser='1 0']");
-ok(`marqueur déplacé sans glisser au centre de sa pièce (${virgule(centre.x)} ; ${virgule(centre.y)})`,
+await ok(`marqueur déplacé sans glisser au centre de sa pièce (${virgule(centre.x)} ; ${virgule(centre.y)})`,
   (await resp.inputValue("[data-champ=marqueur-x]")) === virgule(centre.x) && await resp.isHidden("[data-role=marqueur-hors-zone]"), await resp.inputValue("[data-champ=marqueur-x]"));
 await resp.click("[data-panneau=marqueur] [data-action=deselectionner]");
 await resp.click("[data-outil=composant]");
 const liste = await texte(resp, "[data-role=composants-liste]");
-ok("outil « Composant » : l'objet de valeur n'est plus proposé", liste.includes("Bloc BAES") && !liste.includes("Extincteur"), liste);
+await ok("outil « Composant » : l'objet de valeur n'est plus proposé", liste.includes("Bloc BAES") && !liste.includes("Extincteur"), liste);
 await resp.click("[data-action=enregistrer]");
 await resp.waitForFunction(v => document.querySelector("[data-role=message]")?.textContent.includes(`Version ${v} enregistrée.`), versionAvant + 3);
 await resp.click("[data-action=historique]");
 await attendre(resp, "[data-panneau=historique]:not([hidden]) [data-version]");
 const versions = await texte(resp, "[data-role=versions]");
-ok("historique : versions de la plus récente à la plus ancienne, auteur et motif", versions.startsWith(`Version ${versionAvant + 3}`)
+await ok("historique : versions de la plus récente à la plus ancienne, auteur et motif", versions.startsWith(`Version ${versionAvant + 3}`)
   && versions.includes("· courante") && versions.includes("Enregistrement concurrent") && versions.includes("Rose Responsable"), versions.slice(0, 120));
 await resp.click(`[data-version="${versionAvant}"]`);
 await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.startsWith(`Consultation en lecture seule · Version ${v}`), versionAvant);
-ok(`version ${versionAvant} consultée en lecture seule : fond recalé, objet de valeur absent, enregistrement impossible`,
+await ok(`version ${versionAvant} consultée en lecture seule : fond recalé, objet de valeur absent, enregistrement impossible`,
   (await resp.locator("[data-role=fond] image").count()) === 1 && !(await texte(resp, "[data-role=marqueurs]")).includes("Extincteur")
   && await resp.isDisabled("[data-action=enregistrer]") && await resp.isDisabled("[data-outil=piece]"));
 await resp.screenshot({ path: "us21-historique-tablette.png" });
 await resp.click("[data-role=restaurer] button[type=submit]");
-ok("restauration sans motif refusée par l'éditeur", (await texte(resp, "[data-role=message]")).startsWith("Motif obligatoire"));
+await ok("restauration sans motif refusée par l'éditeur", (await texte(resp, "[data-role=message]")).startsWith("Motif obligatoire"));
 await resp.fill("[data-role=restaurer] input[name=motif]", "Retour au plan recalé");
 await resp.click("[data-role=restaurer] button[type=submit]");
 await resp.waitForFunction(v => document.querySelector("[data-role=message]")?.textContent.includes(`elle devient la version ${v}`), versionAvant + 4);
 const restauration = await texte(resp, "[data-role=message]");
 const restauree = await lirePlanCourant(resp);
-ok(`version ${versionAvant} restaurée en version ${versionAvant + 4} avec motif, marqueur de l'objet de valeur retiré de la copie`,
+await ok(`version ${versionAvant} restaurée en version ${versionAvant + 4} avec motif, marqueur de l'objet de valeur retiré de la copie`,
   restauration.includes("1 marqueur de composant a été retiré de la copie") && restauree.restaureDe === versionAvant && restauree.motif === "Retour au plan recalé"
   && restauree.contenu.fond !== null && !restauree.contenu.composants.some(m => m.composantId === anciennes.obsoletes[0]), restauration);
 const versionFinale = versionAvant + 4;
 
 // 7. Cloisonnement : brouillon d'un autre compte effacé à l'ouverture ; tout brouillon effacé à la déconnexion
+await r.etape("7. Cloisonnement : brouillon d'un autre compte effacé à l'ouverture ; tout brouillon effacé à la déconnexion");
 await resp.evaluate(() => {
   const d = document.querySelector("#editeur-plan").dataset;
   localStorage.setItem(`gestionsite.brouillon-plan.v1:0190f5a2-1111-7000-8000-000000000001:${d.organisation}:${d.plan}`, "{}");
 });
 await resp.reload(); await resp.waitForTimeout(500);
-ok("brouillon d'un autre compte effacé à l'ouverture de l'éditeur", (await brouillons(resp)).length === 0);
+await ok("brouillon d'un autre compte effacé à l'ouverture de l'éditeur", (await brouillons(resp)).length === 0);
 await resp.click("[data-action=changer-fond]");
 await resp.click("[data-role=fonds-liste] button >> nth=0"); // calibration commencée, non enregistrée
 await resp.waitForTimeout(500);
-ok("brouillon en cours avant la déconnexion", (await brouillons(resp)).length === 1);
+await ok("brouillon en cours avant la déconnexion", (await brouillons(resp)).length === 1);
 await cliquer(resp, "form[action='/deconnexion'] button");
 await resp.goto(`${base}/connexion`);
-ok("aucun brouillon après la déconnexion (Clear-Site-Data)", (await brouillons(resp)).length === 0);
+await ok("aucun brouillon après la déconnexion (Clear-Site-Data)", (await brouillons(resp)).length === 0);
 
 // 8. Lecteur (même tablette) : atelier sans commande d'édition, calque du sous-sol
+await r.etape("8. Lecteur (même tablette) : atelier sans commande d'édition, calque du sous-sol");
 await activer(resp, lienPasteur);
 await resp.goto(plans);
 await resp.waitForFunction(v => document.querySelector("[data-role=resume]")?.textContent.includes(`Version ${v}`), versionFinale);
-ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond], [data-outil=composant]").count()) === 0);
+await ok("lecteur : aucune commande d'édition", (await resp.locator("[data-action=enregistrer], [data-panneau=calibration], [data-action=changer-fond], [data-outil=composant]").count()) === 0);
 await resp.click("[data-action=historique]");
 await attendre(resp, "[data-panneau=historique]:not([hidden]) [data-version]");
 await resp.click(`[data-version="${versionAvant}"]`);
 await resp.waitForFunction(() => document.querySelector("[data-role=resume]")?.textContent.startsWith("Consultation en lecture seule"));
-ok("lecteur : historique consultable, sans restauration", (await resp.locator("[data-role=restaurer]").count()) === 0);
+await ok("lecteur : historique consultable, sans restauration", (await resp.locator("[data-role=restaurer]").count()) === 0);
 await resp.click("[data-action=fermer-historique]");
 await resp.click("[data-action=calque]");
 await resp.waitForSelector("[data-role=calque]:not([hidden]) polygon");
-ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttribute("[data-action=calque]", "aria-pressed")) === "true"
+await ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttribute("[data-action=calque]", "aria-pressed")) === "true"
   && (await texte(resp, "[data-action=calque]")).includes("Sous-sol : affiché"));
 await resp.click("[data-action=zoom-avant]"); await resp.click("[data-action=gauche]"); await resp.click("[data-action=ajuster]");
-ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
+await ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
 await resp.screenshot({ path: "us21-lecteur-calque.png" });
 await cliquer(resp, "nav[aria-label=Niveau] a:has-text('Tribune')");
 const tribune = await texte(resp, "[data-role=resume]");
-ok("lecteur, niveau sans plan : « Aucun plan », jamais « Chargement du plan… »", (await texte(resp)).includes("Aucun plan de bâtiment pour ce niveau")
+await ok("lecteur, niveau sans plan : « Aucun plan », jamais « Chargement du plan… »", (await texte(resp)).includes("Aucun plan de bâtiment pour ce niveau")
   && tribune === "Aucune version enregistrée", tribune);
 
-ok("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", violations.length === 0, violations.join(" | "));
-await b.close();
+await finir("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", true);
