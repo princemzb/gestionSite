@@ -30,9 +30,9 @@ internal sealed class DestinatairesSite
     internal IEnumerable<Guid> ResponsablesDelegues() =>
         _membres.Where(m => m.Roles.Any(Encadrement.Contains)).Select(m => m.CompteId);
 
-    /// <summary>Le compte s'il est encore membre actif du site, sinon les R/D du site (son remplaçant pour agir).</summary>
+    /// <summary>Le compte s'il est encore responsable ou délégué du site, sinon les R/D du site (ses remplaçants pour agir).</summary>
     internal IEnumerable<Guid> OuResponsables(Guid? compte) =>
-        compte is { } c && _membres.Any(m => m.CompteId == c) ? [c] : ResponsablesDelegues();
+        compte is { } c && ResponsablesDelegues().Contains(c) ? [c] : ResponsablesDelegues();
 
     /// <summary>Comptes donnés encore membres actifs du site (rappels : personne en charge révoquée ou sans rôle exclue).</summary>
     internal IEnumerable<Guid> Membres(IEnumerable<Guid> comptes) => comptes.Where(c => _membres.Any(m => m.CompteId == c));

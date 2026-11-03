@@ -88,8 +88,8 @@ internal sealed class ServiceDossiers(
             .ToLookup(p => p.InterventionId, p => p.Rang);
         var alertes = await context.AlertesDanger.AsNoTracking().Where(a => a.SignalementId == id).OrderBy(a => a.CreeLe)
             .Select(a => new { Alerte = a, Version = EF.Property<uint>(a, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var nomsDangers = await LectureDangers.NomsAsync(annuaire, alertes.Select(a => a.Alerte), cancellationToken).ConfigureAwait(false);
         var comptes = journal.Select(e => e.AuteurCompteId).Concat(interventions.SelectMany(i => new[] { i.IntervenantCompteId, i.ReferentCompteId }))
+            .Concat(LectureDangers.Comptes(alertes.Select(a => a.Alerte)).Select(c => (Guid?)c))
             .Where(c => c is not null).Select(c => c!.Value).Distinct().ToList();
         var auteurs = await annuaire.NomsAsync(comptes, cancellationToken).ConfigureAwait(false);
         var lieu = dossier.ZoneId is { } zone
@@ -123,7 +123,7 @@ internal sealed class ServiceDossiers(
             // Marque « nouveau constat » pour R/D : le dernier événement est un constat d'inspection rattaché (US-12).
             journal.Count > 0 && journal[0].Nature == NatureEvenementDossier.ConstatInspection,
             // Suivi de chaque danger (S10-04), levés et écartés compris, du plus ancien au plus récent.
-            [.. alertes.Select(a => LectureDangers.Lire(a.Alerte, a.Version, nomsDangers))]);
+            [.. alertes.Select(a => LectureDangers.Lire(a.Alerte, a.Version, auteurs))]);
     }
 
     /// <summary>Déclaration d'un compte interne du site (décision du 29/10) ; même commande rejouée : même dossier.</summary>

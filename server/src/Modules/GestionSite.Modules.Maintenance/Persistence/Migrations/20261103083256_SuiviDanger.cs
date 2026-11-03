@@ -151,6 +151,20 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                 "securite_declaree_le, securite_declaree_par_compte_id, securite_verifiee_le, securite_verifiee_par_compte_id, fin, fin_motif, " +
                 "fin_commentaire, fin_le, fin_par_compte_id) ON maintenance.alertes_danger TO gestionsite_app;");
 
+            // Alertes antérieures au suivi, sur un dossier déjà clos (clôturé, classé sans suite ou rattaché) : closes comme
+            // « écartées » (motif Autre, sans auteur), pour que la reprise ne relance pas d'alertes horaires sur des dossiers
+            // terminés ; celles d'un dossier ouvert restent en cours (à prendre en compte). Le propriétaire est soumis à la
+            // RLS (FORCE) : levée le temps de cette mise à jour seulement, dans la transaction de la migration.
+            migrationBuilder.Sql("ALTER TABLE maintenance.alertes_danger NO FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql("ALTER TABLE maintenance.signalements NO FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql(
+                "UPDATE maintenance.alertes_danger a SET fin = 'Ecarte', fin_motif = 'Autre', fin_le = now(), " +
+                "fin_commentaire = 'Alerte antérieure au suivi du danger, sur un dossier déjà clos : close à la mise en service du suivi.' " +
+                "FROM maintenance.signalements s WHERE s.id = a.signalement_id AND s.organisation_id = a.organisation_id " +
+                "AND s.statut IN ('Cloture', 'ClasseSansSuite', 'RattacheDoublon');");
+            migrationBuilder.Sql("ALTER TABLE maintenance.signalements FORCE ROW LEVEL SECURITY;");
+            migrationBuilder.Sql("ALTER TABLE maintenance.alertes_danger FORCE ROW LEVEL SECURITY;");
+
             // Planificateur : un danger en cours relance ses alertes même sur un dossier clos (la clôture ne lève pas le danger).
             // Même fonction (propriétaire, droits et garde-fous de la migration RappelsPlanificateur), élargie aux organisations
             // qui ont un danger en cours ; la politique réservée au propriétaire s'ouvre de la même façon sur les alertes.

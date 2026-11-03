@@ -8,7 +8,9 @@ namespace GestionSite.Modules.Maintenance.Planificateur;
 /// (<paramref name="Encadrement"/>), pasteurs et coordinateurs (<paramref name="Information"/> : alerte de danger) et
 /// personnes en charge (intervenant, ou référent d'un prestataire ; pour un danger, celui qui l'a pris en compte).
 /// </summary>
-internal sealed record CibleRappel(bool Encadrement, IReadOnlyCollection<Guid> EnCharge, bool Information = false);
+/// <remarks><paramref name="EnChargeResponsable"/> : la personne en charge doit être encore R/D du site (celui qui a pris un danger
+/// en compte), sinon elle est remplacée par les R/D.</remarks>
+internal sealed record CibleRappel(bool Encadrement, IReadOnlyCollection<Guid> EnCharge, bool Information = false, bool EnChargeResponsable = false);
 
 /// <summary>
 /// Rappel dû pour un dossier : type, clé de l'événement (une notification par destinataire et par seuil), cible, et alerte de
@@ -101,7 +103,7 @@ internal static class Rappels
     /// l'alerte (R/D, P/C, personnes en charge d'une intervention ouverte du dossier), même si une mise en sécurité est déjà
     /// déclarée (Q-M1) ;</item>
     /// <item>pris en compte, sans mise en sécurité déclarée : toutes les heures, à celui qui l'a pris en compte (les R/D s'il
-    /// n'est plus membre du site), et aux autres R/D à partir de 4 h ; une mise en sécurité jugée insuffisante relance ce cycle
+    /// n'est plus responsable ou délégué du site), et aux autres R/D à partir de 4 h ; une mise en sécurité jugée insuffisante relance ce cycle
     /// (Q-M2).</item>
     /// </list>
     /// Une mise en sécurité déclarée, en attente de vérification, n'est pas rappelée.
@@ -140,7 +142,7 @@ internal static class Rappels
         {
             dus.Add(new RappelDu(
                 dossier, TypeNotification.MiseEnSecuriteAFaire, $"rappel:securite:{alerte.Id:N}:{debut.ToUnixTimeMilliseconds()}:{heures}",
-                new CibleRappel(Encadrement: heures >= HeuresAvantAutresResponsables, [alerte.PrisEnCompteParCompteId!.Value]), alerte.Id));
+                new CibleRappel(Encadrement: heures >= HeuresAvantAutresResponsables, [alerte.PrisEnCompteParCompteId!.Value], EnChargeResponsable: true), alerte.Id));
         }
 
         return new EcheancesDossier(dus, debut + (Heure * (heures + 1)));

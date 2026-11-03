@@ -105,7 +105,7 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
             return site.AlerteDanger(cible.EnCharge).Distinct();
         }
 
-        var enCharge = site.Membres(cible.EnCharge).ToList();
+        var enCharge = (cible.EnChargeResponsable ? site.ResponsablesDelegues().Intersect(cible.EnCharge) : site.Membres(cible.EnCharge)).ToList();
         var encadrement = cible.Encadrement || enCharge.Count == 0;
         return (encadrement ? site.ResponsablesDelegues() : []).Concat(enCharge).Distinct();
     }

@@ -23,7 +23,7 @@ public sealed class DangerTests
         var (_, alerte) = Nouvelle();
 
         alerte.DeclarerMiseEnSecurite(ActionMiseEnSecurite.AccesCondamne, null, Technicien, Alerte.AddMinutes(5));
-        Assert.Equal((EtatDanger.Ouvert, false), (alerte.Etat, alerte.NonMaitrise)); // Q-M1 : déclarée, mais pas encore prise en compte
+        Assert.Equal(EtatDanger.Ouvert, alerte.Etat); // Q-M1 : déclarée, mais pas encore prise en compte
         Assert.Equal("non_pris_en_compte", Assert.Throws<DangerIncompatibleException>(() => alerte.VerifierMiseEnSecurite(true, null, Responsable, Alerte)).Code);
         alerte.PrendreEnCompte(Responsable, Alerte.AddMinutes(10));
         Assert.Equal(EtatDanger.MiseEnSecuriteDeclaree, alerte.Etat);
@@ -34,7 +34,7 @@ public sealed class DangerTests
         Assert.Equal("motif", Assert.Throws<SaisieInvalideException>(() => alerte.VerifierMiseEnSecurite(false, " ", Responsable, Alerte)).Champ);
         var (declarant, action, motif) = alerte.VerifierMiseEnSecurite(false, "Balisage arraché", Responsable, Alerte.AddMinutes(30));
         Assert.Equal((Technicien, ActionMiseEnSecurite.AccesCondamne, "Balisage arraché"), (declarant, action, motif));
-        Assert.Equal((EtatDanger.PrisEnCompte, true, Alerte.AddMinutes(30)), (alerte.Etat, alerte.NonMaitrise, alerte.RappelsSecuriteDepuis));
+        Assert.Equal((EtatDanger.PrisEnCompte, (DateTimeOffset?)null, (DateTimeOffset?)Alerte.AddMinutes(30)), (alerte.Etat, alerte.SecuriteDeclareeLe, alerte.RappelsSecuriteDepuis));
         Assert.Equal("securite_non_declaree", Assert.Throws<DangerIncompatibleException>(() => alerte.VerifierMiseEnSecurite(true, null, Responsable, Alerte)).Code);
 
         Assert.Equal("commentaire",
@@ -45,7 +45,7 @@ public sealed class DangerTests
         alerte.VerifierMiseEnSecurite(true, null, Responsable, Alerte.AddMinutes(45));
         Assert.Equal(EtatDanger.MiseEnSecuriteVerifiee, alerte.Etat);
         Assert.Equal("securite_declaree", Assert.Throws<DangerIncompatibleException>(() => alerte.Ecarter(MotifEcartement.DejaTraite, null, Responsable, Alerte)).Code);
-        Assert.Equal("securite_non_declaree", Assert.Throws<DangerIncompatibleException>(() => alerte.VerifierMiseEnSecurite(true, null, Responsable, Alerte)).Code);
+        Assert.Equal("securite_deja_verifiee", Assert.Throws<DangerIncompatibleException>(() => alerte.VerifierMiseEnSecurite(true, null, Responsable, Alerte)).Code);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class DangerTests
         Assert.Equal("commentaire", Assert.Throws<SaisieInvalideException>(() => alerte.Lever(MotifLevee.Autre, null, false, Responsable, Alerte)).Champ);
         alerte.Lever(MotifLevee.ReparationDossierResolu, null, true, Responsable, Alerte.AddDays(1));
 
-        Assert.Equal((EtatDanger.Leve, false, "ReparationDossierResolu", Alerte.AddDays(1)), (alerte.Etat, alerte.NonMaitrise, alerte.FinMotif, alerte.FinLe));
+        Assert.Equal((EtatDanger.Leve, false, "ReparationDossierResolu", (DateTimeOffset?)Alerte.AddDays(1)), (alerte.Etat, alerte.EnCours, alerte.FinMotif, alerte.FinLe));
         Assert.Equal("danger_clos", Assert.Throws<DangerIncompatibleException>(() => alerte.PrendreEnCompte(Responsable, Alerte)).Code);
         Assert.Equal("danger_clos",
             Assert.Throws<DangerIncompatibleException>(() => alerte.DeclarerMiseEnSecurite(ActionMiseEnSecurite.Evacuation, null, Technicien, Alerte)).Code);
@@ -145,8 +145,12 @@ public sealed class DangerTests
 
         Assert.Equal([Responsable, pasteur.CompteId, Technicien],
             RappelsOrganisation.Destinataires(new CibleRappel(true, [Technicien, parti], Information: true), site));
-        Assert.Equal([Technicien], site.OuResponsables(Technicien));
+        // Celui qui a pris le danger en compte n'est retenu que s'il est encore R/D du site (sinon : les R/D).
+        Assert.Equal([Responsable], site.OuResponsables(Responsable));
+        Assert.Equal([Responsable], site.OuResponsables(Technicien));
         Assert.Equal([Responsable], site.OuResponsables(parti));
+        Assert.Equal([Responsable], RappelsOrganisation.Destinataires(new CibleRappel(false, [Technicien], EnChargeResponsable: true), site));
+        Assert.Equal([Responsable], RappelsOrganisation.Destinataires(new CibleRappel(false, [Responsable], EnChargeResponsable: true), site));
         Assert.Equal([Responsable], site.OuResponsables(null));
     }
 

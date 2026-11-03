@@ -21,8 +21,8 @@ internal sealed record MiseEnSecuriteLue(
     string Action, string? Commentaire, DateTimeOffset DeclareeLe, Guid DeclareeParCompteId, string? DeclareePar, DateTimeOffset? VerifieeLe,
     Guid? VerifieeParCompteId, string? VerifieePar);
 
-/// <summary>Fin du suivi : levé ou écarté, motif, commentaire, auteur et instant.</summary>
-internal sealed record FinDangerLue(string Nature, string Motif, string? Commentaire, DateTimeOffset Le, Guid ParCompteId, string? Par);
+/// <summary>Fin du suivi : levé ou écarté, motif, commentaire, auteur (null : alerte antérieure au suivi, close à la migration) et instant.</summary>
+internal sealed record FinDangerLue(string Nature, string Motif, string? Commentaire, DateTimeOffset Le, Guid? ParCompteId, string? Par);
 
 internal sealed record DangerLu(
     Guid Id, string Etat, DateTimeOffset CreeLe, Guid? ConstatId, DateTimeOffset? PrisEnCompteLe, Guid? PrisEnCompteParCompteId,
@@ -52,18 +52,19 @@ internal sealed class ServiceDangers(
         var lignes = await (from a in context.AlertesDanger.AsNoTracking()
                             join s in context.Signalements.AsNoTracking() on a.SignalementId equals s.Id
                             where a.SiteId == siteId && a.Fin == null
-                            orderby a.CreeLe
                             select new { Alerte = a, Version = EF.Property<uint>(a, "xmin"), s.Description, s.Statut })
-            .Take(Limite).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var noms = await LectureDangers.NomsAsync(annuaire, lignes.Select(l => l.Alerte), cancellationToken).ConfigureAwait(false);
-        return [.. lignes.OrderBy(l => l.Alerte.Etat).ThenBy(l => l.Alerte.CreeLe)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        // Tri sur l'état déduit, puis limite : un danger récent non pris en compte n'est jamais écarté par des plus anciens.
+        var retenus = lignes.OrderBy(l => l.Alerte.Etat).ThenBy(l => l.Alerte.CreeLe).Take(Limite).ToList();
+        var noms = await LectureDangers.NomsAsync(annuaire, retenus.Select(l => l.Alerte), cancellationToken).ConfigureAwait(false);
+        return [.. retenus
             .Select(l => new DangerEnCours(
                 l.Alerte.SignalementId, ServiceDossiers.Titre(l.Description), l.Statut.ToString(), LectureDangers.Lire(l.Alerte, l.Version, noms)))];
     }
 
     /// <summary>Prise en compte par un R/D : il suit le danger ; les nouvelles alertes s'arrêtent (Q4-A).</summary>
     internal Task PrendreEnCompteAsync(Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, DemandePriseEnCompte demande, CancellationToken cancellationToken) =>
-        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, (dossier, alerte, auteur, le, _) =>
+        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, notifie: false, (dossier, alerte, auteur, le, _) =>
         {
             alerte.PrendreEnCompte(auteur, le);
             context.Tracer(dossier, NatureEvenementDossier.DangerPrisEnCompte, auteur, le, new { alerte = alerte.Id });
@@ -76,7 +77,7 @@ internal sealed class ServiceDangers(
     /// </summary>
     internal Task DeclarerMiseEnSecuriteAsync(
         Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, DemandeMiseEnSecurite demande, CancellationToken cancellationToken) =>
-        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.DeclarerMiseEnSecurite, (dossier, alerte, auteur, le, site) =>
+        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.DeclarerMiseEnSecurite, notifie: true, (dossier, alerte, auteur, le, site) =>
         {
             var action = Saisie.Valeur<ActionMiseEnSecurite>(demande.Action, "action");
             alerte.DeclarerMiseEnSecurite(action, demande.Commentaire, auteur, le);
@@ -93,7 +94,7 @@ internal sealed class ServiceDangers(
     /// </summary>
     internal Task VerifierMiseEnSecuriteAsync(
         Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, DemandeVerification demande, CancellationToken cancellationToken) =>
-        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, (dossier, alerte, auteur, le, site) =>
+        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, notifie: demande.Suffisante == false, (dossier, alerte, auteur, le, site) =>
         {
             var suffisante = demande.Suffisante ?? throw new SaisieInvalideException("suffisante", "Indiquez si la mise en sécurité suffit.");
             var (declarant, action, motif) = alerte.VerifierMiseEnSecurite(suffisante, demande.Motif, auteur, le);
@@ -112,13 +113,15 @@ internal sealed class ServiceDangers(
 
     /// <summary>Danger levé par un R/D (Q-M4) ; « réparation faite et dossier clôturé Résolu » est vérifié sur le dossier.</summary>
     internal Task LeverAsync(Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, DemandeFinDanger demande, CancellationToken cancellationToken) =>
-        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, async (dossier, alerte, auteur, le, _) =>
+        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, notifie: false, async (dossier, alerte, auteur, le, _) =>
         {
             var motif = Saisie.Valeur<MotifLevee>(demande.Motif, "motif");
+            // Dossier clôturé « Résolu » : la clôture qui l'a clôturé, celle de la dernière intervention du cycle en cours.
             var resolu = motif == MotifLevee.ReparationDossierResolu && dossier.Statut == StatutDossier.Cloture
-                && await context.Interventions.AnyAsync(
-                    i => i.DossierId == dossier.Id && i.EtatFinal == EtatFinal.Resolu && (dossier.RouvertLe == null || i.CreeLe >= dossier.RouvertLe),
-                    cancellationToken).ConfigureAwait(false);
+                && await context.Interventions.AsNoTracking()
+                    .Where(i => i.DossierId == dossier.Id && i.ClotureeLe != null && (dossier.RouvertLe == null || i.CreeLe >= dossier.RouvertLe))
+                    .OrderByDescending(i => i.ClotureeLe).ThenByDescending(i => i.Numero).Select(i => i.EtatFinal)
+                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false) == EtatFinal.Resolu;
             alerte.Lever(motif, demande.Commentaire, resolu, auteur, le);
             context.Tracer(dossier, NatureEvenementDossier.DangerLeve, auteur, le,
                 new { alerte = alerte.Id, motif = alerte.FinMotif, commentaire = alerte.FinCommentaire });
@@ -126,7 +129,7 @@ internal sealed class ServiceDangers(
 
     /// <summary>Danger écarté par un R/D, sans mise en sécurité déclarée ; ce n'est pas un classement du dossier.</summary>
     internal Task EcarterAsync(Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, DemandeFinDanger demande, CancellationToken cancellationToken) =>
-        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, (dossier, alerte, auteur, le, _) =>
+        AgirAsync(organisationId, siteId, dossierId, dangerId, demande.Version, Droit.TraiterDanger, notifie: false, (dossier, alerte, auteur, le, _) =>
         {
             var motif = Saisie.Valeur<MotifEcartement>(demande.Motif, "motif");
             alerte.Ecarter(motif, demande.Commentaire, auteur, le);
@@ -135,16 +138,17 @@ internal sealed class ServiceDangers(
             return Task.CompletedTask;
         }, cancellationToken);
 
-    // Droit vérifié (organisation courante fixée), membres du site lus avant la transaction (autre module), puis dossier
+    // Droit vérifié (organisation courante fixée), membres du site lus avant la transaction (autre module) s'il y a quelqu'un à
+    // notifier, puis dossier
     // verrouillé : les actions sur ses dangers et sa mise en attente (Q6-A) sont sérialisées ; version du danger comparée.
     private async Task AgirAsync(
-        Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, uint? version, Droit droit,
+        Guid organisationId, Guid siteId, Guid dossierId, Guid dangerId, uint? version, Droit droit, bool notifie,
         Func<Signalement, AlerteDanger, Guid, DateTimeOffset, DestinatairesSite, Task> etape, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, droit, cancellationToken).ConfigureAwait(false);
         var attendue = version ?? throw new SaisieInvalideException("version", "Version du danger lue obligatoire.");
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
-        var site = await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false);
+        var site = await DestinatairesSite.LireSiAsync(notifie, annuaire, siteId, cancellationToken).ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await context.VerrouillerAsync([dossierId], cancellationToken).ConfigureAwait(false);
         var dossier = await context.Signalements.SingleOrDefaultAsync(s => s.Id == dossierId && s.SiteId == siteId, cancellationToken).ConfigureAwait(false)
@@ -168,10 +172,14 @@ internal static class LectureDangers
     internal static async Task<IReadOnlyDictionary<Guid, string>> NomsAsync(
         IAnnuaireMembres annuaire, IEnumerable<AlerteDanger> alertes, CancellationToken cancellationToken)
     {
-        var comptes = alertes.SelectMany(a => new[] { a.PrisEnCompteParCompteId, a.SecuriteDeclareeParCompteId, a.SecuriteVerifieeParCompteId, a.FinParCompteId })
-            .Where(c => c is not null).Select(c => c!.Value).Distinct().ToList();
+        var comptes = Comptes(alertes);
         return comptes.Count == 0 ? new Dictionary<Guid, string>() : await annuaire.NomsAsync(comptes, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Comptes nommés par le suivi des alertes (prise en compte, déclaration, vérification, fin).</summary>
+    internal static List<Guid> Comptes(IEnumerable<AlerteDanger> alertes) =>
+        [.. alertes.SelectMany(a => new[] { a.PrisEnCompteParCompteId, a.SecuriteDeclareeParCompteId, a.SecuriteVerifieeParCompteId, a.FinParCompteId })
+            .Where(c => c is not null).Select(c => c!.Value).Distinct()];
 
     internal static DangerLu Lire(AlerteDanger a, uint version, IReadOnlyDictionary<Guid, string> noms)
     {
@@ -182,7 +190,7 @@ internal static class LectureDangers
                 a.SecuriteVerifieeLe, a.SecuriteVerifieeParCompteId, Nom(a.SecuriteVerifieeParCompteId))
             : null;
         var fin = a.Fin is { } nature
-            ? new FinDangerLue(nature.ToString(), a.FinMotif!, a.FinCommentaire, a.FinLe!.Value, a.FinParCompteId!.Value, Nom(a.FinParCompteId))
+            ? new FinDangerLue(nature.ToString(), a.FinMotif!, a.FinCommentaire, a.FinLe!.Value, a.FinParCompteId, Nom(a.FinParCompteId))
             : null;
         return new DangerLu(
             a.Id, a.Etat.ToString(), a.CreeLe, a.ConstatId, a.PrisEnCompteLe, a.PrisEnCompteParCompteId, Nom(a.PrisEnCompteParCompteId), securite, fin, version);

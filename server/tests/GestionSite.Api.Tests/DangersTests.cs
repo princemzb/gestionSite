@@ -346,6 +346,38 @@ public sealed class DangersTests(InfrastructureFixture infrastructure) : Inventa
         Assert.Equal(HttpStatusCode.NotFound, etrangere.StatusCode);
     }
 
+    [Fact]
+    public async Task TheMigrationClosesEarlierAlertsOfClosedCasesAndKeepsThoseOfOpenCasesInProgress()
+    {
+        var equipe = await EquipeAsync();
+        var zone = await ZoneAsync(equipe.Technicien);
+        var ouvert = await DeclarerAsync(equipe.Technicien, zone, danger: true);
+        var classe = await DeclarerAsync(equipe.Technicien, zone, danger: true);
+        using (var classement = await EnvoyerAsync(HttpMethod.Post, $"{Dossiers}/{classe}/dismiss", equipe.Responsable,
+            new { motif = "AucunProbleme", version = await VersionAsync(classe, equipe.Responsable) }))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, classement.StatusCode);
+        }
+
+        // Retour à l'état d'avant le suivi (migration précédente), puis reprise : comme sur une base déjà en service.
+        await using (var proprietaire = NpgsqlDataSource.Create(Database.MigrationsConnectionString))
+        {
+            var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<GestionSite.Modules.Maintenance.Persistence.MaintenanceDbContext>();
+            GestionSite.SharedKernel.Persistence.PersistanceModule.Configurer(options, proprietaire, "maintenance", "__ef_migrations", requete: null);
+            await using var context = new GestionSite.Modules.Maintenance.Persistence.MaintenanceDbContext(options.Options, new GestionSite.SharedKernel.OrganisationCourante());
+            var migrateur = Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(context);
+            await migrateur.MigrateAsync("20261103064227_RappelsPlanificateur");
+            await migrateur.MigrateAsync();
+        }
+
+        var fiche = await LireAsync($"{Dossiers}/{classe}", equipe.Pasteur);
+        var close = fiche.GetProperty("dangers")[0];
+        Assert.Equal(("Ecarte", "Autre", JsonValueKind.Null),
+            (close.GetProperty("etat").GetString(), close.GetProperty("fin").GetProperty("motif").GetString(), close.GetProperty("fin").GetProperty("parCompteId").ValueKind));
+        var enCours = (await LireAsync(Dangers, equipe.Pasteur)).EnumerateArray().Single();
+        Assert.Equal((ouvert, "Ouvert"), (enCours.GetProperty("dossierId").GetGuid(), enCours.GetProperty("danger").GetProperty("etat").GetString()));
+    }
+
     private Task<BilanPassage> PasserAsync(DateTimeOffset maintenant) =>
         ApiServices.GetRequiredService<ServicePlanificateur>().PasserAsync(maintenant, CancellationToken.None);
 

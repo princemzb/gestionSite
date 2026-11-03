@@ -166,9 +166,6 @@ internal sealed class AlerteDanger : IAppartientAOrganisation
         _ => EtatDanger.PrisEnCompte,
     };
 
-    /// <summary>Danger en cours sans mise en sécurité déclarée réalisée : pas de mise en attente du dossier (Q6-A).</summary>
-    internal bool NonMaitrise => EnCours && SecuriteDeclareeLe is null;
-
     /// <summary>Prise en compte par un R/D ; une seule retenue (la seconde est refusée).</summary>
     internal void PrendreEnCompte(Guid compteId, DateTimeOffset le)
     {
@@ -212,9 +209,14 @@ internal sealed class AlerteDanger : IAppartientAOrganisation
     {
         ExigerEnCours();
         ExigerPrisEnCompte();
-        if (SecuriteDeclareeLe is null || SecuriteVerifieeLe is not null)
+        if (SecuriteDeclareeLe is null)
         {
             throw new DangerIncompatibleException("securite_non_declaree", "Aucune mise en sécurité à vérifier pour ce danger.");
+        }
+
+        if (SecuriteVerifieeLe is not null)
+        {
+            throw new DangerIncompatibleException("securite_deja_verifiee", "La mise en sécurité de ce danger est déjà vérifiée.");
         }
 
         var declarant = SecuriteDeclareeParCompteId!.Value;
