@@ -47,7 +47,7 @@ demarrer() {
     -e Web__UrlPublique=https://localhost:8080 \
     -e Web__Cles__ServiceUrl=https://stockage.invalid -e Web__Cles__AccessKey=acces \
     -e Web__Cles__SecretKey="$SECRET" -e Web__Cles__Compartiment=cles -e Web__Cles__Region=auto \
-    -e Turnstile__CleSecrete="$SECRET" "$1"
+    -e Turnstile__CleSecrete="$SECRET" "${@:2}" "$1"
 }
 
 # PID d'un processus du conteneur d'après sa ligne de commande (motif « [x]… » : jamais la recherche elle-même).
@@ -84,7 +84,8 @@ esac
 readonly EMULEE
 
 # --- Isolation : la sonde à la place du programme de rendu --------------------------------------------------------------
-essai=$(demarrer "$ESSAI")
+# Sans le profil seccomp de Docker : seul le filtre du lanceur peut refuser (io_uring, réseau, processus).
+essai=$(demarrer "$ESSAI" --security-opt seccomp=unconfined)
 conteneurs+=("$essai")
 pids=$(attendre "$essai")
 read -r API WEB <<<"$pids"
@@ -101,11 +102,17 @@ ok "témoin : sous le compte de l'API, l'environnement (secret fictif), la confi
 
 sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 2>&1)
 echo "$sonde"
-attendus=23
-if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis" <<<"$sonde"; then
+attendus=24
+if grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis" <<<"$sonde"; then
+  $EMULEE || echec "seccomp indisponible sur la plateforme native"
   echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus, PR_SET_PDEATHSIG et réseau non vérifiés (vérifiés en natif)."
-  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^ACCES reseau$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
+  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^ACCES reseau$" -e "^[A-Z]* io_uring" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
   attendus=20
+else
+  # Refus par seccomp (EPERM), et non par un autre module de sécurité (EACCES) ou faute de prise en charge.
+  for refus in "REFUS reseau IOException errno=1" "REFUS io_uring IOException errno=1"; do
+    grep -qx "$refus" <<<"$sonde" || echec "« $refus » attendu (filtre seccomp de l'enfant)"
+  done
 fi
 grep -qx "ENVIRONNEMENT DOTNET_EnableDiagnostics DOTNET_gcServer" <<<"$sonde" || echec "environnement de l'enfant non fixé"
 t=$'\t'
@@ -113,7 +120,6 @@ quatre="$UID_RENDU$t$UID_RENDU$t$UID_RENDU$t$UID_RENDU"
 grep -qxF "COMPTE uid=$quatre gid=$quatre groupes=[] capacites=0000000000000000/0000000000000000 nnp=1" <<<"$sonde" \
   || echec "compte de l'enfant inattendu"
 if grep -q "^ACCES" <<<"$sonde"; then echec "accès obtenu par l'enfant"; fi
-if ! $EMULEE; then grep -qx "REFUS reseau SocketException AccessDenied" <<<"$sonde" || echec "prise réseau refusée pour une autre raison que seccomp"; fi
 [[ "$(grep -c "^REFUS" <<<"$sonde")" -eq "$attendus" ]] || echec "$attendus essais refusés attendus"
 if grep -q "$SECRET" <<<"$sonde"; then echec "secret fictif lu par l'enfant"; fi
 ok "enfant sous le compte rendupdf (aucun groupe, aucune capacité, aucun nouveau privilège) : $attendus accès refusés"

@@ -38,8 +38,10 @@ Essayer("diagnostic-api", () => Diagnostic(api));
 // Nouveau processus : une copie de la sonde qui survivrait au rendu pourrait épier les rendus suivants.
 Essayer("processus", () => Process.Start("/bin/true")!.WaitForExit());
 
-// Réseau (API interne, Internet) : la seule création d'une prise TCP suffit à l'ouvrir ; refusée par seccomp (SOC-05).
-Essayer("reseau", () => new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp).Dispose());
+// Réseau (API interne, Internet) : la seule création d'une prise TCP suffit à l'ouvrir ; refusée par seccomp (EPERM),
+// comme io_uring, qui pourrait ouvrir des prises sans l'appel socket.
+Essayer("reseau", () => Fermer(socket(2 /* AF_INET */, 1 /* SOCK_STREAM */, 0)));
+Essayer("io_uring", () => Fermer(IoUring()));
 
 // Signal d'arrêt avec le lanceur : le désarmer permettrait de survivre à l'arrêt du rendu par l'API.
 Essayer("pdeathsig", () => Verifier(prctl(1 /* PR_SET_PDEATHSIG */, 0, 0, 0, 0)));
@@ -61,7 +63,7 @@ static void Essayer(string essai, Action action)
     }
     catch (Exception refus) when (refus is IOException or UnauthorizedAccessException or SocketException or Win32Exception)
     {
-        Console.WriteLine($"REFUS {essai} {refus.GetType().Name}{(refus is SocketException prise ? $" {prise.SocketErrorCode}" : string.Empty)}");
+        Console.WriteLine($"REFUS {essai} {refus.GetType().Name}{(refus.Message.StartsWith("errno=", StringComparison.Ordinal) ? " " + refus.Message : string.Empty)}");
     }
 }
 
@@ -71,7 +73,32 @@ static void Verifier(int resultat)
 {
     if (resultat != 0)
     {
-        throw new IOException(Marshal.GetLastPInvokeErrorMessage());
+        throw new IOException($"errno={Marshal.GetLastPInvokeError()}");
+    }
+}
+
+static void Fermer(int descripteur)
+{
+    if (descripteur < 0)
+    {
+        Verifier(-1);
+    }
+
+    close(descripteur);
+}
+
+// io_uring_setup(1, paramètres à zéro) : appel 425 sur amd64 comme sur arm64.
+static int IoUring()
+{
+    var parametres = Marshal.AllocHGlobal(120);
+    try
+    {
+        Marshal.Copy(new byte[120], 0, parametres, 120);
+        return (int)syscall(425, 1, parametres);
+    }
+    finally
+    {
+        Marshal.FreeHGlobal(parametres);
     }
 }
 
@@ -96,3 +123,12 @@ static extern int getppid();
 
 [DllImport("libc", SetLastError = true)]
 static extern int prctl(int option, nuint a, nuint b, nuint c, nuint d);
+
+[DllImport("libc", SetLastError = true)]
+static extern int socket(int domaine, int type, int protocole);
+
+[DllImport("libc", SetLastError = true)]
+static extern nint syscall(nint numero, nint a, nint b);
+
+[DllImport("libc")]
+static extern int close(int descripteur);

@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -105,6 +106,13 @@ static int interdire_processus(void)
     };
     struct sock_fprog programme = {.len = (unsigned short)(sizeof(filtre) / sizeof(filtre[0])), .filter = filtre};
     return prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &programme, 0L, 0L);
+}
+
+/* Filtres seccomp pris en charge par le noyau (et par l'émulateur éventuel) : action KILL_PROCESS reconnue. */
+static int seccomp_disponible(void)
+{
+    unsigned int action = SECCOMP_RET_KILL_PROCESS;
+    return syscall(SYS_seccomp, SECCOMP_GET_ACTION_AVAIL, 0, &action) == 0;
 }
 
 static int refuser(const char *etape, int erreur)
@@ -218,15 +226,17 @@ static int lancer_rendu(pid_t lanceur, char *argv[])
         return refuser("lanceur arrêté", 0);
     }
 
-    /* Seccomp absent (noyau sans filtre, émulation Rosetta) : seul cas toléré, le ménage du lanceur suivant reste. */
-    if (interdire_processus() != 0)
+    /*
+     * Filtres seccomp absents (noyau sans filtre, émulation Rosetta) : seul cas toléré, signalé, le compte dédié et le
+     * ménage du lanceur suivant restant. Filtres présents : tout échec de pose (programme refusé…) arrête le rendu.
+     */
+    if (!seccomp_disponible())
     {
-        if (errno != EINVAL)
-        {
-            return refuser("filtre seccomp (processus, réseau)", errno);
-        }
-
         dprintf(STDERR_FILENO, "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis\n");
+    }
+    else if (interdire_processus() != 0)
+    {
+        return refuser("filtre seccomp (processus, réseau)", errno);
     }
 
     if (chdir("/") != 0)
