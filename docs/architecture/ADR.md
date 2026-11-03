@@ -1,5 +1,5 @@
 # Registre des décisions d’architecture
-Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées. ADR-11 proposée (30 octobre 2026), à adopter par le porteur.
+Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées. ADR-11 adoptée le 3 novembre 2026 (réserve : mesure de fluidité sur la Tab M11).
 
 | ADR | Décision proposée | Alternatives et compromis | Condition de validation |
 | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 **Conséquences.** L'ouverture d'une organisation et de son premier administrateur passe, pour le pilote, par une commande d'exploitation réservée à la plateforme (interface en US-26). Le hors connexion de 24 h (RG-23) repose sur un déverrouillage local du profil préparé sur la tablette, sans appel à l'API ; la révocation prend effet à la synchronisation suivante (fenêtre d'exposition acceptée, RISQUES).
 
 ## ADR-11 — Éditeur de plans de bâtiment : module JavaScript autonome dans le web en rendu serveur statique
-**Statut :** proposée le 30 octobre 2026 par l'agent (S21-01), à adopter par le porteur du projet (tech lead). Cadre US-21 (S21-07 à S21-10).
+**Statut :** proposée le 30 octobre 2026 par l'agent (S21-01) ; **adoptée le 3 novembre 2026 par le porteur du projet** après la preuve en préproduction (S21-07 : `us21.mjs` 26/26, médiane 16,7 ms par image dans Chromium, aucune violation de CSP). Réserve : mesure de fluidité sur la Lenovo Tab M11 à faire par le porteur. Cadre US-21 (S21-07 à S21-10).
 
 **Contexte.** US-21 demande un éditeur 2D de plans de bâtiment : calibration, tracé de pièces, ouvertures, escaliers, marqueurs de composants, zoom et pincement sur tablette (Tab M11, navigateur), annuler/rétablir, brouillon local. Le web est un Blazor en rendu serveur statique, sans circuit interactif (ADR-08 : mode interactif incertain avec la mise en veille des conteneurs). La politique de sécurité du contenu est stricte et reste inchangée : `script-src 'self'` (plus Turnstile), aucun script ni style en ligne, ni `unsafe-eval`, ni `wasm-unsafe-eval`, ni `blob:` ; `img-src 'self' data:`. Il n'existait aucun outillage JavaScript : `wwwroot/sites.js` est une simple colle DOM, exclue de la couverture. Un seul développeur, assisté d'agents IA.
 
