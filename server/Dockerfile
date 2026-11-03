@@ -5,6 +5,16 @@
 # Compte dédié du processus de rendu PDF (SOC-05) : ni groupe de l'API, ni dossier personnel, ni interpréteur.
 ARG UID_RENDU=1655
 
+# Livret PDF du manuel (DOC-02) : imprimé par Chromium (Playwright, version de scripts/manuel/package.json) à partir du
+# même Markdown que l'aide intégrée ; seul le PDF rejoint l'image finale. Sur l'architecture du poste : le PDF est portable.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/playwright:v1.55.1-noble AS livret
+WORKDIR /depot
+COPY scripts/manuel/package.json scripts/manuel/package-lock.json scripts/manuel/
+RUN npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
+COPY scripts/manuel/ scripts/manuel/
+COPY docs/manuel/ docs/manuel/
+RUN cd scripts/manuel && node livret.mjs
+
 # Compilation sur l’architecture du poste (sortie .NET portable) : évite l’émulation amd64, lente et fragile.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.302 AS construction
 WORKDIR /depot
@@ -22,16 +32,9 @@ RUN rid="linux-$([ "$TARGETARCH" = arm64 ] && echo arm64 || echo x64)" \
  && dotnet publish server/src/Modules/GestionSite.Modules.Patrimoine.RenduPdf -c Release -o /sortie/rendu-pdf --self-contained false \
       -r "$rid" -p:GenerateRuntimeConfigurationFiles=true -p:GenerateDependencyFile=true \
  && chmod -R o= /sortie/api /sortie/web
-
-# Livret PDF du manuel (DOC-02) : imprimé par Chromium (Playwright, version de scripts/manuel/package.json) à partir du
-# même Markdown que l'aide intégrée ; seul le PDF rejoint l'image finale. Sur l'architecture du poste : le PDF est portable.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/playwright:v1.55.1-noble AS livret
-WORKDIR /depot
-COPY scripts/manuel/package.json scripts/manuel/package-lock.json scripts/manuel/
-RUN npm ci --prefix scripts/manuel --ignore-scripts --no-audit --no-fund
-COPY scripts/manuel/ scripts/manuel/
-COPY docs/manuel/ docs/manuel/
-RUN cd scripts/manuel && node livret.mjs
+# Livret du manuel servi par l'application web (/aide/livret.pdf) : rangé avec elle, mêmes droits (fermé aux autres comptes).
+COPY --from=livret /depot/scripts/manuel/sortie/manuel-gestionsite.pdf /sortie/web/aide/manuel-gestionsite.pdf
+RUN chmod -R o= /sortie/web/aide
 
 # Lanceur setuid du rendu PDF (SOC-05), compilé pour la plateforme cible avec la bibliothèque C de l'image finale.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.14 AS lanceur
@@ -53,8 +56,6 @@ WORKDIR /app
 # API et application web (configuration comprise) : ouvertes au seul groupe « app », jamais au compte du rendu ;
 # processus de rendu lisible par tous. Droits posés à la construction et conservés par la copie.
 COPY --from=construction --chown=root:app /sortie/ ./
-# Livret du manuel servi par l'application web (/aide/livret.pdf), lisible du seul groupe « app ».
-COPY --from=livret --chown=root:app --chmod=640 /depot/scripts/manuel/sortie/manuel-gestionsite.pdf ./web/aide/manuel-gestionsite.pdf
 # Lanceur : exécutable par le seul groupe « app », setuid le temps de changer de compte (voir son code source).
 COPY --from=lanceur --chown=root:app --chmod=4750 /sortie/lanceur-rendu-pdf /usr/local/libexec/gestionsite/lanceur-rendu-pdf
 COPY server/deploy/demarrer.sh ./demarrer.sh
