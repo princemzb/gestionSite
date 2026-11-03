@@ -19,6 +19,7 @@ Ajouter liens de branche/PR, exécution CI, captures utiles et version livrée. 
 - Revue : PR disponible, résultats CI, documentation mise à jour.
 - Recette : revue technique acceptée, environnement accessible, scénarios fournis.
 - Prêt à livrer : recette approuvée par responsable habilité, déploiement/retour arrière préparés.
+- **Recette automatisée visible (décision du porteur du 03/11, OUT-02)** : pour une recette applicative, un parcours e2e joué à l'écran à vitesse humaine en préproduction (`RECETTE=1 deploy/verification/lancer.sh usXX`, DEPLOIEMENT « Recette visible ») vaut recette pour passer en Prêt à livrer puis Livré ; la recette terrain sur site réel reste humaine. Preuve en commentaire de la carte : conclusion « Recette réussie » du rapport HTML, liste des contrôles ✓, date, version déployée (commit, Worker) et chemin du rapport et des vidéos, conservés sur le poste du porteur ; ne pas joindre captures ni vidéos à Trello (elles montrent l'adresse de préproduction et des liens d'activation de comptes fictifs, AGENTS.md règle 8). Une recette échouée bloque le passage. L'agent ne présente jamais une recette automatisée comme une recette humaine.
 - Livré : version effectivement déployée, vérification post-déploiement, site et date enregistrés. Fusionner du code ne suffit pas. Toute story qui change un comportement visible met à jour le chapitre concerné de `docs/manuel/` (texte et captures) avant Livré.
 
 ## Sprints
