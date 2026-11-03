@@ -168,7 +168,12 @@
                     </EditForm>
                 </div>
             }
-            @if (!Membre.InvitationEnAttente && Membre.CompteId != CompteAppelant)
+            @if (!Membre.InvitationEnAttente && Membre.CompteId != CompteAppelant && Administrateur)
+            {
+                <h3>Mot de passe de @Membre.Nom</h3>
+                <p class="note">Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran : adressez-vous à l'équipe du projet.</p>
+            }
+            else if (!Membre.InvitationEnAttente && Membre.CompteId != CompteAppelant)
             {
                 <h3>Mot de passe de @Membre.Nom</h3>
                 <p class="note">Créez un lien si @Membre.Nom a oublié son mot de passe. Transmettez-le vous-même : il n'est affiché qu'une fois et vaut 1 heure. Tous ses appareils seront déconnectés à l'utilisation du lien.</p>
@@ -499,7 +504,9 @@
         }
         catch (RefusApiException refus)
         {
-            Erreur = refus.Code == "reinitialisation_impossible"
+            Erreur = refus.Code == "reinitialisation_administrateur"
+                ? "Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran : adressez-vous à l'équipe du projet."
+                : refus.Code == "reinitialisation_impossible"
                 ? "Lien impossible pour ce compte : il doit avoir été créé par votre organisation et n'être lié à aucune autre. Sinon, adressez-vous à l'équipe du projet."
                 : Message(refus);
         }

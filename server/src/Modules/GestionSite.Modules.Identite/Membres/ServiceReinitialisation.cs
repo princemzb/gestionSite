@@ -71,7 +71,8 @@ internal sealed class ServiceReinitialisation(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var membre = await context.Membres.Include(m => m.Roles)
             .SingleOrDefaultAsync(m => m.CompteId == compte.Id && m.RevoqueLe == null && m.AccepteLe != null, cancellationToken).ConfigureAwait(false);
-        if (membre is null || !await EligibiliteReinitialisation.EstEligibleAsync(context, compte.Id, lien.OrganisationId, cancellationToken).ConfigureAwait(false))
+        // Devenu administrateur depuis la création du lien : le lien ne vaut plus (décision du 03/11).
+        if (membre is null || membre.EstAdministrateur || !await EligibiliteReinitialisation.EstEligibleAsync(context, compte.Id, lien.OrganisationId, cancellationToken).ConfigureAwait(false))
         {
             throw LienInvalide();
         }

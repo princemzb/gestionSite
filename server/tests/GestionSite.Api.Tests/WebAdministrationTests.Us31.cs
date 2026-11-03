@@ -237,6 +237,13 @@ public sealed partial class WebAdministrationTests
         var invite = MembreLien("Admin Deux").Match(await LirePageAsync(admin, PageMembres)).Groups[1].Value;
 
         var acces = await LireAsync(await PosterAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces", "activation"));
+        var (luc, site) = await MembreActifParLeWebAsync(admin, "luc@web.test", "Luc B.");
+        var version = Version().Match(await LirePageAsync(admin, $"{PageMembres}?membre={luc}")).Groups[1].Value;
+        await PosterAsync(admin, $"{PageMembres}?membre={luc}", "roles", ("Roles.Version", version), ("Roles.Administrateur", "true"),
+            ("Roles.Sites[0].SiteId", site), ("Roles.Sites[0].Valeur", "Technicien"), ("Roles.Motif", "Luc administre aussi"));
+        var accesAdministrateur = await LirePageAsync(admin, $"{PageMembres}?membre={luc}&onglet=acces");
+        Assert.Contains("Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran", accesAdministrateur, StringComparison.Ordinal);
+        Assert.DoesNotContain("Créer un lien de réinitialisation", accesAdministrateur, StringComparison.Ordinal);
         var annulation = await LirePageAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces&confirmer=1");
         using var annule = await PosterAsync(admin, $"{PageMembres}?membre={invite}&onglet=acces&confirmer=1", "revocation", ("Revocation.Motif", "Erreur d'adresse"));
 

@@ -155,7 +155,8 @@ internal sealed class ServiceMembres(
     /// <summary>
     /// Lien de réinitialisation du mot de passe (US-31, avant l'e-mail) : membre actif dont le compte, activé, a été créé par
     /// cette organisation et n'est lié à aucune autre (sinon 409 « reinitialisation_impossible ») ; montré une fois, valable
-    /// 1 heure, tracé au journal. Un lien précédent non utilisé est annulé.
+    /// 1 heure, tracé au journal. Un lien précédent non utilisé est annulé. Jamais pour un administrateur (409
+    /// « reinitialisation_administrateur », décision du 03/11).
     /// </summary>
     internal async Task<LienReinitialisationEmis> CreerLienReinitialisationAsync(Guid organisationId, Guid membreId, CancellationToken cancellationToken)
     {
@@ -163,6 +164,14 @@ internal sealed class ServiceMembres(
         await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
         await ExigerAdministrateurAsync(cancellationToken).ConfigureAwait(false);
         var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
+        if (membre.EstAdministrateur)
+        {
+            // Décision du porteur du 03/11 (Q9-A) : jamais pour un administrateur, dont le lien passe par l'équipe du projet
+            // (ou par l'e-mail une fois en service) ; sinon un administrateur pourrait prendre le compte d'un autre.
+            throw RefusException.Conflit("reinitialisation_administrateur",
+                "Lien impossible pour un administrateur : adressez-vous à l'équipe du projet.");
+        }
+
         var compte = await comptes.FindByIdAsync(membre.CompteId.ToString()).ConfigureAwait(false);
         if (!membre.EstActif || compte?.PasswordHash is null
             || !await EligibiliteReinitialisation.EstEligibleAsync(context, compte.Id, organisationId, cancellationToken).ConfigureAwait(false))

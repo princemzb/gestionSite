@@ -92,7 +92,7 @@ Pour une invitation en attente dont le lien a expiré (72 heures) ou n'a pas ét
 
 ### Créer un lien de réinitialisation {#administration-reinitialisation}
 
-Tant que l'envoi par e-mail n'est pas en service, vous pouvez aider un membre actif qui a oublié son mot de passe.
+Tant que l'envoi par e-mail n'est pas en service, vous pouvez aider un membre actif qui a oublié son mot de passe. Ce n'est pas possible pour un autre administrateur : son lien passe par l'équipe du projet (l'onglet le dit à la place du bouton).
 
 1. Onglet **Accès**, rubrique **Mot de passe de …**, cliquez sur **Créer un lien de réinitialisation**.
 2. Le lien s'affiche une seule fois. Copiez-le et transmettez-le vous-même à la personne. Il vaut **1 heure** et ne sert qu'une fois ; un nouveau lien annule le précédent.
@@ -101,6 +101,7 @@ La personne choisit alors un nouveau mot de passe (voir [Mot de passe oublié](0
 
 | Message | Que faire |
 | --- | --- |
+| « Le mot de passe d'un administrateur ne se réinitialise pas depuis cet écran : adressez-vous à l'équipe du projet. » | La personne est administrateur : contactez l'équipe du projet. |
 | « Lien impossible pour ce compte : il doit avoir été créé par votre organisation et n'être lié à aucune autre. » | Le compte a été créé par une autre organisation, ou appartient aussi à une autre organisation (invitation en attente comprise) : adressez-vous à l'équipe du projet. |
 
 ## Journal des habilitations {#administration-journal}

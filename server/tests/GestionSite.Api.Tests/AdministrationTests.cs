@@ -135,6 +135,27 @@ public sealed class AdministrationTests(InfrastructureFixture infrastructure) : 
     }
 
     [Fact]
+    public async Task NoResetLinkForAnotherAdministratorEvenOneMadeBeforeTheyBecameOne()
+    {
+        var claire = await MembreActifAsync("claire@us31.test", new { role = "Administrateur", siteId = (Guid?)null });
+        var marc = await MembreActifAsync("marc@us31.test", new { role = "Technicien", siteId = (Guid?)_nord });
+        using var cree = await Post($"/organizations/{_organisation}/members/{marc}/password-reset", _admin, new { });
+        var jeton = (await Json(cree)).GetProperty("jeton").GetString();
+        var version = (await MembreAsync("marc@us31.test")).Version;
+        using (await Put($"/organizations/{_organisation}/members/{marc}", _admin,
+            new { roles = new object[] { new { role = "Administrateur", siteId = (Guid?)null } }, version, motif = "Marc devient administrateur" }))
+        {
+        }
+
+        using var pourClaire = await Post($"/organizations/{_organisation}/members/{claire}/password-reset", _admin, new { });
+        using var usage = await Post("/auth/reset-password", null, new { jeton, motDePasse = NouveauMotDePasse });
+
+        Assert.Equal(HttpStatusCode.Conflict, pourClaire.StatusCode);
+        Assert.Equal("reinitialisation_administrateur", await CodeAsync(pourClaire));
+        Assert.Equal(HttpStatusCode.Gone, usage.StatusCode); // devenu administrateur entre-temps
+    }
+
+    [Fact]
     public async Task AnExpiredResetLinkIsRefused()
     {
         var marc = await MembreActifAsync("marc@us31.test", new { role = "Technicien", siteId = (Guid?)_nord });
