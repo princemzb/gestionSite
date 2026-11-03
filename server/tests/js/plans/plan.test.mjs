@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  abandonnerSaisie, aire, bornesAffichees, bornesContenu, centre, commencerCalibration, conflit, controleFond, corpsEnregistrement,
+  abandonnerSaisie, appliquerDecalage, decalageFond, aire, bornesAffichees, bornesContenu, centre, commencerCalibration, conflit, controleFond, corpsEnregistrement,
   descriptionFond, documentDepuisVersion, echelleFond, effacerCote, estModifie, fixerDistance, formaterDate, messageRefus, niveauInferieur,
   normaliserContenu, pointsSvg, poserPoint, resumeVersion, retirerFond, validerCalibration,
 } from "../../../src/GestionSite.Web/wwwroot/plans/noyau/plan.mjs";
@@ -87,11 +87,19 @@ describe("calibration en cours", () => {
 
   it("valide la calibration dans le contenu, sans contrôle ou avec un contrôle complet", () => {
     const sansControle = validerCalibration(calibrer(vide), image);
-    assert.deepEqual(sansControle.document.contenu.fond, { fondId, calibration: calibre.calibration, controle: null });
+    assert.deepEqual(sansControle.document.contenu.fond, { fondId, calibration: calibre.calibration, controle: null, decalage: null });
     assert.equal(sansControle.document.saisie, null);
     let avecControle = poserPoint(poserPoint(calibrer(vide), "controle", { x: 0, y: 0 }), "controle", { x: 0, y: 500 });
     avecControle = fixerDistance(avecControle, "controle", 5.03);
-    assert.deepEqual(validerCalibration(avecControle, image).document.contenu.fond, calibre);
+    assert.deepEqual(validerCalibration(avecControle, image).document.contenu.fond, { ...calibre, decalage: null });
+  });
+
+  it("garde le recalage d'un fond recalibré, pas celui d'un autre fond", () => {
+    const recale = { contenu: { ...vide.contenu, fond: { ...calibre, decalage: { x: 1.5, y: -2 } } }, saisie: null, trace: null };
+    assert.deepEqual(validerCalibration(calibrer(recale), image).document.contenu.fond.decalage, { x: 1.5, y: -2 });
+    let autre = commencerCalibration(recale, "0190f5a2-7777-7000-8000-000000000007");
+    autre = fixerDistance(poserPoint(poserPoint(autre, "calibration", { x: 0, y: 0 }), "calibration", { x: 1000, y: 0 }), "calibration", 10);
+    assert.equal(validerCalibration(autre, image).document.contenu.fond.decalage, null);
   });
 
   it("refuse une calibration incomplète, un contrôle commencé, ou rien à valider", () => {
@@ -215,12 +223,46 @@ describe("refus du serveur", () => {
     assert.equal(messageRefus(422, { code: "pdf_illisible" }), "Fichier refusé.");
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.fond.calibration.distance" }), /cote de calibration/);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.fond.fondId" }), /fond de plan/);
-    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.pieces[0].contour" }), /géométrie du plan/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.pieces[0].contour" }), /pièce n° 1/);
     assert.match(messageRefus(422, { code: "donnee_invalide" }), /saisie/);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "version" }), /version lue/);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.nord" }), /nord/);
-    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.composants[3].position" }), /géométrie/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.composants[3].position" }), /marqueur de composant n° 4/);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.fond.decalage" }), /recalage du fond\./);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.ouvertures[0].zones" }), /ouverture n° 1\./);
+    assert.match(messageRefus(422, { code: "donnee_invalide", champ: "contenu.escaliers" }), /escalier ou ascenseur\./);
     assert.match(messageRefus(422, { code: "donnee_invalide", champ: "inconnu" }), /: saisie\./);
     assert.match(messageRefus(503, null), /indisponible/);
+  });
+});
+
+describe("recalage du fond (S21-08)", () => {
+  const contenu = {
+    schema: 1, nord: null, altitude: null, hauteurSousPlafond: null,
+    pieces: [{ zoneId: "z", contour: carre }],
+    ouvertures: [{ type: "Porte", de: { x: 1, y: 0 }, a: { x: 1.9, y: 0 }, zones: ["z"] }],
+    escaliers: [{ type: "Escalier", contour: carre, versNiveauId: "n" }],
+    composants: [{ composantId: "c", position: { x: 2, y: 2 } }],
+    fond: { ...calibre, decalage: { x: 1, y: 1 } },
+  };
+
+  it("lit le décalage, nul sans recalage", () => {
+    assert.deepEqual(decalageFond(contenu), { x: 1, y: 1 });
+    assert.deepEqual(decalageFond({ ...contenu, fond: calibre }), { x: 0, y: 0 });
+    assert.deepEqual(decalageFond({ ...contenu, fond: null }), { x: 0, y: 0 });
+  });
+
+  it("pose le fond au décalage et déplace la géométrie tracée de la même translation", () => {
+    const d = appliquerDecalage({ contenu, saisie: null, trace: null }, { x: 3.504, y: -0.5 });
+    assert.deepEqual(d.contenu.fond.decalage, { x: 3.5, y: -0.5 });
+    assert.deepEqual(d.contenu.pieces[0].contour[0], { x: 2.5, y: -1.5 });
+    assert.deepEqual(d.contenu.ouvertures[0].a, { x: 4.4, y: -1.5 });
+    assert.deepEqual(d.contenu.escaliers[0].contour[2], { x: 6.5, y: 2.5 });
+    assert.deepEqual(d.contenu.composants[0].position, { x: 4.5, y: 0.5 });
+  });
+
+  it("ne change rien sans fond", () => {
+    const d = { contenu: { ...contenu, fond: null }, saisie: null, trace: null };
+    assert.equal(appliquerDecalage(d, { x: 1, y: 1 }), d);
   });
 });

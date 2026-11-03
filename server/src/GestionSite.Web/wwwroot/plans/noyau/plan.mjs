@@ -1,10 +1,14 @@
-// Éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : document de l'éditeur, calibration en cours, enregistrement,
-// refus du serveur et textes affichés. Fonctions pures, sans DOM ni réseau.
-// Document = { contenu (schéma 1, CONTRATS), saisie (calibration en cours, ou null) } : c'est l'état que l'historique
-// (annuler, rétablir) et le brouillon local conservent.
+// Éditeur de plans de bâtiment (US-21, S21-07, S21-08, ADR-11) : document de l'éditeur, calibration en cours, recalage
+// du fond, enregistrement, refus du serveur et textes affichés. Fonctions pures, sans DOM ni réseau.
+// Document = { contenu (schéma 1, CONTRATS), saisie (calibration en cours, ou null), trace (contour en cours de tracé,
+// ou null, dessin.mjs) } : c'est l'état que l'historique (annuler, rétablir) et le brouillon local conservent.
 
 import { defautFond, ecartControle, formaterEcart, metresParPixel, normaliserCote } from "./calibration.mjs";
+import { arrondirAuCentimetre } from "./mesures.mjs";
+import { aire } from "./geometrie.mjs";
 import { bornesPoints, unirBornes } from "./vue.mjs";
+
+export { aire };
 
 export const SCHEMA = 1;
 
@@ -38,7 +42,11 @@ export function normaliserContenu(contenu) {
 export function documentDepuisVersion(lue) {
   const contenu = normaliserContenu(lue?.contenu);
   const obsoletes = new Set(lue?.marqueursObsoletes ?? []);
-  return { contenu: obsoletes.size === 0 ? contenu : { ...contenu, composants: contenu.composants.filter(m => !obsoletes.has(m.composantId)) }, saisie: null };
+  return {
+    contenu: obsoletes.size === 0 ? contenu : { ...contenu, composants: contenu.composants.filter(m => !obsoletes.has(m.composantId)) },
+    saisie: null,
+    trace: null,
+  };
 }
 
 /** Vrai si le contenu du document diffère de la version lue (un enregistrement est proposé). */
@@ -59,6 +67,7 @@ export function commencerCalibration(document, fondId) {
   const memeFond = actuel?.fondId === fondId;
   return {
     ...document,
+    trace: null,
     saisie: {
       fondId,
       calibration: memeFond ? { ...actuel.calibration } : coteVide(),
@@ -130,12 +139,15 @@ export function validerCalibration(document, image) {
     return { defaut };
   }
 
+  // Même fond recalibré : son recalage entre niveaux est gardé ; un autre fond se recale de nouveau.
+  const actuel = document.contenu.fond;
   const calibre = {
     fondId: saisie.fondId,
     calibration: normaliserCote(fond.calibration, image),
     controle: fond.controle ? normaliserCote(fond.controle, image) : null,
+    decalage: actuel?.fondId === saisie.fondId ? actuel.decalage ?? null : null,
   };
-  return { document: { contenu: { ...document.contenu, fond: calibre }, saisie: null } };
+  return { document: { contenu: { ...document.contenu, fond: calibre }, saisie: null, trace: null } };
 }
 
 /** Ferme la calibration en cours sans rien changer au contenu. */
@@ -145,7 +157,43 @@ export function abandonnerSaisie(document) {
 
 /** Plan vierge sur grille métrique : plus de fond. */
 export function retirerFond(document) {
-  return { contenu: { ...document.contenu, fond: null }, saisie: null };
+  return { contenu: { ...document.contenu, fond: null }, saisie: null, trace: null };
+}
+
+/** Décalage du fond dans le repère (coin haut gauche), { x: 0, y: 0 } sans recalage. */
+export function decalageFond(contenu) {
+  return contenu.fond?.decalage ?? { x: 0, y: 0 };
+}
+
+const deplacerPoint = (p, dx, dy) => ({ x: arrondirAuCentimetre(p.x + dx), y: arrondirAuCentimetre(p.y + dy) });
+
+/**
+ * Recalage du fond entre niveaux (S21-08, décision du porteur du 02/11) : le fond calibré est posé au décalage donné
+ * (mètres, au centimètre). Pièces, ouvertures, escaliers et marqueurs déjà tracés sur ce fond le suivent de la même
+ * translation, pour rester sur leurs murs. Sans fond calibré, rien ne change.
+ */
+export function appliquerDecalage(document, decalage) {
+  const contenu = document.contenu;
+  if (!contenu.fond) {
+    return document;
+  }
+
+  const nouveau = { x: arrondirAuCentimetre(decalage.x), y: arrondirAuCentimetre(decalage.y) };
+  const ancien = decalageFond(contenu);
+  const dx = nouveau.x - ancien.x;
+  const dy = nouveau.y - ancien.y;
+  const contour = c => c.map(p => deplacerPoint(p, dx, dy));
+  return {
+    ...document,
+    contenu: {
+      ...contenu,
+      pieces: contenu.pieces.map(p => ({ ...p, contour: contour(p.contour) })),
+      ouvertures: contenu.ouvertures.map(o => ({ ...o, de: deplacerPoint(o.de, dx, dy), a: deplacerPoint(o.a, dx, dy) })),
+      escaliers: contenu.escaliers.map(e => ({ ...e, contour: contour(e.contour) })),
+      composants: contenu.composants.map(m => ({ ...m, position: deplacerPoint(m.position, dx, dy) })),
+      fond: { ...contenu.fond, decalage: nouveau },
+    },
+  };
 }
 
 /** Corps de l'enregistrement (PUT building-plans/{id}) à partir de la version lue. */
@@ -184,18 +232,6 @@ export function bornesAffichees(contenu, bornesDuFond) {
 /** Attribut points d'un polygone SVG. */
 export function pointsSvg(contour) {
   return contour.map(p => `${p.x},${p.y}`).join(" ");
-}
-
-/** Aire d'un contour (m², formule du lacet). */
-export function aire(contour) {
-  let double = 0;
-  for (let i = 0; i < contour.length; i++) {
-    const p = contour[i];
-    const q = contour[(i + 1) % contour.length];
-    double += p.x * q.y - q.x * p.y;
-  }
-
-  return Math.abs(double) / 2;
 }
 
 /** Point où poser le nom d'une pièce : centre de gravité du contour (moyenne des sommets si l'aire est nulle). */
@@ -273,10 +309,11 @@ const champs = {
   "contenu.fond.fondId": "fond de plan",
   "contenu.fond.calibration": "cote de calibration",
   "contenu.fond.controle": "cote de contrôle",
-  "contenu.pieces": "géométrie du plan",
-  "contenu.ouvertures": "géométrie du plan",
-  "contenu.escaliers": "géométrie du plan",
-  "contenu.composants": "géométrie du plan",
+  "contenu.fond.decalage": "recalage du fond",
+  "contenu.pieces": "pièce",
+  "contenu.ouvertures": "ouverture",
+  "contenu.escaliers": "escalier ou ascenseur",
+  "contenu.composants": "marqueur de composant",
   "contenu.schema": "format du plan",
   "contenu.nord": "orientation du nord",
   "contenu.altitude": "altitude du niveau",
@@ -299,7 +336,13 @@ function libelleChamp(champ) {
   }
 
   const connu = cheminsChamps.find(c => champ === c || champ.startsWith(`${c}.`) || champ.startsWith(`${c}[`));
-  return connu ? champs[connu] : "saisie";
+  if (!connu) {
+    return "saisie";
+  }
+
+  // Élément d'une liste : son rang, compté à partir de 1 (« pièce n° 3 »).
+  const rang = /^\[(\d+)\]/.exec(champ.slice(connu.length));
+  return rang ? `${champs[connu]} n° ${Number(rang[1]) + 1}` : champs[connu];
 }
 
 /**
