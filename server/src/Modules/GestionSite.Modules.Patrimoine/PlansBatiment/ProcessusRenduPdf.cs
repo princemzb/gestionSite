@@ -62,7 +62,7 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
     private async Task<PagePdfRendue> LancerAsync(byte[] pdf, int page, uint cote, ulong surface, CancellationToken cancellationToken)
     {
         var reglages = options.Value;
-        string[] lancement = reglages.RenduPdfLanceur is { } lanceur ? [lanceur] : LancementDirect.Value;
+        var lancement = reglages.RenduPdfLanceur is { } lanceur ? new[] { lanceur } : LancementDirect.Value;
         var info = new ProcessStartInfo
         {
             FileName = lancement[0],

@@ -23,7 +23,7 @@ readonly SECRET="secret-fictif-soc05-$$"
 conteneurs=()
 
 nettoyer() {
-  if [ ${#conteneurs[@]} -gt 0 ]; then docker rm -f "${conteneurs[@]}" >/dev/null 2>&1 || true; fi
+  if [[ ${#conteneurs[@]} -gt 0 ]]; then docker rm -f "${conteneurs[@]}" >/dev/null 2>&1 || true; fi
 }
 trap nettoyer EXIT
 
@@ -41,10 +41,10 @@ demarrer() {
   docker run -d --platform "$PLATEFORME" \
     -e ConnectionStrings__Main="Host=base.invalid;Database=gestionsite;Username=gestionsite;Password=$SECRET" \
     -e Authentification__CleSignature="$cle" \
-    -e ObjectStorage__ServiceUrl=http://stockage.invalid -e ObjectStorage__AccessKey=acces \
+    -e ObjectStorage__ServiceUrl=https://stockage.invalid -e ObjectStorage__AccessKey=acces \
     -e ObjectStorage__SecretKey="$SECRET" -e ObjectStorage__Bucket=fonds -e ObjectStorage__Region=auto \
-    -e Web__UrlPublique=http://localhost:8080 \
-    -e Web__Cles__ServiceUrl=http://stockage.invalid -e Web__Cles__AccessKey=acces \
+    -e Web__UrlPublique=https://localhost:8080 \
+    -e Web__Cles__ServiceUrl=https://stockage.invalid -e Web__Cles__AccessKey=acces \
     -e Web__Cles__SecretKey="$SECRET" -e Web__Cles__Compartiment=cles -e Web__Cles__Region=auto \
     -e Turnstile__CleSecrete="$SECRET" "$1"
 }
@@ -60,7 +60,7 @@ attendre() {
   for _ in $(seq 60); do
     api=$(pid "$1" '[G]estionSite.Api.dll')
     web=$(pid "$1" '[G]estionSite.Web.dll')
-    if [ -n "$api" ] && [ -n "$web" ] && docker exec "$1" sh -c "ls /tmp/dotnet-diagnostic-$api-*-socket" >/dev/null 2>&1; then
+    if [[ -n "$api" ]] && [[ -n "$web" ]] && docker exec "$1" sh -c "ls /tmp/dotnet-diagnostic-$api-*-socket" >/dev/null 2>&1; then
       echo "$api $web"
       return
     fi
@@ -112,7 +112,7 @@ quatre="$UID_RENDU$t$UID_RENDU$t$UID_RENDU$t$UID_RENDU"
 grep -qxF "COMPTE uid=$quatre gid=$quatre groupes=[] capacites=0000000000000000/0000000000000000 nnp=1" <<<"$sonde" \
   || echec "compte de l'enfant inattendu"
 if grep -q "^ACCES" <<<"$sonde"; then echec "accès obtenu par l'enfant"; fi
-[ "$(grep -c "^REFUS" <<<"$sonde")" -eq "$attendus" ] || echec "$attendus essais refusés attendus"
+[[ "$(grep -c "^REFUS" <<<"$sonde")" -eq "$attendus" ]] || echec "$attendus essais refusés attendus"
 if grep -q "$SECRET" <<<"$sonde"; then echec "secret fictif lu par l'enfant"; fi
 ok "enfant sous le compte rendupdf (aucun groupe, aucune capacité, aucun nouveau privilège) : $attendus accès refusés"
 
@@ -121,10 +121,10 @@ docker exec -d -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 0
 enfant=""
 for _ in $(seq 60); do
   enfant=$(pid "$essai" '[r]endu-pdf/GestionSite')
-  [ -n "$enfant" ] && break
+  [[ -n "$enfant" ]] && break
   sleep 1
 done
-[ -n "$enfant" ] || echec "enfant non démarré"
+[[ -n "$enfant" ]] || echec "enfant non démarré"
 lanceur=$(pid "$essai" '[l]anceur-rendu-pdf')
 if refus=$(docker exec -u app "$essai" kill -KILL "$enfant" 2>&1); then echec "l'API a pu tuer l'enfant directement"; fi
 grep -qi "not permitted" <<<"$refus" || echec "signal refusé pour une autre raison que les droits : $refus"
@@ -141,7 +141,7 @@ ok "l'API ne peut pas signaler l'enfant ; l'arrêt du lanceur l'arrête"
 # --- Fichiers temporaires de l'API et du web (formulaires reçus) : jamais lisibles par le compte du rendu -------------------
 for processus in "$API" "$WEB"; do
   masque=$(docker exec "$essai" sh -c "grep '^Umask:' /proc/$processus/status | cut -f2")
-  [ "$masque" = 0077 ] || echec "masque de création $masque pour le processus $processus (0077 attendu)"
+  [[ "$masque" = 0077 ]] || echec "masque de création $masque pour le processus $processus (0077 attendu)"
 done
 ok "API et web créent leurs fichiers (temporaires compris) en accès propriétaire seul (umask 0077)"
 
@@ -150,10 +150,10 @@ docker exec -d -u rendupdf "$essai" sleep 6000
 echappe=""
 for _ in $(seq 30); do
   echappe=$(pid "$essai" '[s]leep.6000')
-  [ -n "$echappe" ] && break
+  [[ -n "$echappe" ]] && break
   sleep 1
 done
-[ -n "$echappe" ] || echec "processus échappé non démarré"
+[[ -n "$echappe" ]] || echec "processus échappé non démarré"
 docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 >/dev/null 2>&1 || echec "rendu après le processus échappé"
 etat=$(docker exec "$essai" sh -c "grep -s '^State:' /proc/$echappe/status || true")
 case "$etat" in "" | *zombie*) ;; *) echec "processus échappé $echappe encore en vie après le rendu suivant ($etat)" ;; esac
@@ -173,11 +173,11 @@ png=$(tail -c +$(($(head -n 1 "$rendu" | wc -c) + 1)) "$rendu" | head -c 8 | od 
 taille=$(($(wc -c <"$rendu") - $(head -n 1 "$rendu" | wc -c)))
 rm -f "$rendu"
 [[ "$entete" == "OK 2 100 300 100 300 $taille" ]] || echec "rendu de la page 2 : « $entete » ($taille octets d'image)"
-[ "$png" = "89504e470d0a1a0a" ] || echec "rendu de la page 2 : signature PNG absente"
+[[ "$png" = "89504e470d0a1a0a" ]] || echec "rendu de la page 2 : signature PNG absente"
 entete=$(printf '%s' "$pdf" | docker exec -i -u app "$livree" "$LANCEUR" 3 300 90000 1073741824)
-[ "$entete" = "PAGE 2" ] || echec "page absente : « $entete »"
+[[ "$entete" = "PAGE 2" ]] || echec "page absente : « $entete »"
 entete=$(printf 'GIF89a' | docker exec -i -u app "$livree" "$LANCEUR" 1 300 90000 1073741824)
-[ "$entete" = "ILLISIBLE" ] || echec "fichier qui n'est pas un PDF : « $entete »"
+[[ "$entete" = "ILLISIBLE" ]] || echec "fichier qui n'est pas un PDF : « $entete »"
 ok "rendu par le lanceur : page 2 de 2 rendue (100 × 300), page 3 absente, GIF illisible"
 
 for arguments in "1 2 3" "1 2 3 4 5" "1 2 3 x" "1 2 3 -4" "1 2 3 12345678901234567890"; do
