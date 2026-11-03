@@ -66,6 +66,13 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 
 **Révision.** Si un seuil bloque sans gain de qualité démontré, le modifier par une nouvelle décision motivée, jamais en contournant la porte.
 
+**Révision du 3 novembre 2026 (porteur du projet) : circuit allégé.** Constat : une PR par sous-carte, chacune avec revue de code, revue de sécurité, porte locale complète puis CI, ralentit trop le projet (plusieurs jours sans fin visible), sans gain de qualité démontré par rapport à la CI seule. Décision :
+- **une PR par story** (regroupant ses sous-cartes cohérentes) pour les stories à venir ; les sous-cartes restent suivies une à une dans Trello ; une PR par sous-carte reste possible si la story est trop grosse pour une seule revue ;
+- **plus de porte locale complète** (`server/eng/verify.sh`) en double de la CI : en local, seulement les tests ciblés de ce qui change ; la CI fait foi ;
+- `/code-review` **high** conservé pour toute PR de code (max seulement pour budget et stock, décision du 28/10) ;
+- `/security-review` seulement pour droits et isolation, authentification, fichiers, formulaire public et argent ;
+- **porte Sonar inchangée** (notes A, couverture ≥ 80 % sur le nouveau code, duplication < 3 %, avertissements bloquants, tests d'architecture).
+
 ## ADR-10 — Identité, comptes et isolation des organisations
 **Statut :** adoptée le 28 octobre 2026 par le porteur du projet (tech lead). Cadre US-06.
 
