@@ -140,8 +140,7 @@ internal sealed class ServiceMembres(
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
         var compte = await comptes.FindByIdAsync(membre.CompteId.ToString()).ConfigureAwait(false);
-        var creePar = await context.Activations.Where(a => a.CompteId == membre.CompteId)
-            .OrderByDescending(a => a.CreeLe).Select(a => (Guid?)a.OrganisationId).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var creePar = await EligibiliteReinitialisation.CreeParAsync(context, membre.CompteId, cancellationToken).ConfigureAwait(false);
         if (compte?.PasswordHash is not null || creePar != organisationId)
         {
             throw RefusException.Conflit("activation_impossible", "Ce compte est déjà activé ou n'a pas été créé par cette organisation.");
@@ -275,6 +274,7 @@ internal sealed class ServiceMembres(
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var site = new Site(Guid.NewGuid(), organisationId, nom, horloge.GetUtcNow());
         await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        await ExigerAdministrateurAsync(cancellationToken).ConfigureAwait(false);
         var cle = NomSite.Cle(site.Nom);
         var noms = await context.Sites.Select(s => s.Nom).ToListAsync(cancellationToken).ConfigureAwait(false);
         if (noms.Exists(n => NomSite.Cle(n) == cle))

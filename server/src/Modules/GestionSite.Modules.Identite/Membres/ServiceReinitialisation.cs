@@ -12,12 +12,17 @@ namespace GestionSite.Modules.Identite.Membres;
 /// </summary>
 internal static class EligibiliteReinitialisation
 {
+    /// <summary>
+    /// Organisation qui a créé le compte : celle de son premier lien d'activation (données hors organisation ; seule
+    /// l'organisation créatrice en émet ensuite). Null pour un compte jamais invité par lien.
+    /// </summary>
+    internal static Task<Guid?> CreeParAsync(IdentiteDbContext context, Guid compteId, CancellationToken cancellationToken) =>
+        context.Activations.Where(a => a.CompteId == compteId).OrderBy(a => a.CreeLe)
+            .Select(a => (Guid?)a.OrganisationId).FirstOrDefaultAsync(cancellationToken);
+
     internal static async Task<bool> EstEligibleAsync(IdentiteDbContext context, Guid compteId, Guid organisationId, CancellationToken cancellationToken)
     {
-        // Liens d'activation : données hors organisation ; seule l'organisation qui a créé le compte en émet (ServiceMembres).
-        var creePar = await context.Activations.Where(a => a.CompteId == compteId).OrderBy(a => a.CreeLe)
-            .Select(a => (Guid?)a.OrganisationId).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        if (creePar != organisationId)
+        if (await CreeParAsync(context, compteId, cancellationToken).ConfigureAwait(false) != organisationId)
         {
             return false;
         }
@@ -86,9 +91,14 @@ internal sealed class ServiceReinitialisation(
         {
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException conflit) when (conflit.Entries.Any(e => e.Entity is Reinitialisation))
         {
             throw LienInvalide(); // lien utilisé au même moment par une autre requête
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Compte modifié au même moment (essai de connexion, par exemple) : rien n'est écrit, le lien reste valable.
+            throw RefusException.Conflit("compte_modifie", "Le compte a été modifié au même moment. Réessayer.");
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

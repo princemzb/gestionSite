@@ -11,10 +11,14 @@
 }
 @switch (Issue)
 {
-    case "acceptee" when Rejointe is not null:
+    case "acceptee" when Rejointe is null:
+        <p role="status" class="alerte succes"><strong>Invitation acceptée.</strong></p>
+        <div class="actions gauche"><a class="bouton-principal lien-bouton" href="/?continuer=1">Continuer</a></div>
+        break;
+    case "acceptee":
         <p role="status" class="alerte succes"><strong>Vous avez rejoint @Rejointe.Nom.</strong></p>
         <div class="actions gauche">
-            <a class="bouton-principal lien-bouton" href="@($"/?organisation={Rejointe.Id}")">Ouvrir @Rejointe.Nom</a>
+            <a class="bouton-principal lien-bouton" href="@($"/?organisation={Rejointe!.Id}")">Ouvrir @Rejointe.Nom</a>
             @if (Autre is not null)
             {
                 <a class="bouton-secondaire lien-bouton" href="@($"/?organisation={Autre.Id}")">Rester sur @Autre.Nom</a>
@@ -105,7 +109,8 @@ else if (Moi is not null && Issue is not null && Issue != "acceptee")
         }
 
         // Les comptes internes d'un site arrivent sur les dossiers ; l'administrateur sans rôle de site, sur les membres.
-        var organisations = Moi.Organisations.Where(o => Choisie is null || o.Id == Choisie).ToList();
+        // Organisation choisie qui n'est plus la sienne (révocation, favori ancien) : comme sans choix.
+        var organisations = Moi.Organisations.Where(o => o.Id == Choisie).ToList() is { Count: > 0 } choisies ? choisies : [.. Moi.Organisations];
         var interne = organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role != "Administrateur"));
         var administree = organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
         if (interne is not null)

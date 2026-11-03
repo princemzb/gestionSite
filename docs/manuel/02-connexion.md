@@ -60,7 +60,7 @@ Avec le lien transmis par votre administrateur :
 **À savoir**
 
 - Le lien vaut **1 heure** et ne sert qu'une fois.
-- Vos **autres appareils sont déconnectés** : ordinateurs, téléphones et tablettes devront se reconnecter avec le nouveau mot de passe.
+- Vos **autres appareils sont déconnectés** (dans les 15 minutes au plus) : ordinateurs, téléphones et tablettes devront se reconnecter avec le nouveau mot de passe.
 - Un compte verrouillé après trop d'essais est débloqué par le nouveau mot de passe.
 
 <!-- capture à ajouter après déploiement : écran « Nouveau mot de passe » -->

@@ -147,7 +147,7 @@ internal sealed class SessionApi(
             {
                 HttpStatusCode.UnprocessableEntity => IssueConnexion.MotDePasseInvalide,
                 HttpStatusCode.Gone => IssueConnexion.LienInvalide,
-                _ => IssueConnexion.Indisponible,
+                _ => IssueConnexion.Indisponible, // dont 409 « compte_modifie » : réessayer, le lien reste valable
             };
         }
 

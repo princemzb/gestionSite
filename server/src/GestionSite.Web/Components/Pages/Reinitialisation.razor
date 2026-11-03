@@ -22,7 +22,7 @@ else
         <label class="champ">Confirmer le mot de passe
             <InputText type="password" @bind-Value="Saisie.Confirmation" autocomplete="new-password" required />
         </label>
-        <p class="alerte information">Vos autres appareils seront déconnectés.</p>
+        <p class="alerte information">Vos autres appareils seront déconnectés (dans les 15 minutes au plus).</p>
         @if (Message is not null)
         {
             <p role="alert" class="alerte danger">@Message</p>
