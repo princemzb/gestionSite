@@ -443,47 +443,6 @@ internal sealed class Signalement : IAppartientAOrganisation
 }
 
 /// <summary>
-/// Danger signalé : alerte enregistrée avec le signalement, avant toute qualification (RG-05). Sa diffusion aux
-/// responsables du site relève d'US-10.
-/// </summary>
-internal sealed class AlerteDanger : IAppartientAOrganisation
-{
-    private AlerteDanger()
-    {
-    }
-
-    internal AlerteDanger(Guid id, Signalement signalement)
-    {
-        Id = id;
-        OrganisationId = signalement.OrganisationId;
-        SiteId = signalement.SiteId;
-        SignalementId = signalement.Id;
-        CreeLe = signalement.RecuLe;
-    }
-
-    /// <summary>Danger relevé par un constat d'inspection (T-03.20) : une alerte par constat, même rattaché à un dossier existant.</summary>
-    internal AlerteDanger(Guid id, Signalement dossier, Guid constatId, DateTimeOffset le)
-        : this(id, dossier)
-    {
-        ConstatId = constatId;
-        CreeLe = le;
-    }
-
-    /// <summary>Constat d'inspection à l'origine de l'alerte ; null pour le danger déclaré avec le dossier.</summary>
-    public Guid? ConstatId { get; private set; }
-
-    public Guid Id { get; private set; }
-
-    public Guid OrganisationId { get; private set; }
-
-    public Guid SiteId { get; private set; }
-
-    public Guid SignalementId { get; private set; }
-
-    public DateTimeOffset CreeLe { get; private set; }
-}
-
-/// <summary>
 /// Photo d'un signalement, réencodée sans métadonnées, stockée en privé. Clé propre au signalement enregistré :
 /// un envoi concurrent perdant (même commande) n'écrase jamais les fichiers du gagnant.
 /// </summary>
@@ -544,6 +503,26 @@ internal enum NatureEvenementDossier
 
     /// <summary>Date de réexamen d'une attente reportée (US-10, S10-03) : ancienne et nouvelle date, commentaire.</summary>
     ReportReexamen = 13,
+
+    // Suivi d'un danger (US-10, S10-04) : détail { alerte, … } ; auteur, instant et motif de chaque étape.
+
+    /// <summary>Danger pris en compte par un R/D : c'est lui qui le suit.</summary>
+    DangerPrisEnCompte = 14,
+
+    /// <summary>Mise en sécurité déclarée réalisée (action de la liste fermée, commentaire).</summary>
+    MiseEnSecuriteDeclaree = 15,
+
+    /// <summary>Mise en sécurité vérifiée suffisante par un R/D : danger maîtrisé, à réparer.</summary>
+    MiseEnSecuriteVerifiee = 16,
+
+    /// <summary>Mise en sécurité jugée insuffisante par un R/D (motif) : le danger redevient « Pris en compte ».</summary>
+    MiseEnSecuriteInsuffisante = 17,
+
+    /// <summary>Danger levé par un R/D (motif de la liste fermée).</summary>
+    DangerLeve = 18,
+
+    /// <summary>Danger écarté par un R/D, sans mise en sécurité (motif).</summary>
+    DangerEcarte = 19,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

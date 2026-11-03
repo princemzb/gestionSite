@@ -470,6 +470,11 @@ namespace GestionSite.Modules.Identite.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ConsigneDanger")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("consigne_danger");
+
                     b.Property<DateTimeOffset>("CreeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");

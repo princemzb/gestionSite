@@ -78,6 +78,15 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NULL")
                 .HasDatabaseName("ix_alertes_danger_signalement_id_organisation_id");
             alerte.HasIndex(a => new { a.ConstatId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NOT NULL");
+            // Suivi du danger (US-10, S10-04) : étapes datées et signées, version (xmin) pour les actions concurrentes.
+            alerte.Property(a => a.SecuriteAction).HasConversion<string>().HasMaxLength(24);
+            alerte.Property(a => a.SecuriteCommentaire).HasMaxLength(Signalement.CommentaireMax);
+            alerte.Property(a => a.Fin).HasConversion<string>().HasMaxLength(16);
+            alerte.Property(a => a.FinMotif).HasMaxLength(32);
+            alerte.Property(a => a.FinCommentaire).HasMaxLength(Signalement.CommentaireMax);
+            alerte.Property<uint>("xmin").IsRowVersion();
+            // Dangers en cours d'un site (bandeau du suivi, planificateur).
+            alerte.HasIndex(a => new { a.OrganisationId, a.SiteId }).HasFilter("fin IS NULL").HasDatabaseName("ix_alertes_danger_en_cours");
             alerte.HasOne<Signalement>().WithMany()
                 .HasForeignKey(a => new { a.SignalementId, a.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
@@ -147,6 +156,8 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Cle }).IsUnique();
             // Centre d'un compte, du plus récent au plus ancien (identifiants ordonnés dans le temps), curseur « avant ».
             notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Id });
+            // Alertes épinglées d'un compte (Q-M8) : notifications reliées à une alerte de danger.
+            notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.AlerteId }).HasFilter("alerte_id IS NOT NULL");
         });
 
         modelBuilder.Entity<PhotoSignalement>(photo =>

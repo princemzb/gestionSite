@@ -46,9 +46,8 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
 
         DateTimeOffset? prochain = null;
         var dus = new List<RappelDu>();
-        foreach (var dossier in dossiers)
+        void Retenir(EcheancesDossier echeances)
         {
-            var echeances = Rappels.Calculer(dossier, [.. actives[dossier.Id]], maintenant);
             dus.AddRange(echeances.Dus);
             if (echeances.Prochain is { } p && (prochain is null || p < prochain))
             {
@@ -56,14 +55,36 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
             }
         }
 
-        var lignes = new List<(Guid Site, Guid Compte, TypeNotification Type, Guid Dossier, string Cle)>();
+        foreach (var dossier in dossiers)
+        {
+            Retenir(Rappels.Calculer(dossier, [.. actives[dossier.Id]], maintenant));
+        }
+
+        // Dangers en cours (S10-04), y compris sur un dossier clos : la clôture du dossier ne lève pas le danger.
+        var alertes = await context.AlertesDanger.AsNoTracking().Where(a => a.Fin == null).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var parId = dossiers.ToDictionary(d => d.Id);
+        var clos = alertes.Select(a => a.SignalementId).Where(id => !parId.ContainsKey(id)).Distinct().ToList();
+        if (clos.Count > 0)
+        {
+            foreach (var dossier in await context.Signalements.AsNoTracking().Where(s => clos.Contains(s.Id)).ToListAsync(cancellationToken).ConfigureAwait(false))
+            {
+                parId[dossier.Id] = dossier;
+            }
+        }
+
+        foreach (var alerte in alertes.Where(a => parId.ContainsKey(a.SignalementId)))
+        {
+            Retenir(Rappels.Danger(alerte, parId[alerte.SignalementId], [.. actives[alerte.SignalementId]], maintenant));
+        }
+
+        var lignes = new List<Ligne>();
         foreach (var parSite in dus.GroupBy(r => r.Dossier.SiteId))
         {
             // Destinataires lus au moment de l'envoi : membres actuels du site seulement (révoqués et sans rôle exclus).
             var site = await DestinatairesSite.LireAsync(annuaire, parSite.Key, cancellationToken).ConfigureAwait(false);
             foreach (var rappel in parSite)
             {
-                lignes.AddRange(Destinataires(rappel.Cible, site).Select(compte => (parSite.Key, compte, rappel.Type, rappel.Dossier.Id, rappel.Cle)));
+                lignes.AddRange(Destinataires(rappel.Cible, site).Select(compte => new Ligne(parSite.Key, compte, rappel.Type, rappel.Dossier.Id, rappel.Cle, rappel.AlerteId)));
             }
         }
 
@@ -78,6 +99,12 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
     /// </summary>
     internal static IEnumerable<Guid> Destinataires(CibleRappel cible, DestinatairesSite site)
     {
+        if (cible.Information)
+        {
+            // Alerte de danger (Q3-A) : R/D, P/C, et personnes en charge encore membres du site.
+            return site.AlerteDanger(cible.EnCharge).Distinct();
+        }
+
         var enCharge = site.Membres(cible.EnCharge).ToList();
         var encadrement = cible.Encadrement || enCharge.Count == 0;
         return (encadrement ? site.ResponsablesDelegues() : []).Concat(enCharge).Distinct();
@@ -87,7 +114,7 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
     // destinataire seul) ; le compte de la transaction est donc celui du destinataire le temps de son instruction, puis
     // effacé. Un seuil déjà notifié (même clé pour ce compte) n'écrit rien.
     private async Task<int> EcrireAsync(
-        Guid organisation, List<(Guid Site, Guid Compte, TypeNotification Type, Guid Dossier, string Cle)> lignes, DateTimeOffset maintenant,
+        Guid organisation, List<Ligne> lignes, DateTimeOffset maintenant,
         CancellationToken cancellationToken)
     {
         var objet = nameof(ObjetNotification.Dossier);
@@ -100,13 +127,14 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
             var types = parCompte.Select(l => l.Type.ToString()).ToArray();
             var objets = parCompte.Select(l => l.Dossier).ToArray();
             var cles = parCompte.Select(l => l.Cle).ToArray();
+            var alertes = parCompte.Select(l => l.Alerte).ToArray();
             await context.Database.ExecuteSqlAsync(
                 $"SELECT set_config({CompteCourant.VariableSession}, {compte}, true)", cancellationToken).ConfigureAwait(false);
             ecrites += await context.Database.ExecuteSqlAsync(
                 $"""
-                INSERT INTO maintenance.notifications (id, organisation_id, site_id, compte_id, type, objet, objet_id, cle, cree_le)
-                SELECT u.id, {organisation}, u.site_id, {parCompte.Key}, u.type, {objet}, u.objet_id, u.cle, {maintenant}
-                FROM unnest({ids}, {sites}, {types}, {objets}, {cles}) AS u(id, site_id, type, objet_id, cle)
+                INSERT INTO maintenance.notifications (id, organisation_id, site_id, compte_id, type, objet, objet_id, cle, cree_le, alerte_id)
+                SELECT u.id, {organisation}, u.site_id, {parCompte.Key}, u.type, {objet}, u.objet_id, u.cle, {maintenant}, u.alerte_id
+                FROM unnest({ids}, {sites}, {types}, {objets}, {cles}, {alertes}) AS u(id, site_id, type, objet_id, cle, alerte_id)
                 ON CONFLICT (organisation_id, compte_id, cle) DO NOTHING
                 """, cancellationToken).ConfigureAwait(false);
         }
@@ -114,4 +142,7 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
         await context.Database.ExecuteSqlAsync($"SELECT set_config({CompteCourant.VariableSession}, '', true)", cancellationToken).ConfigureAwait(false);
         return ecrites;
     }
+
+    /// <summary>Notification à écrire : site, destinataire, type, dossier, clé du seuil et alerte de danger éventuelle.</summary>
+    private sealed record Ligne(Guid Site, Guid Compte, TypeNotification Type, Guid Dossier, string Cle, Guid? Alerte);
 }

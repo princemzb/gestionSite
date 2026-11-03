@@ -143,6 +143,10 @@ internal static class DossiersEndpoints
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, reutilisee.Message, "commande_reutilisee");
         }
+        catch (Domain.DangerIncompatibleException danger)
+        {
+            return RefusCommuns.Probleme(StatusCodes.Status409Conflict, danger.Message, danger.Code);
+        }
         catch (Domain.DoublonsRattachesException rattaches)
         {
             return RefusCommuns.Probleme(StatusCodes.Status409Conflict, rattaches.Message, "doublons_rattaches");

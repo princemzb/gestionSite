@@ -10,10 +10,18 @@ namespace GestionSite.Modules.Maintenance.Notifications;
 /// <summary>Objet visé : son titre est relu à l'affichage (null si l'objet n'est plus lisible).</summary>
 internal sealed record ObjetNotificationLu(string Type, Guid Id, string? Titre);
 
-internal sealed record NotificationLue(Guid Id, string Type, Guid SiteId, ObjetNotificationLu Objet, DateTimeOffset CreeLe, DateTimeOffset? LueLe);
+/// <summary>
+/// Notification du centre ; <c>Epinglee</c> : alerte de danger dont le danger n'est encore ni pris en compte, ni levé ou écarté
+/// (Q-M8 : elle reste en vue même lue) ; <c>AlerteId</c> : danger concerné (S10-04), null sinon.
+/// </summary>
+internal sealed record NotificationLue(
+    Guid Id, string Type, Guid SiteId, ObjetNotificationLu Objet, DateTimeOffset CreeLe, DateTimeOffset? LueLe, bool Epinglee = false, Guid? AlerteId = null);
 
-/// <summary>Page du centre, du plus récent au plus ancien, et nombre total de notifications non lues (pastille de la cloche).</summary>
-internal sealed record PageNotifications(IReadOnlyList<NotificationLue> Notifications, int NonLues);
+/// <summary>
+/// Page du centre, du plus récent au plus ancien, nombre total de notifications non lues (pastille de la cloche) et alertes
+/// épinglées (Q-M8 : la plus récente alerte de chaque danger non pris en compte, lue ou non, quelle que soit la page).
+/// </summary>
+internal sealed record PageNotifications(IReadOnlyList<NotificationLue> Notifications, int NonLues, IReadOnlyList<NotificationLue>? Epinglees = null);
 
 /// <summary>
 /// Centre de notifications de l'appelant dans une organisation (US-10, S10-01) : il ne lit et ne marque que les siennes,
@@ -23,6 +31,7 @@ internal sealed class ServiceNotifications(MaintenanceDbContext context, IAutori
 {
     internal const int LimiteParDefaut = 50;
     internal const int LimiteMax = 100;
+    private const int LimiteAlertes = 1000;
 
     internal async Task<PageNotifications> ListerAsync(
         Guid organisationId, bool nonLuesSeulement, Guid? avant, int? limite, CancellationToken cancellationToken)
@@ -33,6 +42,7 @@ internal sealed class ServiceNotifications(MaintenanceDbContext context, IAutori
         }
 
         var miennes = await MiennesAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var toutes = miennes;
         var nonLues = await miennes.CountAsync(n => n.LueLe == null, cancellationToken).ConfigureAwait(false);
         if (nonLuesSeulement)
         {
@@ -45,7 +55,21 @@ internal sealed class ServiceNotifications(MaintenanceDbContext context, IAutori
         }
 
         var page = await miennes.OrderByDescending(n => n.Id).Take(limite ?? LimiteParDefaut).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var ids = page.Where(n => n.Objet == ObjetNotification.Dossier).Select(n => n.ObjetId).Distinct().ToList();
+        // Alertes de danger épinglées (Q-M8) : la plus récente de chaque danger encore ni pris en compte, ni levé ou écarté.
+        var nonPrisEnCompte = context.AlertesDanger.Where(a => a.PrisEnCompteLe == null && a.Fin == null).Select(a => (Guid?)a.Id);
+        var alertesMiennes = toutes.Where(n => n.AlerteId != null && Notification.TypesAlerte.Contains(n.Type) && nonPrisEnCompte.Contains(n.AlerteId));
+        // Peu de lignes (une alerte par heure et par danger en cours) : la plus récente par danger est retenue en mémoire.
+        var epinglees = (await alertesMiennes.OrderByDescending(n => n.Id).Take(LimiteAlertes).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .DistinctBy(n => n.AlerteId).Take(LimiteMax).ToList();
+        var ouvertes = epinglees.Select(n => n.AlerteId).ToHashSet();
+        var aEpingler = page.Where(n => n.AlerteId is not null && Notification.TypesAlerte.Contains(n.Type)).Select(n => n.AlerteId).Except(ouvertes).ToList();
+        if (aEpingler.Count > 0)
+        {
+            // Alertes plus anciennes du même danger sur la page : épinglées elles aussi tant qu'il n'est pas pris en compte.
+            ouvertes.UnionWith(await nonPrisEnCompte.Where(a => aEpingler.Contains(a)).ToListAsync(cancellationToken).ConfigureAwait(false));
+        }
+
+        var ids = page.Concat(epinglees).Where(n => n.Objet == ObjetNotification.Dossier).Select(n => n.ObjetId).Distinct().ToList();
         // Dossiers des sites encore autorisés seulement (les notifications l'ont été) : titre de la fiche, comme la liste des dossiers.
         // Description seule (ni nom ni contact du déclarant), réduite au titre.
         var titres = ids.Count == 0
@@ -53,11 +77,10 @@ internal sealed class ServiceNotifications(MaintenanceDbContext context, IAutori
             : (await context.Signalements.AsNoTracking().Where(s => ids.Contains(s.Id)).Select(s => new { s.Id, s.Description })
                 .ToListAsync(cancellationToken).ConfigureAwait(false))
                 .ToDictionary(s => s.Id, s => ServiceDossiers.Titre(s.Description));
-        return new PageNotifications(
-            [.. page.Select(n => new NotificationLue(
-                n.Id, n.Type.ToString(), n.SiteId, new ObjetNotificationLu(n.Objet.ToString(), n.ObjetId, titres.GetValueOrDefault(n.ObjetId)), n.CreeLe,
-                n.LueLe))],
-            nonLues);
+        NotificationLue Lire(Notification n) => new(
+            n.Id, n.Type.ToString(), n.SiteId, new ObjetNotificationLu(n.Objet.ToString(), n.ObjetId, titres.GetValueOrDefault(n.ObjetId)), n.CreeLe,
+            n.LueLe, Notification.TypesAlerte.Contains(n.Type) && ouvertes.Contains(n.AlerteId), n.AlerteId);
+        return new PageNotifications([.. page.Select(Lire)], nonLues, [.. epinglees.Select(Lire)]);
     }
 
     /// <summary>Marque lue une notification de l'appelant (déjà lue : rien ne change) ; sinon introuvable (404).</summary>

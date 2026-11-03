@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
+using GestionSite.Modules.Maintenance.Dangers;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Notifications;
@@ -15,7 +16,8 @@ namespace GestionSite.Modules.Maintenance.Dossiers;
 
 internal sealed record DossierResume(
     Guid Id, string Titre, string Statut, string? Priorite, Guid? ZoneId, string? Zone, bool Danger, bool ActiviteBloquee, string Origine,
-    DateTimeOffset RecuLe, DateTimeOffset? EcheancePriseEnCharge = null, DateTimeOffset? EcheanceResolution = null, bool NouveauConstat = false);
+    DateTimeOffset RecuLe, DateTimeOffset? EcheancePriseEnCharge = null, DateTimeOffset? EcheanceResolution = null, bool NouveauConstat = false,
+    string? EtatDanger = null);
 
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
@@ -31,7 +33,7 @@ internal sealed record DossierLu(
     DateTimeOffset? AffecteLe, DateTimeOffset? EcheancePriseEnCharge, DateTimeOffset? EcheanceResolution, DateTimeOffset? AttenteDepuis,
     DateOnly? ReexamenLe, long DureeAttenteSecondes, DateTimeOffset? ClotureLe, IReadOnlyList<InterventionLue> Interventions,
     IReadOnlyList<DossierResume> Doublons, IReadOnlyList<DossierResume> Suggestions, IReadOnlyList<EvenementDossierLu> Historique, uint Version,
-    Guid? ControleId = null, bool NouveauConstat = false);
+    Guid? ControleId = null, bool NouveauConstat = false, IReadOnlyList<DangerLu>? Dangers = null);
 
 /// <summary>Dossier absent du site (404).</summary>
 internal sealed class DossierIntrouvableException() : Exception("Dossier introuvable sur ce site.");
@@ -84,6 +86,9 @@ internal sealed class ServiceDossiers(
         var photosInterventions = (await context.PhotosIntervention.AsNoTracking().Where(p => idsInterventions.Contains(p.InterventionId))
             .OrderBy(p => p.Rang).Select(p => new { p.InterventionId, p.Rang }).ToListAsync(cancellationToken).ConfigureAwait(false))
             .ToLookup(p => p.InterventionId, p => p.Rang);
+        var alertes = await context.AlertesDanger.AsNoTracking().Where(a => a.SignalementId == id).OrderBy(a => a.CreeLe)
+            .Select(a => new { Alerte = a, Version = EF.Property<uint>(a, "xmin") }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var nomsDangers = await LectureDangers.NomsAsync(annuaire, alertes.Select(a => a.Alerte), cancellationToken).ConfigureAwait(false);
         var comptes = journal.Select(e => e.AuteurCompteId).Concat(interventions.SelectMany(i => new[] { i.IntervenantCompteId, i.ReferentCompteId }))
             .Where(c => c is not null).Select(c => c!.Value).Distinct().ToList();
         var auteurs = await annuaire.NomsAsync(comptes, cancellationToken).ConfigureAwait(false);
@@ -116,7 +121,9 @@ internal sealed class ServiceDossiers(
             lu.Version,
             dossier.ControleId,
             // Marque « nouveau constat » pour R/D : le dernier événement est un constat d'inspection rattaché (US-12).
-            journal.Count > 0 && journal[0].Nature == NatureEvenementDossier.ConstatInspection);
+            journal.Count > 0 && journal[0].Nature == NatureEvenementDossier.ConstatInspection,
+            // Suivi de chaque danger (S10-04), levés et écartés compris, du plus ancien au plus récent.
+            [.. alertes.Select(a => LectureDangers.Lire(a.Alerte, a.Version, nomsDangers))]);
     }
 
     /// <summary>Déclaration d'un compte interne du site (décision du 29/10) ; même commande rejouée : même dossier.</summary>
@@ -280,10 +287,11 @@ internal sealed class ServiceDossiers(
                 })
                 .ToListAsync(cancellationToken).ConfigureAwait(false))
                 .Where(m => m.Constat == m.Dernier).Select(m => m.Key).ToHashSet();
+        var dangers = await LectureDangers.EtatsAsync(context, [.. dossiers.Where(d => d.Danger).Select(d => d.Id)], cancellationToken).ConfigureAwait(false);
         return [.. dossiers.Select(d => new DossierResume(
             d.Id, Titre(d), d.Statut.ToString(), d.Priorite?.ToString(), d.ZoneId, d.ZoneId is { } z ? zones.GetValueOrDefault(z) : null, d.Danger,
             d.ActiviteBloquee, d.Origine.ToString(), d.RecuLe, d.EcheancePriseEnCharge, d.EcheanceResolution,
-            marques.Contains(d.Id)))];
+            marques.Contains(d.Id), dangers.GetValueOrDefault(d.Id)))];
     }
 
     private Task<bool> ADesDoublonsAsync(Guid id, CancellationToken cancellationToken) =>

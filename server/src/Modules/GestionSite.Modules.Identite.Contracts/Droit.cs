@@ -49,4 +49,8 @@ public enum Droit
     PlanifierPreventif,
     /// <summary>Exécuter un contrôle préventif (US-12) : le module Maintenance vérifie en plus que le technicien est affecté.</summary>
     ExecuterControle,
+    /// <summary>Danger (US-10, décision du 02/11) : prendre en compte, vérifier la mise en sécurité, lever ou écarter (R/D).</summary>
+    TraiterDanger,
+    /// <summary>Déclarer une mise en sécurité réalisée (US-10, Q5-A) : technicien, R/D, pasteur, coordination du site.</summary>
+    DeclarerMiseEnSecurite,
 }
