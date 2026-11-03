@@ -350,7 +350,9 @@ internal sealed class ServicePlansBatiment(
         [.. contenu.Ouvertures.Select(o => new SaisieOuverture(o.Type, Point(o.De), Point(o.A), o.Zones))],
         [.. contenu.Escaliers.Select(e => new SaisieLiaison(e.Type, Points(e.Contour), e.VersNiveauId))],
         [.. contenu.Composants.Select(m => new SaisieMarqueur(m.ComposantId, Point(m.Position)))],
-        contenu.Fond is { } fond ? new SaisieFond(fond.FondId, Cote(fond.Calibration), fond.Controle is { } controle ? Cote(controle) : null) : null);
+        contenu.Fond is { } fond
+            ? new SaisieFond(fond.FondId, Cote(fond.Calibration), fond.Controle is { } controle ? Cote(controle) : null, fond.Decalage is { } decalage ? Point(decalage) : null)
+            : null);
 
     private static SaisieCote Cote(CotePlan cote) => new(Point(cote.De), Point(cote.A), cote.Distance);
 

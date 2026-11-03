@@ -82,6 +82,8 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
         Assert.Contains("Masquez d'abord les noms du cartouche", pourResponsable, StringComparison.Ordinal);
         Assert.DoesNotContain("style=", pourResponsable, StringComparison.Ordinal); // politique de sécurité du contenu
         Assert.Contains("Aucun plan de bâtiment pour ce niveau", pourPasteur, StringComparison.Ordinal);
+        Assert.Contains("<p data-role=\"resume\">Aucune version enregistrée</p>", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("Chargement du plan", pourPasteur, StringComparison.Ordinal); // éditeur non chargé : rien ne remplacerait ce texte
         Assert.DoesNotContain("editeur.mjs", pourPasteur, StringComparison.Ordinal);
     }
 
@@ -169,6 +171,45 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
         Assert.Equal(HttpStatusCode.NotFound, inconnu.StatusCode);
         Assert.Equal(PlansBatimentEndpoints.CorpsMax, EditeurPlanEndpoints.CorpsMax); // même limite de corps que l'API
         Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
+    }
+
+    [Fact]
+    public async Task TheEditorDrawsWithTheBuildingFrameAndCreatesAZoneThroughTheInventory()
+    {
+        var lieux = await LieuxAsync();
+        var plan = await PlanAsync(lieux.Rdc);
+        using var responsable = await ConnecterAsync("responsable@editeur-web.test");
+        using var pasteur = await ConnecterAsync("pasteur@editeur-web.test");
+        var plans = $"/organisations/{_organisation}/sites/{_site}/plans-batiment";
+        var jeton = await JetonAsync(responsable);
+        using var premiere = await EnvoyerAsync(responsable, HttpMethod.Put, $"{plans}/{plan}", Version(0), jeton);
+        var page = $"/organisations/{_organisation}/plans?batiment={lieux.Eglise}&niveau={lieux.Rdc}";
+
+        var pourResponsable = await PageAsync(responsable, page);
+        var pourPasteur = await PageAsync(pasteur, page);
+        using var zone = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/zones", new { nom = "Chapelle", batimentId = lieux.Eglise, niveauId = lieux.Rdc }, jeton);
+        using var doublon = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/zones", new { nom = "Chapelle", batimentId = lieux.Eglise, niveauId = lieux.Rdc }, jeton);
+        using var sansJeton = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/zones", new { nom = "Crypte", batimentId = lieux.Eglise }, jeton: null);
+        using var parLecteur = await EnvoyerAsync(pasteur, HttpMethod.Post, $"{plans}/zones", new { nom = "Crypte", batimentId = lieux.Eglise }, await JetonAsync(pasteur));
+
+        Assert.Equal(HttpStatusCode.OK, premiere.StatusCode);
+        Assert.Contains("data-cadre=", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("partiesCommunes", pourResponsable, StringComparison.Ordinal); // zones du bâtiment, Parties communes comprises
+        Assert.Contains("data-outil=\"piece\"", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-outil=\"escalier\"", pourResponsable, StringComparison.Ordinal); // deux niveaux : escaliers possibles
+        Assert.Contains("data-role=\"creer-zone\"", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-role=\"zones-marge\"", pourPasteur, StringComparison.Ordinal); // Parties communes listées à côté du plan
+        Assert.DoesNotContain("data-outil=\"piece\"", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-role=\"creer-zone\"", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("style=", pourResponsable, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, zone.StatusCode);
+        var creee = (await zone.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Conflict, doublon.StatusCode);
+        Assert.Equal("nom_existant", (await doublon.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, sansJeton.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parLecteur.StatusCode); // l'inventaire reste juge du droit de le modifier
+        Assert.Equal(1, await _database.CountAsync($"SELECT count(*) FROM patrimoine.zones WHERE id = '{creee}' AND niveau_id = '{lieux.Rdc}'"));
+        Assert.Equal(1, await _database.CountAsync($"SELECT count(*) FROM patrimoine.journal_inventaire WHERE cible_id = '{creee}'"));
     }
 
     [Fact]
