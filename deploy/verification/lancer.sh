@@ -11,7 +11,7 @@
 # processus ; la chaîne applicative est transmise au script (VERIF_BASE) pour les vérifications en base (us08).
 set -u
 V=${0:A:h}; R=${V:h:h}; n=${1:-}; t=$(date +%Y%m%d%H%M%S)
-[[ $n == (us|doc)[0-9][0-9] && -f $V/$n.mjs ]] || { echo "usage : lancer.sh usXX|docXX (script usXX.mjs ou docXX.mjs de deploy/verification)"; exit 2; }
+[[ ( $n == (us|doc)[0-9][0-9] || $n == fonds ) && -f $V/$n.mjs ]] || { echo "usage : lancer.sh usXX|docXX|fonds (script de deploy/verification)"; exit 2; }
 [[ -d $V/node_modules/playwright ]] || { echo "dépendances absentes : cd deploy/verification && npm ci"; exit 2; }
 chaines=("${(@f)$(python3 -I $V/chaines.py migrator app)}") && (( ${#chaines} == 2 )) || { echo "Trousseau : chaînes Neon illisibles"; exit 1; }
 migrator=${chaines[1]}; app=${chaines[2]}
