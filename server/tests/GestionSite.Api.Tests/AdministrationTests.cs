@@ -238,7 +238,7 @@ public sealed class AdministrationTests(InfrastructureFixture infrastructure) : 
         Assert.Equal("Autre paroisse", invitation.GetProperty("organisation").GetString());
         Assert.Equal("Admin Autre paroisse", invitation.GetProperty("invitePar").GetString());
         Assert.True(invitation.GetProperty("inviteLe").GetDateTimeOffset() > avant);
-        Assert.Equal(["Pasteur · Temple", "Technicien · Temple"], invitation.GetProperty("roles").EnumerateArray()
+        Assert.Equal(["Technicien · Temple", "Pasteur · Temple"], invitation.GetProperty("roles").EnumerateArray()
             .Select(r => $"{r.GetProperty("role").GetString()} · {r.GetProperty("site").GetString()}"));
     }
 
