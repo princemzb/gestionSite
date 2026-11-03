@@ -182,7 +182,8 @@ internal sealed class Intervention : IAppartientAOrganisation
             throw new SaisieInvalideException("reexamenLe", "Choisissez une autre date que le réexamen actuel.");
         }
 
-        var texte = Commentaire.Exiger(commentaire, obligatoire: true)!;
+        var texte = Commentaire.Exiger(commentaire, obligatoire: false)
+            ?? throw new SaisieInvalideException("commentaire", "Commentaire obligatoire pour reporter le réexamen.");
         ReexamenLe = reexamen;
         ReportsReexamen++;
         return (ancienne, texte);

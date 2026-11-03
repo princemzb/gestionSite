@@ -2,6 +2,7 @@ using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
+using GestionSite.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Maintenance.Planificateur;
@@ -78,24 +79,35 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
         return (encadrement ? site.ResponsablesDelegues() : []).Concat(enCharge).Distinct();
     }
 
-    // Une instruction pour tous les destinataires ; un seuil déjà notifié (même clé pour ce compte) n'écrit rien.
+    // Une instruction par destinataire : « ON CONFLICT » soumet la ligne écrite à la politique de lecture du centre (le
+    // destinataire seul) ; le compte de la transaction est donc celui du destinataire le temps de son instruction, puis
+    // effacé. Un seuil déjà notifié (même clé pour ce compte) n'écrit rien.
     private async Task<int> EcrireAsync(
         Guid organisation, List<(Guid Site, Guid Compte, TypeNotification Type, Guid Dossier, string Cle)> lignes, DateTimeOffset maintenant,
         CancellationToken cancellationToken)
     {
-        var ids = lignes.Select(_ => Guid.CreateVersion7()).ToArray();
-        var sites = lignes.Select(l => l.Site).ToArray();
-        var comptes = lignes.Select(l => l.Compte).ToArray();
-        var types = lignes.Select(l => l.Type.ToString()).ToArray();
-        var objets = lignes.Select(l => l.Dossier).ToArray();
-        var cles = lignes.Select(l => l.Cle).ToArray();
         var objet = nameof(ObjetNotification.Dossier);
-        return await context.Database.ExecuteSqlAsync(
-            $"""
-            INSERT INTO maintenance.notifications (id, organisation_id, site_id, compte_id, type, objet, objet_id, cle, cree_le)
-            SELECT u.id, {organisation}, u.site_id, u.compte_id, u.type, {objet}, u.objet_id, u.cle, {maintenant}
-            FROM unnest({ids}, {sites}, {comptes}, {types}, {objets}, {cles}) AS u(id, site_id, compte_id, type, objet_id, cle)
-            ON CONFLICT (organisation_id, compte_id, cle) DO NOTHING
-            """, cancellationToken).ConfigureAwait(false);
+        var ecrites = 0;
+        foreach (var parCompte in lignes.GroupBy(l => l.Compte))
+        {
+            var compte = parCompte.Key.ToString("D");
+            var ids = parCompte.Select(_ => Guid.CreateVersion7()).ToArray();
+            var sites = parCompte.Select(l => l.Site).ToArray();
+            var types = parCompte.Select(l => l.Type.ToString()).ToArray();
+            var objets = parCompte.Select(l => l.Dossier).ToArray();
+            var cles = parCompte.Select(l => l.Cle).ToArray();
+            await context.Database.ExecuteSqlAsync(
+                $"SELECT set_config({CompteCourant.VariableSession}, {compte}, true)", cancellationToken).ConfigureAwait(false);
+            ecrites += await context.Database.ExecuteSqlAsync(
+                $"""
+                INSERT INTO maintenance.notifications (id, organisation_id, site_id, compte_id, type, objet, objet_id, cle, cree_le)
+                SELECT u.id, {organisation}, u.site_id, {parCompte.Key}, u.type, {objet}, u.objet_id, u.cle, {maintenant}
+                FROM unnest({ids}, {sites}, {types}, {objets}, {cles}) AS u(id, site_id, type, objet_id, cle)
+                ON CONFLICT (organisation_id, compte_id, cle) DO NOTHING
+                """, cancellationToken).ConfigureAwait(false);
+        }
+
+        await context.Database.ExecuteSqlAsync($"SELECT set_config({CompteCourant.VariableSession}, '', true)", cancellationToken).ConfigureAwait(false);
+        return ecrites;
     }
 }
