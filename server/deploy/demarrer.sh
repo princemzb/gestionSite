@@ -2,6 +2,9 @@
 # Démarre l'API (interne) puis l'application web (publique) ; si l'une s'arrête, le conteneur s'arrête
 # et la plateforme le relance. Configuration et secrets : variables d'environnement (jamais dans l'image).
 set -eu
+# Fichiers créés par l'API et le web (formulaires mis en tampon dans /tmp, ImageMagick) : propriétaire seul. Le processus
+# de rendu PDF (compte rendupdf) partage /tmp et ne doit lire aucun fichier reçu d'une autre organisation (SOC-05).
+umask 077
 
 # Chaque processus part de son dossier : racine de contenu = wwwroot (styles) et appsettings.json.
 (cd /app/api && ASPNETCORE_URLS=http://127.0.0.1:8081 exec dotnet GestionSite.Api.dll) &

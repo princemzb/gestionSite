@@ -54,38 +54,46 @@ enum
     X86_64_CLONE = 56,
     X86_64_FORK = 57,
     X86_64_VFORK = 58,
+    X86_64_PRCTL = 157,
     X32_BIT = 0x40000000,
     AARCH64_CLONE = 220,
+    AARCH64_PRCTL = 167,
     CLONE3 = 435,
     DRAPEAU_FIL = 0x00010000 /* CLONE_THREAD */
 };
 
 /*
  * Filtre seccomp de l'enfant : fork, vfork et clone sans CLONE_THREAD refusés (EPERM), clone3 indisponible (ENOSYS :
- * la bibliothèque C se replie sur clone pour créer des fils d'exécution), ABI x32 et autres architectures tuées.
+ * la bibliothèque C se replie sur clone pour créer des fils d'exécution), PR_SET_PDEATHSIG refusé (l'enfant ne peut pas
+ * survivre à l'arrêt du lanceur), ABI x32 et autres architectures tuées.
  */
 static int interdire_processus(void)
 {
     struct sock_filter filtre[] = {
         /* 0 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
-        /* 1 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 0, 6),
+        /* 1 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 0, 7),
         /* 2 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
-        /* 3 */ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, X32_BIT, 13, 0),
-        /* 4 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_FORK, 10, 0),
-        /* 5 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_VFORK, 9, 0),
-        /* 6 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_CLONE, 5, 0),
-        /* 7 */ BPF_JUMP(BPF_JMP | BPF_JA, 3, 0, 0),
-        /* 8 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 8),
-        /* 9 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
-        /* 10 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_CLONE, 1, 0),
-        /* 11 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE3, 4, 2),
-        /* 12 : clone, drapeaux (32 bits de poids faible, petit-boutiste) */
+        /* 3 */ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, X32_BIT, 17, 0),
+        /* 4 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_FORK, 14, 0),
+        /* 5 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_VFORK, 13, 0),
+        /* 6 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_CLONE, 7, 0),
+        /* 7 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_PRCTL, 8, 0),
+        /* 8 */ BPF_JUMP(BPF_JMP | BPF_JA, 4, 0, 0),
+        /* 9 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 11),
+        /* 10 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+        /* 11 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_CLONE, 2, 0),
+        /* 12 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_PRCTL, 3, 0),
+        /* 13 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE3, 6, 4),
+        /* 14 : clone, drapeaux (32 bits de poids faible, petit-boutiste) */
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
-        /* 13 */ BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, DRAPEAU_FIL, 0, 1),
-        /* 14 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        /* 15 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
-        /* 16 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
-        /* 17 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+        /* 15 */ BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, DRAPEAU_FIL, 2, 3),
+        /* 16 : prctl, option */
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+        /* 17 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, PR_SET_PDEATHSIG, 1, 0),
+        /* 18 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        /* 19 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
+        /* 20 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
+        /* 21 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
     };
     struct sock_fprog programme = {.len = (unsigned short)(sizeof(filtre) / sizeof(filtre[0])), .filter = filtre};
     return prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &programme, 0L, 0L);

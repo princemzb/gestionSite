@@ -190,9 +190,9 @@ public sealed class RenduPdfTests
             return; // lanceur isolé : image Linux du conteneur seulement (SOC-05)
         }
 
-        // Lanceur d'essai : refuse tout autre appel que les 4 arguments numériques, puis lance le rendu directement.
+        // Lanceur d'essai : refuse tout autre appel que les 4 arguments numériques, avertit (journalisé), puis lance le rendu.
         var commande = string.Join(' ', ProcessusRenduPdf.PreparerLancementDirect().Select(a => $"'{a}'"));
-        using var lanceur = new LanceurEssai($"[ $# -eq 4 ] || exit 64\nexec {commande} \"$@\"");
+        using var lanceur = new LanceurEssai($"[ $# -eq 4 ] || exit 64\necho 'avertissement du lanceur' >&2\nexec {commande} \"$@\"");
 
         var rendue = await Processus(lanceur: lanceur.Chemin).RendreAsync(TroisPages, 3, 1_000, 1_000_000, CancellationToken.None);
 

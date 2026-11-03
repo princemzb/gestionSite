@@ -10,13 +10,14 @@
 #     et du web, canal de diagnostic .NET, création d'un processus (seccomp, sauf image émulée) : tout est refusé.
 #  5. L'arrêt du lanceur, seul geste permis à l'API, arrête l'enfant, que l'API ne peut pas tuer elle-même ; un processus
 #     du compte du rendu encore en vie est tué avant le rendu suivant (ménage), sans toucher à l'API ni au web.
+#     API et web créent leurs fichiers temporaires (formulaires reçus) en accès propriétaire seul.
 #  6. Image livrée : rendu d'une page par le lanceur, page absente, fichier qui n'est pas un PDF, appels refusés.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 readonly PLATEFORME=${1:-linux/amd64}
-readonly IMAGE="gestionsite-verification:${PLATEFORME##*/}"
-readonly ESSAI="gestionsite-verification-sonde:${PLATEFORME##*/}"
+readonly IMAGE="gestionsite-verification:$(cut -d/ -f2 <<<"$PLATEFORME")"
+readonly ESSAI="gestionsite-verification-sonde:$(cut -d/ -f2 <<<"$PLATEFORME")"
 readonly LANCEUR=/usr/local/libexec/gestionsite/lanceur-rendu-pdf
 readonly SECRET="secret-fictif-soc05-$$"
 conteneurs=()
@@ -75,7 +76,7 @@ UID_RENDU=$(docker run --rm --platform "$PLATEFORME" --entrypoint id "$IMAGE" -u
 readonly UID_RENDU
 # Image émulée (amd64 sur un poste arm64) : l'émulateur Rosetta n'accepte pas les filtres seccomp ; le lanceur le signale
 # et continue (le ménage avant chaque rendu reste). Sur la plateforme native (CI, Cloudflare), seccomp est exigé.
-case "$(docker info --format '{{.Architecture}}')/${PLATEFORME##*/}" in
+case "$(docker info --format '{{.Architecture}}')/$(cut -d/ -f2 <<<"$PLATEFORME")" in
   x86_64/amd64 | aarch64/arm64 | arm64/arm64) EMULEE=false ;;
   *) EMULEE=true ;;
 esac
@@ -99,10 +100,10 @@ ok "témoin : sous le compte de l'API, l'environnement (secret fictif) et la con
 
 sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 2>&1)
 echo "$sonde"
-attendus=21
+attendus=22
 if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus permise" <<<"$sonde"; then
-  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus non vérifiée (vérifiée en natif)."
-  sonde=$(grep -v -e "^ACCES processus$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
+  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus et PR_SET_PDEATHSIG non vérifiés (vérifiés en natif)."
+  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
   attendus=20
 fi
 grep -qx "ENVIRONNEMENT DOTNET_EnableDiagnostics DOTNET_gcServer" <<<"$sonde" || echec "environnement de l'enfant non fixé"
@@ -136,6 +137,13 @@ for _ in $(seq 10); do
 done
 case "$etat" in "" | *zombie*) ;; *) echec "enfant $enfant encore en vie après l'arrêt du lanceur ($etat)" ;; esac
 ok "l'API ne peut pas signaler l'enfant ; l'arrêt du lanceur l'arrête"
+
+# --- Fichiers temporaires de l'API et du web (formulaires reçus) : jamais lisibles par le compte du rendu -------------------
+for processus in "$API" "$WEB"; do
+  masque=$(docker exec "$essai" sh -c "grep '^Umask:' /proc/$processus/status | cut -f2")
+  [ "$masque" = 0077 ] || echec "masque de création $masque pour le processus $processus (0077 attendu)"
+done
+ok "API et web créent leurs fichiers (temporaires compris) en accès propriétaire seul (umask 0077)"
 
 # --- Ménage : un processus du compte du rendu laissé par un rendu précédent est tué avant le rendu suivant ---------------
 docker exec -d -u rendupdf "$essai" sleep 6000

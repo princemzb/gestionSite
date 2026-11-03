@@ -101,6 +101,7 @@ public sealed class ReadinessEndpointTests(InfrastructureFixture infrastructure)
     [Theory]
     [InlineData("")]
     [InlineData("libexec/lanceur-rendu-pdf")]
+    [InlineData("/inexistant/lanceur-rendu-pdf")]
     public async Task StartupFailsWithARelativePdfRenderingLauncher(string lanceur)
     {
         await using var factory = infrastructure.CreateApi().WithWebHostBuilder(b => b.UseSetting("PlansBatiment:RenduPdfLanceur", lanceur));

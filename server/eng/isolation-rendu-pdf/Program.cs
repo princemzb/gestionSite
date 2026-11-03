@@ -38,6 +38,9 @@ Essayer("diagnostic-api", () => Diagnostic(api));
 // Nouveau processus : une copie de la sonde qui survivrait au rendu pourrait épier les rendus suivants.
 Essayer("processus", () => Process.Start("/bin/true")!.WaitForExit());
 
+// Signal d'arrêt avec le lanceur : le désarmer permettrait de survivre à l'arrêt du rendu par l'API.
+Essayer("pdeathsig", () => Verifier(prctl(1 /* PR_SET_PDEATHSIG */, 0, 0, 0, 0)));
+
 if (args[3] == "0")
 {
     Console.Out.Flush();
@@ -59,9 +62,11 @@ static void Essayer(string essai, Action action)
     }
 }
 
-static void Signal(int pid)
+static void Signal(int pid) => Verifier(kill(pid, 0));
+
+static void Verifier(int resultat)
 {
-    if (kill(pid, 0) != 0)
+    if (resultat != 0)
     {
         throw new IOException(Marshal.GetLastPInvokeErrorMessage());
     }
@@ -85,3 +90,6 @@ static extern int kill(int pid, int signal);
 
 [DllImport("libc")]
 static extern int getppid();
+
+[DllImport("libc", SetLastError = true)]
+static extern int prctl(int option, nuint a, nuint b, nuint c, nuint d);

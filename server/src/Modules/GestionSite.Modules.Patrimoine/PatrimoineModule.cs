@@ -27,8 +27,8 @@ public static class PatrimoineModule
             .Validate(o => o.RenduPdfDelaiSecondes > 0, "PlansBatiment:RenduPdfDelaiSecondes doit être positif.")
             .Validate(o => o.RenduPdfMemoireOctets > 0, "PlansBatiment:RenduPdfMemoireOctets doit être positif.")
             .Validate<IHostEnvironment>(
-                (o, environnement) => o.RenduPdfLanceur is { } lanceur ? Path.IsPathFullyQualified(lanceur) : environnement.IsDevelopment(),
-                "PlansBatiment:RenduPdfLanceur doit être un chemin absolu, obligatoire hors développement (rendu PDF isolé, SOC-05).")
+                (o, environnement) => o.RenduPdfLanceur is { } lanceur ? Path.IsPathFullyQualified(lanceur) && File.Exists(lanceur) : environnement.IsDevelopment(),
+                "PlansBatiment:RenduPdfLanceur doit être le chemin absolu d'un fichier existant, obligatoire hors développement (rendu PDF isolé, SOC-05).")
             .ValidateOnStart();
         return services.AddPatrimoinePersistence().AddSingleton<ProcessusRenduPdf>().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()
