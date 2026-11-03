@@ -4,6 +4,8 @@
 // Arguments (numériques, comme ceux du rendu) : PID de l'API, PID de l'application web, inutilisé, 0 pour rester en vie
 // après les essais (arrêt avec le lanceur). Sortie : noms des variables d'environnement reçues, compte, puis une ligne
 // par essai, « ACCES <essai> » ou « REFUS <essai> <raison> ».
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 
@@ -33,6 +35,9 @@ Essayer("dossier-api", () => Directory.GetFileSystemEntries("/app/api"));
 Essayer("dossier-web", () => Directory.GetFileSystemEntries("/app/web"));
 Essayer("diagnostic-api", () => Diagnostic(api));
 
+// Nouveau processus : une copie de la sonde qui survivrait au rendu pourrait épier les rendus suivants.
+Essayer("processus", () => Process.Start("/bin/true")!.WaitForExit());
+
 if (args[3] == "0")
 {
     Console.Out.Flush();
@@ -48,7 +53,7 @@ static void Essayer(string essai, Action action)
         action();
         Console.WriteLine($"ACCES {essai}");
     }
-    catch (Exception refus) when (refus is IOException or UnauthorizedAccessException or SocketException)
+    catch (Exception refus) when (refus is IOException or UnauthorizedAccessException or SocketException or Win32Exception)
     {
         Console.WriteLine($"REFUS {essai} {refus.GetType().Name}");
     }

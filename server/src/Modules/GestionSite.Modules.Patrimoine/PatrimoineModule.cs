@@ -10,6 +10,7 @@ using GestionSite.Modules.Patrimoine.Score;
 using GestionSite.Modules.Patrimoine.Structure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace GestionSite.Modules.Patrimoine;
 
@@ -25,7 +26,9 @@ public static class PatrimoineModule
             .Validate(o => o.QuotaFondsOctets > 0, "PlansBatiment:QuotaFondsOctets doit être positif.")
             .Validate(o => o.RenduPdfDelaiSecondes > 0, "PlansBatiment:RenduPdfDelaiSecondes doit être positif.")
             .Validate(o => o.RenduPdfMemoireOctets > 0, "PlansBatiment:RenduPdfMemoireOctets doit être positif.")
-            .Validate(o => o.RenduPdfLanceur is null || Path.IsPathFullyQualified(o.RenduPdfLanceur), "PlansBatiment:RenduPdfLanceur doit être un chemin absolu.")
+            .Validate<IHostEnvironment>(
+                (o, environnement) => o.RenduPdfLanceur is { } lanceur ? Path.IsPathFullyQualified(lanceur) : environnement.IsDevelopment(),
+                "PlansBatiment:RenduPdfLanceur doit être un chemin absolu, obligatoire hors développement (rendu PDF isolé, SOC-05).")
             .ValidateOnStart();
         return services.AddPatrimoinePersistence().AddSingleton<ProcessusRenduPdf>().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()

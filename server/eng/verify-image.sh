@@ -7,8 +7,9 @@
 #  3. Témoin : sous le compte de l'API, la sonde lit l'environnement et la configuration de l'API (exposition de S21-05).
 #  4. Par le lanceur, la sonde a le compte du rendu : environnement, mémoire, descripteurs et signaux de l'API, de
 #     l'application web et du processus 1, environnement, mémoire et descripteurs du lanceur, configuration de l'API
-#     et du web, canal de diagnostic .NET : tout est refusé.
-#  5. L'arrêt du lanceur, seul geste permis à l'API, arrête l'enfant, que l'API ne peut pas tuer elle-même.
+#     et du web, canal de diagnostic .NET, création d'un processus (seccomp, sauf image émulée) : tout est refusé.
+#  5. L'arrêt du lanceur, seul geste permis à l'API, arrête l'enfant, que l'API ne peut pas tuer elle-même ; un processus
+#     du compte du rendu encore en vie est tué avant le rendu suivant (ménage), sans toucher à l'API ni au web.
 #  6. Image livrée : rendu d'une page par le lanceur, page absente, fichier qui n'est pas un PDF, appels refusés.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -18,7 +19,6 @@ readonly IMAGE="gestionsite-verification:${PLATEFORME##*/}"
 readonly ESSAI="gestionsite-verification-sonde:${PLATEFORME##*/}"
 readonly LANCEUR=/usr/local/libexec/gestionsite/lanceur-rendu-pdf
 readonly SECRET="secret-fictif-soc05-$$"
-readonly UID_RENDU=1655
 conteneurs=()
 
 nettoyer() {
@@ -71,6 +71,15 @@ attendre() {
 
 docker build --platform "$PLATEFORME" -f server/Dockerfile -t "$IMAGE" .
 docker build --platform "$PLATEFORME" --build-arg IMAGE="$IMAGE" -t "$ESSAI" server/eng/isolation-rendu-pdf
+UID_RENDU=$(docker run --rm --platform "$PLATEFORME" --entrypoint id "$IMAGE" -u rendupdf)
+readonly UID_RENDU
+# Image émulée (amd64 sur un poste arm64) : l'émulateur Rosetta n'accepte pas les filtres seccomp ; le lanceur le signale
+# et continue (le ménage avant chaque rendu reste). Sur la plateforme native (CI, Cloudflare), seccomp est exigé.
+case "$(docker info --format '{{.Architecture}}')/${PLATEFORME##*/}" in
+  x86_64/amd64 | aarch64/arm64 | arm64/arm64) EMULEE=false ;;
+  *) EMULEE=true ;;
+esac
+readonly EMULEE
 
 # --- Isolation : la sonde à la place du programme de rendu --------------------------------------------------------------
 essai=$(demarrer "$ESSAI")
@@ -88,17 +97,23 @@ docker exec -u app "$essai" sh -c "tr '\0' '\n' < /proc/$API/environ" | grep -q 
   || echec "témoin : secret fictif absent de l'environnement de l'API"
 ok "témoin : sous le compte de l'API, l'environnement (secret fictif) et la configuration de l'API sont lisibles"
 
-sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1)
+sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 2>&1)
 echo "$sonde"
+attendus=21
+if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus permise" <<<"$sonde"; then
+  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus non vérifiée (vérifiée en natif)."
+  sonde=$(grep -v -e "^ACCES processus$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
+  attendus=20
+fi
 grep -qx "ENVIRONNEMENT DOTNET_EnableDiagnostics DOTNET_gcServer" <<<"$sonde" || echec "environnement de l'enfant non fixé"
 t=$'\t'
 quatre="$UID_RENDU$t$UID_RENDU$t$UID_RENDU$t$UID_RENDU"
 grep -qxF "COMPTE uid=$quatre gid=$quatre groupes=[] capacites=0000000000000000/0000000000000000 nnp=1" <<<"$sonde" \
   || echec "compte de l'enfant inattendu"
 if grep -q "^ACCES" <<<"$sonde"; then echec "accès obtenu par l'enfant"; fi
-[ "$(grep -c "^REFUS" <<<"$sonde")" -eq 20 ] || echec "20 essais refusés attendus"
+[ "$(grep -c "^REFUS" <<<"$sonde")" -eq "$attendus" ] || echec "$attendus essais refusés attendus"
 if grep -q "$SECRET" <<<"$sonde"; then echec "secret fictif lu par l'enfant"; fi
-ok "enfant sous le compte rendupdf (aucun groupe, aucune capacité, aucun nouveau privilège) : 20 accès refusés"
+ok "enfant sous le compte rendupdf (aucun groupe, aucune capacité, aucun nouveau privilège) : $attendus accès refusés"
 
 # --- Arrêt : l'API tue le lanceur, le noyau tue l'enfant ------------------------------------------------------------------
 docker exec -d -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 0
@@ -110,7 +125,9 @@ for _ in $(seq 60); do
 done
 [ -n "$enfant" ] || echec "enfant non démarré"
 lanceur=$(pid "$essai" '[l]anceur-rendu-pdf')
-if docker exec -u app "$essai" kill -KILL "$enfant" 2>/dev/null; then echec "l'API a pu tuer l'enfant directement"; fi
+if refus=$(docker exec -u app "$essai" kill -KILL "$enfant" 2>&1); then echec "l'API a pu tuer l'enfant directement"; fi
+grep -qi "not permitted" <<<"$refus" || echec "signal refusé pour une autre raison que les droits : $refus"
+docker exec "$essai" test -d "/proc/$enfant" || echec "enfant $enfant absent avant l'arrêt du lanceur"
 docker exec -u app "$essai" kill -KILL "$lanceur"
 for _ in $(seq 10); do
   etat=$(docker exec "$essai" sh -c "grep -s '^State:' /proc/$enfant/status || true")
@@ -119,6 +136,22 @@ for _ in $(seq 10); do
 done
 case "$etat" in "" | *zombie*) ;; *) echec "enfant $enfant encore en vie après l'arrêt du lanceur ($etat)" ;; esac
 ok "l'API ne peut pas signaler l'enfant ; l'arrêt du lanceur l'arrête"
+
+# --- Ménage : un processus du compte du rendu laissé par un rendu précédent est tué avant le rendu suivant ---------------
+docker exec -d -u rendupdf "$essai" sleep 6000
+echappe=""
+for _ in $(seq 30); do
+  echappe=$(pid "$essai" '[s]leep.6000')
+  [ -n "$echappe" ] && break
+  sleep 1
+done
+[ -n "$echappe" ] || echec "processus échappé non démarré"
+docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 >/dev/null 2>&1 || echec "rendu après le processus échappé"
+etat=$(docker exec "$essai" sh -c "grep -s '^State:' /proc/$echappe/status || true")
+case "$etat" in "" | *zombie*) ;; *) echec "processus échappé $echappe encore en vie après le rendu suivant ($etat)" ;; esac
+docker exec "$essai" test -d "/proc/$API" || echec "API arrêtée par le ménage"
+docker exec "$essai" test -d "/proc/$WEB" || echec "application web arrêtée par le ménage"
+ok "ménage : processus du compte du rendu laissé en vie tué avant le rendu suivant ; API et web intacts"
 
 # --- Image livrée : rendu par le lanceur -----------------------------------------------------------------------------------
 livree=$(demarrer "$IMAGE")

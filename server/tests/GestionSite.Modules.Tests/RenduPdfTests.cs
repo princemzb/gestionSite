@@ -217,6 +217,37 @@ public sealed class RenduPdfTests
         Assert.Equal(("pdf_illisible", "fichier"), (refus.Code, refus.Champ));
     }
 
+    [Fact]
+    public async Task AProcessKeepingTheErrorOutputOpenNeverBlocksTheRendering()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Processus échappé au rendu (hors de portée de l'API) qui garde la sortie d'erreur ouverte (sa sortie standard,
+        // s'il la gardait, serait bornée par le délai du rendu).
+        using var lanceur = new LanceurEssai("sleep 60 >/dev/null &\necho $! > \"$(dirname \"$0\")/echappe\"\nexit 3");
+        var chrono = Stopwatch.StartNew();
+        try
+        {
+            var refus = await Assert.ThrowsAsync<PdfRefuseException>(
+                () => Processus(lanceur: lanceur.Chemin).RendreAsync(TroisPages, 1, Cote, Surface, CancellationToken.None));
+
+            Assert.Equal("pdf_illisible", refus.Code);
+            Assert.InRange(chrono.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            var echappe = Path.Combine(Path.GetDirectoryName(lanceur.Chemin)!, "echappe");
+            if (File.Exists(echappe))
+            {
+                using var processus = Process.GetProcessById(int.Parse(File.ReadAllText(echappe).Trim(), CultureInfo.InvariantCulture));
+                processus.Kill();
+            }
+        }
+    }
+
     private static ProcessusRenduPdf Processus(int delai = 20, long memoire = 1024L * 1024 * 1024, string? lanceur = null) =>
         new(
             Options.Create(new FondsPlanOptions { RenduPdfDelaiSecondes = delai, RenduPdfMemoireOctets = memoire, RenduPdfLanceur = lanceur }),

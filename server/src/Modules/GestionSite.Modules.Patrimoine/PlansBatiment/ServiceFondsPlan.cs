@@ -31,8 +31,9 @@ internal sealed class FondsPlanOptions
 
     /// <summary>
     /// Lanceur du rendu isolé (SOC-05), chemin absolu : programme setuid de l'image du conteneur qui exécute le processus de
-    /// rendu sous un compte dédié, sans droit sur l'API (server/deploy/lanceur-rendu-pdf.c). Absent (poste de
-    /// développement, tests) : processus de rendu lancé directement, sous le compte de l'API.
+    /// rendu sous un compte dédié, sans droit sur l'API (server/deploy/lanceur-rendu-pdf.c). Obligatoire hors
+    /// développement (démarrage refusé) ; absent en développement et dans les tests : processus de rendu lancé directement,
+    /// sous le compte de l'API.
     /// </summary>
     public string? RenduPdfLanceur { get; init; }
 }

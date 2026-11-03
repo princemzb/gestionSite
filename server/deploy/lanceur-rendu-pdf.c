@@ -6,10 +6,12 @@
  * environnement (secrets), ni sa mémoire, ni ses fichiers, ni ses signaux.
  *
  * Déroulé : contrôles (appelant = compte de l'API, arguments numériques), descripteurs hérités fermés au-delà de 0, 1
- * et 2, puis fork.
+ * et 2, ménage des processus du compte du rendu laissés par un rendu précédent, puis fork.
  *  - L'enfant prend définitivement le compte du rendu (groupes vidés ; identifiants réels, effectifs et sauvegardés),
  *    vérifie qu'il ne peut plus revenir en arrière, s'interdit tout nouveau privilège, demande au noyau d'être tué si le
- *    lanceur s'arrête, puis exécute le programme de rendu avec un environnement fixe.
+ *    lanceur s'arrête, s'interdit de créer des processus (seccomp : un code exécuté dans PDFium ne peut pas laisser de
+ *    copie de lui-même survivre au rendu, ni épier les rendus suivants), puis exécute le programme de rendu avec un
+ *    environnement fixe.
  *  - Le lanceur abandonne tout privilège (identifiant réel : compte de l'API ; effectif et sauvegardé : compte du
  *    rendu), attend l'enfant et rend son code de sortie. L'API arrête un rendu en tuant le lanceur : l'enfant, qu'elle
  *    ne peut pas tuer elle-même, est alors tué par le noyau (PR_SET_PDEATHSIG).
@@ -20,7 +22,11 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <grp.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/prctl.h>
@@ -39,10 +45,94 @@ enum
     CODE_REFUS = 126
 };
 
+/*
+ * Numéros d'appels système fixés par l'ABI de chaque architecture. Les deux sont filtrés quelle que soit l'architecture
+ * de compilation : sous émulation (image amd64 sur un poste arm64), le noyau voit les appels de l'hôte.
+ */
+enum
+{
+    X86_64_CLONE = 56,
+    X86_64_FORK = 57,
+    X86_64_VFORK = 58,
+    X32_BIT = 0x40000000,
+    AARCH64_CLONE = 220,
+    CLONE3 = 435,
+    DRAPEAU_FIL = 0x00010000 /* CLONE_THREAD */
+};
+
+/*
+ * Filtre seccomp de l'enfant : fork, vfork et clone sans CLONE_THREAD refusés (EPERM), clone3 indisponible (ENOSYS :
+ * la bibliothèque C se replie sur clone pour créer des fils d'exécution), ABI x32 et autres architectures tuées.
+ */
+static int interdire_processus(void)
+{
+    struct sock_filter filtre[] = {
+        /* 0 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+        /* 1 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 0, 6),
+        /* 2 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+        /* 3 */ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, X32_BIT, 13, 0),
+        /* 4 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_FORK, 10, 0),
+        /* 5 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_VFORK, 9, 0),
+        /* 6 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_CLONE, 5, 0),
+        /* 7 */ BPF_JUMP(BPF_JMP | BPF_JA, 3, 0, 0),
+        /* 8 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 8),
+        /* 9 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+        /* 10 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_CLONE, 1, 0),
+        /* 11 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE3, 4, 2),
+        /* 12 : clone, drapeaux (32 bits de poids faible, petit-boutiste) */
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+        /* 13 */ BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, DRAPEAU_FIL, 0, 1),
+        /* 14 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        /* 15 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
+        /* 16 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
+        /* 17 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    };
+    struct sock_fprog programme = {.len = (unsigned short)(sizeof(filtre) / sizeof(filtre[0])), .filter = filtre};
+    return prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &programme, 0L, 0L);
+}
+
 static int refuser(const char *etape, int erreur)
 {
     dprintf(STDERR_FILENO, "lanceur-rendu-pdf : %s (%s)\n", etape, erreur != 0 ? strerror(erreur) : "refus");
     return CODE_REFUS;
+}
+
+/*
+ * Ménage avant chaque rendu : tout processus du compte du rendu encore en vie (copie laissée par un rendu précédent
+ * malgré seccomp, ou là où seccomp manque) est tué avant que le nouveau rendu ne commence ; il ne voit donc jamais le
+ * PDF suivant. Un processus « balai » prend le compte du rendu et signale tout ce qu'il peut signaler (kill -1) : les
+ * processus de ce compte seulement, jamais l'API, le web ni ce lanceur (encore root). L'API ne lance qu'un rendu à la
+ * fois (ProcessusRenduPdf) : aucun rendu légitime n'est en cours.
+ */
+static int nettoyer(void)
+{
+    pid_t balai = fork();
+    if (balai < 0)
+    {
+        return -1;
+    }
+
+    if (balai == 0)
+    {
+        if (setgroups(0, NULL) != 0 || setresgid(GID_RENDU, GID_RENDU, GID_RENDU) != 0 ||
+            setresuid(UID_RENDU, UID_RENDU, UID_RENDU) != 0 || (kill(-1, SIGKILL) != 0 && errno != ESRCH))
+        {
+            _exit(1);
+        }
+
+        _exit(0);
+    }
+
+    int etat;
+    while (waitpid(balai, &etat, 0) < 0)
+    {
+        if (errno != EINTR)
+        {
+            return -1;
+        }
+    }
+
+    return WIFEXITED(etat) && WEXITSTATUS(etat) == 0 ? 0 : -1;
 }
 
 /* Nombre décimal sans signe, de 1 à 19 chiffres : seuls arguments transmis au programme de rendu. */
@@ -112,6 +202,17 @@ static int lancer_rendu(pid_t lanceur, char *argv[])
         return refuser("lanceur arrêté", 0);
     }
 
+    /* Seccomp absent (noyau sans filtre, émulation Rosetta) : seul cas toléré, le ménage du lanceur suivant reste. */
+    if (interdire_processus() != 0)
+    {
+        if (errno != EINVAL)
+        {
+            return refuser("interdiction de créer des processus", errno);
+        }
+
+        dprintf(STDERR_FILENO, "lanceur-rendu-pdf : seccomp indisponible, création de processus permise\n");
+    }
+
     if (chdir("/") != 0)
     {
         return refuser("dossier courant", errno);
@@ -145,6 +246,11 @@ int main(int argc, char *argv[])
 
     /* Seules l'entrée (PDF), la sortie (image) et la sortie d'erreur passent à l'enfant. */
     closefrom(STDERR_FILENO + 1);
+
+    if (nettoyer() != 0)
+    {
+        return refuser("ménage des rendus précédents", 0);
+    }
 
     pid_t lanceur = getpid();
     pid_t enfant = fork();

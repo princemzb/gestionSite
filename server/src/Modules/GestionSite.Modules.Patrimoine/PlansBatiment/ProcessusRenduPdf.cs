@@ -37,6 +37,7 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
     internal const string Programme = "GestionSite.Modules.Patrimoine.RenduPdf";
     private const int EnteteMax = 128;
     private const int ErreursMax = 4096;
+    private static readonly TimeSpan ErreursAttente = TimeSpan.FromSeconds(2);
     private static readonly SemaphoreSlim Seul = new(1);
     private static readonly Lazy<string[]> LancementDirect = new(PreparerLancementDirect);
 
@@ -95,7 +96,7 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
             await envoi.ConfigureAwait(false);
             if (processus.ExitCode != 0 || resultat is null)
             {
-                Journaliser(processus.ExitCode, await erreurs.ConfigureAwait(false));
+                Journaliser(processus.ExitCode, await AttendreErreursAsync(erreurs).ConfigureAwait(false));
                 throw Illisible();
             }
 
@@ -110,10 +111,11 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
         finally
         {
             // Jamais d'enfant laissé en vie (délai, abandon, refus lu avant sa fin) ; sa sortie d'erreur se termine avec lui.
-            // Lanceur isolé : l'API tue le lanceur (son compte) et le noyau tue l'enfant (autre compte, hors de sa portée).
-            processus.Kill();
+            // Lanceur isolé : l'API tue le lanceur (son compte) et le noyau tue l'enfant (autre compte, hors de sa portée,
+            // interdit de créer des processus) ; lancement direct : tout l'arbre.
+            processus.Kill(entireProcessTree: reglages.RenduPdfLanceur is null);
             await processus.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            await erreurs.ConfigureAwait(false);
+            await AttendreErreursAsync(erreurs).ConfigureAwait(false);
         }
     }
 
@@ -214,6 +216,20 @@ internal sealed partial class ProcessusRenduPdf(IOptions<FondsPlanOptions> optio
         }
 
         return Encoding.UTF8.GetString(debut, 0, lus);
+    }
+
+    // Sortie d'erreur attendue au plus 2 s après la fin du processus : un processus échappé au rendu qui la garderait
+    // ouverte ne bloque jamais l'API (ni ce rendu, ni les suivants) ; le ménage du lanceur suivant le tue (SOC-05).
+    private static async Task<string> AttendreErreursAsync(Task<string> erreurs)
+    {
+        try
+        {
+            return await erreurs.WaitAsync(ErreursAttente).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return "(sortie d'erreur encore ouverte par un autre processus)";
+        }
     }
 
     private void Journaliser(int code, string erreurs) => LogRenduEchoue(journal, code, erreurs.Length > 0 ? erreurs : "(aucune)");

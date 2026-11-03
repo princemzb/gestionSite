@@ -145,7 +145,7 @@ jobs:
           python3 - "$RUNNER_TEMP/compile_commands.json" <<'PY'
           import json, os, sys
           source = "server/deploy/lanceur-rendu-pdf.c"
-          arguments = ["gcc", "-std=gnu17", "-O2", "-Wall", "-Wextra", "-DUID_API=1654", "-DUID_RENDU=1655", "-DGID_RENDU=1655",
+          arguments = ["gcc", "-std=gnu17", "-O2", "-Wall", "-Wextra", "-D_FORTIFY_SOURCE=2", "-fstack-protector-strong", "-fPIE", "-DUID_API=1654", "-DUID_RENDU=1655", "-DGID_RENDU=1655",
                        '-DDOTNET="/usr/share/dotnet/dotnet"', '-DPROGRAMME="/app/rendu-pdf/GestionSite.Modules.Patrimoine.RenduPdf.dll"',
                        "-c", source]
           json.dump([{"directory": os.environ["GITHUB_WORKSPACE"], "file": source, "arguments": arguments}], open(sys.argv[1], "w"))
