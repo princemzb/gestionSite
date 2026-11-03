@@ -17,6 +17,15 @@ internal enum NatureHabilitation
 
     /// <summary>Droit nominatif retiré (US-21) : motif obligatoire, effet immédiat.</summary>
     RetraitDroit,
+
+    /// <summary>Nouveau lien d'activation émis par l'administrateur pour une invitation en attente (US-31).</summary>
+    NouveauLienActivation,
+
+    /// <summary>Lien de réinitialisation du mot de passe créé par l'administrateur (US-31) ; rôles inchangés.</summary>
+    LienReinitialisation,
+
+    /// <summary>Mot de passe réinitialisé par le titulaire avec le lien (US-31) ; tous ses appareils sont déconnectés.</summary>
+    MotDePasseReinitialise,
 }
 
 /// <summary>Rôle tel qu'enregistré dans le journal (instantané, indépendant des changements ultérieurs).</summary>
@@ -51,7 +60,8 @@ internal sealed class EvenementHabilitation : IAppartientAOrganisation
         }
 
         var apres = nature is NatureHabilitation.Revocation or NatureHabilitation.Refus ? null : Instantane(membre);
-        if (nature is NatureHabilitation.AttributionDroit or NatureHabilitation.RetraitDroit)
+        if (nature is NatureHabilitation.AttributionDroit or NatureHabilitation.RetraitDroit or NatureHabilitation.NouveauLienActivation
+            or NatureHabilitation.LienReinitialisation or NatureHabilitation.MotDePasseReinitialise)
         {
             avant = apres;
         }

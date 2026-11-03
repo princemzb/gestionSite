@@ -5,15 +5,53 @@
 
 <PageTitle>gestionSite</PageTitle>
 
-<h2>Votre compte est actif</h2>
-<p class="note">Les écrans de votre rôle arriveront dans les prochaines versions. Vous pouvez déjà vous connecter et vous déconnecter.</p>
 @if (Message is not null)
 {
     <p role="alert" class="alerte danger">@Message</p>
 }
-@if (Invitations > 0)
+@switch (Issue)
 {
-    <p class="alerte avertissement">Vous avez @Invitations invitation(s) en attente.</p>
+    case "acceptee" when Rejointe is not null:
+        <p role="status" class="alerte succes"><strong>Vous avez rejoint @Rejointe.Nom.</strong></p>
+        <div class="actions gauche">
+            <a class="bouton-principal lien-bouton" href="@($"/?organisation={Rejointe.Id}")">Ouvrir @Rejointe.Nom</a>
+            @if (Autre is not null)
+            {
+                <a class="bouton-secondaire lien-bouton" href="@($"/?organisation={Autre.Id}")">Rester sur @Autre.Nom</a>
+            }
+        </div>
+        break;
+    case "refusee":
+        <p role="status" class="alerte succes">Invitation refusée. Vous n'avez aucun accès à cette organisation.</p>
+        break;
+    case "modifiee":
+        <p role="alert" class="alerte avertissement"><strong>L'invitation a été modifiée entre-temps.</strong> Relisez les rôles proposés aujourd'hui, puis répondez.</p>
+        break;
+    case "introuvable":
+        <p role="alert" class="alerte danger"><strong>Cette invitation n'est plus valable.</strong> L'organisation l'a annulée. Rien n'a changé pour votre compte.</p>
+        break;
+    case "indisponible":
+        <p role="alert" class="alerte danger">Service momentanément indisponible. Réessayez dans un instant.</p>
+        break;
+}
+
+@if (Moi is { Organisations.Count: 0 } && Moi.Invitations is { Count: > 0 } invitations)
+{
+    <h2>Invitations</h2>
+    <p class="note">Vous n'avez encore accès à aucune organisation. Acceptez une invitation pour commencer.</p>
+    @foreach (var invitation in invitations)
+    {
+        <CarteInvitation Invitation="invitation" />
+    }
+}
+else if (Moi is { Organisations.Count: 0 })
+{
+    <h2>Votre compte est actif</h2>
+    <p class="note">Vous n'avez accès à aucune organisation pour l'instant. Demandez une invitation à son administrateur.</p>
+}
+else if (Moi is not null && Issue is not null && Issue != "acceptee")
+{
+    <div class="actions gauche"><a class="bouton-principal lien-bouton" href="/?continuer=1">Continuer</a></div>
 }
 <form method="post" action="/deconnexion">
     <AntiforgeryToken />
@@ -21,16 +59,27 @@
 </form>
 
 @code {
-    private int Invitations { get; set; }
+    /// <summary>Organisation choisie (sélecteur du menu, ou « Ouvrir » après une invitation acceptée).</summary>
+    [SupplyParameterFromQuery(Name = "organisation")]
+    private Guid? Choisie { get; set; }
+
+    /// <summary>Issue d'une réponse à une invitation : acceptee, refusee, modifiee, introuvable, indisponible.</summary>
+    [SupplyParameterFromQuery(Name = "invitation")]
+    private string? Issue { get; set; }
+
+    private MoiApi? Moi { get; set; }
+
+    private OrganisationApi? Rejointe { get; set; }
+
+    private OrganisationApi? Autre { get; set; }
 
     private string? Message { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        MoiApi moi;
         try
         {
-            moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            Moi = await Session.MoiAsync(CancellationToken.None);
         }
         catch (SessionExpireeException)
         {
@@ -43,10 +92,22 @@
             return;
         }
 
+        if (Issue == "acceptee")
+        {
+            Rejointe = Moi.Organisations.FirstOrDefault(o => o.Id == Choisie);
+            Autre = Moi.Organisations.FirstOrDefault(o => o.Id != Choisie);
+            return;
+        }
+
+        if (Issue is not null)
+        {
+            return; // message de l'issue, puis « Continuer »
+        }
+
         // Les comptes internes d'un site arrivent sur les dossiers ; l'administrateur sans rôle de site, sur les membres.
-        Invitations = moi.Invitations?.Count ?? 0;
-        var interne = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role != "Administrateur"));
-        var administree = moi.Organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
+        var organisations = Moi.Organisations.Where(o => Choisie is null || o.Id == Choisie).ToList();
+        var interne = organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role != "Administrateur"));
+        var administree = organisations.FirstOrDefault(o => o.Roles.Any(r => r.Role == "Administrateur"));
         if (interne is not null)
         {
             Navigation.NavigateTo($"/organisations/{interne.Id}/dossiers");

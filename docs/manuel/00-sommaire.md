@@ -16,8 +16,8 @@ Ce manuel explique comment utiliser gestionSite au quotidien. Il décrit l'appli
 | Chapitre | Pour qui | Contenu |
 | --- | --- | --- |
 | [1. Principes](01-principes.md#principes) | Tout le monde | À quoi sert l'application, organisations, sites, rôles, téléphone et ordinateur |
-| [2. Connexion et activation](02-connexion.md#connexion) | Tout le monde | Activer son compte, se connecter, se déconnecter |
-| [3. Administration](03-administration.md#administration) | Administrateur, responsable, délégué | Membres, invitations, rôles, sites, QR code et affiche |
+| [2. Connexion et activation](02-connexion.md#connexion) | Tout le monde | Activer son compte, se connecter, mot de passe oublié, invitations, changer d'organisation |
+| [3. Administration](03-administration.md#administration) | Administrateur, responsable, délégué | Membres, invitations, rôles, droit « plans », révocation, journal, sites, QR code et affiche |
 | [4. Dépôt public par QR code](04-depot-public.md#depot) | Fidèles, visiteurs ; équipe du site | Signaler sans compte ; recevoir les signalements |
 | [5. Dossiers](05-dossiers.md#dossiers) | Équipe du site | Déclarer, qualifier, affecter, intervenir, mettre en attente, clôturer |
 | [6. Inventaire](06-inventaire.md#inventaire) | Équipe du site | Bâtiments, niveaux, zones, composants et lots |

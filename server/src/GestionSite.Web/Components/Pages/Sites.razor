@@ -21,10 +21,80 @@ else
             <h1>Sites</h1>
             <p>Chaque site a son lien public et son QR code : affichez-les sur place pour recevoir les signalements.</p>
         </div>
+        @if (Administrateur && Ajouter is null && Cree is null)
+        {
+            <a class="bouton-principal lien-bouton" href="@($"/organisations/{OrganisationId}/sites?ajouter=1")">Ajouter un site</a>
+        }
     </div>
     @if (Message is not null)
     {
         <p role="alert" class="alerte danger">@Message</p>
+    }
+
+    @if (Administrateur && SiteCree is { } cree)
+    {
+        var adresseCree = Liens.Adresse(cree.Code, Navigation.BaseUri);
+        <section class="carte creation-site" aria-label="Ajouter un site, étape 2 sur 2">
+            <ol class="etapes">
+                <li class="faite">1. Nom : @cree.Nom</li>
+                <li aria-current="step">2. Lien public et QR code</li>
+            </ol>
+            <div class="resultat">
+                <div class="qr" role="img" aria-label="QR code de @cree.Nom">@((MarkupString)LiensPublics.Svg(adresseCree))</div>
+                <div>
+                    <h2>@cree.Nom est créé</h2>
+                    <span class="note">Lien public du site, à afficher sur place :</span>
+                    <code class="lien-activation">@adresseCree</code>
+                    <div class="actions gauche">
+                        <a class="bouton-principal bouton-lien" href="@($"/organisations/{OrganisationId}/sites/{cree.SiteId}/affiche")" target="_blank">Imprimer l'affiche</a>
+                        <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/sites/{cree.SiteId}/qr.png")" download>Télécharger le QR</a>
+                        <button type="button" class="bouton-secondaire" data-copier="@adresseCree">Copier le lien</button>
+                    </div>
+                </div>
+            </div>
+            <div class="suite">
+                <h3>À faire ensuite</h3>
+                <div class="lignes">
+                    <div>
+                        <span class="tx">Numéro à appeler en cas de danger<span class="petit">Montré à la personne qui signale un danger avec le formulaire public.</span></span>
+                        <a class="bouton-secondaire bouton-lien" href="@($"#numero-{cree.SiteId}")">Saisir le numéro</a>
+                    </div>
+                    <div>
+                        <span class="tx">Donner des rôles sur ce site<span class="petit">Personne n'a encore de rôle ici : sans responsable, les signalements ne sont pas traités.</span></span>
+                        <a class="bouton-secondaire bouton-lien" href="@($"/organisations/{OrganisationId}/membres")">Ouvrir Membres</a>
+                    </div>
+                    <div>
+                        <span class="tx">Décrire les bâtiments<span class="petit">Les responsables et techniciens du site le font ensuite dans l'inventaire.</span></span>
+                        <span class="petit">Après les rôles</span>
+                    </div>
+                </div>
+            </div>
+            <div class="actions"><a class="bouton-secondaire lien-bouton" href="@($"/organisations/{OrganisationId}/sites")">Terminer</a></div>
+        </section>
+    }
+    else if (Administrateur && Ajouter is 1)
+    {
+        <section class="carte creation-site" aria-label="Ajouter un site, étape 1 sur 2">
+            <ol class="etapes">
+                <li aria-current="step">1. Nom du site</li>
+                <li>2. Lien public et QR code</li>
+            </ol>
+            <EditForm Model="SaisieSite" FormName="site" OnSubmit="CreerSiteAsync" class="formulaire-etapes">
+                <label class="champ">Nom du site
+                    <InputText @bind-Value="SaisieSite.Nom" maxlength="200" placeholder="Ex. Presbytère, Cimetière Saint-Roch"
+                               aria-invalid="@(ErreurNom is null ? null : "true")" aria-describedby="aide-nom-site" />
+                    @if (ErreurNom is not null)
+                    {
+                        <span class="erreur" role="alert">@ErreurNom</span>
+                    }
+                    <span id="aide-nom-site" class="aide">Le nom figure sur l'affiche et sur le formulaire public. Le lien public et le QR code sont créés avec le site.</span>
+                </label>
+                <div class="actions">
+                    <a class="bouton-secondaire lien-bouton" href="@($"/organisations/{OrganisationId}/sites")">Annuler</a>
+                    <button type="submit" class="bouton-principal">Créer le site</button>
+                </div>
+            </EditForm>
+        </section>
     }
 
     <div class="grille-sites">
@@ -87,6 +157,23 @@ else
     [SupplyParameterFromQuery(Name = "site")]
     private Guid? SiteNumero { get; set; }
 
+    /// <summary>Étape 1 de la création d'un site (maquette 1B) : le nom.</summary>
+    [SupplyParameterFromQuery(Name = "ajouter")]
+    private int? Ajouter { get; set; }
+
+    /// <summary>Étape 2 : le site créé, son lien public, son QR et la suite à faire.</summary>
+    [SupplyParameterFromQuery(Name = "cree")]
+    private Guid? Cree { get; set; }
+
+    [SupplyParameterFromForm(Name = "SaisieSite", FormName = "site")]
+    private SaisieNouveauSite? FormulaireSite { get; set; }
+
+    private SaisieNouveauSite SaisieSite => FormulaireSite ??= new();
+
+    private string? ErreurNom { get; set; }
+
+    private LienPublicApi? SiteCree => Cree is { } id ? LiensSites.FirstOrDefault(l => l.SiteId == id) : null;
+
     private string? MessageNumero => Numero switch
     {
         "enregistre" => "Numéro enregistré.",
@@ -131,5 +218,39 @@ else
         {
             Message = refus.Message;
         }
+    }
+
+    private async Task CreerSiteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SaisieSite.Nom))
+        {
+            ErreurNom = "Saisissez le nom du site.";
+            return;
+        }
+
+        try
+        {
+            var cree = await Session.EcrireAsync<SiteApi>($"/organizations/{OrganisationId}/sites", new { nom = SaisieSite.Nom }, CancellationToken.None);
+            Navigation.NavigateTo($"/organisations/{OrganisationId}/sites?cree={cree.Id}");
+        }
+        catch (SessionExpireeException)
+        {
+            Navigation.NavigateTo("/connexion");
+        }
+        catch (RefusApiException refus)
+        {
+            ErreurNom = refus.Code switch
+            {
+                "site_existant" => "Un site porte déjà ce nom dans l'organisation. Choisissez un autre nom.",
+                "donnee_invalide" => "Le nom doit tenir sur une ligne, 200 caractères au plus.",
+                _ => null,
+            };
+            Message = ErreurNom is null ? refus.Message : null;
+        }
+    }
+
+    private sealed class SaisieNouveauSite
+    {
+        public string? Nom { get; set; }
     }
 }

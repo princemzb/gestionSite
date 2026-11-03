@@ -9,12 +9,16 @@
     <label class="champ">Adresse e-mail
         <InputText type="email" @bind-Value="Saisie.Email" autocomplete="username" required />
     </label>
-    <label class="champ">Mot de passe
+    <label class="champ"><span class="libelle-ligne">Mot de passe <a href="/mot-de-passe-oublie">Mot de passe oublié ?</a></span>
         <InputText type="password" @bind-Value="Saisie.MotDePasse" autocomplete="current-password" required />
     </label>
     @if (Issue is null && Active is 1)
     {
         <p role="status" class="alerte succes">Votre compte est activé. Connectez-vous avec votre adresse e-mail et votre mot de passe.</p>
+    }
+    @if (Issue is null && Reinitialise is 1)
+    {
+        <p role="status" class="alerte succes">Votre mot de passe est changé. Connectez-vous avec votre nouveau mot de passe.</p>
     }
     @if (Issue is IssueConnexion.CompteVerrouille)
     {
@@ -43,6 +47,9 @@
 
     [SupplyParameterFromQuery(Name = "active")]
     private int? Active { get; set; }
+
+    [SupplyParameterFromQuery(Name = "reinitialise")]
+    private int? Reinitialise { get; set; }
 
     private async Task ConnecterAsync()
     {

@@ -1,0 +1,35 @@
+@* Invitation en attente (maquette 4A, US-31) : en tête de l'application, sans bloquer le travail. Accepter ou refuser (confirmation). *@
+<section class="mis-en-avant carte-invitation" aria-label="@($"Invitation de {Invitation.Organisation}")">
+    <span class="surtitre">Invitation@(Invitation.InviteLe is { } le ? $" · {Perimetre.Date(le)}" : "")</span>
+    <h2>@Invitation.Organisation vous invite</h2>
+    <p class="note">@(Invitation.InvitePar ?? "L'équipe de la plateforme") vous propose : <strong>@Proposition</strong>.</p>
+    <p class="note">
+        En acceptant, vous accédez à cette organisation avec le même compte et le même mot de passe@(OrganisationActuelle is { Length: > 0 } actuelle ? $" ; vous gardez votre accès à {actuelle}" : "").
+    </p>
+    <div class="actions gauche">
+        <form method="post" action="@($"/invitations/{Invitation.MembreId}/accepter")">
+            <AntiforgeryToken />
+            <button type="submit" class="bouton-principal">Accepter l'invitation</button>
+        </form>
+        <details class="confirmation-refus">
+            <summary class="bouton-secondaire">Refuser…</summary>
+            <div class="carte confirmation">
+                <h3>Refuser l'invitation de @Invitation.Organisation ?</h3>
+                <p class="note">Vous n'aurez aucun accès à cette organisation. Pour la rejoindre plus tard, il faudra une nouvelle invitation de son administrateur.</p>
+                <form method="post" action="@($"/invitations/{Invitation.MembreId}/refuser")">
+                    <AntiforgeryToken />
+                    <button type="submit" class="bouton-danger">Refuser l'invitation</button>
+                </form>
+            </div>
+        </details>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public InvitationApi Invitation { get; set; } = null!;
+
+    /// <summary>Organisation ouverte en ce moment (« vous gardez votre accès à … »), absente si le compte n'en a aucune.</summary>
+    [Parameter] public string? OrganisationActuelle { get; set; }
+
+    private string Proposition => Invitation.Roles is { Count: > 0 } roles ? LibellesRoles.Resume(roles) : "rejoindre cette organisation";
+}

@@ -6,7 +6,7 @@
 Il est valable 72 heures et ne sert qu'une fois. Demandez un nouveau lien à votre administrateur.
 
 **J'ai oublié mon mot de passe.**
-La réinitialisation n'est pas encore disponible. Contactez l'équipe du projet.
+Demandez un lien de réinitialisation à l'administrateur de votre organisation : l'envoi par e-mail n'est pas encore en service. Voir [Mot de passe oublié](02-connexion.md#connexion-mot-de-passe-oublie).
 
 **Mon compte est verrouillé.**
 Après plusieurs essais incorrects, attendez 15 minutes puis réessayez.

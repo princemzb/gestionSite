@@ -8,6 +8,7 @@ Identité et contact des déclarants, comptes, photos, plans, justificatifs, jou
 - Contrôle serveur organisation/site/objet sur toute opération ; refus par défaut.
 - Stockage local protégé et compartimenté par compte ; aucun affichage du profil précédent après changement.
 - Mot de passe traité via mécanisme d’authentification éprouvé ; aucune donnée secrète en clair dans logs ou dépôt.
+- Réinitialisation avant l'e-mail (US-31) : lien créé par l'administrateur seulement pour un compte créé par son organisation et lié à aucune autre (revérifié à l'usage), montré une fois, 1 h, usage unique, tracé ; l'usage déconnecte tous les appareils du compte. La vérification inter-organisations passe par une fonction `SECURITY DEFINER` ne rendant qu'un booléen, sans ouvrir la RLS au rôle applicatif.
 - Téléversements bornés, types vérifiés, fichiers privés ; traitement des photos avant diffusion.
 - Formulaire sans vérification conservé, avec protections d’abus techniques ; ne pas ajouter de vérification d’identité non demandée.
 - Support avec périmètre, expiration et journal de ses actions.

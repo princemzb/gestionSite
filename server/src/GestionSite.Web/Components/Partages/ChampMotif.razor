@@ -1,0 +1,22 @@
+@* Motif obligatoire d'une action sur les habilitations (RG-31, US-31) : inscrit au journal avec le nom de l'auteur. *@
+<label class="champ">Motif
+    <span class="aide">Obligatoire. Il est inscrit au journal des habilitations avec votre nom.</span>
+    <textarea name="@Nom" maxlength="200" required aria-invalid="@(Erreur is null ? null : "true")">@Valeur</textarea>
+    @if (Erreur is not null)
+    {
+        <span class="erreur" role="alert">@Erreur</span>
+    }
+</label>
+
+@code {
+    /// <summary>Nom du champ posté (« Roles.Motif », « Plans.Motif »…).</summary>
+    [Parameter, EditorRequired] public string Nom { get; set; } = string.Empty;
+
+    /// <summary>Motif déjà saisi, gardé après un refus.</summary>
+    [Parameter] public string? Valeur { get; set; }
+
+    [Parameter] public string? Erreur { get; set; }
+
+    /// <summary>Le journal garde un motif sur une ligne : les retours à la ligne saisis deviennent des espaces.</summary>
+    internal static string? Ligne(string? motif) => motif?.ReplaceLineEndings(" ").Trim();
+}

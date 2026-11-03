@@ -21,7 +21,7 @@ public sealed class IsolationTests(InfrastructureFixture infrastructure) : IAsyn
     private static readonly string[] SchemasIsoles = ["identite", "maintenance", "patrimoine"];
 
     private static readonly string[] TablesGlobales =
-        ["__ef_migrations", "comptes", "comptes_revendications", "comptes_connexions_externes", "comptes_jetons", "jetons_renouvellement", "activations"];
+        ["__ef_migrations", "comptes", "comptes_revendications", "comptes_connexions_externes", "comptes_jetons", "jetons_renouvellement", "activations", "reinitialisations"];
 
     private static readonly DateTimeOffset Instant = new(2026, 10, 28, 8, 0, 0, TimeSpan.Zero);
     private readonly Guid _organisationA = Guid.NewGuid();

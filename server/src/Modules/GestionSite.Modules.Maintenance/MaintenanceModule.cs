@@ -1,3 +1,4 @@
+using GestionSite.Modules.Maintenance.Affectations;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.DepotsRecus;
 using GestionSite.Modules.Maintenance.Dossiers;
@@ -46,7 +47,8 @@ public static class MaintenanceModule
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers().MapPreventif().MapNotifications().MapPlanificateur();
+        endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers().MapPreventif().MapNotifications().MapPlanificateur()
+            .MapAffectationsOuvertes();
 
     /// <summary>À placer en tête du pipeline : sur le port dédié au planificateur, seule sa route répond.</summary>
     public static IApplicationBuilder UseMaintenanceModule(this IApplicationBuilder app) => app.RestreindrePortPlanificateur();

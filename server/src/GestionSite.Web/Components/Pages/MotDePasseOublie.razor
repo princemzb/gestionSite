@@ -1,0 +1,18 @@
+@page "/mot-de-passe-oublie"
+
+<PageTitle>Mot de passe oublié · gestionSite</PageTitle>
+
+@* Maquette 5A (US-31) : page de demande, au style de la connexion. L'envoi du lien par e-mail attend l'achat du service
+   (S10-09) : la page le dit et renvoie vers l'administrateur, qui peut créer un lien de réinitialisation. *@
+<h2>Mot de passe oublié</h2>
+<div class="formulaire pleine-largeur">
+    <label class="champ">Adresse e-mail
+        <input type="email" name="email" autocomplete="username" disabled aria-describedby="hors-service" />
+    </label>
+    <p id="hors-service" role="status" class="alerte avertissement">
+        <strong>La réinitialisation par e-mail n'est pas encore en service.</strong>
+        Demandez un lien de réinitialisation à l'administrateur de votre organisation : il vous le transmet lui-même ; il ne sert qu'une fois et vaut 1 heure.
+    </p>
+    <button type="button" class="bouton-principal" disabled>Recevoir un lien</button>
+    <p class="note"><a href="/connexion">← Retour à la connexion</a></p>
+</div>

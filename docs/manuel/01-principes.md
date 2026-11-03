@@ -20,7 +20,7 @@ L'application n'est ni une alarme ni un système de sécurité incendie. En cas 
 - Un site contient des **bâtiments**, découpés en **niveaux** et en **zones** (pièces ou espaces). Voir le chapitre [Inventaire](06-inventaire.md#inventaire).
 - Vos droits sont donnés **site par site**. Vous ne voyez que les sites où vous avez un rôle.
 
-> **Pas encore disponible.** Il n'y a pas d'écran pour créer un site. Les sites sont créés par l'équipe du projet à l'ouverture de l'organisation. Pour ajouter un site, contactez-la.
+L'administrateur ajoute un site depuis le menu **Sites** (voir [Ajouter un site](03-administration.md#administration-ajouter-site)).
 
 ## Les rôles {#principes-roles}
 

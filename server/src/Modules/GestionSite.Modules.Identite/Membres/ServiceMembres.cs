@@ -13,9 +13,14 @@ internal sealed record RoleDemande(string Role, Guid? SiteId);
 
 internal sealed record ActivationEmise(string Jeton, DateTimeOffset ExpireLe);
 
+internal sealed record LienReinitialisationEmis(string Jeton, DateTimeOffset ExpireLe);
+
 internal sealed record MembreCree(Guid MembreId, Guid CompteId, int Version, ActivationEmise? Activation);
 
 internal sealed record MembreRevise(Guid MembreId, int Version);
+
+/// <summary>Entrée du journal avec le nom du compte concerné et celui de l'auteur (null : plateforme).</summary>
+internal sealed record EntreeJournalNommee(EvenementHabilitation Evenement, string? Nom, string? Auteur);
 
 /// <summary>Membre vu par l'administrateur : invitation en attente tant qu'elle n'est pas acceptée.</summary>
 internal sealed record MembreListe(
@@ -78,10 +83,17 @@ internal sealed class ServiceMembres(
         }
 
         var avant = EvenementHabilitation.Instantane(membre);
+        var etaitAdministrateur = membre.EstAdministrateur;
         membre.Reviser(habilitations);
         if (membre.Version == versionAttendue)
         {
             return new MembreRevise(membre.Id, membre.Version); // rien n'a changé : ni écriture ni entrée de journal
+        }
+
+        // Décision du 03/11 (US-31) : un autre administrateur doit le faire (évite de perdre l'accès par erreur).
+        if (membre.CompteId == auteur.Id && etaitAdministrateur && !membre.EstAdministrateur)
+        {
+            throw RefusException.Conflit("propre_administration", "Vous ne pouvez pas retirer votre propre rôle d'administrateur : un autre administrateur doit le faire.");
         }
 
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
@@ -106,6 +118,11 @@ internal sealed class ServiceMembres(
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
+        if (membre.CompteId == auteur.Id)
+        {
+            throw RefusException.Conflit("propre_acces", "Vous ne pouvez pas révoquer votre propre accès : un autre administrateur doit le faire.");
+        }
+
         var maintenant = horloge.GetUtcNow();
         membre.Revoquer(maintenant);
         await ExigerUnAdministrateurAsync(membre, cancellationToken).ConfigureAwait(false);
@@ -131,8 +148,40 @@ internal sealed class ServiceMembres(
         }
 
         var activation = await EmettreActivationAsync(compte!.Id, organisationId, cancellationToken).ConfigureAwait(false);
+        Journaliser(membre, NatureHabilitation.NouveauLienActivation, motif: null, avant: null, horloge.GetUtcNow()); // US-31 : chaque action tracée
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return activation;
+    }
+
+    /// <summary>
+    /// Lien de réinitialisation du mot de passe (US-31, avant l'e-mail) : membre actif dont le compte, activé, a été créé par
+    /// cette organisation et n'est lié à aucune autre (sinon 409 « reinitialisation_impossible ») ; montré une fois, valable
+    /// 1 heure, tracé au journal. Un lien précédent non utilisé est annulé.
+    /// </summary>
+    internal async Task<LienReinitialisationEmis> CreerLienReinitialisationAsync(Guid organisationId, Guid membreId, CancellationToken cancellationToken)
+    {
+        await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        await ExigerAdministrateurAsync(cancellationToken).ConfigureAwait(false);
+        var membre = await ChargerAsync(membreId, cancellationToken).ConfigureAwait(false);
+        var compte = await comptes.FindByIdAsync(membre.CompteId.ToString()).ConfigureAwait(false);
+        if (!membre.EstActif || compte?.PasswordHash is null
+            || !await EligibiliteReinitialisation.EstEligibleAsync(context, compte.Id, organisationId, cancellationToken).ConfigureAwait(false))
+        {
+            throw RefusException.Conflit("reinitialisation_impossible",
+                "Lien impossible : le compte doit être activé, créé par votre organisation et lié à aucune autre.");
+        }
+
+        var maintenant = horloge.GetUtcNow();
+        await context.Reinitialisations.Where(r => r.CompteId == compte.Id && r.UtiliseLe == null)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        var (secret, empreinte) = SecretsAleatoires.Nouveau();
+        var lien = new Reinitialisation(Guid.NewGuid(), compte.Id, organisationId, auteur.Id!.Value, empreinte, maintenant);
+        context.Reinitialisations.Add(lien);
+        Journaliser(membre, NatureHabilitation.LienReinitialisation, motif: null, avant: null, maintenant);
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new LienReinitialisationEmis(secret, lien.ExpireLe);
     }
 
     /// <summary>Membres non révoqués de l'organisation (GET /members, administrateur), triés par nom.</summary>
@@ -217,13 +266,26 @@ internal sealed class ServiceMembres(
         return appelant.EstAdministrateur ? sites : [.. sites.Where(s => appelant.Roles.Any(r => r.SiteId == s.Id))];
     }
 
+    /// <summary>
+    /// Site créé avec son lien public et son QR. Nom déjà pris dans l'organisation, sans tenir compte des majuscules ni des
+    /// accents (décision du 03/11, US-31) : 409 « site_existant » ; créations simultanées sérialisées par le verrou d'organisation.
+    /// </summary>
     internal async Task<Site> CreerSiteAsync(Guid organisationId, string nom, CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var site = new Site(Guid.NewGuid(), organisationId, nom, horloge.GetUtcNow());
+        await using var transaction = await VerrouillerOrganisationAsync(organisationId, cancellationToken).ConfigureAwait(false);
+        var cle = NomSite.Cle(site.Nom);
+        var noms = await context.Sites.Select(s => s.Nom).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (noms.Exists(n => NomSite.Cle(n) == cle))
+        {
+            throw RefusException.Conflit("site_existant", "Un site porte déjà ce nom dans l'organisation. Choisissez un autre nom.");
+        }
+
         context.Sites.Add(site);
         context.CodesSitesPublics.Add(CodeSitePublic.Nouveau(site.Id, organisationId, site.CreeLe)); // lien et QR du dépôt public
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return site;
     }
 
@@ -231,8 +293,8 @@ internal sealed class ServiceMembres(
     /// Journal des habilitations (RG-31), du plus récent au plus ancien, par pages : `avant` = identifiant de la
     /// dernière entrée reçue (identifiants ordonnés dans le temps).
     /// </summary>
-    internal async Task<IReadOnlyList<EvenementHabilitation>> JournalAsync(
-        Guid organisationId, int limite, Guid? avant, CancellationToken cancellationToken)
+    internal async Task<IReadOnlyList<EntreeJournalNommee>> JournalAsync(
+        Guid organisationId, int limite, Guid? avant, Guid? membreId, CancellationToken cancellationToken)
     {
         await acces.EntrerCommeAdministrateurAsync(organisationId, cancellationToken).ConfigureAwait(false);
         var entrees = context.JournalHabilitations.AsNoTracking();
@@ -241,8 +303,19 @@ internal sealed class ServiceMembres(
             entrees = entrees.Where(e => e.Id.CompareTo(curseur) < 0);
         }
 
-        return await entrees.OrderByDescending(e => e.Id).Take(Math.Clamp(limite, 1, 200))
+        if (membreId is { } membre)
+        {
+            entrees = entrees.Where(e => e.MembreId == membre); // historique d'un membre (US-31)
+        }
+
+        var page = await entrees.OrderByDescending(e => e.Id).Take(Math.Clamp(limite, 1, 200))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+        // Noms des comptes cités par le journal de cette organisation (concernés et auteurs), révoqués compris.
+        var ids = page.Select(e => e.CompteId).Concat(page.Where(e => e.AuteurCompteId is not null).Select(e => e.AuteurCompteId!.Value)).Distinct().ToList();
+        var noms = await context.Users.AsNoTracking().Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.NomAffiche, cancellationToken).ConfigureAwait(false);
+        return [.. page.Select(e => new EntreeJournalNommee(
+            e, noms.GetValueOrDefault(e.CompteId), e.AuteurCompteId is { } auteurId ? noms.GetValueOrDefault(auteurId) : null))];
     }
 
     /// <summary>

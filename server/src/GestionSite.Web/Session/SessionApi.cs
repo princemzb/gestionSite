@@ -61,6 +61,9 @@ internal sealed class SessionApi(
     // Renouvellement refusé pendant cette requête : session fermée, les lectures en attente ne le retentent pas.
     private bool _sessionFermee;
 
+    // Profil lu pendant cette requête (MoiAsync).
+    private Task<MoiApi>? _moi;
+
     private HttpContext Contexte => accesseur.HttpContext ?? throw new InvalidOperationException("Hors requête HTTP.");
 
     private HttpClient Client => clients.CreateClient(Programme.ClientApi);
@@ -126,7 +129,44 @@ internal sealed class SessionApi(
         return connexion == IssueConnexion.Reussie ? connexion : IssueConnexion.ActiveSansConnexion;
     }
 
-    internal Task<T> LireAsync<T>(string chemin, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Get, chemin, corps: null, annulation);
+    /// <summary>
+    /// Nouveau mot de passe choisi avec un lien de réinitialisation (US-31), puis connexion immédiate. L'API a déconnecté tous
+    /// les appareils du compte ; seule cette session-ci est ouverte.
+    /// </summary>
+    internal async Task<IssueConnexion> ReinitialiserAsync(string jeton, string motDePasse, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAnonymeAsync("/auth/reset-password", new { jeton, motDePasse }, annulation).ConfigureAwait(false);
+        if (reponse is null)
+        {
+            return IssueConnexion.Indisponible;
+        }
+
+        if (!reponse.IsSuccessStatusCode)
+        {
+            return reponse.StatusCode switch
+            {
+                HttpStatusCode.UnprocessableEntity => IssueConnexion.MotDePasseInvalide,
+                HttpStatusCode.Gone => IssueConnexion.LienInvalide,
+                _ => IssueConnexion.Indisponible,
+            };
+        }
+
+        var compte = (await reponse.Content.ReadFromJsonAsync<ActivationReussieApi>(annulation).ConfigureAwait(false))!;
+        var connexion = await ConnecterAsync(compte.Email, motDePasse, annulation).ConfigureAwait(false);
+        return connexion == IssueConnexion.Reussie ? connexion : IssueConnexion.ActiveSansConnexion;
+    }
+
+    // GET /me passe par le profil de la requête (MoiAsync) : les pages existantes le lisent ainsi sans appel en double.
+    internal Task<T> LireAsync<T>(string chemin, CancellationToken annulation) =>
+        typeof(T) == typeof(MoiApi) && chemin == "/me"
+            ? (Task<T>)(object)MoiAsync(annulation)
+            : EnvoyerEtLireAsync<T>(HttpMethod.Get, chemin, corps: null, annulation);
+
+    /// <summary>
+    /// Profil de l'appelant (GET /me), lu une fois par requête : la page et la navigation commune (sélecteur d'organisation,
+    /// carte d'invitation) le partagent ; toute écriture de la requête l'oublie.
+    /// </summary>
+    internal Task<MoiApi> MoiAsync(CancellationToken annulation) => _moi ??= EnvoyerEtLireAsync<MoiApi>(HttpMethod.Get, "/me", corps: null, annulation);
 
     internal Task<T> EcrireAsync<T>(string chemin, object corps, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Post, chemin, corps, annulation);
 
@@ -221,8 +261,19 @@ internal sealed class SessionApi(
         return Results.LocalRedirect("/connexion");
     }
 
+    /// <summary>Suppression (DELETE) avec un corps, par exemple le motif d'une révocation (jamais dans l'adresse).</summary>
+    internal async Task SupprimerAsync(string chemin, object corps, CancellationToken annulation)
+    {
+        using var reponse = await EnvoyerAsync(HttpMethod.Delete, chemin, corps, annulation).ConfigureAwait(false);
+    }
+
     private async Task<HttpResponseMessage> EnvoyerAsync(HttpMethod methode, string chemin, object? corps, CancellationToken annulation)
     {
+        if (methode != HttpMethod.Get)
+        {
+            _moi = null; // rôles, invitations ou organisations peut-être changés
+        }
+
         try
         {
             return await EnvoyerOuEchouerAsync(methode, chemin, corps, annulation).ConfigureAwait(false);

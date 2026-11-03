@@ -249,6 +249,31 @@ public sealed class InterventionsTests(InfrastructureFixture infrastructure) : I
         Assert.DoesNotContain("Pasteur", roles);
     }
 
+    [Fact]
+    public async Task TheAdministratorSeesHowManyOpenInterventionsAPersonHasPerSiteBeforeRevokingThem()
+    {
+        var (dossier, communes, responsable) = await DossierAsync();
+        await QualifierAsync(dossier, communes, responsable, "Normale");
+        var technicien = await IdentifiantAsync("technicien@inventaire.test");
+        using (await AffecterAsync(dossier, responsable, new { titre = "Bloc de secours", intervenantCompteId = technicien }))
+        {
+        }
+
+        using (await AffecterAsync(dossier, responsable, new { titre = "Couverture", prestataire = "Couverture Martin", referentCompteId = technicien }))
+        {
+        }
+
+        var admin = await JetonAsync("admin@inventaire.test");
+        using var ouvertes = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/open-assignments/{technicien}", admin);
+        using var parResponsable = await EnvoyerAsync(HttpMethod.Get, $"/organizations/{Organisation}/open-assignments/{technicien}", responsable);
+        var parSite = (await ouvertes.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
+
+        Assert.Equal(Site, parSite.GetProperty("siteId").GetGuid());
+        Assert.Equal(2, parSite.GetProperty("interventions").GetInt32()); // intervenant ou référent d'un prestataire
+        Assert.Equal(0, parSite.GetProperty("controles").GetInt32());
+        Assert.Equal(HttpStatusCode.Forbidden, parResponsable.StatusCode); // administration seulement
+    }
+
     // Un dossier déclaré dans les parties communes de l'église, et le jeton d'un responsable du site.
     private async Task<(Guid Dossier, Guid PartiesCommunes, string Responsable)> DossierAsync()
     {

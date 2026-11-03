@@ -7,6 +7,7 @@
 @inject SessionApi Session
 @inject NavigationManager Navigation
 @inject Microsoft.Extensions.Options.IOptions<WebOptions> Options
+@using GestionSite.Web.Administration
 
 <PageTitle>Membres · gestionSite</PageTitle>
 
@@ -20,17 +21,60 @@ else
     {
         <p role="alert" class="alerte danger">@Message</p>
     }
+    @if (MessageIssue is not null)
+    {
+        <p role="status" class="alerte succes">@MessageIssue</p>
+    }
     <div class="entete">
         <div>
-            <h1>Qui fait quoi, par site</h1>
-            <p>Les rôles sont accordés site par site ; l'administrateur couvre toute l'organisation.</p>
+            <h1>@(Journal ? "Journal des habilitations" : "Qui fait quoi, par site")</h1>
+            <p>@(Journal ? "Qui a changé quels accès, quand et pourquoi, du plus récent au plus ancien." : "Les rôles sont accordés site par site ; l'administrateur couvre toute l'organisation.")</p>
         </div>
-        @if (Etape == 0)
+        @if (Etape == 0 && !Journal)
         {
             <a class="bouton-principal lien-bouton" href="@($"/organisations/{OrganisationId}/membres?inviter=1")">Inviter un membre</a>
         }
     </div>
+    <nav class="segments page" aria-label="Vues des membres">
+        <a href="@($"/organisations/{OrganisationId}/membres")" aria-current="@(Journal ? null : "page")">Qui fait quoi</a>
+        <a href="@($"/organisations/{OrganisationId}/membres?vue=journal")" aria-current="@(Journal ? "page" : null)">Journal</a>
+    </nav>
 
+    @if (Journal)
+    {
+        <section class="carte journal-page" aria-label="Journal des habilitations">
+            @if (EntreesJournal.Count == 0)
+            {
+                <p class="note">Aucune entrée.</p>
+            }
+            else
+            {
+                <ol class="journal">
+                    @foreach (var entree in EntreesJournal)
+                    {
+                        <li>
+                            <b>@Perimetre.Date(entree.Le, avecHeure: true) · @LibellesJournal.Nature(entree.Nature) · @(entree.Nom ?? "compte inconnu")</b>
+                            @foreach (var ligne in LibellesJournal.Details(entree, NomsSites))
+                            {
+                                <span>@ligne</span>
+                            }
+                            <span class="petit">par @(entree.Auteur ?? "la plateforme")</span>
+                            @if (entree.Motif is { Length: > 0 } motif)
+                            {
+                                <span class="motif">« @motif »</span>
+                            }
+                        </li>
+                    }
+                </ol>
+                @if (EntreesJournal.Count == TaillePageJournal)
+                {
+                    <a href="@($"/organisations/{OrganisationId}/membres?vue=journal&avant={EntreesJournal[^1].Id}")">Entrées plus anciennes</a>
+                }
+            }
+        </section>
+    }
+    else
+    {
     <section aria-label="Rôles par site" class="carte tableau-conteneur">
         <table>
             <thead>
@@ -46,9 +90,16 @@ else
             <tbody>
                 @foreach (var membre in Liste)
                 {
-                    <tr>
-                        <td><strong>@membre.Nom</strong><br /><span class="vide petit">@membre.Email</span></td>
-                        @if (membre.Roles.Any(r => r.Role == "Administrateur"))
+                    <tr class="@(membre.MembreId == Choisi ? "choisi" : null)">
+                        <td>
+                            <a class="membre-lien" href="@($"/organisations/{OrganisationId}/membres?membre={membre.MembreId}#panneau")">@membre.Nom</a><br />
+                            <span class="vide petit">@membre.Email</span>
+                            @if (membre.Roles.Any(r => r.Role == "Administrateur") && membre.Roles.Any(r => r.SiteId is not null))
+                            {
+                                <br /><span class="petit">Administrateur · toute l'organisation</span>
+                            }
+                        </td>
+                        @if (membre.Roles.All(r => r.Role == "Administrateur"))
                         {
                             <td colspan="@Math.Max(Sites.Count, 1)">Administrateur · toute l'organisation</td>
                         }
@@ -56,8 +107,15 @@ else
                         {
                             @foreach (var site in Sites)
                             {
-                                var roles = membre.Roles.Where(r => r.SiteId == site.Id).Select(r => Libelle(r.Role)).ToList();
-                                <td class="@(roles.Count == 0 ? "vide" : null)">@(roles.Count == 0 ? "—" : string.Join(", ", roles))</td>
+                                var roles = membre.Roles.Where(r => r.SiteId == site.Id).Select(r => LibellesRoles.Libelle(r.Role)).ToList();
+                                var plans = membre.DroitsNominatifs?.Any(d => d.SiteId == site.Id) == true;
+                                <td class="@(roles.Count == 0 ? "vide" : null)">
+                                    @(roles.Count == 0 ? "—" : string.Join(", ", roles))
+                                    @if (plans)
+                                    {
+                                        <br /><span class="badge alerte">+ plans</span>
+                                    }
+                                </td>
                             }
                         }
                         <td class="@(membre.InvitationEnAttente ? "etat-attente" : "etat-actif")">@(membre.InvitationEnAttente ? "Invitation en attente" : "Actif")</td>
@@ -66,6 +124,14 @@ else
             </tbody>
         </table>
     </section>
+    }
+
+    @if (Etape == 0 && !Journal && Liste.FirstOrDefault(m => m.MembreId == Choisi) is { } choisi && Organisation is not null)
+    {
+        <PanneauMembre OrganisationId="OrganisationId" OrganisationNom="@Organisation.Nom" Membre="choisi" Sites="Sites" CompteAppelant="CompteAppelant"
+                       Onglet="@(Onglet is "plans" or "acces" ? Onglet : "roles")" SiteChoisi="SiteChoisi" Confirmer="@(Confirmer is 1)" Issue="@Issue"
+                       Historique="Historique" Affectations="Affectations" />
+    }
 
     @if (Etape > 0)
     {
@@ -122,7 +188,7 @@ else
                                 <label class="champ">@Sites[index].Nom
                                     <InputSelect @bind-Value="Saisie.Roles![index].Role">
                                         <option value="">Aucun rôle</option>
-                                        @foreach (var (valeur, libelle) in RolesDeSite)
+                                        @foreach (var (valeur, libelle) in LibellesRoles.DeSite)
                                         {
                                             <option value="@valeur">@libelle</option>
                                         }
@@ -143,10 +209,51 @@ else
 </main>
 
 @code {
-    private static readonly (string Code, string Libelle)[] RolesDeSite =
-        [("Technicien", "Technicien"), ("Responsable", "Responsable"), ("Delegue", "Délégué"), ("Pasteur", "Pasteur"), ("Coordination", "Coordination")];
+    private const int TaillePageJournal = 50;
 
     [Parameter] public Guid OrganisationId { get; set; }
+
+    /// <summary>Membre dont le panneau est ouvert (maquette 2B).</summary>
+    [SupplyParameterFromQuery(Name = "membre")]
+    private Guid? Choisi { get; set; }
+
+    [SupplyParameterFromQuery(Name = "onglet")]
+    private string? Onglet { get; set; }
+
+    [SupplyParameterFromQuery(Name = "site")]
+    private Guid? SiteChoisi { get; set; }
+
+    [SupplyParameterFromQuery(Name = "confirmer")]
+    private int? Confirmer { get; set; }
+
+    /// <summary>Issue de l'action précédente : roles, plans-accorde, plans-retire, revoque, invitation-annulee.</summary>
+    [SupplyParameterFromQuery(Name = "issue")]
+    private string? Issue { get; set; }
+
+    [SupplyParameterFromQuery(Name = "vue")]
+    private string? Vue { get; set; }
+
+    [SupplyParameterFromQuery(Name = "avant")]
+    private Guid? Avant { get; set; }
+
+    private bool Journal => Vue == "journal";
+
+    private Guid CompteAppelant { get; set; }
+
+    private IReadOnlyList<EntreeJournalApi> EntreesJournal { get; set; } = [];
+
+    private IReadOnlyList<EntreeJournalApi> Historique { get; set; } = [];
+
+    private IReadOnlyList<AffectationsSiteApi> Affectations { get; set; } = [];
+
+    private IReadOnlyDictionary<Guid, string> NomsSites => Sites.ToDictionary(s => s.Id, s => s.Nom);
+
+    private string? MessageIssue => Issue switch
+    {
+        "revoque" => "Accès révoqué. La personne n'apparaît plus dans la liste ; l'opération figure au journal.",
+        "invitation-annulee" => "Invitation annulée. L'opération figure au journal.",
+        _ => null,
+    };
 
     private OrganisationApi? Organisation { get; set; }
 
@@ -180,8 +287,23 @@ else
         {
             var moi = await Session.LireAsync<MoiApi>("/me", CancellationToken.None);
             Organisation = moi.Organisations.FirstOrDefault(o => o.Id == OrganisationId);
+            CompteAppelant = moi.CompteId;
             Sites = [.. await Session.LireAsync<List<SiteApi>>($"/organizations/{OrganisationId}/sites", CancellationToken.None)];
             Liste = await Session.LireAsync<List<MembreApi>>($"/organizations/{OrganisationId}/members", CancellationToken.None);
+            if (Journal)
+            {
+                EntreesJournal = await Session.LireAsync<List<EntreeJournalApi>>(
+                    $"/organizations/{OrganisationId}/members/journal?limite={TaillePageJournal}{(Avant is { } avant ? $"&avant={avant}" : "")}", CancellationToken.None);
+            }
+            else if (Liste.FirstOrDefault(m => m.MembreId == Choisi) is { } choisi)
+            {
+                // Historique du membre (Q11) et affectations ouvertes (avertissement avant révocation ou retrait de rôle, Q5).
+                Historique = await Session.LireAsync<List<EntreeJournalApi>>(
+                    $"/organizations/{OrganisationId}/members/journal?membreId={choisi.MembreId}&limite=50", CancellationToken.None);
+                Affectations = choisi.InvitationEnAttente
+                    ? []
+                    : await Session.LireAsync<List<AffectationsSiteApi>>($"/organizations/{OrganisationId}/open-assignments/{choisi.CompteId}", CancellationToken.None);
+            }
         }
         catch (SessionExpireeException)
         {
@@ -251,8 +373,6 @@ else
             };
         }
     }
-
-    private static string Libelle(string role) => RolesDeSite.FirstOrDefault(r => r.Code == role).Libelle ?? role;
 
     private sealed class SaisieInvitation
     {
