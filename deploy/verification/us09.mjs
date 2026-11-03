@@ -4,42 +4,17 @@
 // Usage : deploy/verification/lancer.sh us09 (ou VERIF_URL=<adresse publique> VERIF_ORG=<organisation>
 // VERIF_JETON=<jeton d'activation> node us09.mjs ; captures dans le dossier courant, ou dans le rapport en recette) ;
 // organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
-import { randomBytes } from "node:crypto";
-import { recette } from "./recette.mjs";
-const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
-if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
-const mdp = randomBytes(12).toString("hex") + "-verif";
-const r = recette("us09");
-const ok = r.ok;
-await r.lancer();
-const violations = [];
-const page = async (libelle, largeur = 1440, hauteur = 900) => {
-  const p = await (await r.contexte({ viewport: { width: largeur, height: hauteur } }, libelle)).newPage();
-  p.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${p.url()} → ${m.text()}`); });
-  return p;
-};
-const activer = async (p, lien) => {
-  await p.goto(lien, { timeout: 90000 });
-  await p.fill("input[type=password] >> nth=0", mdp); await p.fill("input[type=password] >> nth=1", mdp);
-  await p.click("button[type=submit]"); await p.waitForLoadState();
-};
+import { preparer } from "./commun.mjs";
+
+const { r, ok, base, org, jeton, page, activer, inviter, finir } = await preparer("us09");
 const envoyer = async (p, formulaire) => { await Promise.all([p.waitForNavigation(), p.click(`${formulaire} button[type=submit]`)]); };
 
 // 1. Administrateur : activation, invitation d'une responsable et d'un technicien
 await r.etape("1. Administrateur : activation, invitation d'une responsable et d'un technicien");
 const admin = await page("Administrateur");
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
-const inviter = async (nom, role) => {
-  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-  await admin.fill("input[name='Saisie.Nom']", nom);
-  await admin.fill("input[name='Saisie.Email']", `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
-  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-  await admin.selectOption("main select >> nth=0", role);
-  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-  return (await admin.textContent("code.lien-activation")).trim();
-};
-const lienResponsable = await inviter("Rose Responsable", "Responsable");
-const lienTechnicien = await inviter("Marc Technicien", "Technicien");
+const lienResponsable = (await inviter(admin, "Rose Responsable", "Responsable")).lien;
+const lienTechnicien = (await inviter(admin, "Marc Technicien", "Technicien")).lien;
 await ok("invitations créées (responsable, technicien)", lienResponsable.startsWith(`${base}/activation?jeton=`) && lienTechnicien.startsWith(`${base}/activation?jeton=`));
 
 // Le technicien active son compte d'abord : seul un membre actif peut recevoir une intervention.
@@ -99,6 +74,4 @@ await resp.goto(`${fiche}&onglet=interventions`);
 await resp.screenshot({ path: "us09-dossier-jour.png", fullPage: true });
 await resp.evaluate(() => document.documentElement.setAttribute("data-theme", "nuit"));
 await resp.screenshot({ path: "us09-dossier-nuit.png", fullPage: true });
-violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
-await ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
-await r.terminer();
+await finir();

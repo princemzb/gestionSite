@@ -9,32 +9,19 @@
 // Usage : deploy/verification/lancer.sh us21 (ou VERIF_URL=<adresse publique> VERIF_ORG=<organisation>
 // VERIF_JETON=<jeton d'activation> node us21.mjs ; captures dans le dossier courant, ou dans le rapport en recette) ;
 // organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
-import { randomBytes } from "node:crypto";
 import { deflateSync } from "node:zlib";
-import { recette } from "./recette.mjs";
+import { preparer } from "./commun.mjs";
 
-const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
-if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
-const mdp = randomBytes(12).toString("hex") + "-verif";
-const r = recette("us21");
-const ok = r.ok;
-const b = await r.lancer();
-const violations = [];
+const { r, ok, b, base, org, jeton, surveiller, activer, inviter, finir, violations } = await preparer("us21");
 const nouveauContexte = async (libelle, largeur = 1440, hauteur = 900, tactile = false) => {
   const contexte = await r.contexte({ viewport: { width: largeur, height: hauteur }, hasTouch: tactile }, libelle);
   await contexte.addInitScript(() => document.addEventListener("securitypolicyviolation", e => console.error(`Content-Security-Policy ${e.violatedDirective} ${e.blockedURI}`)));
   return contexte;
 };
 const ouvrir = async contexte => {
-  const p = await contexte.newPage();
-  p.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${p.url()} → ${m.text()}`); });
+  const p = surveiller(await contexte.newPage());
   p.on("pageerror", e => violations.push(`${p.url()} → erreur JavaScript : ${e.message}`));
   return p;
-};
-const activer = async (p, lien) => {
-  await p.goto(lien, { timeout: 90000 });
-  await p.fill("input[type=password] >> nth=0", mdp); await p.fill("input[type=password] >> nth=1", mdp);
-  await p.click("button[type=submit]"); await p.waitForLoadState();
 };
 const cliquer = async (p, selecteur) => { await Promise.all([p.waitForNavigation(), p.click(selecteur)]); };
 const texte = async (p, selecteur = "main") => (await p.textContent(selecteur)) ?? "";
@@ -76,17 +63,8 @@ const brouillons = p => p.evaluate(() => Object.keys(localStorage).filter(c => c
 await r.etape("1. Administrateur : invitations d'une responsable (édition) et d'un pasteur (lecture)");
 const admin = await ouvrir(await nouveauContexte("Administrateur"));
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
-const inviter = async (nom, role) => {
-  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-  await admin.fill("input[name='Saisie.Nom']", nom);
-  await admin.fill("input[name='Saisie.Email']", `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
-  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-  await admin.selectOption("main select >> nth=0", role);
-  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-  return (await admin.textContent("code.lien-activation")).trim();
-};
-const lienResponsable = await inviter("Rose Responsable", "Responsable");
-const lienPasteur = await inviter("Paul Pasteur", "Pasteur");
+const lienResponsable = (await inviter(admin, "Rose Responsable", "Responsable")).lien;
+const lienPasteur = (await inviter(admin, "Paul Pasteur", "Pasteur")).lien;
 await ok("invitations créées (responsable, pasteur)", lienResponsable.includes("/activation?jeton=") && lienPasteur.includes("/activation?jeton="));
 const contexteTablette = await nouveauContexte("Tablette (responsable puis pasteur)", 1280, 800, true); // format de la Tab M11, écran tactile
 const resp = await ouvrir(contexteTablette);
@@ -269,5 +247,4 @@ await resp.click("[data-action=zoom-avant]"); await resp.click("[data-action=gau
 await ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
 await resp.screenshot({ path: "us21-lecteur-calque.png" });
 
-await ok("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", violations.length === 0, violations.join(" | "));
-await r.terminer();
+await finir("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", true);

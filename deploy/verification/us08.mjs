@@ -9,35 +9,15 @@
 // de la politique de sécurité du contenu.
 // Usage : deploy/verification/lancer.sh us08 (ou VERIF_URL=… VERIF_ORG=… VERIF_JETON=… [VERIF_BASE=…] node us08.mjs) ;
 // organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
-import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { crc32, deflateSync } from "node:zlib";
-import { recette } from "./recette.mjs";
+import { preparer } from "./commun.mjs";
 
-const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton, VERIF_BASE: chaineBase } = process.env;
-if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
-const mdp = randomBytes(12).toString("hex") + "-verif";
-const r = recette("us08");
-const ok = r.ok;
-await r.lancer();
-const violations = [];
-const page = async (libelle, largeur = 1440, hauteur = 900) => {
-  const p = await (await r.contexte({ viewport: { width: largeur, height: hauteur }, locale: "fr-FR" }, libelle)).newPage();
-  p.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${p.url()} → ${m.text()}`); });
-  return p;
-};
-const activer = async (p, lien) => {
-  await p.goto(lien, { timeout: 90000 });
-  await p.fill("input[type=password] >> nth=0", mdp); await p.fill("input[type=password] >> nth=1", mdp);
-  await p.click("button[type=submit]"); await p.waitForLoadState();
-};
+const { r, ok, base, org, jeton, page: pageCommune, activer, inviter, finir } = await preparer("us08");
+const chaineBase = process.env.VERIF_BASE;
+const page = (libelle, largeur, hauteur) => pageCommune(libelle, largeur, hauteur, { locale: "fr-FR" });
 const texte = async (p, selecteur = "body") => ((await p.textContent(selecteur)) ?? "").replace(/\s+/g, " ");
-
-async function finir() {
-  violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
-  await ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
-  await r.terminer();
-}
 
 // Photo synthétique (PNG 800 × 600, bandes de signalisation jaunes et noires) : aucune donnée réelle.
 function photoSynthetique() {
@@ -71,18 +51,8 @@ await ok("affiche A4 servie", affiche.ok() && (await affiche.text()).includes("U
 
 // 2. Administrateur : invitation d'un technicien et d'une responsable du site, qui activent leur compte
 await r.etape("2. Administrateur : invitation d'un technicien et d'une responsable du site");
-const inviter = async (nom, role) => {
-  const email = `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`;
-  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-  await admin.fill("input[name='Saisie.Nom']", nom);
-  await admin.fill("input[name='Saisie.Email']", email);
-  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-  await admin.selectOption("main select >> nth=0", role);
-  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-  return { email, lien: (await admin.textContent("code.lien-activation")).trim() };
-};
-const technicien = await inviter("Marc Technicien", "Technicien");
-const responsable = await inviter("Rose Responsable", "Responsable");
+const technicien = await inviter(admin, "Marc Technicien", "Technicien");
+const responsable = await inviter(admin, "Rose Responsable", "Responsable");
 await ok("invitations créées (technicien, responsable)", [technicien, responsable].every(i => i.lien.startsWith(`${base}/activation?jeton=`)));
 const tech = await page("Technicien");
 await activer(tech, technicien.lien);
@@ -159,7 +129,8 @@ SELECT set_config('app.compte_id', coalesce((SELECT id::text FROM identite.compt
 SELECT 'technicien=' || count(*) FROM maintenance.notifications;
 SELECT 'alertes=' || count(*) FROM maintenance.alertes_danger;
 `;
-  const psql = spawnSync("docker", ["run", "--rm", "-i", "-e", "PGHOST", "-e", "PGDATABASE", "-e", "PGUSER", "-e", "PGPASSWORD", "-e", "PGSSLMODE",
+  const docker = ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", "/usr/bin/docker"].find(c => existsSync(c)) ?? "/usr/local/bin/docker";
+  const psql = spawnSync(docker, ["run", "--rm", "-i", "-e", "PGHOST", "-e", "PGDATABASE", "-e", "PGUSER", "-e", "PGPASSWORD", "-e", "PGSSLMODE",
     "postgres:17.6-alpine", "psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-v", `org=${org}`, "-v", `resp=${responsable.email}`, "-v", `tech=${technicien.email}`], {
     input: sql, encoding: "utf8", timeout: 120000,
     env: { ...process.env, PGHOST: champs.Host, PGDATABASE: champs.Database, PGUSER: champs.Username, PGPASSWORD: champs.Password, PGSSLMODE: "require" },

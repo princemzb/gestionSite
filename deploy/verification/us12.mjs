@@ -7,25 +7,9 @@
 // Usage : deploy/verification/lancer.sh us12 (ou VERIF_URL=<adresse publique> VERIF_ORG=<organisation>
 // VERIF_JETON=<jeton d'activation> node us12.mjs ; captures dans le dossier courant, ou dans le rapport en recette) ;
 // organisation fictive ouverte par « ouvrir-organisation --site » ; jeton jamais passé en argument ni écrit.
-import { randomBytes } from "node:crypto";
-import { recette } from "./recette.mjs";
-const { VERIF_URL: base, VERIF_ORG: org, VERIF_JETON: jeton } = process.env;
-if (!base || !org || !jeton) { console.error("VERIF_URL, VERIF_ORG et VERIF_JETON sont requis."); process.exit(2); }
-const mdp = randomBytes(12).toString("hex") + "-verif";
-const r = recette("us12");
-const ok = r.ok;
-await r.lancer();
-const violations = [];
-const page = async (libelle, largeur = 1440, hauteur = 900) => {
-  const p = await (await r.contexte({ viewport: { width: largeur, height: hauteur } }, libelle)).newPage();
-  p.on("console", m => { if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) violations.push(`${p.url()} → ${m.text()}`); });
-  return p;
-};
-const activer = async (p, lien) => {
-  await p.goto(lien, { timeout: 90000 });
-  await p.fill("input[type=password] >> nth=0", mdp); await p.fill("input[type=password] >> nth=1", mdp);
-  await p.click("button[type=submit]"); await p.waitForLoadState();
-};
+import { preparer } from "./commun.mjs";
+
+const { r, ok, base, org, jeton, page, activer, inviter, finir } = await preparer("us12");
 const cliquer = async (p, selecteur) => { await Promise.all([p.waitForNavigation(), p.click(selecteur)]); };
 const texte = async (p, selecteur = "main") => (await p.textContent(selecteur)) ?? "";
 
@@ -33,17 +17,8 @@ const texte = async (p, selecteur = "main") => (await p.textContent(selecteur)) 
 await r.etape("1. Administrateur : activation, invitation d'un technicien (téléphone) et d'une responsable (planification)");
 const admin = await page("Administrateur");
 await activer(admin, `${base}/activation?jeton=${encodeURIComponent(jeton)}`);
-const inviter = async (nom, role) => {
-  await admin.goto(`${base}/organisations/${org}/membres?inviter=1`);
-  await admin.fill("input[name='Saisie.Nom']", nom);
-  await admin.fill("input[name='Saisie.Email']", `${role.toLowerCase()}-${randomBytes(4).toString("hex")}@demo.gestionsite.test`);
-  await admin.click("button:has-text('Continuer')"); await admin.waitForLoadState();
-  await admin.selectOption("main select >> nth=0", role);
-  await admin.click("button:has-text(\"Créer l'invitation\")"); await admin.waitForLoadState();
-  return (await admin.textContent("code.lien-activation")).trim();
-};
-const lienTechnicien = await inviter("Marc Technicien", "Technicien");
-const lienResponsable = await inviter("Rose Responsable", "Responsable");
+const lienTechnicien = (await inviter(admin, "Marc Technicien", "Technicien")).lien;
+const lienResponsable = (await inviter(admin, "Rose Responsable", "Responsable")).lien;
 await ok("invitations créées (technicien, responsable)", lienTechnicien.startsWith(`${base}/activation?jeton=`) && lienResponsable.startsWith(`${base}/activation?jeton=`));
 const tel = await page("Technicien (téléphone)", 390, 844);
 await activer(tel, lienTechnicien);
@@ -135,6 +110,4 @@ await resp.goto(fichePlan);
 await resp.screenshot({ path: "us12-fiche-plan-jour.png", fullPage: true });
 await resp.evaluate(() => document.documentElement.setAttribute("data-theme", "nuit"));
 await resp.screenshot({ path: "us12-fiche-plan-nuit.png", fullPage: true });
-violations.forEach(v => console.log("  violation : " + v.slice(0, 300)));
-await ok("aucune violation de la politique de sécurité du contenu", violations.length === 0);
-await r.terminer();
+await finir();

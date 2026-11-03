@@ -100,7 +100,7 @@ export function recette(us) {
     // Surcharge propre à cette page (le prototype partagé de Playwright reste intact) : une action la rend courante.
     const prototype = Object.getPrototypeOf(page);
     for (const nom of ACTIONS) page[nom] = (...args) => { courante = page; return prototype[nom].apply(page, args); };
-    page.on("load", () => { afficher(page); });
+    page.on("load", () => { void afficher(page); });
   };
 
   async function consigner(nom, reussi, detail = "") {
