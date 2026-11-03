@@ -44,21 +44,7 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
                 .ToListAsync(cancellationToken).ConfigureAwait(false))
             .ToLookup(i => i.DossierId);
 
-        DateTimeOffset? prochain = null;
-        var dus = new List<RappelDu>();
-        void Retenir(EcheancesDossier echeances)
-        {
-            dus.AddRange(echeances.Dus);
-            if (echeances.Prochain is { } p && (prochain is null || p < prochain))
-            {
-                prochain = p;
-            }
-        }
-
-        foreach (var dossier in dossiers)
-        {
-            Retenir(Rappels.Calculer(dossier, [.. actives[dossier.Id]], maintenant));
-        }
+        var echeances = dossiers.Select(dossier => Rappels.Calculer(dossier, [.. actives[dossier.Id]], maintenant)).ToList();
 
         // Dangers en cours (S10-04), y compris sur un dossier clos : la clôture du dossier ne lève pas le danger.
         var alertes = await context.AlertesDanger.AsNoTracking().Where(a => a.Fin == null).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -72,11 +58,12 @@ internal sealed class RappelsOrganisation(MaintenanceDbContext context, IAnnuair
             }
         }
 
-        foreach (var alerte in alertes.Where(a => parId.ContainsKey(a.SignalementId)))
-        {
-            Retenir(Rappels.Danger(alerte, parId[alerte.SignalementId], [.. actives[alerte.SignalementId]], maintenant));
-        }
+        echeances.AddRange(alertes.Where(a => parId.ContainsKey(a.SignalementId))
+            .Select(alerte => Rappels.Danger(alerte, parId[alerte.SignalementId], [.. actives[alerte.SignalementId]], maintenant)));
 
+        // Prochain seuil à venir : le plus proche de tous (Min ignore les « aucun ») ; null s'il n'y en a aucun.
+        var prochain = echeances.Min(e => e.Prochain);
+        var dus = echeances.SelectMany(e => e.Dus).ToList();
         var lignes = new List<Ligne>();
         foreach (var parSite in dus.GroupBy(r => r.Dossier.SiteId))
         {
