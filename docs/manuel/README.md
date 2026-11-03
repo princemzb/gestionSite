@@ -50,7 +50,7 @@ npm run livret                    # → scripts/manuel/sortie/manuel-gestionsite
 
 ## Mettre à jour les captures
 
-Les captures sont prises en préproduction, sur une organisation fictive ouverte pour l'occasion, par `deploy/manuel/captures.mjs` (Playwright 1.55.0, thème Jour ; ordinateur 1280 × 800, téléphone 390 × 844, tablette 1280 × 800).
+Les captures sont prises en préproduction, sur une organisation fictive ouverte pour l'occasion, par `deploy/manuel/captures.mjs` (Playwright 1.55, thème Jour ; ordinateur 1280 × 800, téléphone 390 × 844, tablette 1280 × 800).
 
 1. Ouvrir une organisation fictive avec la commande d'exploitation `ouvrir-organisation --nom "Paroisse de démonstration" --admin-nom "Alice Administratrice" --admin-email … --site "Église du centre"` (docs/exploitation/DEPLOIEMENT.md, étape 8 ; chaînes Neon depuis le Trousseau, jamais affichées).
 2. Lancer `VERIF_URL=… VERIF_ORG=… VERIF_JETON=… CAPTURES=<dossier> node captures.mjs` depuis un dossier où Playwright est installé. Le script joue tout le scénario (membres, inventaire, évaluations, dossiers, préventif, plans, formulaire public) et écrit les PNG.

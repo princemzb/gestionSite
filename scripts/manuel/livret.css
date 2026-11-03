@@ -65,7 +65,7 @@ blockquote ul { margin: 1mm 0 0; padding-left: 5mm; }
 /* Captures : ordinateur sur toute la largeur, téléphone plus étroit ; légende sous l'image */
 .figure { display: block; margin: 3mm 0 4mm; break-inside: avoid; text-align: center; }
 .figure img { max-width: 100%; max-height: 190mm; border: 1px solid var(--bordure); border-radius: 8px; }
-.figure img.telephone { max-width: 62mm; }
+.figure img.telephone { max-width: 62mm; max-height: 150mm; }
 .legende { display: block; margin-top: 1.2mm; font-size: 8.5pt; color: var(--encre-3); }
 
 /* Schémas */

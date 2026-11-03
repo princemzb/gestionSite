@@ -36,16 +36,20 @@ const cliquer = async (p, selecteur) => { await Promise.all([p.waitForNavigation
 const texte = async (p, selecteur = "main") => (await p.textContent(selecteur)) ?? "";
 const date = jours => new Date(Date.now() + jours * 86400000).toISOString().slice(0, 10);
 
-// Masquage : adresse réelle remplacée, jetons tronqués, QR floutés (le QR code encode l'adresse de la préproduction).
+// Masquage : toute adresse web remplacée par l'adresse fictive (l'adresse publique configurée peut différer de
+// VERIF_URL), code public du site et jetons remplacés, QR floutés (le QR code encode l'adresse réelle).
 async function masquer(p) {
-  await p.evaluate(([reelle, fictive]) => {
+  await p.evaluate(fictive => {
+    const masque = texte => texte.replace(/https?:\/\/[^\s/"'<>]+/g, fictive)
+      .replace(/\/s\/[A-Za-z0-9]+/g, "/s/CODESITE").replace(/jeton=[\w%-]+/g, "jeton=…");
     const parcours = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n = parcours.nextNode(); n; n = parcours.nextNode()) {
-      n.nodeValue = n.nodeValue.split(reelle).join(fictive).replace(/jeton=[\w%-]+/g, "jeton=…");
+    for (let n = parcours.nextNode(); n; n = parcours.nextNode()) n.nodeValue = masque(n.nodeValue);
+    for (const champ of document.querySelectorAll("input:not([type=file]), textarea")) {
+      const masquee = masque(champ.value);
+      if (masquee !== champ.value) champ.value = masquee;
     }
     for (const qr of document.querySelectorAll(".qr svg, .affiche-qr svg")) qr.style.filter = "blur(14px)";
-    for (const champ of document.querySelectorAll("input[value*='jeton=']")) champ.value = "…";
-  }, [base.replace(/\/$/, ""), ADRESSE_FICTIVE]);
+  }, ADRESSE_FICTIVE);
 }
 async function capture(p, nom, { pleinePage = false, selecteur } = {}) {
   await masquer(p);

@@ -106,6 +106,7 @@ jobs:
           scan-args: |-
             --lockfile=mobile/pubspec.lock
             --lockfile=deploy/cloudflare/package-lock.json
+            --lockfile=scripts/manuel/package-lock.json
 
   sonar:
     name: SonarQube Cloud

@@ -16,16 +16,22 @@ export function ordonner(fichiers) {
   return fichiers.filter(f => CHAPITRE.test(f)).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
+/** Texte Markdown dont les lignes des blocs de code (« ``` ») sont vidées : numéros de ligne conservés. */
+export function horsCode(markdown) {
+  let code = false;
+  return markdown.split("\n").map(ligne => {
+    const cloture = ligne.trimStart().startsWith("```");
+    const masquee = code || cloture;
+    if (cloture) code = !code;
+    return masquee ? "" : ligne;
+  }).join("\n");
+}
+
 /** Titres Markdown (hors blocs de code) avec leur niveau, leur texte et leur ancre éventuelle. */
 export function titres(markdown) {
   const resultat = [];
-  let code = false;
-  markdown.split("\n").forEach((ligne, index) => {
-    if (ligne.trimStart().startsWith("```")) {
-      code = !code;
-      return;
-    }
-    const titre = code ? null : /^(#{1,6})\s+(.+?)\s*$/.exec(ligne);
+  horsCode(markdown).split("\n").forEach((ligne, index) => {
+    const titre = /^(#{1,6})\s+(.+?)\s*$/.exec(ligne);
     if (titre) {
       const ancre = MOTIF_ANCRE.exec(titre[2]);
       resultat.push({ niveau: titre[1].length, texte: titre[2].replace(MOTIF_ANCRE, ""), ancre: ancre?.[1] ?? null, ligne: index + 1 });
@@ -35,7 +41,8 @@ export function titres(markdown) {
 }
 
 /**
- * Contrôle du manuel : chaque titre de niveau 1 à 3 porte une ancre stable, valide et unique dans tout le manuel ;
+ * Contrôle du manuel : chaque titre de niveau 1 à 3 porte une ancre stable ; toute ancre (niveaux 1 à 6) est valide et
+ * unique dans tout le manuel ;
  * chaque chapitre commence par un titre de niveau 1 ; images et liens internes existent ; aucune image n'est orpheline.
  * @param {{ fichier: string, markdown: string }[]} chapitres
  * @param {Iterable<string>} images noms des fichiers du dossier images/
@@ -51,7 +58,7 @@ export function verifierManuel(chapitres, images) {
   for (const { fichier, markdown } of chapitres) {
     const liste = titres(markdown);
     if (liste[0]?.niveau !== 1) erreurs.push(`${fichier} : le chapitre doit commencer par un titre de niveau 1.`);
-    for (const t of liste.filter(t => t.niveau <= 3)) {
+    for (const t of liste.filter(t => t.niveau <= 3 || t.ancre !== null)) {
       if (t.ancre === null) {
         erreurs.push(`${fichier}:${t.ligne} : titre sans ancre « ${t.texte} » (ajoutez {#identifiant}).`);
       } else if (!ANCRE_VALIDE.test(t.ancre)) {
@@ -65,7 +72,8 @@ export function verifierManuel(chapitres, images) {
     }
   }
 
-  for (const { fichier, markdown } of chapitres) {
+  for (const { fichier, markdown: source } of chapitres) {
+    const markdown = horsCode(source); // un exemple ou un schéma n'est ni une image ni un lien du manuel
     for (const [, cible] of markdown.matchAll(IMAGE)) {
       const nom = cible.startsWith("images/") ? cible.slice("images/".length) : null;
       if (nom === null || !presentes.has(nom)) erreurs.push(`${fichier} : image introuvable « ${cible} » (attendue dans images/).`);
@@ -128,8 +136,9 @@ export function rendreChapitre(markdown, { prefixeImages, ancresChapitres }) {
 
 /** Sommaire du livret : chapitres et sections (niveaux 1 et 2), chaque entrée avec une place pour son numéro de page. */
 export function sommaire(chapitres) {
+  const enLigne = new Marked(); // même rendu que les titres des chapitres (gras, code…)
   const entrees = chapitres.flatMap(({ markdown }) => titres(markdown).filter(t => t.niveau <= 2 && t.ancre))
-    .map(t => `<li class="niveau-${t.niveau}"><a href="#${t.ancre}"><span class="intitule">${echapper(t.texte)}</span>`
+    .map(t => `<li class="niveau-${t.niveau}"><a href="#${t.ancre}"><span class="intitule">${enLigne.parseInline(t.texte)}</span>`
       + `<span class="page" data-ancre="${t.ancre}"></span></a></li>`);
   return `<nav class="sommaire" aria-label="Sommaire"><h1 id="livret-sommaire">Sommaire</h1><ol>\n${entrees.join("\n")}\n</ol></nav>`;
 }

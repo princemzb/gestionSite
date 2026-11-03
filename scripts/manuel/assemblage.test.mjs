@@ -58,6 +58,17 @@ test("verifierManuel signale images et liens cassés, et images orphelines", () 
   ]);
 });
 
+test("verifierManuel ignore les blocs de code et contrôle les ancres de tout niveau", () => {
+  const erreurs = verifierManuel([
+    chapitre("01-a.md", "# A {#a}\n```mermaid\nX[texte](cible) --> ![i](images/absente.png)\n```\n#### Détail {#a-detail}\n[détail](#a-detail)"),
+    chapitre("02-b.md", "# B {#b}\n##### Doublon {#a-detail}\n```\n![seulement en exemple](images/exemple.png)\n```"),
+  ], ["exemple.png"]);
+  assert.deepEqual(erreurs, [
+    "02-b.md:2 : ancre « a-detail » déjà utilisée dans 01-a.md.",
+    "images/exemple.png : image utilisée par aucun chapitre.",
+  ]);
+});
+
 test("rendreChapitre : identifiants, liens, captures et schémas", () => {
   const html = rendreChapitre([
     "# Chapitre **un** {#un}",
@@ -81,10 +92,10 @@ test("rendreChapitre : identifiants, liens, captures et schémas", () => {
 });
 
 test("sommaire et assemblage du livret", () => {
-  const chapitres = [chapitre("01-a.md", "# A & co {#a}\n## Section {#a-s}\n### Détail {#a-d}"), chapitre("02-b.md", "Sans titre")];
+  const chapitres = [chapitre("01-a.md", "# A & co {#a}\n## Le menu **Dossiers** {#a-s}\n### Détail {#a-d}"), chapitre("02-b.md", "Sans titre")];
   const nav = sommaire(chapitres);
   assert.match(nav, /<li class="niveau-1"><a href="#a"><span class="intitule">A &amp; co<\/span><span class="page" data-ancre="a"><\/span>/);
-  assert.match(nav, /<li class="niveau-2"><a href="#a-s">/);
+  assert.match(nav, /<li class="niveau-2"><a href="#a-s"><span class="intitule">Le menu <strong>Dossiers<\/strong><\/span>/);
   assert.doesNotMatch(nav, /a-d/);
   const html = assembler({ chapitres, css: "body{}", edition: "Édition <test>", prefixeImages: "", scripts: ["m.js"] });
   assert.match(html, /^<!doctype html>/);

@@ -30,16 +30,17 @@ const html = assembler({
   prefixeImages: `${relative(sortie, manuel)}/`,
   scripts: ["../node_modules/mermaid/dist/mermaid.min.js"],
 });
-const page = await (await chromium.launch()).newPage();
+const navigateur = await chromium.launch();
+const page = await navigateur.newPage();
 const imprimer = async contenu => {
   const fichier = join(sortie, "livret.html");
   writeFileSync(fichier, contenu);
   await page.goto(pathToFileURL(fichier).href, { waitUntil: "networkidle" });
   await page.evaluate(async () => {
+    await document.fonts.ready; // polices chargées avant que Mermaid ne mesure les libellés des schémas
     window.mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: {
       fontFamily: "Inter, sans-serif", primaryColor: "#EEF3FF", primaryBorderColor: "#005DC4", primaryTextColor: "#000740", lineColor: "#3D4654" } });
     await window.mermaid.run();
-    await document.fonts.ready;
   });
   return page.pdf({
     format: "A4", printBackground: true, preferCSSPageSize: true, displayHeaderFooter: true, outline: true,
@@ -48,9 +49,13 @@ const imprimer = async contenu => {
       <span>gestionSite — Manuel d'utilisation</span><span>page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
   });
 };
-const brouillon = await imprimer(html);
-const pdf = await imprimer(remplirPages(html, await pagesDesAncres(brouillon)));
+let pdf;
+try {
+  // Seconde impression avec les numéros de page lus dans la première (mêmes polices, même mise en page).
+  pdf = await imprimer(remplirPages(html, await pagesDesAncres(await imprimer(html))));
+} finally {
+  await navigateur.close();
+}
 const cible = join(sortie, "manuel-gestionsite.pdf");
 writeFileSync(cible, pdf);
-await page.context().browser().close();
 console.log(`Livret : ${relative(process.cwd(), cible)} (${Math.round(pdf.length / 1024)} Ko).`);
