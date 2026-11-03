@@ -294,3 +294,8 @@ Précisions de l'agent pour appliquer les décisions du 30/10 (section « Préve
 - Aide intégrée (DOC-02, maquettes validées : artifact « gestionSite — maquettes aide intégrée ») : sur chaque écran, un bouton « ? Aide sur cet écran » ouvre un **panneau latéral** (proposition A ; sur tablette, le panneau monte du bas) avec la rubrique du manuel, « Lire tout le chapitre » et le livret PDF ; une **page Aide organisée par rôle** (proposition A : recherche, livret, tâches courantes du rôle de la personne en premier, puis les chapitres). Le contenu vient du manuel `docs/manuel/` (une seule source, ancres stables).
 - L'écran « Dépôts reçus » entre dans le menu pour les internes du site (il existait sans entrée de menu).
 - Les fonctions d'administration sans écran (création de site, révision et révocation des rôles, droit nominatif « plans », invitation par un compte existant, mot de passe oublié) font l'objet d'une story US-31, maquettes d'abord.
+
+## Tablette — précisions du porteur du 3 novembre 2026 (POC S04-01)
+- Revenir dans l'application avant la fin des 5 min de grâce compte comme une activité : le compteur d'inactivité repart de zéro.
+- Le masquage (`FLAG_SECURE`) s'applique à toute l'application en permanence : aperçu vide dans les applications récentes et captures d'écran toujours refusées ; la documentation se capture depuis le web ou l'émulateur.
+- ADR-03 (stockage local chiffré : SQLCipher, clé Keystore matérielle TEE, Argon2id) sera adoptée après la mesure en version installée (« profile ») et l'essai d'une heure sur batterie Lenovo, sur la Tab M11.
