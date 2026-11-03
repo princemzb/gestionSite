@@ -38,14 +38,41 @@ jobs:
             server/artifacts/coverage-js
           if-no-files-found: ignore
 
+  # Vérification obligatoire : toujours exécutée (un contrôle requis sauté par un filtre « paths » resterait en attente),
+  # elle s'arrête aussitôt en succès quand aucun fichier de l'image ou du rendu PDF isolé n'a changé.
   image:
     name: Image du conteneur (isolation du rendu PDF)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fichiers de l'image ou du rendu PDF modifiés ?
+        id: changements
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "Base inconnue : vérification complète."
+            echo "verifier=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          modifies=$(git diff --name-only "$BASE...$GITHUB_SHA" -- \
+            server/Dockerfile server/deploy server/eng/verify-image.sh server/eng/isolation-rendu-pdf \
+            server/src/Modules/GestionSite.Modules.Patrimoine.RenduPdf \
+            server/src/Modules/GestionSite.Modules.Patrimoine/PlansBatiment/ProcessusRenduPdf.cs \
+            server/Directory.Packages.props .github/workflows/ci.yml)
+          if [ -n "$modifies" ]; then
+            printf 'Fichiers concernés :\n%s\n' "$modifies"
+            echo "verifier=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Aucun fichier de l'image ni du rendu PDF isolé modifié : vérification sans objet."
+            echo "verifier=false" >> "$GITHUB_OUTPUT"
+          fi
       # Image construite en amd64 natif (plateforme de Cloudflare) : processus de rendu PDF isolé de l'API (SOC-05).
       - name: Construction de l'image et vérification de l'isolation du rendu PDF
+        if: steps.changements.outputs.verifier == 'true'
         run: server/eng/verify-image.sh linux/amd64
 
   tooling:

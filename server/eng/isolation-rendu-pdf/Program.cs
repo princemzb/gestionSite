@@ -38,6 +38,9 @@ Essayer("diagnostic-api", () => Diagnostic(api));
 // Nouveau processus : une copie de la sonde qui survivrait au rendu pourrait épier les rendus suivants.
 Essayer("processus", () => Process.Start("/bin/true")!.WaitForExit());
 
+// Réseau (API interne, Internet) : la seule création d'une prise TCP suffit à l'ouvrir ; refusée par seccomp (SOC-05).
+Essayer("reseau", () => new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp).Dispose());
+
 // Signal d'arrêt avec le lanceur : le désarmer permettrait de survivre à l'arrêt du rendu par l'API.
 Essayer("pdeathsig", () => Verifier(prctl(1 /* PR_SET_PDEATHSIG */, 0, 0, 0, 0)));
 
@@ -58,7 +61,7 @@ static void Essayer(string essai, Action action)
     }
     catch (Exception refus) when (refus is IOException or UnauthorizedAccessException or SocketException or Win32Exception)
     {
-        Console.WriteLine($"REFUS {essai} {refus.GetType().Name}");
+        Console.WriteLine($"REFUS {essai} {refus.GetType().Name}{(refus is SocketException prise ? $" {prise.SocketErrorCode}" : string.Empty)}");
     }
 }
 

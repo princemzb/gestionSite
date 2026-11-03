@@ -7,7 +7,8 @@
 #  3. Témoin : sous le compte de l'API, la sonde lit l'environnement et la configuration de l'API (exposition de S21-05).
 #  4. Par le lanceur, la sonde a le compte du rendu : environnement, mémoire, descripteurs et signaux de l'API, de
 #     l'application web et du processus 1, environnement, mémoire et descripteurs du lanceur, configuration de l'API
-#     et du web, canal de diagnostic .NET, création d'un processus (seccomp, sauf image émulée) : tout est refusé.
+#     et du web, canal de diagnostic .NET, création d'un processus, désarmement de l'arrêt avec le lanceur, ouverture
+#     d'une connexion réseau (seccomp, sauf image émulée) : tout est refusé.
 #  5. L'arrêt du lanceur, seul geste permis à l'API, arrête l'enfant, que l'API ne peut pas tuer elle-même ; un processus
 #     du compte du rendu encore en vie est tué avant le rendu suivant (ménage), sans toucher à l'API ni au web.
 #     API et web créent leurs fichiers temporaires (formulaires reçus) en accès propriétaire seul.
@@ -91,19 +92,19 @@ echo "API $API, application web $WEB"
 
 temoin=$(docker exec -u app "$essai" dotnet /app/rendu-pdf/GestionSite.Modules.Patrimoine.RenduPdf.dll "$API" "$WEB" 1 1)
 echo "$temoin"
-for attendu in "ACCES environ-api" "ACCES config-api"; do
+for attendu in "ACCES environ-api" "ACCES config-api" "ACCES reseau"; do
   grep -qx "$attendu" <<<"$temoin" || echec "témoin : « $attendu » attendu sous le compte de l'API"
 done
 docker exec -u app "$essai" sh -c "tr '\0' '\n' < /proc/$API/environ" | grep -q "$SECRET" \
   || echec "témoin : secret fictif absent de l'environnement de l'API"
-ok "témoin : sous le compte de l'API, l'environnement (secret fictif) et la configuration de l'API sont lisibles"
+ok "témoin : sous le compte de l'API, l'environnement (secret fictif), la configuration de l'API et le réseau sont accessibles"
 
 sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 2>&1)
 echo "$sonde"
-attendus=22
-if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus permise" <<<"$sonde"; then
-  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus et PR_SET_PDEATHSIG non vérifiés (vérifiés en natif)."
-  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
+attendus=23
+if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis" <<<"$sonde"; then
+  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus, PR_SET_PDEATHSIG et réseau non vérifiés (vérifiés en natif)."
+  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^ACCES reseau$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
   attendus=20
 fi
 grep -qx "ENVIRONNEMENT DOTNET_EnableDiagnostics DOTNET_gcServer" <<<"$sonde" || echec "environnement de l'enfant non fixé"
@@ -112,6 +113,7 @@ quatre="$UID_RENDU$t$UID_RENDU$t$UID_RENDU$t$UID_RENDU"
 grep -qxF "COMPTE uid=$quatre gid=$quatre groupes=[] capacites=0000000000000000/0000000000000000 nnp=1" <<<"$sonde" \
   || echec "compte de l'enfant inattendu"
 if grep -q "^ACCES" <<<"$sonde"; then echec "accès obtenu par l'enfant"; fi
+if ! $EMULEE; then grep -qx "REFUS reseau SocketException AccessDenied" <<<"$sonde" || echec "prise réseau refusée pour une autre raison que seccomp"; fi
 [[ "$(grep -c "^REFUS" <<<"$sonde")" -eq "$attendus" ]] || echec "$attendus essais refusés attendus"
 if grep -q "$SECRET" <<<"$sonde"; then echec "secret fictif lu par l'enfant"; fi
 ok "enfant sous le compte rendupdf (aucun groupe, aucune capacité, aucun nouveau privilège) : $attendus accès refusés"
