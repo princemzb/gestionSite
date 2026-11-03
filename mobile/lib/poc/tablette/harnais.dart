@@ -202,6 +202,7 @@ class ControleurHarnais extends ChangeNotifier {
         await existant.reprendreEnLigne(nouveauPin: pin, contact: contact);
       } else {
         existant?.fermer();
+        profil = null; // jamais un profil fermé si la suite échoue
         profil = ProfilTablette.presents(dependances.racine).contains(compteId)
             ? await _rechargerEtReprendre(compteId, pin, contact)
             : await ProfilTablette.preparer(

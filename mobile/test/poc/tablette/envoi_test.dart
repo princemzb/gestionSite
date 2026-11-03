@@ -335,6 +335,56 @@ void main() {
     });
   });
 
+  test('profil illisible (clé Keystore perdue) : les autres profils partent '
+      'quand même', () async {
+    final a = await preparer(compteA, 'a@demo.invalid', 'mot-de-passe-a');
+    final b = await preparer(compteB, 'b@demo.invalid', 'mot-de-passe-b');
+    await saisirPhotos(b, [_photo(1000, 5)]);
+    a.fermer();
+    b.fermer();
+    coffre.cles.remove('poc03.$compteA.envoi');
+
+    final bilans = await envoyerTousLesProfils(
+      racine: racine,
+      configuration: ConfigurationEnvoi(serveur.adresse, appareil),
+      coffre: coffre,
+      horloge: horloge,
+    );
+
+    expect(bilans[compteA]!.sessionRefusee, 'profil_illisible');
+    expect(bilans[compteB]!.appliquees, 1);
+  });
+
+  test('photo refusée par le serveur (empreinte différente) : seule sa '
+      'commande est écartée, la session reste, la suite part', () async {
+    final profil = await preparer(compteA, 'a@demo.invalid', 'mot-de-passe-a');
+    final photo = _photo(3000, 7);
+    final refusee = await saisirPhotos(profil, [photo]);
+    serveur.fichiers[refusee.fichiers.single] = FichierRecu(
+      photo.length,
+      'autre-empreinte',
+      compteA,
+    );
+    await saisir(
+      profil,
+      organisationId: orgX,
+      type: 'commentaire',
+      corps: const {'texte': 'après la photo refusée'},
+    );
+
+    final bilan = await MoteurEnvoi(client).synchroniser(profil);
+
+    expect(bilan.sessionRefusee, isNull);
+    expect(bilan.rejetees, 1);
+    expect(bilan.appliquees, 1);
+    expect(profil.jetons, isNotNull);
+    final gardee = profil.file.commandes.single;
+    expect(gardee.operationId, refusee.operationId);
+    expect(gardee.etat, EtatEnvoi.rejetee);
+    expect(gardee.detail, 'fichier_fichier_conflit');
+    profil.fermer();
+  });
+
   test('arrière-plan sans configuration : rien à faire', () async {
     expect(
       await executerEnvoiArrierePlan(racine, coffre: coffre, horloge: horloge),
@@ -408,6 +458,7 @@ void main() {
   test('erreurs lisibles', () {
     expect(const ReseauIndisponible('x').toString(), 'ReseauIndisponible: x');
     expect(const SessionRefusee('y').toString(), 'SessionRefusee: y');
+    expect(const FichierRefuse('z').toString(), 'FichierRefuse: z');
     expect(BilanEnvoi().toString(), contains('appliquees=0'));
   });
 }

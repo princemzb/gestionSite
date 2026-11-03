@@ -119,10 +119,21 @@ class MoteurEnvoi {
         continue;
       }
 
-      for (final photo in profil.file.photosDe(commande.operationId)) {
-        if (!photo.complete) {
-          await _envoyerPhoto(profil.file, acces, photo, bilan);
+      try {
+        for (final photo in profil.file.photosDe(commande.operationId)) {
+          if (!photo.complete) {
+            await _envoyerPhoto(profil.file, acces, photo, bilan);
+          }
         }
+      } on FichierRefuse catch (refus) {
+        // Conservée et visible (rejetée), sans bloquer la suite de la file.
+        profil.file.marquer(
+          commande.operationId,
+          EtatEnvoi.rejetee,
+          'fichier_${refus.code}',
+        );
+        bilan.rejetees++;
+        continue;
       }
 
       final reponse = await client.envoyerCommande(acces, commande);
@@ -207,12 +218,20 @@ Future<Map<String, BilanEnvoi>> envoyerTousLesProfils({
   );
   try {
     for (final compteId in ProfilTablette.presents(racine)) {
-      final profil = await ProfilTablette.charger(
-        racine: racine,
-        compteId: compteId,
-        coffre: coffre,
-        horloge: horloge,
-      );
+      final ProfilTablette profil;
+      try {
+        profil = await ProfilTablette.charger(
+          racine: racine,
+          compteId: compteId,
+          coffre: coffre,
+          horloge: horloge,
+        );
+      } on Exception {
+        // Profil illisible (clé Keystore perdue, fichier altéré) : les profils
+        // suivants partent quand même ; pas de réessai pour celui-ci.
+        bilans[compteId] = BilanEnvoi()..sessionRefusee = 'profil_illisible';
+        continue;
+      }
       try {
         bilans[compteId] = await MoteurEnvoi(client).synchroniser(profil);
       } finally {

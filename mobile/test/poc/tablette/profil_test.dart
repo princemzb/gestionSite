@@ -288,11 +288,42 @@ void main() {
       );
       expect(heure.garantie, isTrue);
 
+      // Heure de la tablette avancée de 6 h : le délai raccourcit, mais
+      // l'heure de saisie garantie reste celle du monotone.
+      horloge.regler(const Duration(hours: 11));
+      final avancee = await profil.heureDeSaisie();
+      expect(
+        avancee.serveurMs,
+        1000 + const Duration(minutes: 10).inMilliseconds,
+      );
+      expect(avancee.garantie, isTrue);
+
       horloge.redemarrer(eteinte: const Duration(minutes: 1));
       expect((await profil.heureDeSaisie()).garantie, isFalse);
       profil.fermer();
     },
   );
+
+  test('Keystore refusé (tablette verrouillée) : erreur remontée, aucun '
+      'essai de PIN consommé', () async {
+    final profil = await preparer(compteA);
+    final cle = coffre.cles.remove('poc03.$compteA.consultation')!;
+    for (var i = 0; i < 6; i++) {
+      await expectLater(
+        profil.deverrouiller('123456'),
+        throwsA(isA<CleIntrouvable>()),
+      );
+    }
+    expect(profil.echecs, 0);
+    expect(profil.bloque, isFalse);
+
+    coffre.cles['poc03.$compteA.consultation'] = cle;
+    expect(
+      (await profil.deverrouiller('123456')).resultat,
+      ResultatDeverrouillage.ouvert,
+    );
+    profil.fermer();
+  });
 
   test('organisation coupée : sa base est effacée au contact, même profil '
       'verrouillé ; l\'autre organisation reste', () async {

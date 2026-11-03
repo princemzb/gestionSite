@@ -103,7 +103,8 @@ void main() {
     },
   );
 
-  test('compteur de démarrages inconnu : traité comme un redémarrage', () {
+  test('compteur de démarrages inconnu : heure non garantie, temps compté '
+      'une seule fois d\'après le monotone', () {
     final inconnu = DernierContact.maintenant(
       0,
       _instant(10 * _h, 100 * _h, demarrages: -1),
@@ -113,9 +114,24 @@ void main() {
       pointage: null,
       maintenant: _instant(12 * _h, 102 * _h, demarrages: -1),
     );
-
     expect(etat.heureGarantie, isFalse);
-    expect(etat.consomme, const Duration(hours: 12));
+    expect(etat.consomme, const Duration(hours: 2));
+
+    // Évaluations répétées : jamais de double comptage.
+    final ensuite = evaluerLimite(
+      contact: inconnu,
+      pointage: etat.pointage,
+      maintenant: _instant(13 * _h, 103 * _h, demarrages: -1),
+    );
+    expect(ensuite.consomme, const Duration(hours: 3));
+
+    // Monotone revenu en arrière : redémarrage, pointage + temps depuis.
+    final redemarre = evaluerLimite(
+      contact: inconnu,
+      pointage: ensuite.pointage,
+      maintenant: _instant(1 * _h, 60 * _h, demarrages: -1),
+    );
+    expect(redemarre.consomme, const Duration(hours: 4));
   });
 
   test('sérialisation du contact et du pointage', () {

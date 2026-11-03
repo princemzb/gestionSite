@@ -113,6 +113,10 @@ Android 14 (API 34), image `google_apis` arm64, 4 Go de RAM, Keystore **logiciel
 - Le Keystore refuse la clé de consultation sans verrouillage d'écran (voir plus haut) : condition désormais documentée et vérifiée.
 - Tablette (3/11) : l'essai WorkManager et l'essai de verrouillage interrogeaient le Mac pendant le mode avion ou application en arrière-plan ; demandes désormais envoyées avant la sortie. La grâce de l'essai d'écran éteint était mesurée depuis la diffusion de l'extinction, alors qu'elle part de la pause de l'application, 0,6 s plus tôt : mesure corrigée.
 
+## Revues de la PR (3/11/2026)
+`/code-review high` : 10 constats sur le code du POC, corrigés et testés : un 409 sur une photo n'efface plus la session (refus propre au fichier, seule sa commande est écartée) ; compteur de démarrages inconnu sans double comptage du temps ; heure de saisie « garantie » tirée du seul monotone (une heure de tablette avancée raccourcit le délai sans dater la saisie) ; un profil illisible n'empêche plus l'envoi des autres en arrière-plan ; réponses mal formées traitées comme une coupure ; une erreur Keystore (tablette verrouillée) ne consomme plus d'essai de PIN ; greffon Kotlin : toute exception renvoie une erreur au lieu d'arrêter le processus ; reprise d'envoi sans progrès interrompue ; écran technique sans profil fermé après un échec ; présence de SQLCipher vérifiée (`PRAGMA cipher_version`) avant toute ouverture.
+`/security-review` (chiffrement, clés, sessions) : aucune vulnérabilité de confiance ≥ 8. Recommandation retenue pour **US-13** : lier le profil à l'identité authentifiée (identifiant de compte lu dans la réponse de `/auth/login` ou `/me`, comparé au profil à la préparation et à la reprise en ligne), et non à un identifiant saisi comme dans l'écran technique.
+
 ## Routes serveur nécessaires à US-13/US-14
 Absentes de l'API aujourd'hui (simulées par le serveur factice) :
 

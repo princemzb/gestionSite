@@ -25,6 +25,17 @@ class ReseauIndisponible implements Exception {
 
 /// Session refusée définitivement (`session_revoquee`, `jeton_invalide`) : on
 /// arrête les essais, une connexion par mot de passe est nécessaire (T-03).
+/// Le serveur refuse un fichier précis (empreinte ou taille différente,
+/// accès refusé) : seule la commande qui le porte est écartée.
+class FichierRefuse implements Exception {
+  const FichierRefuse(this.code);
+
+  final String code;
+
+  @override
+  String toString() => 'FichierRefuse: $code';
+}
+
 class SessionRefusee implements Exception {
   const SessionRefusee(this.code);
 
@@ -137,9 +148,20 @@ class ClientSync {
   }
 
   Jetons _jetons(Map<String, Object?> json) => Jetons(
-    json['jetonAcces']! as String,
-    json['jetonRenouvellement']! as String,
+    _champ<String>(json, 'jetonAcces'),
+    _champ<String>(json, 'jetonRenouvellement'),
   );
+
+  /// Champ attendu d'une réponse : absent ou d'un autre type, la réponse est
+  /// traitée comme une coupure (proxy, portail captif), jamais comme un plantage.
+  static T _champ<T>(Map<String, Object?> json, String cle) {
+    final valeur = json[cle];
+    if (valeur is! T) {
+      throw ReseauIndisponible('réponse invalide : $cle');
+    }
+
+    return valeur;
+  }
 
   /// Connexion par mot de passe (préparation, PIN oublié, après révocation).
   Future<Jetons> connecter(String email, String motDePasse) async {
@@ -187,9 +209,15 @@ class ClientSync {
       throw ReseauIndisponible('HTTP ${r.statut}');
     }
 
+    final heure = DateTime.tryParse(_champ<String>(r.json, 'heureServeur'));
+    final organisations = _champ<List<Object?>>(r.json, 'organisations');
+    if (heure == null || organisations.any((o) => o is! String)) {
+      throw const ReseauIndisponible('réponse invalide : adhésions');
+    }
+
     return Adhesions(
-      DateTime.parse(r.json['heureServeur']! as String).millisecondsSinceEpoch,
-      (r.json['organisations']! as List<Object?>).cast<String>().toSet(),
+      heure.millisecondsSinceEpoch,
+      organisations.cast<String>().toSet(),
     );
   }
 
@@ -207,7 +235,12 @@ class ClientSync {
       throw SessionRefusee((r.json['code'] as String?) ?? 'http_${r.statut}');
     }
 
-    return (r.json['elements']! as List<Object?>).cast<Map<String, Object?>>();
+    final elements = _champ<List<Object?>>(r.json, 'elements');
+    if (elements.any((e) => e is! Map<String, Object?>)) {
+      throw const ReseauIndisponible('réponse invalide : elements');
+    }
+
+    return elements.cast<Map<String, Object?>>();
   }
 
   /// Octets déjà reçus par le serveur pour ce fichier (reprise).
@@ -221,7 +254,11 @@ class ClientSync {
       return 0;
     }
 
-    return r.json['recu']! as int;
+    if (r.statut != HttpStatus.ok) {
+      throw FichierRefuse((r.json['code'] as String?) ?? 'http_${r.statut}');
+    }
+
+    return _champ<int>(r.json, 'recu');
   }
 
   /// Envoie la tranche [debut, debut + octets.length[ ; renvoie le total reçu.
@@ -243,15 +280,18 @@ class ClientSync {
         'X-Empreinte': empreinte,
       },
     );
-    if (r.statut == HttpStatus.conflict) {
-      throw SessionRefusee((r.json['code'] as String?) ?? 'fichier_conflit');
-    }
-
     if (r.statut != HttpStatus.ok) {
-      throw ReseauIndisponible('HTTP ${r.statut}');
+      // 409 (empreinte, taille), 400, 403 : refus propre à CE fichier, jamais
+      // un refus de session (la session n'est pas effacée pour autant).
+      throw FichierRefuse((r.json['code'] as String?) ?? 'http_${r.statut}');
     }
 
-    return r.json['recu']! as int;
+    final recu = _champ<int>(r.json, 'recu');
+    if (recu <= debut || recu > total) {
+      throw const ReseauIndisponible('reprise sans progrès');
+    }
+
+    return recu;
   }
 
   Future<ReponseCommande> envoyerCommande(

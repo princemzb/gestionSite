@@ -80,12 +80,17 @@ class Pointage {
 class EtatLimite {
   const EtatLimite({
     required this.consomme,
+    required this.ecouleMonotone,
     required this.limite,
     required this.heureGarantie,
     required this.pointage,
   });
 
   final Duration consomme;
+
+  /// Temps monotone écoulé depuis le contact (même démarrage) : base de l'heure
+  /// de saisie garantie, que l'heure de la tablette ne peut pas fausser.
+  final Duration ecouleMonotone;
   final Duration limite;
 
   /// Faux après un redémarrage hors réseau (R14-06).
@@ -101,7 +106,16 @@ class EtatLimite {
 
 const limiteHorsConnexion = Duration(hours: 24);
 
-bool _memeDemarrage(int a, int b) => a >= 0 && a == b;
+/// Même démarrage que la référence. Compteur inconnu (-1) : le monotone,
+/// remis à zéro au démarrage, ne doit pas avoir reculé.
+bool _memeDemarrage(InstantAppareil maintenant, int demarrages, int monotone) {
+  if (maintenant.demarrages < 0 || demarrages < 0) {
+    return maintenant.monotoneMs >= monotone;
+  }
+
+  return maintenant.demarrages == demarrages &&
+      maintenant.monotoneMs >= monotone;
+}
 
 /// Évalue le temps hors connexion consommé depuis [contact].
 EtatLimite evaluerLimite({
@@ -112,15 +126,15 @@ EtatLimite evaluerLimite({
 }) {
   final int monotone;
   final bool garantie;
-  if (_memeDemarrage(maintenant.demarrages, contact.demarrages) &&
-      maintenant.monotoneMs >= contact.monotoneMs) {
+  if (_memeDemarrage(maintenant, contact.demarrages, contact.monotoneMs)) {
     monotone = maintenant.monotoneMs - contact.monotoneMs;
-    garantie = true;
+    // Compteur de démarrages inconnu : redémarrage indétectable à coup sûr.
+    garantie = maintenant.demarrages >= 0 && contact.demarrages >= 0;
   } else {
     // Redémarré depuis le contact : dernier pointage + temps depuis le démarrage.
     final dejaCompte = pointage == null
         ? 0
-        : _memeDemarrage(maintenant.demarrages, pointage.demarrages)
+        : _memeDemarrage(maintenant, pointage.demarrages, pointage.monotoneMs)
         ? pointage.consommeMs - pointage.monotoneMs
         : pointage.consommeMs;
     monotone = dejaCompte + maintenant.monotoneMs;
@@ -135,6 +149,7 @@ EtatLimite evaluerLimite({
 
   return EtatLimite(
     consomme: Duration(milliseconds: consomme),
+    ecouleMonotone: Duration(milliseconds: monotone),
     limite: limite,
     heureGarantie: garantie,
     pointage: Pointage(

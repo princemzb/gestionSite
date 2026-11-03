@@ -265,8 +265,11 @@ class ProfilTablette {
   /// Heure de saisie sur l'horloge du serveur (R14-06).
   Future<({int serveurMs, bool garantie})> heureDeSaisie() async {
     final etat = await etatLimite();
+    // Garantie : temps monotone seul (une heure de tablette avancée raccourcit
+    // le délai mais ne date pas la saisie). Sinon, meilleure estimation.
+    final ecoule = etat.heureGarantie ? etat.ecouleMonotone : etat.consomme;
     return (
-      serveurMs: dernierContact!.serveurMs + etat.consomme.inMilliseconds,
+      serveurMs: dernierContact!.serveurMs + ecoule.inMilliseconds,
       garantie: etat.heureGarantie,
     );
   }
@@ -301,6 +304,11 @@ class ProfilTablette {
               ResultatDeverrouillage.pinFaux,
               essaisRestants: maxEchecs - tentative,
             );
+    } on Exception {
+      // Keystore refusé (tablette verrouillée), clé ou fichier absent : le PIN
+      // n'a pas été vérifié, l'essai est rendu.
+      file.ecrire(_cleEchecs, {'n': tentative - 1});
+      rethrow;
     }
 
     file.ecrire(_cleEchecs, {'n': 0});

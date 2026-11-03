@@ -21,11 +21,24 @@ class BaseIllisible implements Exception {
   String toString() => 'BaseIllisible: $chemin';
 }
 
-/// Ouvre (ou crée) la base [chemin] chiffrée par [cle] ; vérifie la clé en
-/// lisant le schéma : SQLCipher ne la contrôle qu'à la première lecture.
+/// Bibliothèque chargée sans SQLCipher : `PRAGMA key` serait ignoré et la
+/// base écrite en clair.
+class SqlcipherAbsent implements Exception {
+  const SqlcipherAbsent();
+
+  @override
+  String toString() => 'SqlcipherAbsent';
+}
+
+/// Ouvre (ou crée) la base [chemin] chiffrée par [cle] ; vérifie que SQLCipher
+/// est bien chargé, puis la clé en lisant le schéma : SQLCipher ne la contrôle
+/// qu'à la première lecture.
 Database ouvrirBaseChiffree(String chemin, Uint8List cle) {
   final base = sqlite3.open(chemin);
   try {
+    if (base.select('PRAGMA cipher_version;').isEmpty) {
+      throw const SqlcipherAbsent();
+    }
     base
       ..execute("PRAGMA key = \"x'${enHexa(cle)}'\";")
       // Efface la mémoire de travail de SQLCipher à la libération (clé comprise).
@@ -37,6 +50,9 @@ Database ouvrirBaseChiffree(String chemin, Uint8List cle) {
   } on SqliteException {
     base.close();
     throw BaseIllisible(chemin);
+  } on SqlcipherAbsent {
+    base.close();
+    rethrow;
   }
 }
 

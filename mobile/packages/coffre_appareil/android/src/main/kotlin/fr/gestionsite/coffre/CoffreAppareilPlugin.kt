@@ -141,6 +141,14 @@ class CoffreAppareilPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodC
             principal.post { result.error("keystore", erreur.javaClass.simpleName, null) }
         } catch (erreur: java.security.ProviderException) {
             principal.post { result.error("keystore", erreur.javaClass.simpleName, null) }
+        } catch (erreur: java.io.IOException) {
+            // EXIF illisible : photo refusée, comme une photo indécodable.
+            principal.post { result.error("argument", "photo illisible", null) }
+        } catch (erreur: OutOfMemoryError) {
+            principal.post { result.error("argument", "photo trop grande", null) }
+        } catch (erreur: RuntimeException) {
+            // Toujours une réponse : l'appel Dart ne reste jamais en attente, le processus ne s'arrête pas.
+            principal.post { result.error("interne", erreur.javaClass.simpleName, null) }
         }
     }
 
