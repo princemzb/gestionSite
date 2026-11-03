@@ -142,8 +142,11 @@ internal sealed class ServiceInterventions(
             : null;
         var photoExigee = PhotoExigee.Pour(lu, lieu);
         interventionLue.VerifierCloture(photos.Count, photoExigee);
-        // R/D du site lus avant la transaction, pour le cas où cette clôture clôt le dossier (T-03.11).
-        var destinataires = await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false);
+        // R/D du site lus avant la transaction si cette clôture doit clore le dossier (T-03.11) : plus aucune autre intervention
+        // ouverte (celles des cycles antérieurs sont toutes clôturées).
+        var derniere = !await context.Interventions.AnyAsync(
+            i => i.DossierId == dossierId && i.Numero != numero && i.Statut != StatutIntervention.Cloturee, cancellationToken).ConfigureAwait(false);
+        var destinataires = derniere ? await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false) : null;
 
         // 2. Photos préparées puis écrites hors transaction, sous des clés propres à cet envoi : le verrou du dossier n'est pas
         //    tenu pendant le téléversement ; retirées si la clôture n'aboutit pas, jamais celles d'un autre envoi.
@@ -167,6 +170,8 @@ internal sealed class ServiceInterventions(
         if (dossier.Statut == StatutDossier.Cloture)
         {
             context.Tracer(dossier, NatureEvenementDossier.Cloture, compte.Id, maintenant, detail: null);
+            // Autre intervention clôturée entre-temps : destinataires lus maintenant (lecture d'un autre module, rare).
+            destinataires ??= await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false);
             context.Emettre(
                 TypeNotification.ClotureAutomatique, dossier, $"cloture:{intervention.Id:N}", destinataires.ResponsablesDelegues(), compte.Id, maintenant);
         }

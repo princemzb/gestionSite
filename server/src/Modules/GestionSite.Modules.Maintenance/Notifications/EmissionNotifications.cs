@@ -16,6 +16,13 @@ internal sealed class DestinatairesSite
 
     internal DestinatairesSite(IReadOnlyList<MembreSite> membres) => _membres = membres;
 
+    /// <summary>Aucun destinataire : rien à notifier, aucune lecture faite.</summary>
+    internal static DestinatairesSite Aucun { get; } = new([]);
+
+    /// <summary>Membres du site lus seulement s'il y a quelque chose à notifier.</summary>
+    internal static async Task<DestinatairesSite> LireSiAsync(bool aNotifier, IAnnuaireMembres annuaire, Guid siteId, CancellationToken cancellationToken) =>
+        aNotifier ? await LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false) : Aucun;
+
     internal static async Task<DestinatairesSite> LireAsync(IAnnuaireMembres annuaire, Guid siteId, CancellationToken cancellationToken) =>
         new(await annuaire.MembresAyantDroitAsync(siteId, Droit.ConsulterSite, compteIds: null, cancellationToken).ConfigureAwait(false));
 
@@ -45,24 +52,33 @@ internal static class EmissionNotifications
     {
         foreach (var compte in destinataires.Where(c => c != auteur).Distinct())
         {
-            context.Notifications.Add(new Notification(Guid.CreateVersion7(le), dossier, compte, type, cle, le));
+            // Identifiant pris à l'écriture, juste avant l'enregistrement (et non à l'instant métier, lu en début de requête,
+            // avant photos ou verrous) : l'ordre des identifiants suit l'arrivée dans le centre, base des curseurs « avant »
+            // et « jusqua ». CreeLe garde l'instant exact de l'événement.
+            context.Notifications.Add(new Notification(Guid.CreateVersion7(), dossier, compte, type, cle, le));
         }
     }
 
+    /// <summary>Destinataires à lire pour une déclaration : seulement s'il y a danger ou activité bloquée.</summary>
+    internal static bool ANotifier(Signalement dossier) => dossier.Danger || dossier.ActiviteBloquee;
+
     /// <summary>
-    /// Nouveau dossier déclaré (dépôt public, déclaration interne, constat d'inspection) : alerte de danger, sinon activité
-    /// bloquée aux R/D. Aucune intervention n'existe encore : seuls R/D et P/C reçoivent l'alerte.
+    /// Nouveau dossier déclaré (dépôt public, déclaration interne) : alerte de danger enregistrée (RG-05) et notifiée (Q3-A),
+    /// sinon activité bloquée notifiée aux R/D. Aucune intervention n'existe encore : seuls R/D et P/C reçoivent l'alerte.
     /// </summary>
-    internal static void EmettreDeclaration(
-        this MaintenanceDbContext context, Signalement dossier, AlerteDanger? alerte, DestinatairesSite destinataires, Guid? auteur, DateTimeOffset le)
+    internal static void Declarer(
+        this MaintenanceDbContext context, Signalement dossier, DestinatairesSite destinataires, Guid? auteur, DateTimeOffset le)
     {
-        if (alerte is not null)
+        if (dossier.Danger)
         {
+            var alerte = new AlerteDanger(Guid.CreateVersion7(le), dossier);
+            context.AlertesDanger.Add(alerte);
             context.Emettre(TypeNotification.DangerSignale, dossier, CleDanger(alerte), destinataires.AlerteDanger([]), auteur, le);
         }
         else if (dossier.ActiviteBloquee)
         {
-            context.Emettre(TypeNotification.ActiviteBloquee, dossier, $"activite-bloquee:{dossier.Id:N}", destinataires.ResponsablesDelegues(), auteur, le);
+            context.Emettre(
+                TypeNotification.ActiviteBloquee, dossier, $"activite-bloquee:{dossier.Id:N}", destinataires.ResponsablesDelegues(), auteur, le);
         }
     }
 

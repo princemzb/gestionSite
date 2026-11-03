@@ -47,10 +47,12 @@ internal sealed class ServiceNotifications(MaintenanceDbContext context, IAutori
         var page = await miennes.OrderByDescending(n => n.Id).Take(limite ?? LimiteParDefaut).ToListAsync(cancellationToken).ConfigureAwait(false);
         var ids = page.Where(n => n.Objet == ObjetNotification.Dossier).Select(n => n.ObjetId).Distinct().ToList();
         // Dossiers des sites encore autorisés seulement (les notifications l'ont été) : titre de la fiche, comme la liste des dossiers.
+        // Description seule (ni nom ni contact du déclarant), réduite au titre.
         var titres = ids.Count == 0
             ? []
-            : (await context.Signalements.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken).ConfigureAwait(false))
-                .ToDictionary(s => s.Id, ServiceDossiers.Titre);
+            : (await context.Signalements.AsNoTracking().Where(s => ids.Contains(s.Id)).Select(s => new { s.Id, s.Description })
+                .ToListAsync(cancellationToken).ConfigureAwait(false))
+                .ToDictionary(s => s.Id, s => ServiceDossiers.Titre(s.Description));
         return new PageNotifications(
             [.. page.Select(n => new NotificationLue(
                 n.Id, n.Type.ToString(), n.SiteId, new ObjetNotificationLu(n.Objet.ToString(), n.ObjetId, titres.GetValueOrDefault(n.ObjetId)), n.CreeLe,

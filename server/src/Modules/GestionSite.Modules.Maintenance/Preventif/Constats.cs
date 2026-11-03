@@ -35,7 +35,9 @@ internal static class Constats
         var zones = await inventaire.ZonesAsync(
             controle.SiteId, [.. controle.ObservationsLues.Select(o => o.ZoneId).Append(controle.ZoneId).Distinct()], cancellationToken).ConfigureAwait(false);
         var nom = (await annuaire.NomsAsync([auteur], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(auteur) is { Length: > 0 } n ? n : "Compte interne";
-        return new LibellesConstats(zones, nom, await DestinatairesSite.LireAsync(annuaire, controle.SiteId, cancellationToken).ConfigureAwait(false));
+        // Membres à notifier lus seulement si le contrôle relève un écart (un contrôle conforme n'ouvre ni ne rattache rien).
+        var ecarts = controle.PointsLus.Any(p => p.Conforme == false) || controle.ObservationsLues.Count > 0;
+        return new LibellesConstats(zones, nom, await DestinatairesSite.LireSiAsync(ecarts, annuaire, controle.SiteId, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -126,8 +128,10 @@ internal static class Constats
 
             var constat = new ConstatControle(Guid.CreateVersion7(le), controle, releve.Rang, releve.Libelle, releve.Cle, dossier!, rattache, releve.Danger, le);
             context.Constats.Add(constat);
-            // Un même écart relevé deux fois par ce contrôle ne marque pas « nouveau constat » le dossier qu'il vient d'ouvrir.
-            if (!rattache || dossier!.ControleId != controle.Id)
+            // Dossier ouvert avant ce contrôle (un dossier ouvert par lui porte son identifiant) ; un même écart relevé deux fois
+            // par ce contrôle ne marque pas « nouveau constat » le dossier qu'il vient d'ouvrir.
+            var existant = dossier!.ControleId != controle.Id;
+            if (!rattache || existant)
             {
                 context.Tracer(dossier!, rattache ? NatureEvenementDossier.ConstatInspection : NatureEvenementDossier.Declaration, auteur, le, new
                 {
@@ -146,7 +150,7 @@ internal static class Constats
                 context.AlertesDanger.Add(alerte);
             }
 
-            var notifie = notifies.GetValueOrDefault(dossier!.Id) ?? new Notifie(dossier, Existant: dossier.ControleId != controle.Id, Alerte: null);
+            var notifie = notifies.GetValueOrDefault(dossier.Id) ?? new Notifie(dossier, existant, Alerte: null);
             notifies[dossier.Id] = notifie with { Alerte = notifie.Alerte ?? alerte };
         }
 

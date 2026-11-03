@@ -142,10 +142,6 @@ internal sealed class ServiceDossiers(
             return deja;
         }
 
-        var destinataires = dossier.Danger || dossier.ActiviteBloquee
-            ? await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false)
-            : null;
-
         // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier ;
         // retirées si l'enregistrement n'aboutit pas.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
@@ -154,17 +150,10 @@ internal sealed class ServiceDossiers(
             photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
+        var destinataires = await DestinatairesSite.LireSiAsync(EmissionNotifications.ANotifier(dossier), annuaire, siteId, cancellationToken)
+            .ConfigureAwait(false);
         context.Signalements.Add(dossier);
-        var alerte = dossier.Danger ? new AlerteDanger(Guid.CreateVersion7(maintenant), dossier) : null;
-        if (alerte is not null)
-        {
-            context.AlertesDanger.Add(alerte);
-        }
-
-        if (destinataires is not null)
-        {
-            context.EmettreDeclaration(dossier, alerte, destinataires, compteId, maintenant); // le déclarant n'est pas notifié
-        }
+        context.Declarer(dossier, destinataires, compteId, maintenant); // alerte et notifications ; le déclarant n'est pas notifié
 
         Tracer(dossier, NatureEvenementDossier.Declaration, maintenant, detail: null);
         try
@@ -304,9 +293,11 @@ internal sealed class ServiceDossiers(
         context.Tracer(dossier, nature, compte.Id, le, detail);
 
     // Titre d'affichage : première ligne de la description, raccourcie.
-    internal static string Titre(Signalement dossier)
+    internal static string Titre(Signalement dossier) => Titre(dossier.Description);
+
+    internal static string Titre(string description)
     {
-        var ligne = dossier.Description.Split('\n', 2)[0].Trim();
+        var ligne = description.Split('\n', 2)[0].Trim();
         return ligne.Length <= TitreMax ? ligne : string.Concat(ligne.AsSpan(0, TitreMax - 1), "…");
     }
 

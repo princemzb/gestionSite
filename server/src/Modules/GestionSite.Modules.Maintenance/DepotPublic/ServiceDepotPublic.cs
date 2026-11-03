@@ -66,11 +66,6 @@ internal sealed class ServiceDepotPublic(
 
         limites.Exiger(site.SiteId);
 
-        // Destinataires lus au moment de l'émission, seulement s'il y a quelque chose à notifier (US-10, S10-01).
-        var destinataires = signalement.Danger || signalement.ActiviteBloquee
-            ? await DestinatairesSite.LireAsync(annuaire, site.SiteId, cancellationToken).ConfigureAwait(false)
-            : null;
-
         // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant
         // l'enregistrement, sous des clés propres à ce signalement ; retirées si l'enregistrement n'aboutit pas (échec de
         // la base, envoi concurrent perdant), jamais les photos d'un autre signalement remplacées.
@@ -81,19 +76,13 @@ internal sealed class ServiceDepotPublic(
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
 
+        // Destinataires lus au moment de l'émission, une fois la demande acceptée, s'il y a quelque chose à notifier (S10-01).
+        var destinataires = await DestinatairesSite.LireSiAsync(EmissionNotifications.ANotifier(signalement), annuaire, site.SiteId, cancellationToken)
+            .ConfigureAwait(false);
         context.Signalements.Add(signalement);
         context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));
-        var alerte = signalement.Danger ? new AlerteDanger(Guid.CreateVersion7(maintenant), signalement) : null;
-        if (alerte is not null)
-        {
-            context.AlertesDanger.Add(alerte);
-        }
-
-        if (destinataires is not null)
-        {
-            // Même transaction que le dépôt : aucun auteur (déclarant public sans compte).
-            context.EmettreDeclaration(signalement, alerte, destinataires, auteur: null, maintenant);
-        }
+        // Alerte et notifications dans la même transaction que le dépôt : aucun auteur (déclarant public sans compte).
+        context.Declarer(signalement, destinataires, auteur: null, maintenant);
 
         try
         {
