@@ -76,6 +76,13 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
         return await _client.SendAsync(demande);
     }
 
+    /// <summary>Services de l'API de test (ouverture d'une autre organisation).</summary>
+    private protected IServiceProvider ApiServices => _api.Services;
+
+    /// <summary>Envoi JSON sans jeton (dépôt public, activation).</summary>
+    protected Task<HttpResponseMessage> EnvoyerSansJetonAsync(string chemin, object corps) =>
+        _client.PostAsJsonAsync(new Uri(chemin, UriKind.Relative), corps);
+
     protected async Task<string> JetonAsync(string email)
     {
         if (email.StartsWith("admin@", StringComparison.Ordinal) && _activationAdministrateur is { } jeton)

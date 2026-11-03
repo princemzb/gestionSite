@@ -10,6 +10,7 @@ using GestionSite.Modules.Patrimoine.Score;
 using GestionSite.Modules.Patrimoine.Structure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace GestionSite.Modules.Patrimoine;
 
@@ -24,7 +25,11 @@ public static class PatrimoineModule
         services.AddOptions<FondsPlanOptions>().BindConfiguration(FondsPlanOptions.Section)
             .Validate(o => o.QuotaFondsOctets > 0, "PlansBatiment:QuotaFondsOctets doit être positif.")
             .Validate(o => o.RenduPdfDelaiSecondes > 0, "PlansBatiment:RenduPdfDelaiSecondes doit être positif.")
-            .Validate(o => o.RenduPdfMemoireOctets > 0, "PlansBatiment:RenduPdfMemoireOctets doit être positif.").ValidateOnStart();
+            .Validate(o => o.RenduPdfMemoireOctets > 0, "PlansBatiment:RenduPdfMemoireOctets doit être positif.")
+            .Validate<IHostEnvironment>(
+                (o, environnement) => o.RenduPdfLanceur is { } lanceur ? Path.IsPathFullyQualified(lanceur) && File.Exists(lanceur) : environnement.IsDevelopment(),
+                "PlansBatiment:RenduPdfLanceur doit être le chemin absolu d'un fichier existant, obligatoire hors développement (rendu PDF isolé, SOC-05).")
+            .ValidateOnStart();
         return services.AddPatrimoinePersistence().AddSingleton<ProcessusRenduPdf>().AddScoped<ServiceStructure>().AddScoped<ServiceComposants>()
             .AddScoped<IInventaireSite, InventaireSite>().AddScoped<IEvaluationsInventaire, EvaluationsInventaire>()
             .AddScoped<ServiceGrilles>().AddScoped<ServiceEvaluations>().AddScoped<ServiceScore>()

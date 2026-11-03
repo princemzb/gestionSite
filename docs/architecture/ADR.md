@@ -1,5 +1,5 @@
 # Registre des décisions d’architecture
-Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées. ADR-11 proposée (30 octobre 2026), à adopter par le porteur.
+Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 adoptées (27 et 28 octobre 2026), sous réserve des preuves listées. ADR-11 adoptée le 3 novembre 2026 (réserve : mesure de fluidité sur la Tab M11).
 
 | ADR | Décision proposée | Alternatives et compromis | Condition de validation |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 ad
 | ADR-03 | Client tablette installé avec stockage local protégé | Web seul : compatibilité localisation à démontrer | Essais Android/iPad |
 | ADR-04 | Commandes idempotentes et conflits explicites | Dernière écriture gagnante : incompatible avec arbitrage choisi | POC synchronisation |
 | ADR-05 | Fournisseurs IA/marchands derrière adaptateurs | Couplage direct : remplacement difficile | Essais et contrat fournisseur |
-| ADR-06 | Emission différée après transaction via journal d’événements à traiter | Appel direct : perte possible entre commit et envoi | Test panne et reprise |
+| ADR-06 | Emission différée après transaction via journal d’événements à traiter. Précisée par S10-01 (03/11, proposée) : les notifications du centre sont écrites dans la transaction de l'événement métier (même contexte du module Maintenance, qui produit tous les événements d'US-10) et servent de journal ; les canaux externes (S10-09) liront ce journal par une file d'envoi (état en file / envoyé / échec, reprise), sans jamais annuler l'action métier. Précisée par S10-02 (03/11, proposée) : tâches planifiées réveillées par l'alarme du Durable Object réglée sur le prochain seuil réel (avancée d'une minute après une écriture) et un déclencheur quotidien de secours ; point d'entrée interne à jeton sur un port dédié du conteneur ; organisations parcourues par une fonction `SECURITY DEFINER` réduite aux identifiants, chacune traitée sous sa RLS ; rappels idempotents par la clé d'unicité du centre | Planificateur (S10-02) : déclencheur cron fréquent (chaque réveil garde le conteneur 15 min : conteneur quasi toujours actif) ; `BackgroundService` (conteneur en veille, rien ne tourne) ; rôle `BYPASSRLS` ou lecture globale (isolation contournée) ; route sur le port public filtrée par le Worker (une erreur de filtre l'exposerait). Appel direct : perte possible entre commit et envoi ; boîte d'envoi séparée dès S10-01 : table et relais sans canal à servir ; module Notifications à part : transaction partagée entre deux contextes EF à construire | Test panne et reprise (S10-01 : un seul enregistrement pour l'événement et ses notifications, donc aucune notification sans événement ; reprise des envois : S10-09) |
 | ADR-07 | Position temporaire hors historique métier | Stockage des trajets : contraire au choix utilisateur | Revue sécurité et effacement |
 
 ## Forme obligatoire pour une décision adoptée
@@ -89,7 +89,7 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 **Conséquences.** L'ouverture d'une organisation et de son premier administrateur passe, pour le pilote, par une commande d'exploitation réservée à la plateforme (interface en US-26). Le hors connexion de 24 h (RG-23) repose sur un déverrouillage local du profil préparé sur la tablette, sans appel à l'API ; la révocation prend effet à la synchronisation suivante (fenêtre d'exposition acceptée, RISQUES).
 
 ## ADR-11 — Éditeur de plans de bâtiment : module JavaScript autonome dans le web en rendu serveur statique
-**Statut :** proposée le 30 octobre 2026 par l'agent (S21-01), à adopter par le porteur du projet (tech lead). Cadre US-21 (S21-07 à S21-10).
+**Statut :** proposée le 30 octobre 2026 par l'agent (S21-01) ; **adoptée le 3 novembre 2026 par le porteur du projet** après la preuve en préproduction (S21-07 : `us21.mjs` 26/26, médiane 16,7 ms par image dans Chromium, aucune violation de CSP). Réserve : mesure de fluidité sur la Lenovo Tab M11 à faire par le porteur. Cadre US-21 (S21-07 à S21-10).
 
 **Contexte.** US-21 demande un éditeur 2D de plans de bâtiment : calibration, tracé de pièces, ouvertures, escaliers, marqueurs de composants, zoom et pincement sur tablette (Tab M11, navigateur), annuler/rétablir, brouillon local. Le web est un Blazor en rendu serveur statique, sans circuit interactif (ADR-08 : mode interactif incertain avec la mise en veille des conteneurs). La politique de sécurité du contenu est stricte et reste inchangée : `script-src 'self'` (plus Turnstile), aucun script ni style en ligne, ni `unsafe-eval`, ni `wasm-unsafe-eval`, ni `blob:` ; `img-src 'self' data:`. Il n'existait aucun outillage JavaScript : `wwwroot/sites.js` est une simple colle DOM, exclue de la couverture. Un seul développeur, assisté d'agents IA.
 

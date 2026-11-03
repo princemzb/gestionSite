@@ -2,6 +2,7 @@ using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -19,7 +20,7 @@ internal sealed record DossierResume(
 internal sealed record InterventionLue(
     int Numero, string Titre, string Statut, Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, Guid? ReferentCompteId,
     string? Referent, DateTimeOffset CreeLe, DateTimeOffset? DemarreeLe, string? MotifAttente, string? CommentaireAttente, DateOnly? ReexamenLe,
-    string? Actions, string? EtatFinal, DateTimeOffset? ClotureeLe, IReadOnlyList<int> Photos, bool PhotoExigee);
+    string? Actions, string? EtatFinal, DateTimeOffset? ClotureeLe, IReadOnlyList<int> Photos, bool PhotoExigee, int ReportsReexamen = 0);
 
 internal sealed record EvenementDossierLu(DateTimeOffset Le, string Nature, Guid? AuteurCompteId, string? Auteur, JsonElement? Detail);
 
@@ -108,7 +109,7 @@ internal sealed class ServiceDossiers(
                 i.Numero, i.Titre, i.Statut.ToString(), i.IntervenantCompteId, i.IntervenantCompteId is { } a ? auteurs.GetValueOrDefault(a) : null, i.Prestataire,
                 i.ReferentCompteId, i.ReferentCompteId is { } r ? auteurs.GetValueOrDefault(r) : null, i.CreeLe, i.DemarreeLe,
                 i.MotifAttente?.ToString(), i.CommentaireAttente, i.ReexamenLe, i.Actions, i.EtatFinal?.ToString(), i.ClotureeLe,
-                [.. photosInterventions[i.Id]], i.PhotoExigee ?? PhotoExigee.Pour(dossier, lieu)))],
+                [.. photosInterventions[i.Id]], i.PhotoExigee ?? PhotoExigee.Pour(dossier, lieu), i.ReportsReexamen))],
             await ResumesAsync(siteId, doublons, cancellationToken).ConfigureAwait(false),
             await ResumesAsync(siteId, suggestions, cancellationToken).ConfigureAwait(false),
             historique,
@@ -149,11 +150,10 @@ internal sealed class ServiceDossiers(
             photos => { var id = photos[0].Id; return context.Photos.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); }, cancellationToken)
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
+        var destinataires = await DestinatairesSite.LireSiAsync(EmissionNotifications.ANotifier(dossier), annuaire, siteId, cancellationToken)
+            .ConfigureAwait(false);
         context.Signalements.Add(dossier);
-        if (dossier.Danger)
-        {
-            context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), dossier));
-        }
+        context.Declarer(dossier, destinataires, compteId, maintenant); // alerte et notifications ; le déclarant n'est pas notifié
 
         Tracer(dossier, NatureEvenementDossier.Declaration, maintenant, detail: null);
         try
@@ -293,9 +293,11 @@ internal sealed class ServiceDossiers(
         context.Tracer(dossier, nature, compte.Id, le, detail);
 
     // Titre d'affichage : première ligne de la description, raccourcie.
-    internal static string Titre(Signalement dossier)
+    internal static string Titre(Signalement dossier) => Titre(dossier.Description);
+
+    internal static string Titre(string description)
     {
-        var ligne = dossier.Description.Split('\n', 2)[0].Trim();
+        var ligne = description.Split('\n', 2)[0].Trim();
         return ligne.Length <= TitreMax ? ligne : string.Concat(ligne.AsSpan(0, TitreMax - 1), "…");
     }
 

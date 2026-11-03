@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -55,6 +56,8 @@ internal sealed class ServiceInterventions(
             prestataire = intervention.Prestataire,
             referentCompteId = intervention.ReferentCompteId,
         });
+        // Personne en charge (intervenant, ou référent du prestataire), déjà vérifiée membre du site ; pas R/D qui s'affecte.
+        context.Emettre(TypeNotification.Affectation, dossier, $"affectation:{intervention.Id:N}", [intervention.EnCharge], compte.Id, maintenant);
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return numero;
@@ -102,6 +105,31 @@ internal sealed class ServiceInterventions(
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Report du réexamen d'une attente par la personne en charge ou R/D (US-10, S10-03) : nouvelle date et commentaire,
+    /// tracés au journal avec l'ancienne date ; le délai reste suspendu et les rappels de réexamen repartent de la nouvelle date.
+    /// </summary>
+    internal async Task ReporterReexamenAsync(
+        Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeReport demande, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.DocumenterIntervention, cancellationToken).ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
+            .ConfigureAwait(false);
+        var maintenant = horloge.GetUtcNow();
+        var (ancienne, commentaire) = intervention.ReporterReexamen(demande.ReexamenLe, demande.Commentaire, maintenant);
+        context.ChangerVersion(dossier);
+        context.Tracer(dossier, NatureEvenementDossier.ReportReexamen, compte.Id, maintenant, new
+        {
+            numero,
+            ancienne,
+            nouvelle = intervention.ReexamenLe,
+            commentaire,
+        });
+        await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Reprise datée (DEC-03) : le temps d'attente du dossier s'ajoute à son délai de résolution.</summary>
     internal async Task ReprendreAsync(Guid organisationId, Guid siteId, Guid dossierId, int numero, DemandeVersion demande, CancellationToken cancellationToken)
     {
@@ -139,6 +167,11 @@ internal sealed class ServiceInterventions(
             : null;
         var photoExigee = PhotoExigee.Pour(lu, lieu);
         interventionLue.VerifierCloture(photos.Count, photoExigee);
+        // R/D du site lus avant la transaction si cette clôture doit clore le dossier (T-03.11) : plus aucune autre intervention
+        // ouverte (celles des cycles antérieurs sont toutes clôturées).
+        var derniere = !await context.Interventions.AnyAsync(
+            i => i.DossierId == dossierId && i.Numero != numero && i.Statut != StatutIntervention.Cloturee, cancellationToken).ConfigureAwait(false);
+        var destinataires = derniere ? await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false) : null;
 
         // 2. Photos préparées puis écrites hors transaction, sous des clés propres à cet envoi : le verrou du dossier n'est pas
         //    tenu pendant le téléversement ; retirées si la clôture n'aboutit pas, jamais celles d'un autre envoi.
@@ -162,6 +195,10 @@ internal sealed class ServiceInterventions(
         if (dossier.Statut == StatutDossier.Cloture)
         {
             context.Tracer(dossier, NatureEvenementDossier.Cloture, compte.Id, maintenant, detail: null);
+            // Autre intervention clôturée entre-temps : destinataires lus maintenant (lecture d'un autre module, rare).
+            destinataires ??= await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false);
+            context.Emettre(
+                TypeNotification.ClotureAutomatique, dossier, $"cloture:{intervention.Id:N}", destinataires.ResponsablesDelegues(), compte.Id, maintenant);
         }
 
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);

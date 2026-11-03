@@ -19,7 +19,7 @@ Ajouter liens de branche/PR, exécution CI, captures utiles et version livrée. 
 - Revue : PR disponible, résultats CI, documentation mise à jour.
 - Recette : revue technique acceptée, environnement accessible, scénarios fournis.
 - Prêt à livrer : recette approuvée par responsable habilité, déploiement/retour arrière préparés.
-- Livré : version effectivement déployée, vérification post-déploiement, site et date enregistrés. Fusionner du code ne suffit pas.
+- Livré : version effectivement déployée, vérification post-déploiement, site et date enregistrés. Fusionner du code ne suffit pas. Toute story qui change un comportement visible met à jour le chapitre concerné de `docs/manuel/` (texte et captures) avant Livré.
 
 ## Sprints
 SP-001, SP-002... sont des champs/labels, pas les listes du workflow. La planification suit ESTIMATIONS et la capacité réelle.
