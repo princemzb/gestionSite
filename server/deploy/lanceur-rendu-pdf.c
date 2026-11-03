@@ -9,9 +9,9 @@
  * et 2, ménage des processus du compte du rendu laissés par un rendu précédent, puis fork.
  *  - L'enfant prend définitivement le compte du rendu (groupes vidés ; identifiants réels, effectifs et sauvegardés),
  *    vérifie qu'il ne peut plus revenir en arrière, s'interdit tout nouveau privilège, demande au noyau d'être tué si le
- *    lanceur s'arrête, s'interdit de créer des processus (seccomp : un code exécuté dans PDFium ne peut pas laisser de
- *    copie de lui-même survivre au rendu, ni épier les rendus suivants), puis exécute le programme de rendu avec un
- *    environnement fixe.
+ *    lanceur s'arrête, s'interdit de créer des processus et d'ouvrir une connexion réseau (seccomp : un code exécuté
+ *    dans PDFium ne peut ni laisser de copie de lui-même survivre au rendu, ni épier les rendus suivants, ni joindre
+ *    l'API interne ou Internet), puis exécute le programme de rendu avec un environnement fixe.
  *  - Le lanceur abandonne tout privilège (identifiant réel : compte de l'API ; effectif et sauvegardé : compte du
  *    rendu), attend l'enfant et rend son code de sortie. L'API arrête un rendu en tuant le lanceur : l'enfant, qu'elle
  *    ne peut pas tuer elle-même, est alors tué par le noyau (PR_SET_PDEATHSIG).
@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -51,13 +52,16 @@ enum
  */
 enum
 {
+    X86_64_SOCKET = 41,
     X86_64_CLONE = 56,
     X86_64_FORK = 57,
     X86_64_VFORK = 58,
     X86_64_PRCTL = 157,
     X32_BIT = 0x40000000,
+    AARCH64_SOCKET = 198,
     AARCH64_CLONE = 220,
     AARCH64_PRCTL = 167,
+    IO_URING_SETUP = 425,
     CLONE3 = 435,
     DRAPEAU_FIL = 0x00010000 /* CLONE_THREAD */
 };
@@ -65,38 +69,50 @@ enum
 /*
  * Filtre seccomp de l'enfant : fork, vfork et clone sans CLONE_THREAD refusés (EPERM), clone3 indisponible (ENOSYS :
  * la bibliothèque C se replie sur clone pour créer des fils d'exécution), PR_SET_PDEATHSIG refusé (l'enfant ne peut pas
- * survivre à l'arrêt du lanceur), ABI x32 et autres architectures tuées.
+ * survivre à l'arrêt du lanceur), aucun réseau (socket refusé, et io_uring qui pourrait en ouvrir ; le rendu n'utilise
+ * que l'entrée, la sortie et la sortie d'erreur héritées), ABI x32 et autres architectures tuées.
  */
 static int interdire_processus(void)
 {
     struct sock_filter filtre[] = {
         /* 0 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
-        /* 1 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 0, 7),
+        /* 1 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 0, 8),
         /* 2 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
-        /* 3 */ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, X32_BIT, 17, 0),
-        /* 4 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_FORK, 14, 0),
-        /* 5 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_VFORK, 13, 0),
-        /* 6 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_CLONE, 7, 0),
-        /* 7 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_PRCTL, 8, 0),
-        /* 8 */ BPF_JUMP(BPF_JMP | BPF_JA, 4, 0, 0),
-        /* 9 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 11),
-        /* 10 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
-        /* 11 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_CLONE, 2, 0),
-        /* 12 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_PRCTL, 3, 0),
-        /* 13 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE3, 6, 4),
-        /* 14 : clone, drapeaux (32 bits de poids faible, petit-boutiste) */
+        /* 3 */ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, X32_BIT, 20, 0),
+        /* 4 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_FORK, 17, 0),
+        /* 5 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_VFORK, 16, 0),
+        /* 6 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_SOCKET, 15, 0),
+        /* 7 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_CLONE, 9, 0),
+        /* 8 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, X86_64_PRCTL, 10, 0),
+        /* 9 */ BPF_JUMP(BPF_JMP | BPF_JA, 5, 0, 0),
+        /* 10 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 13),
+        /* 11 */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+        /* 12 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_SOCKET, 9, 0),
+        /* 13 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_CLONE, 3, 0),
+        /* 14 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AARCH64_PRCTL, 4, 0),
+        /* 15 : communs aux deux architectures */
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IO_URING_SETUP, 6, 0),
+        /* 16 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE3, 6, 4),
+        /* 17 : clone, drapeaux (32 bits de poids faible, petit-boutiste) */
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
-        /* 15 */ BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, DRAPEAU_FIL, 2, 3),
-        /* 16 : prctl, option */
+        /* 18 */ BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, DRAPEAU_FIL, 2, 3),
+        /* 19 : prctl, option */
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
-        /* 17 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, PR_SET_PDEATHSIG, 1, 0),
-        /* 18 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        /* 19 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
-        /* 20 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
-        /* 21 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+        /* 20 */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, PR_SET_PDEATHSIG, 1, 0),
+        /* 21 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        /* 22 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
+        /* 23 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
+        /* 24 */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
     };
     struct sock_fprog programme = {.len = (unsigned short)(sizeof(filtre) / sizeof(filtre[0])), .filter = filtre};
     return prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &programme, 0L, 0L);
+}
+
+/* Filtres seccomp pris en charge par le noyau (et par l'émulateur éventuel) : action KILL_PROCESS reconnue. */
+static int seccomp_disponible(void)
+{
+    unsigned int action = SECCOMP_RET_KILL_PROCESS;
+    return syscall(SYS_seccomp, SECCOMP_GET_ACTION_AVAIL, 0, &action) == 0;
 }
 
 static int refuser(const char *etape, int erreur)
@@ -210,15 +226,17 @@ static int lancer_rendu(pid_t lanceur, char *argv[])
         return refuser("lanceur arrêté", 0);
     }
 
-    /* Seccomp absent (noyau sans filtre, émulation Rosetta) : seul cas toléré, le ménage du lanceur suivant reste. */
-    if (interdire_processus() != 0)
+    /*
+     * Filtres seccomp absents (noyau sans filtre, émulation Rosetta) : seul cas toléré, signalé, le compte dédié et le
+     * ménage du lanceur suivant restant. Filtres présents : tout échec de pose (programme refusé…) arrête le rendu.
+     */
+    if (!seccomp_disponible())
     {
-        if (errno != EINVAL)
-        {
-            return refuser("interdiction de créer des processus", errno);
-        }
-
-        dprintf(STDERR_FILENO, "lanceur-rendu-pdf : seccomp indisponible, création de processus permise\n");
+        dprintf(STDERR_FILENO, "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis\n");
+    }
+    else if (interdire_processus() != 0)
+    {
+        return refuser("filtre seccomp (processus, réseau)", errno);
     }
 
     if (chdir("/") != 0)

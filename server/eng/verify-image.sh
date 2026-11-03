@@ -7,7 +7,8 @@
 #  3. Témoin : sous le compte de l'API, la sonde lit l'environnement et la configuration de l'API (exposition de S21-05).
 #  4. Par le lanceur, la sonde a le compte du rendu : environnement, mémoire, descripteurs et signaux de l'API, de
 #     l'application web et du processus 1, environnement, mémoire et descripteurs du lanceur, configuration de l'API
-#     et du web, canal de diagnostic .NET, création d'un processus (seccomp, sauf image émulée) : tout est refusé.
+#     et du web, canal de diagnostic .NET, création d'un processus, désarmement de l'arrêt avec le lanceur, ouverture
+#     d'une connexion réseau (seccomp, sauf image émulée) : tout est refusé.
 #  5. L'arrêt du lanceur, seul geste permis à l'API, arrête l'enfant, que l'API ne peut pas tuer elle-même ; un processus
 #     du compte du rendu encore en vie est tué avant le rendu suivant (ménage), sans toucher à l'API ni au web.
 #     API et web créent leurs fichiers temporaires (formulaires reçus) en accès propriétaire seul.
@@ -46,7 +47,7 @@ demarrer() {
     -e Web__UrlPublique=https://localhost:8080 \
     -e Web__Cles__ServiceUrl=https://stockage.invalid -e Web__Cles__AccessKey=acces \
     -e Web__Cles__SecretKey="$SECRET" -e Web__Cles__Compartiment=cles -e Web__Cles__Region=auto \
-    -e Turnstile__CleSecrete="$SECRET" "$1"
+    -e Turnstile__CleSecrete="$SECRET" "${@:2}" "$1"
 }
 
 # PID d'un processus du conteneur d'après sa ligne de commande (motif « [x]… » : jamais la recherche elle-même).
@@ -83,7 +84,8 @@ esac
 readonly EMULEE
 
 # --- Isolation : la sonde à la place du programme de rendu --------------------------------------------------------------
-essai=$(demarrer "$ESSAI")
+# Sans le profil seccomp de Docker : seul le filtre du lanceur peut refuser (io_uring, réseau, processus).
+essai=$(demarrer "$ESSAI" --security-opt seccomp=unconfined)
 conteneurs+=("$essai")
 pids=$(attendre "$essai")
 read -r API WEB <<<"$pids"
@@ -91,20 +93,26 @@ echo "API $API, application web $WEB"
 
 temoin=$(docker exec -u app "$essai" dotnet /app/rendu-pdf/GestionSite.Modules.Patrimoine.RenduPdf.dll "$API" "$WEB" 1 1)
 echo "$temoin"
-for attendu in "ACCES environ-api" "ACCES config-api"; do
+for attendu in "ACCES environ-api" "ACCES config-api" "ACCES reseau"; do
   grep -qx "$attendu" <<<"$temoin" || echec "témoin : « $attendu » attendu sous le compte de l'API"
 done
 docker exec -u app "$essai" sh -c "tr '\0' '\n' < /proc/$API/environ" | grep -q "$SECRET" \
   || echec "témoin : secret fictif absent de l'environnement de l'API"
-ok "témoin : sous le compte de l'API, l'environnement (secret fictif) et la configuration de l'API sont lisibles"
+ok "témoin : sous le compte de l'API, l'environnement (secret fictif), la configuration de l'API et le réseau sont accessibles"
 
 sonde=$(docker exec -u app "$essai" "$LANCEUR" "$API" "$WEB" 1 1 2>&1)
 echo "$sonde"
-attendus=22
-if $EMULEE && grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus permise" <<<"$sonde"; then
-  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus et PR_SET_PDEATHSIG non vérifiés (vérifiés en natif)."
-  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
+attendus=24
+if grep -qx "lanceur-rendu-pdf : seccomp indisponible, création de processus et réseau permis" <<<"$sonde"; then
+  $EMULEE || echec "seccomp indisponible sur la plateforme native"
+  echo "AVERTISSEMENT : image émulée, seccomp indisponible : création de processus, PR_SET_PDEATHSIG et réseau non vérifiés (vérifiés en natif)."
+  sonde=$(grep -v -e "^ACCES processus$" -e "^ACCES pdeathsig$" -e "^ACCES reseau$" -e "^[A-Z]* io_uring" -e "^lanceur-rendu-pdf : seccomp" <<<"$sonde")
   attendus=20
+else
+  # Refus par seccomp (EPERM), et non par un autre module de sécurité (EACCES) ou faute de prise en charge.
+  for refus in "REFUS reseau IOException errno=1" "REFUS io_uring IOException errno=1"; do
+    grep -qx "$refus" <<<"$sonde" || echec "« $refus » attendu (filtre seccomp de l'enfant)"
+  done
 fi
 grep -qx "ENVIRONNEMENT DOTNET_EnableDiagnostics DOTNET_gcServer" <<<"$sonde" || echec "environnement de l'enfant non fixé"
 t=$'\t'
