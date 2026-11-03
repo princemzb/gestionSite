@@ -21,7 +21,8 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
         var (responsable, plan, _) = await PlanAsync();
         var fond = await FondAsync(plan, responsable);
         // Fond de 1 600 × 900 px : 1 200 px pour 12,00 m (1 cm par pixel), contrôle de 700 px pour 7,03 m (écart 0,4 %).
-        var calibre = Fond(fond, Cote((100, 100), (1300, 100), 12), Cote((100.004, 100), (100, 800.006), 7.03));
+        // Recalé sur le niveau inférieur (S21-08) : coin haut gauche du fond en (-1,254 m ; 3,006 m), au centimètre.
+        var calibre = Fond(fond, Cote((100, 100), (1300, 100), 12), Cote((100.004, 100), (100, 800.006), 7.03), (-1.254, 3.006));
 
         using var premiere = await EnregistrerAsync(plan, responsable, 0, calibre);
         using var deuxieme = await EnregistrerAsync(plan, responsable, 1, null); // repasse au plan vierge
@@ -40,6 +41,8 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
         Assert.Equal(1300, lu.GetProperty("calibration").GetProperty("a").GetProperty("x").GetDouble());
         Assert.Equal(100, lu.GetProperty("controle").GetProperty("de").GetProperty("x").GetDouble()); // au centième de pixel
         Assert.Equal(800.01, lu.GetProperty("controle").GetProperty("a").GetProperty("y").GetDouble());
+        Assert.Equal(-1.25, lu.GetProperty("decalage").GetProperty("x").GetDouble());
+        Assert.Equal(3.01, lu.GetProperty("decalage").GetProperty("y").GetDouble());
         Assert.Equal(JsonValueKind.Null, v2.GetProperty("contenu").GetProperty("fond").ValueKind);
         Assert.Equal(lu.GetRawText(), v3.GetProperty("contenu").GetProperty("fond").GetRawText());
     }
@@ -60,6 +63,7 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
             ["contenu.fond.calibration.a"] = Fond(fond, Cote((100, 100), (105, 108), 12), null), // moins de 10 px
             ["contenu.fond.calibration.distance"] = Fond(fond, Cote((100, 100), (1300, 100), 0.1), null),
             ["contenu.fond.controle.a"] = Fond(fond, calibration, Cote((100, 100), (100, 901), 7)), // au-delà des 900 px
+            ["contenu.fond.decalage"] = Fond(fond, calibration, null, (5000.01, 0)), // hors du repère (±5 km)
         };
         var reponses = new Dictionary<string, string?>();
         foreach (var (champ, contenu) in refus)
@@ -71,10 +75,12 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
         // Image de 1 600 px à 4,17 m par pixel : plus de 5 km, hors du repère.
         using var tropGrand = await EnregistrerAsync(plan, responsable, 0, Fond(fond, Cote((100, 100), (1300, 100), 5000), null));
         using var sansFondId = await EnregistrerAsync(plan, responsable, 0, new { calibration });
+        using var decalageIncomplet = await EnregistrerAsync(plan, responsable, 0, new { fondId = fond, calibration, decalage = new { x = 1 } });
 
         Assert.All(refus.Keys, champ => Assert.Equal(champ, reponses[champ]));
         Assert.Equal("contenu.fond.calibration.distance", await ChampAsync(tropGrand));
         Assert.Equal("contenu.fond.fondId", await ChampAsync(sansFondId));
+        Assert.Equal("contenu.fond.decalage", await ChampAsync(decalageIncomplet));
         Assert.Equal(0, await Database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
     }
 
@@ -138,7 +144,8 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
     private Task<HttpResponseMessage> EnregistrerAsync(Guid plan, string jeton, int version, object? fond) =>
         EnvoyerAsync(HttpMethod.Put, $"{Plans}/{plan}", jeton, new { commandeId = Guid.NewGuid(), version, contenu = new { schema = 1, fond } });
 
-    private static object Fond(Guid fondId, object? calibration, object? controle) => new { fondId, calibration, controle };
+    private static object Fond(Guid fondId, object? calibration, object? controle, (double X, double Y)? decalage = null) =>
+        new { fondId, calibration, controle, decalage = decalage is { } d ? new { x = d.X, y = d.Y } : null };
 
     private static object Cote((double X, double Y) de, (double X, double Y) a, double distance) =>
         new { de = new { x = de.X, y = de.Y }, a = new { x = a.X, y = a.Y }, distance };
