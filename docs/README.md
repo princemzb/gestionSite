@@ -18,6 +18,7 @@ Version 0.2 — 27 octobre 2026. Responsable de consolidation : assistant en rô
 - [Estimation tech lead et sprints](pilotage/ESTIMATIONS.md).
 - [Risques et arbitrages](pilotage/RISQUES.md).
 - [Tests et recette](qualite/RECETTE.md).
+- [Manuel d'utilisation](manuel/00-sommaire.md) de l'existant (source du livret PDF et de l'aide intégrée, [mode d'emploi](manuel/README.md)).
 - [Exploitation](exploitation/RUNBOOK.md), [guide utilisateurs](exploitation/GUIDE-UTILISATEURS.md).
 - [Suivi des versions et validations](pilotage/SUIVI.md).
 
