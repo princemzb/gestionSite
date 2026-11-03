@@ -4,6 +4,13 @@
     <PackageReference Include="AWSSDK.S3" />
     <!-- QR codes des sites (US-08) : MIT, sans dépendance graphique. -->
     <PackageReference Include="QRCoder" />
+    <!-- Aide intégrée (DOC-02) : rubriques du manuel rendues côté serveur, HTML brut refusé. -->
+    <PackageReference Include="Markdig" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Manuel d'utilisation (DOC-01), source unique de l'aide intégrée (DOC-02) : chapitres et captures embarqués. -->
+    <EmbeddedResource Include="../../../docs/manuel/*.md" Exclude="../../../docs/manuel/README.md" LogicalName="manuel/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../../docs/manuel/images/*.png" LogicalName="manuel/images/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="GestionSite.Api.Tests" />

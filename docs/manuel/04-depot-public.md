@@ -46,9 +46,15 @@ Le dépôt public permet à toute personne (fidèle, visiteur, prestataire) de s
 
 **Pour qui :** équipe du site (technicien, responsable, délégué, pasteur, coordination).
 
-**Où cliquer :** menu **Dossiers**.
+**Où cliquer :** menu **Dépôts reçus** pour la liste des signalements reçus ; menu **Dossiers** pour les traiter.
 
-Chaque signalement public devient un **dossier** dans la colonne **À qualifier** du site. Il se traite comme tout autre dossier : voir le chapitre [Dossiers](05-dossiers.md#dossiers).
+L'écran **Dépôts reçus** liste, du plus récent au plus ancien, les signalements envoyés depuis le lien public ou le QR code du site. Il est en lecture seule.
+
+- Chaque ligne indique **Reçu le**, le **Type** (**Incident** ou **Demande**, avec les étiquettes **Danger** et **Bloque une activité** le cas échéant), **Où** (l'emplacement écrit par le déclarant), la **Description** et le nombre de **Photos**.
+- Cliquez sur la date d'un signalement pour afficher son détail à droite : description, photos, **Déclarant**, **Contact** avec la mention « (non vérifié) », date de réception.
+- Si vous avez des rôles sur plusieurs sites, les onglets en haut de l'écran changent de site. Au-delà de 50 signalements, **Plus anciens** affiche la suite et **Les plus récents** revient au début.
+
+Chaque signalement public devient aussi un **dossier** dans la colonne **À qualifier** du site. C'est là qu'il se traite, comme tout autre dossier : voir le chapitre [Dossiers](05-dossiers.md#dossiers).
 
 - La zone n'est pas encore choisie : le dossier porte la mention « Zone à préciser ». Le responsable la choisit en le qualifiant.
 - L'emplacement écrit par le déclarant figure dans l'onglet **Constat**.

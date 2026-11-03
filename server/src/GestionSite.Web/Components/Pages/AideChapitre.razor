@@ -1,0 +1,104 @@
+@page "/aide/{Chapitre}"
+@page "/organisations/{OrganisationId:guid}/aide/{Chapitre}"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Aide
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject ManuelAide Manuel
+@inject LivretAide Livret
+@* Chapitre du manuel (DOC-02) : « Lire tout le chapitre » du panneau d'aide, chapitres de la page Aide. *@
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="aide" />
+<main class="admin-contenu aide-page">
+@if (Courant is null)
+{
+    <PageTitle>Aide · gestionSite</PageTitle>
+    <div class="entete"><div><h1>Chapitre introuvable</h1><p><a href="@BaseLiens">Revenir à l'aide</a></p></div></div>
+}
+else
+{
+    <PageTitle>@Courant.Titre · Aide · gestionSite</PageTitle>
+    <a class="aide-retour" href="@BaseLiens">← Aide</a>
+    <article class="carte aide-chapitre aide-contenu" aria-labelledby="@Courant.Ancre">
+        <span class="aide-surtitre">@(Courant.Numero == 0 ? "Manuel d'utilisation" : $"Chapitre {Courant.Numero}")</span>
+        <h1 id="@Courant.Ancre">@Courant.Titre</h1>
+        @((MarkupString)Manuel.RendreChapitre(Courant, BaseLiens))
+    </article>
+    <nav class="aide-suite" aria-label="Chapitres voisins">
+        @if (Precedent is { } precedent)
+        {
+            <a class="bouton-secondaire bouton-lien" href="@($"{BaseLiens}/{precedent.Nom}")">← @precedent.Titre</a>
+        }
+        @if (Livret.Libelle is { } libelle)
+        {
+            <a href="@LivretAide.Adresse">Livret complet (@libelle)</a>
+        }
+        @if (Suivant is { } suivant)
+        {
+            <a class="bouton-secondaire bouton-lien" href="@($"{BaseLiens}/{suivant.Nom}")">@suivant.Titre →</a>
+        }
+    </nav>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [Parameter] public string Chapitre { get; set; } = string.Empty;
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private ChapitreManuel? Courant { get; set; }
+
+    private ChapitreManuel? Precedent { get; set; }
+
+    private ChapitreManuel? Suivant { get; set; }
+
+    private string BaseLiens => OrganisationId == Guid.Empty ? "/aide" : $"/organisations/{OrganisationId}/aide";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Chapitre choisi parmi ceux du manuel : la valeur de la route sert seulement à comparer, jamais à produire le rendu.
+        Courant = Manuel.Chapitres.FirstOrDefault(c => string.Equals(c.Nom, Chapitre, StringComparison.Ordinal));
+        if (Courant is not null)
+        {
+            var rang = Manuel.Chapitres.ToList().IndexOf(Courant);
+            Precedent = rang > 1 ? Manuel.Chapitres[rang - 1] : null; // la présentation (00) n'est pas un chapitre à parcourir
+            Suivant = rang + 1 < Manuel.Chapitres.Count ? Manuel.Chapitres[rang + 1] : null;
+        }
+
+        (Organisation, RolesAppelant) = await LireOrganisationAsync(Session, Navigation, OrganisationId);
+    }
+
+    /// <summary>
+    /// Organisation et rôles de la personne pour le menu et l'ordre des tâches. L'aide reste lisible si l'API ne répond pas
+    /// ou si l'organisation n'est pas la sienne : seul le menu est alors réduit.
+    /// </summary>
+    internal static async Task<(OrganisationApi? Organisation, string[] Roles)> LireOrganisationAsync(
+        SessionApi session, NavigationManager navigation, Guid organisationId)
+    {
+        if (organisationId == Guid.Empty)
+        {
+            return (null, []);
+        }
+
+        try
+        {
+            var moi = await session.LireAsync<MoiApi>("/me", CancellationToken.None);
+            var organisation = moi.Organisations.FirstOrDefault(o => o.Id == organisationId);
+            return (organisation, organisation?.Roles.Select(r => r.Role).Distinct().ToArray() ?? []);
+        }
+        catch (SessionExpireeException)
+        {
+            navigation.NavigateTo("/connexion");
+            return (null, []);
+        }
+        catch (RefusApiException)
+        {
+            return (null, []);
+        }
+    }
+}

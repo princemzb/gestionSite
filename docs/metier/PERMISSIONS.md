@@ -16,6 +16,8 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Recevoir une alerte de danger (US-10, V 02/11) | Non | En charge d'une intervention ouverte du dossier seulement | Oui | Oui (information) | Non |
 | Prendre en compte un danger ; vérifier la mise en sécurité (US-10, V 02/11) ; lever ou écarter un danger (choix de l'agent, révisable) | Non | Non | Oui | Non | Non |
 | Déclarer une mise en sécurité réalisée (US-10, V 02/11) | Non | Oui | Oui | Oui | Non |
+| Consulter les dangers en cours du site et le suivi d'un danger (US-10, S10-04, choix de l'agent) | Non | Oui | Oui | Oui | Non implicite |
+| Modifier la consigne de danger du site (US-10, Q-M6 ; choix de l'agent : comme le numéro d'urgence) ; la lire : comptes internes du site et A | Non | Non | Non | Non | Oui |
 | Lancer IA | Non | Oui | Oui | Non | Non |
 | Valider estimation / engager budget | Non | Non | Oui selon délégation | Non | Non |
 | Enregistrer accord finance | Non | Non | Oui | Non | Non |
@@ -38,7 +40,7 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Justificatifs financiers (factures, devis, décisions finance) | R/D, P/C des sites autorisés | R/D |
 | Inventaire (bâtiments, niveaux, zones, composants, lots) | Comptes internes du site | R/D ; techniciens du site (ajout et correction tracés) |
 | Grilles d’évaluation | Comptes internes du site | R/D ; chaque modification crée une version |
-| Plans 2D | Comptes internes du site | R/D ; droit attribuable nominativement par A à tout membre interne du site (T, P, C), site par site (US-21, V 30/10) ; chaque modification crée une version |
+| Plans 2D | Comptes internes du site, historique compris | R/D ; droit attribuable nominativement par A à tout membre interne du site (T, P, C), site par site (US-21, V 30/10) ; chaque modification crée une version ; restauration d'une version par les mêmes, motif obligatoire ; objets de valeur (équipements de culte, case « objet de valeur » cochée par qui modifie l'inventaire, V 03/11) jamais placés, position jamais servie |
 | QR code et lien public d’un site (US-08, V 28/10) | A (tous les sites) ; R/D (leurs sites) | — (dérivés du site) |
 | Dépôts publics reçus, liste en lecture (US-08, V 28/10) | T, R/D, P/C du site | — (traitement : US-09) |
 

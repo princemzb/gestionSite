@@ -3,6 +3,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="membres" />
 <main class="admin-contenu">
+<AideEcran Ecran="membres" OrganisationId="@OrganisationId" />
 @attribute [Authorize]
 @inject SessionApi Session
 @inject NavigationManager Navigation

@@ -17,6 +17,7 @@ public sealed class ValidationPlanTests
     private static readonly Guid Baes = Guid.NewGuid();
     private static readonly Guid Retire = Guid.NewGuid();
     private static readonly Guid Calice = Guid.NewGuid();
+    private static readonly Guid Coffre = Guid.NewGuid();
     private static readonly Guid AEtage = Guid.NewGuid();
 
     private static readonly CadrePlan Cadre = new(
@@ -32,11 +33,12 @@ public sealed class ValidationPlanTests
         new HashSet<Guid> { Etage },
         new Dictionary<Guid, ComposantCadre>
         {
-            [Extincteur] = new(Extincteur, Nef, CorpsEtat.SecuriteIncendie, false),
-            [Baes] = new(Baes, Sacristie, CorpsEtat.EclairageSecurite, false),
-            [Retire] = new(Retire, Nef, CorpsEtat.Mobilier, true),
-            [Calice] = new(Calice, Sacristie, CorpsEtat.EquipementsCulte, false),
-            [AEtage] = new(AEtage, AutreNiveau, CorpsEtat.Mobilier, false),
+            [Extincteur] = new(Extincteur, Nef, CorpsEtats.ExcluDesPlans(CorpsEtat.SecuriteIncendie, objetDeValeur: false), false),
+            [Baes] = new(Baes, Sacristie, false, false),
+            [Retire] = new(Retire, Nef, false, true),
+            [Calice] = new(Calice, Sacristie, CorpsEtats.ExcluDesPlans(CorpsEtat.EquipementsCulte, objetDeValeur: false), false),
+            [Coffre] = new(Coffre, Nef, CorpsEtats.ExcluDesPlans(CorpsEtat.Mobilier, objetDeValeur: true), false),
+            [AEtage] = new(AEtage, AutreNiveau, false, false),
         });
 
     [Fact]
@@ -143,6 +145,7 @@ public sealed class ValidationPlanTests
         { "escalier inconnu", "contenu.escaliers[0].type" },
         { "composant retiré", "contenu.composants[0].composantId" },
         { "objet de valeur", "contenu.composants[0].composantId" },
+        { "objet de valeur coché", "contenu.composants[0].composantId" },
         { "composant d'un autre niveau", "contenu.composants[0].composantId" },
         { "composant inconnu", "contenu.composants[0].composantId" },
         { "composant placé deux fois", "contenu.composants[1].composantId" },
@@ -201,6 +204,7 @@ public sealed class ValidationPlanTests
             "escalier inconnu" => plan with { Escaliers = [Escalier("Echelle", Etage)] },
             "composant retiré" => plan with { Composants = [Marqueur(Retire, 2, 2)] },
             "objet de valeur" => plan with { Composants = [Marqueur(Calice, 12, 2)] },
+            "objet de valeur coché" => plan with { Composants = [Marqueur(Coffre, 2, 2)] },
             "composant d'un autre niveau" => plan with { Composants = [Marqueur(AEtage, 2, 2)] },
             "composant inconnu" => plan with { Composants = [Marqueur(Guid.NewGuid(), 2, 2)] },
             "composant placé deux fois" => plan with { Composants = [Marqueur(Extincteur, 2, 2), Marqueur(Extincteur, 3, 3)] },
@@ -234,8 +238,9 @@ public sealed class ValidationPlanTests
     [Fact]
     public void ValuablesAreNeverPlaced()
     {
-        Assert.True(ValidationPlan.ObjetDeValeur(CorpsEtat.EquipementsCulte));
-        Assert.False(ValidationPlan.ObjetDeValeur(CorpsEtat.SecuriteIncendie));
+        Assert.True(CorpsEtats.ExcluDesPlans(CorpsEtat.EquipementsCulte, objetDeValeur: false)); // exclus d'office
+        Assert.True(CorpsEtats.ExcluDesPlans(CorpsEtat.Mobilier, objetDeValeur: true)); // case « objet de valeur » (03/11)
+        Assert.False(CorpsEtats.ExcluDesPlans(CorpsEtat.SecuriteIncendie, objetDeValeur: false));
     }
 
     // Nef (10 × 8 m) et sacristie (4 × 8 m) côte à côte, porte sur le mur commun, escalier vers l'étage, extincteur dans la nef.

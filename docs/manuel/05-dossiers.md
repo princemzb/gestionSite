@@ -179,6 +179,10 @@ Le dossier passe **En cours**. Le délai de résolution s'affiche.
 
 Pour reprendre, cliquez sur **Reprendre** : l'intervention repasse **En cours**.
 
+**Erreur fréquente**
+
+- « Mettez d'abord en sécurité : un danger de ce dossier n'a pas de mise en sécurité déclarée. » Un dossier en danger ne peut pas attendre tant qu'aucune mise en sécurité n'a été déclarée réalisée (voir [Le danger](10-workflows.md#workflows-danger)).
+
 ## Clôturer une intervention {#dossiers-cloturer}
 
 **Pour qui :** le technicien affecté, le référent du prestataire, ou un responsable ou délégué.

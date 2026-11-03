@@ -6,6 +6,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
 <main class="admin-contenu">
+<AideEcran Ecran="declarer" OrganisationId="@OrganisationId" />
 <PageTitle>Déclarer un problème · gestionSite</PageTitle>
 
 @if (SiteCourant is null)

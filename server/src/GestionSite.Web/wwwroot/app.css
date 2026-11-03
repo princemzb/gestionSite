@@ -20,6 +20,8 @@
   --etape-courante-fond: #000740; --etape-courante-texte: #FFFFFF;
   --etape-fond: #F4F4F5;
   --page-fond: #F4F4F5;
+  --panneau-fond: #FFFFFF; /* panneau d'aide (DOC-02), opaque au-dessus de la page */
+  --aide-accueil-fond: linear-gradient(135deg, #E6E6ECA3 0%, #A5C4FFA3 100%), #FFFFFF;
 }
 [data-theme="nuit"] {
   --fond: transparent;
@@ -42,6 +44,8 @@
   --etape-courante-fond: #FFFFFF; --etape-courante-texte: #000740;
   --etape-fond: #FFFFFF14;
   --page-fond: radial-gradient(circle at 98% 4%, #005DC46B, #0000 42%), linear-gradient(135deg, #07090D 0%, #0A111D 52%, #16284A 100%);
+  --panneau-fond: #0D1626;
+  --aide-accueil-fond: radial-gradient(circle at 68% 76%, #005DC4B8, #0000 36%), linear-gradient(132deg, #0B1118 0%, #152A58 44%, #5D5DF3 100%);
 }
 
 * { box-sizing: border-box; }
@@ -505,6 +509,106 @@ form.formulaire-inventaire { padding: 0; }
   .ligne-releve label:first-child { grid-column: 1 / -1; }
 }
 
+/* Aide intégrée (DOC-02, maquettes A validées le 03/11) : bouton « ? Aide sur cet écran » et panneau latéral (popover HTML
+   natif, sans script), qui monte du bas sur tablette en portrait et téléphone ; page Aide par rôle et chapitres du manuel. */
+.aide-barre { display: flex; justify-content: flex-end; }
+.formulaire .aide-barre { margin-bottom: -8px; }
+.bouton-aide { min-height: 44px; padding: 0 18px 0 10px; border: 2px solid var(--lien); border-radius: 999px; background: color-mix(in srgb, var(--lien) 12%, transparent);
+  color: var(--encre); font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.aide-pastille { width: 24px; height: 24px; border-radius: 999px; background: var(--lien); color: var(--etape-courante-texte); display: inline-flex;
+  align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+.bouton-aide:focus-visible, .aide-fermer:focus-visible, .aide-panneau a:focus-visible, .aide-page a:focus-visible { outline: 3px solid var(--lien); outline-offset: 2px; }
+.aide-panneau { position: fixed; inset: 0 0 0 auto; width: min(420px, 100vw); height: 100dvh; max-height: none; margin: 0; padding: 0; border: none;
+  border-left: 1px solid var(--surface-bordure); background: var(--panneau-fond); color: var(--encre); box-shadow: -12px 0 40px #00074024;
+  flex-direction: column; overflow: hidden; }
+.aide-panneau:popover-open { display: flex; }
+.aide-panneau-entete { padding: 22px 24px 16px; border-bottom: 1px solid var(--bordure-forte); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.aide-panneau-entete h2 { margin: 4px 0 0; font-size: 22px; }
+.aide-surtitre { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--encre-2); }
+.aide-fermer { flex: none; width: 44px; height: 44px; border: 1px solid var(--bordure-forte); border-radius: 999px; background: transparent; color: var(--encre);
+  font: inherit; font-size: 22px; line-height: 1; cursor: pointer; }
+.aide-panneau-corps { flex: 1; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 12px; }
+.aide-autres { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.aide-autres span { font-size: 13px; font-weight: 600; color: var(--encre-2); }
+.aide-panneau-pied { padding: 16px 24px 20px; border-top: 1px solid var(--bordure-forte); display: flex; flex-direction: column; gap: 10px; }
+.aide-panneau-pied .bouton-principal { height: 44px; }
+.aide-livret { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--encre-2); }
+
+/* Texte du manuel (panneau et chapitre) : rendu côté serveur, sans HTML brut. */
+.aide-contenu { font-size: 15px; line-height: 1.55; }
+.aide-contenu > :first-child { margin-top: 0; }
+.aide-contenu p, .aide-contenu ul, .aide-contenu ol { margin: 0 0 10px; }
+.aide-contenu li + li { margin-top: 4px; }
+.aide-contenu h2 { font-size: 22px; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 2px solid color-mix(in srgb, var(--lien) 25%, transparent); scroll-margin-top: 16px; }
+.aide-contenu h3 { font-size: 17px; margin: 18px 0 8px; scroll-margin-top: 16px; }
+.aide-contenu blockquote { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--alerte-fond); color: var(--encre); }
+.aide-contenu blockquote > :last-child { margin-bottom: 0; }
+.aide-contenu table { min-width: 0; margin: 0 0 12px; font-size: 14px; display: block; overflow-x: auto; }
+.aide-contenu th, .aide-contenu td { padding: 8px 12px; vertical-align: top; }
+.aide-contenu code { font-size: 0.92em; padding: 1px 5px; border-radius: 6px; background: var(--etape-fond); }
+.aide-figure { display: block; margin: 8px 0 12px; }
+.aide-figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--bordure-forte); border-radius: 12px; }
+.aide-figure img.telephone { max-width: min(100%, 280px); }
+.aide-figure .legende { display: block; margin-top: 4px; font-size: 13px; color: var(--encre-2); }
+.aide-schema { padding: 12px 14px; border-radius: 12px; background: var(--etape-fond); font-size: 14px; color: var(--encre-2); }
+
+/* Page Aide (proposition A : par rôle) et page d'un chapitre. */
+.aide-accueil { border-radius: 24px; padding: 28px; background: var(--aide-accueil-fond); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.aide-accueil-texte { flex: 1 1 420px; max-width: 580px; display: flex; flex-direction: column; gap: 8px; }
+.aide-accueil h1 { margin: 0; font-size: 32px; }
+.aide-accueil p { margin: 0; color: var(--encre-2); }
+.aide-recherche { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.aide-recherche label { font-size: 14px; }
+.aide-recherche-ligne { display: flex; gap: 8px; }
+.aide-recherche input { flex: 1; min-width: 0; height: 46px; border: 1px solid var(--bordure-forte); border-radius: 999px; padding: 0 18px; font: inherit;
+  background: var(--champ-fond); color: var(--encre); }
+.aide-recherche .bouton-secondaire { height: 46px; background: var(--champ-fond); }
+.aide-resultats { padding: 20px 24px; }
+.aide-resultats h2 { margin: 0 0 12px; font-size: 18px; }
+.aide-resultats ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.aide-resultats li { display: flex; flex-direction: column; gap: 2px; }
+.aide-resultats li a { font-weight: 600; }
+.aide-resultats li p { margin: 2px 0 0; font-size: 14px; color: var(--encre-2); }
+.aide-intertitre { margin: 4px 0 0; font-size: 18px; }
+.aide-intertitre span { font-weight: 400; font-size: 14px; color: var(--encre-2); }
+.aide-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.aide-role { padding: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.aide-role strong { font-size: 16px; }
+.aide-role.sien { border: 2px solid var(--lien); }
+.aide-role.sien .aide-surtitre { color: var(--lien); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.aide-role .aide-surtitre { text-transform: none; letter-spacing: 0; }
+.aide-chapitres { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; font-size: 14px; }
+.aide-chapitres a { min-height: 44px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--surface-bordure); color: var(--encre);
+  text-decoration: none; display: flex; align-items: center; gap: 6px; }
+.aide-chapitres a:hover { color: var(--encre); box-shadow: inset 0 0 0 2px var(--lien); }
+.aide-retour { font-size: 15px; }
+.aide-chapitre { padding: 28px 32px; max-width: 920px; }
+.aide-chapitre h1 { margin: 4px 0 16px; font-size: 30px; }
+.aide-chapitre .aide-figure img { max-width: min(100%, 760px); }
+.aide-chapitre .aide-figure img.telephone { max-width: min(100%, 320px); }
+.aide-suite { max-width: 920px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+
+/* Tablette en portrait et téléphone (maquette A tablette) : le panneau monte du bas, la page est assombrie derrière. */
+@media (max-width: 900px) {
+  .aide-panneau { inset: auto 0 0 0; width: 100%; height: min(78dvh, 720px); border-left: none; border-top: 1px solid var(--surface-bordure);
+    border-radius: 24px 24px 0 0; box-shadow: 0 -12px 40px #00074029; }
+  .aide-panneau::backdrop { background: #00074033; }
+  .aide-chapitre { padding: 20px 18px; }
+}
+@media (max-width: 640px) {
+  .aide-accueil { padding: 20px; }
+  .aide-accueil h1 { font-size: 26px; }
+  .bouton-aide { padding: 0 14px 0 8px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .aide-panneau { transition: transform 0.2s ease-out, display 0.2s allow-discrete, overlay 0.2s allow-discrete; }
+  .aide-panneau:popover-open { transform: none; }
+  @starting-style { .aide-panneau:popover-open { transform: translateX(100%); } }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 900px) {
+  @starting-style { .aide-panneau:popover-open { transform: translateY(100%); } }
+}
+
 /* Éditeur de plans de bâtiment (US-21, S21-07) : maquettes A « Atelier » (outils à gauche, plan au centre, propriétés à
    droite, sélecteur de niveau) et C « parcours guidé ». Couleurs des cotes : celles des maquettes (bleu, violet). */
 .editeur { --plan-cote: #1E6CFF; --plan-controle: #7569FF; display: flex; gap: 12px; min-height: 560px; height: calc(100vh - 230px); }
@@ -523,7 +627,6 @@ form.formulaire-inventaire { padding: 0; }
 .pieces text, .cotes text { fill: var(--encre); font-family: Inter, system-ui, sans-serif; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
 .pieces .ouverture { stroke: var(--encre); stroke-width: 3px; vector-effect: non-scaling-stroke; }
 .pieces .escalier { fill: #00074010; stroke: var(--encre-2); stroke-dasharray: 4 3; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
-.pieces .composant { fill: var(--lien); }
 .calque-inferieur polygon { fill: none; stroke: var(--encre-3); stroke-width: 1.5px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
 .cotes line { stroke-width: 3px; vector-effect: non-scaling-stroke; }
 .cotes .calibration { stroke: var(--plan-cote); fill: var(--plan-cote); }
@@ -588,6 +691,28 @@ form.formulaire-inventaire { padding: 0; }
 .editeur-marge ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 .editeur-zone { display: flex; flex-direction: column; gap: 8px; }
 .editeur-panneau select { min-height: 44px; }
+
+/* Composants sur le plan et historique des versions (S21-09, maquette A) : pastilles nommées, liste « placé / à placer »,
+   versions à consulter. Hors du contour de sa zone : couleur d'alerte. */
+.marqueurs .marqueur circle { fill: var(--lien); stroke: var(--surface); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.marqueurs .marqueur.hors-zone circle { fill: var(--alerte); }
+.marqueurs .marqueur.selectionne circle { fill: var(--plan-selection); stroke-width: 3px; }
+.marqueurs text { fill: var(--lien); stroke: var(--surface); stroke-width: 4px; paint-order: stroke; vector-effect: non-scaling-stroke; font-family: Inter, system-ui, sans-serif; font-weight: 600; dominant-baseline: middle; }
+.marqueurs .hors-zone text { fill: var(--alerte); }
+.marqueurs .selectionne text { fill: var(--plan-selection); }
+.editeur-sous-titre { margin: 6px 0 0; font-size: 14px; color: var(--encre-2); }
+.editeur-composants { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.editeur-composants li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--etape-fond); font-size: 14px; }
+.editeur-composants li.vide { padding: 0; background: transparent; color: var(--encre-2); }
+.editeur-composants li.a-placer { outline: 2px solid var(--plan-selection); outline-offset: -2px; background: var(--surface); }
+.editeur-composants .texte { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.editeur-composants .texte strong { font-weight: 600; overflow-wrap: anywhere; }
+.editeur-composants .bouton-secondaire { height: 40px; padding: 0 14px; font-size: 14px; }
+.editeur-composants .bouton-secondaire[aria-pressed="true"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); }
+.editeur-version { display: flex; flex-direction: column; gap: 10px; }
+.editeur-versions { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.editeur-version-choix { width: 100%; min-height: 48px; padding: 8px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 12px; border: 1px solid var(--bordure-forte); background: transparent; color: var(--encre); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.editeur-version-choix[aria-current="true"] { border: 2px solid var(--plan-selection); background: var(--surface); }
 
 /* Tablette en portrait et téléphone : plan d'abord, propriétés dessous, outils en ligne. */
 @media (max-width: 1100px) {

@@ -12,6 +12,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="plans" />
 <main class="admin-contenu editeur-page">
+<AideEcran Ecran="plans" OrganisationId="@OrganisationId" />
 <PageTitle>Plans · gestionSite</PageTitle>
 
 @if (Message is not null)
@@ -69,6 +70,11 @@ else
                     }
                 </nav>
             }
+            @if (Mode == "atelier")
+            {
+                @* Historique consultable par les lecteurs (RP-21.8) ; restauration réservée à qui peut enregistrer. *@
+                <button type="button" class="bouton-secondaire" data-action="historique" aria-pressed="false">Historique</button>
+            }
             @if (Modifiable && Mode == "atelier")
             {
                 <button type="button" class="bouton-principal" data-action="enregistrer" disabled>Enregistrer</button>
@@ -105,7 +111,8 @@ else
         <div class="editeur" id="editeur-plan" data-mode="@Mode" data-organisation="@OrganisationId" data-site="@SiteCourant.Id"
              data-batiment="@BatimentCourant.Id" data-niveau="@NiveauCourant?.Id" data-plan="@PlanCourant?.Id" data-compte="@CompteId"
              data-modifiable="@(Modifiable ? "true" : "false")" data-jeton="@Jeton" data-niveau-nom="@NomNiveau"
-             data-plan-inferieur="@PlanInferieur?.Id" data-niveau-inferieur="@NiveauInferieur?.Nom" data-zones="@ZonesJson" data-cadre="@CadreJson">
+             data-plan-inferieur="@PlanInferieur?.Id" data-niveau-inferieur="@NiveauInferieur?.Nom" data-zones="@ZonesJson" data-cadre="@CadreJson"
+             data-composants="@ComposantsJson">
             @if (Mode == "atelier")
             {
                 <div class="carte editeur-outils" role="toolbar" aria-label="Outils">
@@ -118,6 +125,7 @@ else
                         {
                             <button type="button" class="outil" data-outil="escalier" aria-pressed="false" title="Escalier ou ascenseur vers un autre niveau"><span aria-hidden="true">≡</span><span class="visuellement-masque">Escalier ou ascenseur</span></button>
                         }
+                        <button type="button" class="outil" data-outil="composant" aria-pressed="false" title="Composant : placer un composant de l'inventaire"><span aria-hidden="true">●</span><span class="visuellement-masque">Composant</span></button>
                     }
                     <button type="button" class="outil" data-outil="cote" aria-pressed="false" title="Cote : mesurer une longueur"><span aria-hidden="true">↔</span><span class="visuellement-masque">Cote</span></button>
                     <span class="outils-espace"></span>
@@ -133,6 +141,7 @@ else
                     <g data-role="fond"></g>
                     <g data-role="calque" class="calque-inferieur" hidden></g>
                     <g data-role="pieces" class="pieces"></g>
+                    <g data-role="marqueurs" class="marqueurs"></g>
                     <g data-role="selection" class="selection"></g>
                     <g data-role="cotes" class="cotes"></g>
                 </svg>
@@ -184,9 +193,14 @@ else
                                 <button type="button" class="bouton-secondaire" data-action="recaler" hidden>Recaler sur @(NiveauInferieur!.Nom)</button>
                             }
                         </div>
-                        <p class="note">Outils à gauche : pièce (une zone de l'inventaire par contour), porte, baie ou fenêtre posée sur une arête, escalier ou ascenseur vers un autre niveau. Touchez un élément pour le modifier.</p>
+                        <p class="note">Outils à gauche : pièce (une zone de l'inventaire par contour), porte, baie ou fenêtre posée sur une arête, escalier ou ascenseur vers un autre niveau, composant de l'inventaire. Touchez un élément pour le modifier.</p>
                     }
                     @ZonesMarge
+                    @if (Administrateur)
+                    {
+                        @* Accès au droit nominatif depuis l'éditeur : son écran est dans Membres (US-31, S31-02). *@
+                        <p class="note">Modifient ce plan : les responsables et délégués du site, et les membres à qui vous accordez le droit « modifier les plans du bâtiment » dans <a href="@($"/organisations/{OrganisationId}/membres")">Membres</a>.</p>
+                    }
                 </div>
 
                 @if (Modifiable)
@@ -293,8 +307,12 @@ else
                             <dt>Sommets</dt><dd data-role="piece-sommets"></dd>
                         </dl>
                         <p class="alerte danger" data-role="piece-defaut" hidden></p>
+                        @* Maquette A : composants de la zone, placés (●) ou à placer (○). *@
+                        <h3 class="editeur-sous-titre">Composants de la zone</h3>
+                        <ul class="editeur-composants" data-role="piece-composants"></ul>
+                        <p class="note" data-role="piece-exclus" hidden></p>
                         @Sommet("piece")
-                        @Deplacer("la pièce")
+                        @Deplacer("la pièce ou le sommet sélectionné")
                         <div class="editeur-actions-panneau">
                             <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
                             <button type="button" class="bouton-danger" data-action="supprimer-element">Supprimer la pièce</button>
@@ -337,10 +355,46 @@ else
                         </dl>
                         <p class="alerte danger" data-role="escalier-defaut" hidden></p>
                         @Sommet("escalier")
-                        @Deplacer("l'escalier")
+                        @Deplacer("l'escalier ou le sommet sélectionné")
                         <div class="editeur-actions-panneau">
                             <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
                             <button type="button" class="bouton-danger" data-action="supprimer-element">Supprimer</button>
+                        </div>
+                    </div>
+
+                    @* Composants sur le plan (S21-09, RP-21.7) : étape 4 du parcours guidé (C) et outil « Composant » de l'atelier (A). *@
+                    <div data-panneau="composants" hidden>
+                        <h2>Placer les composants</h2>
+                        <p class="note" data-role="composants-avancement"></p>
+                        <p class="note" data-role="composants-consigne"></p>
+                        <ul class="editeur-composants" data-role="composants-liste"></ul>
+                        <p class="note">Objets de valeur (équipements de culte et composants cochés « objet de valeur » dans l'inventaire) : jamais placés sur le plan.@(NiveauCourant is null ? "" : " Composants des Parties communes : sans marqueur.")</p>
+                        <div class="editeur-actions-panneau">
+                            @if (Mode == "guide")
+                            {
+                                <button type="button" class="bouton-principal" data-action="terminer-composants">Terminer le plan</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="bouton-secondaire" data-action="fermer-composants">Fermer</button>
+                            }
+                        </div>
+                    </div>
+
+                    <div data-panneau="marqueur" hidden>
+                        <h2 data-role="marqueur-nom">Composant</h2>
+                        <dl class="editeur-proprietes">
+                            <dt>Zone</dt><dd data-role="marqueur-zone"></dd>
+                        </dl>
+                        <p class="alerte avertissement" data-role="marqueur-hors-zone" hidden>Hors du contour de sa zone : accepté, vérifiez l'emplacement.</p>
+                        <div class="editeur-champs-pdf">
+                            <label class="champ">X (m)<input type="text" inputmode="decimal" data-champ="marqueur-x" autocomplete="off" /></label>
+                            <label class="champ">Y (m)<input type="text" inputmode="decimal" data-champ="marqueur-y" autocomplete="off" /></label>
+                        </div>
+                        @Deplacer("le composant")
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="deselectionner">Fermer</button>
+                            <button type="button" class="bouton-danger" data-action="supprimer-element">Retirer du plan</button>
                         </div>
                     </div>
 
@@ -354,6 +408,35 @@ else
                             <button type="button" class="bouton-secondaire" data-action="recalage-annuler">Annuler</button>
                             <button type="button" class="bouton-secondaire" data-action="recalage-recommencer">Recommencer</button>
                             <button type="button" class="bouton-principal" data-action="valider-recalage" disabled>Valider le recalage</button>
+                        </div>
+                    </div>
+                }
+
+                @if (Mode == "atelier")
+                {
+                    @* Historique (S21-09, RP-21.8) : versions par pages, lecture d'une version, restauration avec motif obligatoire. *@
+                    <div data-panneau="historique" hidden>
+                        <h2>Historique des versions</h2>
+                        <div class="editeur-version" data-role="version-detail" hidden>
+                            <p class="alerte avertissement" data-role="version-titre"></p>
+                            <p class="note" data-role="version-precisions" hidden></p>
+                            <button type="button" class="bouton-secondaire" data-action="version-courante">Revenir à la version courante</button>
+                            @if (Modifiable)
+                            {
+                                <form class="editeur-zone" data-role="restaurer">
+                                    <label class="champ">Motif de la restauration <span class="aide">(obligatoire)</span>
+                                        <input type="text" name="motif" maxlength="500" autocomplete="off" />
+                                    </label>
+                                    <p class="note">La version restaurée est recopiée dans une nouvelle version ; les versions suivantes restent dans l'historique.</p>
+                                    <p class="note" data-role="restaurer-impossible" hidden>Enregistrez ou abandonnez d'abord vos modifications en cours.</p>
+                                    <button type="submit" class="bouton-principal">Restaurer cette version</button>
+                                </form>
+                            }
+                        </div>
+                        <ol class="editeur-versions" data-role="versions"></ol>
+                        <button type="button" class="bouton-secondaire" data-action="versions-suivantes" hidden>Versions plus anciennes</button>
+                        <div class="editeur-actions-panneau">
+                            <button type="button" class="bouton-secondaire" data-action="fermer-historique">Fermer l'historique</button>
                         </div>
                     </div>
                 }
@@ -413,7 +496,13 @@ else
     // l'inventaire (technicien, responsable ou délégué du site) ; l'API de l'inventaire reste juge et l'inscrit au journal.
     private bool CreerZones { get; set; }
 
+    // Composants placables sur ce plan (S21-09, RP-21.7) et nombre d'objets de valeur écartés par zone.
+    private string ComposantsJson { get; set; } = "{}";
+
     private string? Message { get; set; }
+
+    // Lien vers le droit nominatif « modifier les plans » (écran Membres, US-31) : administrateur seulement.
+    private bool Administrateur => RolesAppelant.Contains("Administrateur", StringComparer.Ordinal);
 
     // Plan masse d'un bâtiment sans niveau (RP-21.1).
     private string NomNiveau => NiveauCourant?.Nom ?? "Plan masse";
@@ -456,6 +545,11 @@ else
             CadreJson = JsonSerializer.Serialize(
                 new { niveauId = NiveauCourant?.Id, zones = batiment.Zones, niveaux = batiment.Niveaux }, JsonSerializerOptions.Web);
             CreerZones = Modifiable && Perimetre.ARole(Organisation, site.Id, "Technicien", "Responsable", "Delegue");
+            if (Mode != "absent")
+            {
+                ComposantsJson = await ComposantsAsync(api, batiment);
+            }
+
             Jeton = Contexte is null ? null : Antifalsification.GetAndStoreTokens(Contexte).RequestToken;
         }
         catch (SessionExpireeException)
@@ -470,6 +564,40 @@ else
         {
             Message = "Service momentanément indisponible : réessayez dans un instant.";
         }
+    }
+
+    // Composants actifs des zones du niveau (plan masse : zones sans niveau), comme le serveur les accepte. Les objets de
+    // valeur (équipements de culte, case « objet de valeur ») ne sont jamais envoyés à l'éditeur : seul leur nombre par
+    // zone l'est, pour le dire dans le panneau de la pièce. Noms insérés par textContent.
+    private async Task<string> ComposantsAsync(string api, BatimentApi batiment)
+    {
+        // Règle d'exclusion de l'API (exclusDesPlans) : une seule source. Liste du bâtiment bornée à 1 000 composants ;
+        // tronquée, elle est relue zone par zone pour ce niveau, pour ne manquer aucun composant placable.
+        var zonesDuPlan = batiment.Zones.Where(z => z.NiveauId == NiveauCourant?.Id).Select(z => z.Id).ToList();
+        var liste = await Session.LireAsync<ListeComposantsApi>($"{api}/components?batimentId={batiment.Id}", CancellationToken.None);
+        var tronquee = false;
+        List<ComposantApi> duPlan;
+        if (!liste.Tronquee)
+        {
+            duPlan = [.. liste.Composants.Where(c => zonesDuPlan.Contains(c.ZoneId))];
+        }
+        else
+        {
+            duPlan = [];
+            foreach (var zone in zonesDuPlan)
+            {
+                var parZone = await Session.LireAsync<ListeComposantsApi>($"{api}/components?zoneId={zone}", CancellationToken.None);
+                duPlan.AddRange(parZone.Composants);
+                tronquee |= parZone.Tronquee;
+            }
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            placables = duPlan.Where(c => !c.ExcluDesPlans).Select(c => new { id = c.Id, nom = c.Nom, zoneId = c.ZoneId }),
+            exclus = duPlan.Where(c => c.ExcluDesPlans).GroupBy(c => c.ZoneId).ToDictionary(g => g.Key, g => g.Count()),
+            tronquee,
+        });
     }
 
     // Zones listées à côté du plan, sans contour (Parties communes, zones sans niveau), remplies par l'éditeur.
@@ -514,7 +642,7 @@ else
     // Déplacement par boutons (alternative au glisser, WCAG 2.5.7) : 10 cm par appui, le sommet sélectionné ou l'élément.
     private static RenderFragment Deplacer(string quoi) => __builder =>
     {
-        <div class="editeur-pousser" role="group" aria-label="@($"Déplacer {quoi} ou le sommet sélectionné de 10 cm")">
+        <div class="editeur-pousser" role="group" aria-label="@($"Déplacer {quoi} de 10 cm")">
             <button type="button" class="bouton-vue" data-pousser="-1 0" aria-label="Vers la gauche">←</button>
             <button type="button" class="bouton-vue" data-pousser="0 -1" aria-label="Vers le haut">↑</button>
             <button type="button" class="bouton-vue" data-pousser="0 1" aria-label="Vers le bas">↓</button>

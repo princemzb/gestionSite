@@ -40,6 +40,8 @@ internal static class MatriceDroits
         [Droit.PlanifierPreventif] = Encadrement,
         [Droit.ExecuterControle] = Terrain,
         [Droit.ModifierPlans] = Encadrement,
+        [Droit.TraiterDanger] = Encadrement,
+        [Droit.DeclarerMiseEnSecurite] = Internes,
         [Droit.AfficherLienPublic] = Encadrement,
         [Droit.GererComptes] = [Role.Administrateur],
         [Droit.AutoriserSupport] = [Role.Administrateur],

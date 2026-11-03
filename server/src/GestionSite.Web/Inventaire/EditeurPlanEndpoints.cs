@@ -9,6 +9,9 @@ internal sealed record DemandeCreationPlan(Guid? BatimentId, Guid? NiveauId);
 
 internal sealed record DemandeCreationZone(string? Nom, Guid? BatimentId, Guid? NiveauId);
 
+// Version : celle lue (la dernière) ; motif obligatoire, vérifié par l'API.
+internal sealed record DemandeRestaurationPlan(Guid? CommandeId, int? Version, string? Motif);
+
 /// <summary>
 /// Relais JSON de l'éditeur de plans de bâtiment (US-21, S21-07, ADR-11) : lecture d'un plan et de ses fonds, création du
 /// plan d'un niveau et enregistrement d'une version, vers l'API qui vérifie les droits et la géométrie. Écritures avec le
@@ -47,6 +50,21 @@ internal static class EditeurPlanEndpoints
             .RequireAuthorization();
         endpoints.MapGet($"{Plans}/{{planId:guid}}/fonds", (Guid organisationId, Guid siteId, Guid planId, SessionApi session, HttpContext contexte) =>
                 RelayerAsync(contexte, null, () => session.LireAsync<JsonElement>($"{Api(organisationId, siteId)}/{planId}/backgrounds", CancellationToken.None)))
+            .RequireAuthorization();
+        // Historique (S21-09, RP-21.8) : versions par pages, lecture d'une version, restauration en nouvelle version avec motif.
+        endpoints.MapGet($"{Plans}/{{planId:guid}}/versions", (Guid organisationId, Guid siteId, Guid planId, int? avant, int? limite, SessionApi session, HttpContext contexte) =>
+                RelayerAsync(contexte, null, () => session.LireAsync<JsonElement>(
+                    $"{Api(organisationId, siteId)}/{planId}/versions{Pagination(avant, limite)}", CancellationToken.None)))
+            .RequireAuthorization();
+        endpoints.MapGet($"{Plans}/{{planId:guid}}/versions/{{version:int}}", (Guid organisationId, Guid siteId, Guid planId, int version, SessionApi session, HttpContext contexte) =>
+                RelayerAsync(contexte, null, () => session.LireAsync<JsonElement>($"{Api(organisationId, siteId)}/{planId}/versions/{version}", CancellationToken.None)))
+            .RequireAuthorization();
+        endpoints.MapPost($"{Plans}/{{planId:guid}}/versions/{{version:int}}/restauration", (
+                Guid organisationId, Guid siteId, Guid planId, int version, DemandeRestaurationPlan demande, SessionApi session, IAntiforgery antifalsification,
+                HttpContext contexte) =>
+                RelayerAsync(contexte, antifalsification, () => session.EcrireAsync<JsonElement>(
+                    $"{Api(organisationId, siteId)}/{planId}/versions/{version}/restore",
+                    new { commandeId = demande.CommandeId, version = demande.Version, motif = demande.Motif }, CancellationToken.None)))
             .RequireAuthorization();
         return endpoints;
     }
@@ -101,4 +119,21 @@ internal static class EditeurPlanEndpoints
     }
 
     private static string Api(Guid organisationId, Guid siteId) => $"/organizations/{organisationId}/sites/{siteId}/inventory/building-plans";
+
+    // Entiers seulement (liés par la route) : aucune autre donnée de la requête n'est recopiée vers l'API.
+    private static string Pagination(int? avant, int? limite)
+    {
+        var parametres = new List<string>(2);
+        if (avant is { } a)
+        {
+            parametres.Add(FormattableString.Invariant($"avant={a}"));
+        }
+
+        if (limite is { } l)
+        {
+            parametres.Add(FormattableString.Invariant($"limite={l}"));
+        }
+
+        return parametres.Count == 0 ? "" : $"?{string.Join('&', parametres)}";
+    }
 }

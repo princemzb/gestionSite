@@ -58,23 +58,34 @@ flowchart TD
 
 Détails : chapitre [Préventif](08-preventif.md#preventif).
 
-## Le danger, tel qu'il existe aujourd'hui {#workflows-danger}
+## Le danger et sa mise en sécurité {#workflows-danger}
+
+Un danger se suit à part du dossier : la réparation suit le cycle du dossier, la mise en sécurité suit le cycle ci-dessous. La clôture du dossier ne lève pas le danger. Ces règles sont en place dans l'application ; les écrans qui permettent d'agir arrivent avec la prochaine version (voir l'encadré en fin de section).
 
 ```mermaid
 flowchart TD
-  A["Danger signalé : tuile « Il y a un danger », case « Il y a un danger » ou point « Défaut, danger »"] --> B["Dossier À qualifier, étiquette Danger"]
+  A["Danger signalé : tuile « Il y a un danger », case « Il y a un danger » ou point « Défaut, danger »"] --> B["Alerte ouverte"]
   A --> S["Rappel au déclarant public : appeler le 18 ou le 112, puis le numéro d'urgence du site"]
-  B --> C["Le responsable le voit en consultant Dossiers"]
-  C --> D["Qualification : priorité Urgente conseillée"]
-  D --> E["Intervention affectée"]
-  E --> F["Clôture : Résolu, ou Mesure provisoire (mis en sécurité, à reprendre)"]
+  B -->|"un responsable ou délégué"| C["Pris en compte"]
+  B -.->|"technicien, responsable, délégué, pasteur ou coordinateur, dès l'alerte"| M["Mise en sécurité déclarée"]
+  C --> M
+  M -->|"responsable ou délégué : elle suffit"| V["Mis en sécurité, à réparer"]
+  M -->|"elle ne suffit pas (motif)"| C
+  C -->|"réparation faite"| L["Danger levé"]
+  V --> L
+  B -->|"aucun danger (motif)"| E["Danger écarté"]
+  C --> E
 ```
 
 **Ce qu'il faut retenir**
 
-- L'application **n'alerte personne** aujourd'hui : le danger est visible seulement dans l'écran **Dossiers** (carte rouge, étiquette **Danger**) et sur la fiche (**Danger signalé**).
-- Le premier réflexe reste l'appel des secours (18 ou 112), puis le numéro d'urgence du site et les consignes affichées dans le bâtiment.
+- Le premier réflexe reste l'appel des secours (18 ou 112), puis le numéro d'urgence du site et les consignes affichées dans le bâtiment. L'application n'est pas une alarme.
+- **Prise en compte** : un responsable ou un délégué indique qu'il suit le danger. Sans prise en compte 15 minutes après l'alerte, une nouvelle alerte part à tous ses destinataires (responsable, délégués, pasteurs, coordinateurs, et le technicien qui a une intervention ouverte sur le dossier), puis toutes les heures, jour et nuit.
+- **Mise en sécurité** : une mesure conservatoire simple, choisie dans une liste (accès condamné ou balisé, public tenu à distance, énergie coupée, évacuation, protection ou étaiement provisoire, secours appelés, autre avec commentaire). Couper l'électricité pour travailler (consignation) est réservé à une personne habilitée (norme NF C 18-510) : l'application ne le vérifie pas.
+- Tant que la mise en sécurité n'est pas déclarée, celui qui a pris le danger en compte reçoit un rappel toutes les heures ; au bout de 4 heures, les autres responsables et délégués aussi.
+- **Vérification** : un responsable ou un délégué confirme que la mise en sécurité suffit (le danger est maîtrisé, pas réparé), ou indique qu'elle ne suffit pas, avec un motif : le danger redevient « Pris en compte », les rappels reprennent et le déclarant est prévenu.
+- **Danger levé** (réparation faite et dossier clôturé « Résolu », réparation constatée sur place, ou autre avec commentaire) ou **écarté** (aucun danger constaté, déjà traité, ou autre avec commentaire) : par un responsable ou un délégué. Chaque étape est inscrite dans l'historique du dossier, avec son auteur, sa date et son motif.
+- Un dossier en danger ne peut pas être mis en attente tant qu'aucune mise en sécurité n'est déclarée réalisée (« Mettez d'abord en sécurité »).
 - La priorité est choisie par le responsable ; elle ne découle pas automatiquement du danger.
-- Une mise en sécurité se note à la clôture d'une intervention avec l'état final **Mesure provisoire** ; le dossier peut ensuite être rouvert pour la réparation définitive.
 
-> **Pas encore disponible.** Une prochaine version ajoutera le suivi du danger : alerte dans un centre de notifications, prise en compte par un responsable, déclaration et vérification de la mise en sécurité, rappels tant que rien n'est fait.
+> **Pas encore disponible.** Les écrans de ce suivi arrivent avec la prochaine version : cloche et centre de notifications, bandeau des dangers en cours au-dessus du suivi des dossiers, bande du danger en tête de la fiche (prendre en compte, déclarer, vérifier, lever ou écarter) et consigne de danger du site à côté du numéro d'urgence. D'ici là, le danger reste visible dans l'écran **Dossiers** (carte rouge, étiquette **Danger**) et sur la fiche (**Danger signalé**) ; une mise en sécurité peut aussi se noter à la clôture d'une intervention avec l'état final **Mesure provisoire**. Personne n'est prévenu hors de l'application (ni e-mail ni SMS).

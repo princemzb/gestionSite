@@ -37,6 +37,8 @@ public sealed class MatriceDroitsTests
     [InlineData(Droit.PlanifierPreventif, "R D")]
     [InlineData(Droit.ExecuterControle, "T R D")]
     [InlineData(Droit.ModifierPlans, "R D")]
+    [InlineData(Droit.TraiterDanger, "R D")]
+    [InlineData(Droit.DeclarerMiseEnSecurite, "T R D P C")]
     [InlineData(Droit.GererComptes, "A")]
     [InlineData(Droit.AutoriserSupport, "A")]
     public void RolesMatchThePermissionTable(Droit droit, string roles)

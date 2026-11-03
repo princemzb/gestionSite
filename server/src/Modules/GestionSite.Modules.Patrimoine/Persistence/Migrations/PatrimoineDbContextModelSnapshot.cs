@@ -163,6 +163,10 @@ namespace GestionSite.Modules.Patrimoine.Persistence.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("numero_serie");
 
+                    b.Property<bool>("ObjetDeValeur")
+                        .HasColumnType("boolean")
+                        .HasColumnName("objet_de_valeur");
+
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");

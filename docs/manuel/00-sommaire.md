@@ -23,7 +23,7 @@ Ce manuel explique comment utiliser gestionSite au quotidien. Il décrit l'appli
 | [6. Inventaire](06-inventaire.md#inventaire) | Équipe du site | Bâtiments, niveaux, zones, composants et lots |
 | [7. Évaluations et état du site](07-evaluations.md#evaluations) | Équipe du site | Évaluer un composant, lire la note du site, adapter les grilles |
 | [8. Préventif](08-preventif.md#preventif) | Équipe du site | Classement ERP, plans proposés, calendrier, contrôles, rapports |
-| [9. Plans de bâtiment](09-plans.md#plans) | Équipe du site | Fond de plan, échelle, atelier, brouillon |
+| [9. Plans de bâtiment](09-plans.md#plans) | Équipe du site | Fond de plan, échelle, pièces, composants, atelier, historique, brouillon |
 | [10. Workflows](10-workflows.md#workflows) | Tout le monde | Cycles de vie : dossier, échéance préventive, danger |
 | [11. Glossaire](11-glossaire.md#glossaire) | Tout le monde | Les mots de l'application |
 | [12. Questions fréquentes](12-faq.md#faq) | Tout le monde | Réponses courtes aux questions courantes |
@@ -35,4 +35,4 @@ Ce manuel explique comment utiliser gestionSite au quotidien. Il décrit l'appli
 > - l'application tablette hors connexion : aujourd'hui, on utilise le navigateur du téléphone, de la tablette ou de l'ordinateur, avec une connexion internet ;
 > - le thème Nuit : l'application s'affiche en thème Jour ;
 > - l'estimation, le budget, les stocks et l'assistance IA ;
-> - le tracé des pièces et le placement des composants sur les plans de bâtiment.
+> - la déclaration d'un problème depuis une pièce du plan de bâtiment.

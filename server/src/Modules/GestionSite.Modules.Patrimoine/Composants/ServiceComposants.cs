@@ -16,7 +16,7 @@ internal sealed record LotLu(string Unite, int Quantite, RepartitionLue? Reparti
 internal sealed record ComposantLu(
     Guid Id, Guid ZoneId, string Nom, string CorpsEtat, string? Emplacement, string? Marque, string? Modele, string? NumeroSerie,
     int? AnneeMiseEnService, int? MoisMiseEnService, string? Remarques, bool SoumisAVerification, LotLu? Lot,
-    DateTimeOffset? RetireLe, string? MotifRetrait, uint Version);
+    DateTimeOffset? RetireLe, string? MotifRetrait, uint Version, bool ObjetDeValeur, bool ExcluDesPlans);
 
 internal sealed record ListeComposants(IReadOnlyList<ComposantLu> Composants, bool Tronquee);
 
@@ -188,6 +188,7 @@ internal sealed class ServiceComposants(
             ["moisMiseEnService"] = composant.MoisMiseEnService,
             ["remarques"] = composant.Remarques,
             ["soumisAVerification"] = composant.SoumisAVerification,
+            ["objetDeValeur"] = composant.ObjetDeValeur,
             ["unite"] = composant.Unite?.ToString(),
             ["quantite"] = composant.Quantite,
         };
@@ -205,7 +206,7 @@ internal sealed class ServiceComposants(
         c.Lot is { } lot
             ? new LotLu(lot.Unite.ToString(), lot.Quantite, lot.Repartition is { } r ? new RepartitionLue(r.Bon, r.Satisfaisant, r.Degrade, r.Mauvais, r.Critique) : null)
             : null,
-        c.RetireLe, c.MotifRetrait, version);
+        c.RetireLe, c.MotifRetrait, version, c.ObjetDeValeur, c.ExcluDesPlans);
 
     private static JsonElement? Json(string? json)
     {

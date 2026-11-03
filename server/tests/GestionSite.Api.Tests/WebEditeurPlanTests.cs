@@ -213,6 +213,70 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
     }
 
     [Fact]
+    public async Task TheEditorListsPlaceableComponentsOnlyAndRelaysHistoryAndRestoration()
+    {
+        var lieux = await LieuxAsync();
+        var plan = await PlanAsync(lieux.Rdc);
+        var (nef, crypte) = await ZonesAsync(lieux);
+        var extincteur = await ComposantAsync(new { nom = "Extincteur CO2 2 kg", corpsEtat = "SecuriteIncendie", zoneId = nef });
+        await ComposantAsync(new { nom = "Calice en vermeil", corpsEtat = "EquipementsCulte", zoneId = nef });
+        await ComposantAsync(new { nom = "Coffre-fort", corpsEtat = "Mobilier", zoneId = nef, objetDeValeur = true });
+        await ComposantAsync(new { nom = "Chaudière", corpsEtat = "ChauffageVentilation", zoneId = crypte });
+        using var responsable = await ConnecterAsync("responsable@editeur-web.test");
+        using var pasteur = await ConnecterAsync("pasteur@editeur-web.test");
+        var plans = $"/organisations/{_organisation}/sites/{_site}/plans-batiment";
+        var jeton = await JetonAsync(responsable);
+        using var premiere = await EnvoyerAsync(responsable, HttpMethod.Put, $"{plans}/{plan}", Version(0), jeton);
+        using var deuxieme = await EnvoyerAsync(responsable, HttpMethod.Put, $"{plans}/{plan}", Version(1, motif: "Relevé du 03/11"), jeton);
+        var page = $"/organisations/{_organisation}/plans?batiment={lieux.Eglise}&niveau={lieux.Rdc}";
+
+        var pourResponsable = await PageAsync(responsable, page);
+        var pourPasteur = await PageAsync(pasteur, page);
+        using var historique = await responsable.GetAsync(new Uri($"{plans}/{plan}/versions?limite=1", UriKind.Relative));
+        using var suite = await pasteur.GetAsync(new Uri($"{plans}/{plan}/versions?avant=2&limite=1", UriKind.Relative));
+        using var version1 = await pasteur.GetAsync(new Uri($"{plans}/{plan}/versions/1", UriKind.Relative));
+        using var inconnue = await pasteur.GetAsync(new Uri($"{plans}/{plan}/versions/9", UriKind.Relative));
+        var restauration = new { commandeId = Guid.NewGuid(), version = 2, motif = "Retour au premier relevé" };
+        using var sansJeton = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/{plan}/versions/1/restauration", restauration, jeton: null);
+        using var parLecteur = await EnvoyerAsync(pasteur, HttpMethod.Post, $"{plans}/{plan}/versions/1/restauration", restauration, await JetonAsync(pasteur));
+        using var sansMotif = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/{plan}/versions/1/restauration", new { commandeId = Guid.NewGuid(), version = 2 }, jeton);
+        using var restauree = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/{plan}/versions/1/restauration", restauration, jeton);
+        using var perimee = await EnvoyerAsync(responsable, HttpMethod.Post, $"{plans}/{plan}/versions/1/restauration",
+            new { commandeId = Guid.NewGuid(), version = 2, motif = "Encore" }, jeton);
+
+        Assert.Equal(HttpStatusCode.OK, deuxieme.StatusCode);
+        // Composants du niveau seulement ; objets de valeur (culte, case cochée) jamais envoyés, comptés par zone.
+        var composants = JsonDocument.Parse(DonneesComposants().Match(pourResponsable).Groups[1].Value).RootElement;
+        Assert.Equal([extincteur], composants.GetProperty("placables").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()));
+        Assert.Equal(2, composants.GetProperty("exclus").GetProperty(nef.ToString()).GetInt32());
+        Assert.DoesNotContain("Coffre-fort", pourResponsable, StringComparison.Ordinal);
+        Assert.DoesNotContain("Calice", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-outil=\"composant\"", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-panneau=\"composants\"", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-role=\"restaurer\"", pourResponsable, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"historique\"", pourPasteur, StringComparison.Ordinal); // historique lisible par les lecteurs
+        Assert.Contains("data-panneau=\"historique\"", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-outil=\"composant\"", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-role=\"restaurer\"", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("style=", pourResponsable, StringComparison.Ordinal);
+        Assert.Equal([2], (await historique.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Select(v => v.GetProperty("version").GetInt32()));
+        Assert.Contains("no-store", historique.Headers.CacheControl?.ToString(), StringComparison.Ordinal);
+        Assert.Equal([1], (await suite.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Select(v => v.GetProperty("version").GetInt32()));
+        Assert.Equal(1, (await version1.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetInt32());
+        Assert.Equal(HttpStatusCode.NotFound, inconnue.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, sansJeton.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parLecteur.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, sansMotif.StatusCode);
+        Assert.Equal("motif", (await sansMotif.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("champ").GetString());
+        Assert.Equal(HttpStatusCode.OK, restauree.StatusCode);
+        Assert.Equal(3, (await restauree.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("version").GetInt32());
+        Assert.Equal(HttpStatusCode.Conflict, perimee.StatusCode);
+        var conflit = await perimee.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(("version_depassee", 3), (conflit.GetProperty("code").GetString(), conflit.GetProperty("versionCourante").GetInt32()));
+        Assert.Equal(1, await _database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment WHERE restaure_de = 1"));
+    }
+
+    [Fact]
     public async Task SigningOutAsksTheBrowserToClearLocalStorage()
     {
         using var responsable = await ConnecterAsync("responsable@editeur-web.test");
@@ -224,7 +288,25 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
         Assert.Equal("\"storage\"", deconnexion.Headers.GetValues("Clear-Site-Data").Single()); // brouillons de l'éditeur effacés
     }
 
-    private static object Version(int version) => new { commandeId = Guid.NewGuid(), version, contenu = new { schema = 1 } };
+    private static object Version(int version, string? motif = null) => new { commandeId = Guid.NewGuid(), version, motif, contenu = new { schema = 1 } };
+
+    // Nef au rez-de-chaussée, crypte au sous-sol, créées par l'API.
+    private async Task<(Guid Nef, Guid Crypte)> ZonesAsync((Guid Eglise, Guid SousSol, Guid Rdc) lieux)
+    {
+        using var client = _api.CreateClient();
+        var inventaire = $"/organizations/{_organisation}/sites/{_site}/inventory";
+        var technicien = await ConnexionApiAsync(client, "technicien@editeur-web.test");
+        var nef = await CreerAsync(client, $"{inventaire}/zones", new { nom = "Nef", batimentId = lieux.Eglise, niveauId = lieux.Rdc }, technicien);
+        var crypte = await CreerAsync(client, $"{inventaire}/zones", new { nom = "Crypte", batimentId = lieux.Eglise, niveauId = lieux.SousSol }, technicien);
+        return (nef, crypte);
+    }
+
+    private async Task<Guid> ComposantAsync(object fiche)
+    {
+        using var client = _api.CreateClient();
+        var technicien = await ConnexionApiAsync(client, "technicien@editeur-web.test");
+        return await CreerAsync(client, $"/organizations/{_organisation}/sites/{_site}/inventory/components", fiche, technicien);
+    }
 
     private static async Task<HttpResponseMessage> EnvoyerAsync(HttpClient navigateur, HttpMethod methode, string chemin, object corps, string? jeton)
     {
@@ -321,4 +403,7 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" (?:type=\"hidden\" )?value=\"([^\"]+)\"")]
     private static partial Regex Antifalsification();
+
+    [GeneratedRegex("data-composants=\"(\\{.*?\\})\">")]
+    private static partial Regex DonneesComposants();
 }

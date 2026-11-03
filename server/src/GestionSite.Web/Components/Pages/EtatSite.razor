@@ -7,6 +7,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="etat" />
 <main class="admin-contenu etat-site">
+<AideEcran Ecran="etat" OrganisationId="@OrganisationId" />
 <PageTitle>État du site · gestionSite</PageTitle>
 
 @if (SiteCourant is null || Score is null)

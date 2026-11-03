@@ -252,8 +252,12 @@ public sealed partial class WebInventaireTests(InfrastructureFixture infrastruct
     {
         var corps = WebUtility.HtmlDecode(await reponse.Content.ReadAsStringAsync());
         Assert.True(reponse.StatusCode == HttpStatusCode.OK, $"{reponse.StatusCode} : {corps[..Math.Min(corps.Length, 3000)]}");
-        return corps;
+        // Le panneau d'aide (DOC-02) cite les libellés des boutons du manuel : les absences de boutons se vérifient hors de lui.
+        return PanneauAide().Replace(corps, string.Empty);
     }
+
+    [GeneratedRegex("<aside id=\"aide-panneau\".*?</aside>", RegexOptions.Singleline)]
+    private static partial Regex PanneauAide();
 
     private async Task MembreAsync(string email, string nom, Role role)
     {

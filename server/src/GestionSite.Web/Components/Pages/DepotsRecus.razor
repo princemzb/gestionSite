@@ -6,6 +6,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="depots" />
 <main class="admin-contenu">
+<AideEcran Ecran="depots" OrganisationId="@OrganisationId" />
 <PageTitle>Dépôts reçus · gestionSite</PageTitle>
 
 @if (Message is not null && Organisation is null)
