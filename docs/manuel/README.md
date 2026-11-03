@@ -3,7 +3,7 @@
 Ce dossier est la **source unique** du manuel d'utilisation de gestionSite (carte DOC-01). Le même texte sert :
 
 - au **livret PDF A4**, imprimé ou lu sur tablette ;
-- à l'**aide intégrée** de l'application (DOC-02, à venir) : chaque section porte un identifiant d'ancre stable que les écrans pourront citer.
+- à l'**aide intégrée** de l'application (DOC-02) : chaque section porte un identifiant d'ancre stable que les écrans citent (`server/src/GestionSite.Web/Aide/EcransAide.cs`). Les chapitres et les captures sont embarqués dans l'application web à la compilation : une modification du manuel apparaît dans l'aide au déploiement suivant, sans autre saisie.
 
 ## Contenu
 
@@ -46,7 +46,8 @@ npm run livret                    # → scripts/manuel/sortie/manuel-gestionsite
 
 - `node livret.mjs --verifier` contrôle seulement le manuel (ancres présentes, valides et uniques ; images et liens existants ; aucune image orpheline), sans navigateur. La CI le lance à chaque PR (job « Outillage Trello (tests) »).
 - Le livret assemble les chapitres dans l'ordre de leur numéro, ajoute une couverture et un sommaire avec les numéros de page (deux impressions successives : la première sert à lire la page de chaque section), rend les schémas Mermaid et numérote les pages en pied de page.
-- Le PDF (environ 4 Mo, 75 pages au 3 novembre 2026) n'est pas versionné : `scripts/manuel/sortie/` est ignoré par Git.
+- Le PDF (environ 4 Mo, 75 pages au 3 novembre 2026) n'est pas versionné : `scripts/manuel/sortie/` est ignoré par Git. L'image du conteneur l'imprime à sa construction (étape `livret` de `server/Dockerfile`) et l'application le sert à `/aide/livret.pdf`.
+- Les schémas Mermaid ne sont dessinés que dans le livret : l'aide intégrée n'exécute aucun script et affiche à leur place un renvoi au livret.
 
 ## Mettre à jour les captures
 

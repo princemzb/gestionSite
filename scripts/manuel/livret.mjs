@@ -22,7 +22,10 @@ if (process.argv.includes("--verifier")) process.exit(0);
 
 const { chromium } = await import("playwright");
 mkdirSync(sortie, { recursive: true });
-const date = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
+// Date d'édition du manuel (présentation « Édition du … »), la même que celle affichée par l'aide intégrée (DOC-02) ;
+// à défaut, le jour de l'impression.
+const date = /Édition du ([^.\n]+)\./.exec(chapitres[0]?.markdown ?? "")?.[1]
+  ?? new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
 const html = assembler({
   chapitres,
   css: readFileSync(join(ici, "livret.css"), "utf8"),

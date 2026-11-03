@@ -7,6 +7,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="grilles" />
 <main class="admin-contenu">
+<AideEcran Ecran="grilles" OrganisationId="@OrganisationId" />
 <PageTitle>Grilles d'évaluation · gestionSite</PageTitle>
 
 @if (SiteCourant is null || Grille is null)

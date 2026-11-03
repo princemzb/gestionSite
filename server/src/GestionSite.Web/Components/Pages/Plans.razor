@@ -12,6 +12,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="plans" />
 <main class="admin-contenu editeur-page">
+<AideEcran Ecran="plans" OrganisationId="@OrganisationId" />
 <PageTitle>Plans · gestionSite</PageTitle>
 
 @if (Message is not null)

@@ -61,14 +61,25 @@ Le menu montre seulement les entrées utiles à vos rôles :
 
 | Entrée | Qui la voit |
 | --- | --- |
-| **État du site**, **Dossiers**, **Inventaire**, **Plans**, **Préventif** | Membres ayant un rôle sur un site |
+| **État du site**, **Dossiers**, **Dépôts reçus**, **Inventaire**, **Plans**, **Préventif** | Membres ayant un rôle sur un site |
 | **Mes interventions** | Technicien, responsable, délégué |
 | **Grilles d'évaluation** | Responsable, délégué |
 | **Sites** | Administrateur, responsable, délégué |
 | **Membres** | Administrateur |
+| **Aide** | Tout le monde |
 | **Se déconnecter** | Tout le monde |
 
 Si vous avez des rôles sur plusieurs sites, des onglets en haut de chaque écran permettent de changer de site.
+
+## Obtenir de l'aide {#principes-aide}
+
+L'aide reprend le texte de ce manuel, dans l'application.
+
+- **Sur chaque écran**, le bouton **? Aide sur cet écran**, en haut à droite, ouvre la rubrique du manuel qui correspond à l'écran : à droite sur ordinateur, depuis le bas de l'écran sur tablette et téléphone. Le panneau propose aussi les autres tâches de l'écran (**Sur cet écran aussi**), **Lire tout le chapitre** et le **Livret complet** en PDF. Fermez-le avec **×**, la touche **Échap** ou en touchant la page à côté.
+- **Le menu Aide** ouvre la page **Aide et manuel d'utilisation** : une recherche (**Chercher dans le manuel**, sans tenir compte des accents), le bouton **Télécharger le livret**, les tâches courantes de chaque rôle (le vôtre en premier, marqué **Votre rôle**), puis tous les chapitres.
+- Sur les écrans de connexion et d'activation, le bouton d'aide montre seulement la rubrique de l'écran : le reste de l'aide et le livret s'ouvrent une fois connecté.
+
+Les schémas des cycles de vie (chapitre [Workflows](10-workflows.md#workflows)) figurent seulement dans le livret PDF.
 
 ## Ordinateur, tablette et téléphone {#principes-appareils}
 

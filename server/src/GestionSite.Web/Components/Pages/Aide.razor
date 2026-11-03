@@ -1,0 +1,113 @@
+@page "/aide"
+@page "/organisations/{OrganisationId:guid}/aide"
+@layout AdminLayout
+@attribute [Authorize]
+@using GestionSite.Web.Aide
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject ManuelAide Manuel
+@inject LivretAide Livret
+@* Page Aide (DOC-02, proposition A validée le 03/11) : recherche, livret, tâches courantes du rôle de la personne en premier,
+   puis les chapitres. Tout le texte vient du manuel (docs/manuel), lu au démarrage. *@
+
+<NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="aide" />
+<main class="admin-contenu aide-page">
+<PageTitle>Aide · gestionSite</PageTitle>
+
+<section class="aide-accueil">
+    <div class="aide-accueil-texte">
+        <h1>Aide et manuel d'utilisation</h1>
+        <p>Comment utiliser gestionSite, écran par écran.@if (Manuel.Edition is { } edition){<text> Manuel du @edition.</text>}</p>
+        <form method="get" action="@BaseLiens" role="search" class="aide-recherche">
+            <label class="champ" for="aide-q">Chercher dans le manuel</label>
+            <div class="aide-recherche-ligne">
+                <input id="aide-q" type="search" name="q" value="@Requete" maxlength="100" autocomplete="off" />
+                <button type="submit" class="bouton-secondaire">Chercher</button>
+            </div>
+        </form>
+    </div>
+    @if (Livret.Libelle is { } libelle)
+    {
+        <a class="bouton-principal bouton-lien" href="@LivretAide.Adresse">Télécharger le livret (@libelle)</a>
+    }
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Requete))
+{
+    <section class="carte aide-resultats" aria-labelledby="aide-resultats-titre">
+        <h2 id="aide-resultats-titre">@(Resultats.Count == 0 ? $"Aucun résultat pour « {Requete} »" : $"Résultats pour « {Requete} »")</h2>
+        @if (Resultats.Count == 0)
+        {
+            <p class="note">Essayez un autre mot, ou parcourez les chapitres ci-dessous.</p>
+        }
+        else
+        {
+            <ol>
+                @foreach (var resultat in Resultats)
+                {
+                    <li>
+                        <a href="@Lien(resultat.Section)">@resultat.Section.Titre</a>
+                        <span class="note">@AideEcran.Surtitre(resultat.Section.Chapitre)</span>
+                        <p>@resultat.Extrait</p>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
+
+<h2 class="aide-intertitre">Par rôle <span>· @(RolesAppelant.Length > 0 ? "votre rôle en premier" : "tâches courantes")</span></h2>
+<div class="aide-roles">
+    @foreach (var (taches, sesRoles) in EcransAide.RolesPour(RolesAppelant))
+    {
+        <section class="carte aide-role@(sesRoles ? " sien" : null)" aria-label="@taches.Titre">
+            <span class="aide-surtitre">@(sesRoles ? "Votre rôle" : taches.Surtitre)</span>
+            <strong>@taches.Titre</strong>
+            @foreach (var section in taches.Ancres.Select(Manuel.Section).OfType<SectionManuel>())
+            {
+                <a href="@Lien(section)">@section.Titre</a>
+            }
+        </section>
+    }
+</div>
+
+<h2 class="aide-intertitre">Tous les chapitres</h2>
+<nav class="aide-chapitres" aria-label="Chapitres du manuel">
+    @foreach (var chapitre in Manuel.Chapitres.Where(c => c.Numero > 0))
+    {
+        <a href="@($"{BaseLiens}/{chapitre.Nom}")"><strong>@chapitre.Numero.</strong> @chapitre.Titre</a>
+    }
+</nav>
+
+@if (Manuel.Section("manuel-a-venir") is { } aVenir)
+{
+    <p class="alerte avertissement">Certaines fonctions ne sont pas encore disponibles. <a href="@Lien(aVenir)">@aVenir.Titre</a></p>
+}
+</main>
+
+@code {
+    [Parameter] public Guid OrganisationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? Requete { get; set; }
+
+    private OrganisationApi? Organisation { get; set; }
+
+    private string[] RolesAppelant { get; set; } = [];
+
+    private IReadOnlyList<ResultatRecherche> Resultats { get; set; } = [];
+
+    private string BaseLiens => OrganisationId == Guid.Empty ? "/aide" : $"/organisations/{OrganisationId}/aide";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 100 caractères au plus, sans couper en deux un caractère hors du plan de base (émoji).
+        Requete = Requete?.Trim() is { Length: > 0 } requete
+            ? requete[..(requete.Length > 100 && char.IsHighSurrogate(requete[99]) ? 99 : Math.Min(requete.Length, 100))]
+            : null;
+        Resultats = Manuel.Chercher(Requete);
+        (Organisation, RolesAppelant) = await AideChapitre.LireOrganisationAsync(Session, Navigation, OrganisationId);
+    }
+
+    private string Lien(SectionManuel section) => $"{BaseLiens}/{section.Chapitre.Nom}#{section.Ancre}";
+}

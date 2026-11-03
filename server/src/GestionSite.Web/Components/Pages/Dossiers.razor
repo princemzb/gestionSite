@@ -8,6 +8,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="dossiers" />
 <main class="admin-contenu">
+<AideEcran Ecran="dossiers" OrganisationId="@OrganisationId" />
 <PageTitle>Dossiers · gestionSite</PageTitle>
 
 @if (Message is not null && Organisation is null)

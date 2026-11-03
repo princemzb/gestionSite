@@ -7,6 +7,7 @@
 
 <NavigationAdmin OrganisationId="@OrganisationId" Organisation="@Organisation?.Nom" Roles="@RolesAppelant" Courant="inventaire" />
 <main class="admin-contenu evaluation">
+<AideEcran Ecran="evaluer" OrganisationId="@OrganisationId" />
 <PageTitle>Évaluer · gestionSite</PageTitle>
 
 @if (Composant is null || Grille is null)

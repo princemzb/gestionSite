@@ -4,7 +4,10 @@
 **/TestResults/
 mobile/
 docs/
+!docs/manuel/
 scripts/
+!scripts/manuel/
+scripts/manuel/sortie/
 .git/
 deploy/
 **/node_modules/
