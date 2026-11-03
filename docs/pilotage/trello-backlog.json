@@ -3340,6 +3340,43 @@
       "trelloShortLink": "tdDxz2q5"
     },
     {
+      "id": "US-31",
+      "name": "[US-31] Écrans d'administration manquants",
+      "type": "story",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Un administrateur gère seul son organisation : création d'un site, modification et révocation des rôles d'un membre, attribution et retrait du droit nominatif « modifier les plans », acceptation d'une invitation par un compte existant, mot de passe oublié (envoi d'e-mail : dépend de l'achat e-mail, S10-09).",
+        "Maquettes validées par le porteur avant tout écran ; manuel (chapitres 02 et 03) mis à jour ; recette visible usXX.mjs."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Décision du porteur du 03/11.",
+      "trelloId": "6ae996bad68eed22d655fe13",
+      "trelloShortLink": "Ax4GwLjU"
+    },
+    {
+      "id": "S31-01",
+      "name": "[S31-01] Maquettes des écrans d'administration manquants",
+      "type": "sous_carte",
+      "list": "Prêt",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [
+        "US-31"
+      ],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Au moins deux propositions (Jour et Nuit, ordinateur et tablette) pour : création d'un site, révision et révocation des rôles, droit nominatif « plans », invitation acceptée par un compte existant, mot de passe oublié ; arrêt pour validation du porteur."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Décision du porteur du 03/11.",
+      "trelloId": "6ae996bba32a0169758e33a9",
+      "trelloShortLink": "Gb9bFm0n"
+    },
+    {
       "id": "S31-02",
       "name": "[S31-02] Écrans et API d'administration (site, membre, droit plans, invitation, mot de passe)",
       "type": "sous_carte",

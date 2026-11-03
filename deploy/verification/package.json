@@ -1,0 +1,9 @@
+{
+  "name": "gestionsite-verification",
+  "private": true,
+  "description": "Vérifications de la préproduction (navigateur réel) et recettes visibles (OUT-02).",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}
