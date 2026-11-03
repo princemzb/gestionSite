@@ -12,7 +12,8 @@ Signature par `android/key.properties` (jamais versionné) ; sans ce fichier, `f
 Code jetable sous `lib/poc/tablette/` et greffon natif `packages/coffre_appareil/` (Keystore, horloge monotone, écran, photos) : base SQLCipher par profil, PIN + Keystore, limite de 24 h, révocations, photos reprises, WorkManager. Rapport et protocole sur tablette : `docs/poc/POC-03.md`.
 
 - Écran technique sans design : `flutter run -t lib/poc/tablette/main_poc03.dart`.
-- Essais Android réels : `tool/poc03/lancer_essais.sh emulator-5554` (serveur factice sur le Mac, `integration_test/poc03_test.dart`).
+- Essais Android réels : `tool/poc03/lancer_essais.sh emulator-5554`, ou sur la tablette `tool/poc03/lancer_essais.sh <numéro-adb> http://<IP-du-Mac>:8765` (serveur factice sur le Mac, `integration_test/poc03_test.dart` ; déverrouiller la tablette quand l'écran se rallume). 8/8 sur la Tab M11 le 3/11/2026.
+- Activité protégée par `FLAG_SECURE` (`MainActivity`, R13-05 révisée) : captures d'écran refusées, aperçu vide dans les applications récentes.
 - Version minimale : Android 11 (`minSdk = 30`, décision du porteur du 30/10/2026).
 - macOS sans licence Xcode acceptée : préfixer `flutter test` par `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (bibliothèque SQLCipher native des tests).
 

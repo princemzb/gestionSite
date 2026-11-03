@@ -32,6 +32,16 @@ if [[ "$SERVEUR" == "http://10.0.2.2:$PORT" ]]; then
   "$ADB" shell locksettings set-pin "$POC03_CODE_ECRAN" >/dev/null 2>&1 || true
 fi
 
+# Clés « tablette déverrouillée exigée » : le Keystore les refuse tant que l'écran de verrouillage
+# est affiché (InvalidKeyException). On attend que la personne présente déverrouille la tablette.
+if [[ "$SERVEUR" != "http://10.0.2.2:$PORT" ]]; then
+  until "$ADB" shell dumpsys window | grep -q "isKeyguardShowing=false"; do
+    echo "POC-03 : DÉVERROUILLEZ LA TABLETTE pour lancer les essais"
+    "$ADB" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+    sleep 10
+  done
+fi
+
 mkdir -p "$JOURNAL"
 dart run tool/poc03/serveur_hote.dart "$PORT" >"$JOURNAL/serveur.log" 2>&1 &
 readonly SERVEUR_PID=$!
