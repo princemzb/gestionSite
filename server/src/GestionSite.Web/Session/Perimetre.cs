@@ -16,9 +16,20 @@ internal static class Perimetre
         ? []
         : [.. organisation.Sites.Where(s => organisation.Roles.Any(r => r.SiteId == s.Id && r.Role != "Administrateur"))];
 
+    /// <summary>Vrai si l'appelant a l'un de ces rôles sur ce site (affichage seulement : l'API reste juge des droits).</summary>
+    internal static bool ARole(OrganisationApi? organisation, Guid? siteId, params string[] roles) =>
+        organisation?.Roles.Any(r => r.SiteId == siteId && roles.Contains(r.Role, StringComparer.Ordinal)) == true;
+
+    /// <summary>Zones du site libellées « Bâtiment · Zone », dans l'ordre de la structure.</summary>
+    internal static IReadOnlyList<(Guid Id, string Libelle)> Zones(IEnumerable<BatimentApi> structure) =>
+        [.. structure.SelectMany(b => b.Zones.Select(z => (z.Id, $"{b.Nom} · {z.Nom}")))];
+
     /// <summary>Jour calendaire à Paris (repli : UTC), pour proposer une date dans un formulaire.</summary>
     internal static DateOnly Jour(DateTimeOffset maintenant) =>
         DateOnly.FromDateTime(Paris is null ? maintenant.UtcDateTime : TimeZoneInfo.ConvertTime(maintenant, Paris).DateTime);
+
+    /// <summary>Jour calendaire « dd/MM/yyyy » (échéances, réexamens, dates de réalisation).</summary>
+    internal static string Date(DateOnly date) => date.ToString("dd/MM/yyyy", Francais);
 
     /// <summary>Date à l'heure de Paris (« dd/MM/yyyy » ou avec l'heure), ou en UTC signalé comme tel.</summary>
     internal static string Date(DateTimeOffset date, bool avecHeure = false)

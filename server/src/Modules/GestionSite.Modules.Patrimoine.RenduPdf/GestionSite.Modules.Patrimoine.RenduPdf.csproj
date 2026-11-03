@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Processus enfant de rendu d'une page de PDF (US-21, S21-05) : lancé et borné par le module Patrimoine, jamais
+       chargé dans l'API. Il ne lit que le PDF reçu sur son entrée et n'écrit que l'image sur sa sortie. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Bornes du processus (setrlimit, P/Invoke généré). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Lancé par « dotnet exec » avec la configuration et le manifeste de dépendances de l'application hôte (API, tests) :
+         ni exécutable natif ni fichiers propres, qui entreraient en conflit à la publication pour une plateforme. -->
+    <UseAppHost>false</UseAppHost>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Liaison .NET Apache-2.0 ; binaires natifs bblanchon.PDFium (PDFium BSD-3-Clause, compilé sans V8 ni XFA). -->
+    <PackageReference Include="PDFiumCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="GestionSite.Modules.Tests" />
+    <InternalsVisibleTo Include="GestionSite.Api.Tests" />
+  </ItemGroup>
+</Project>

@@ -18,6 +18,9 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
 {
     protected const string MotDePasse = "un-mot-de-passe-solide";
     private protected TestDatabase Database { get; private set; } = null!;
+
+    /// <summary>Conteneurs partagés (stockage S3 compris), pour les vérifications directes.</summary>
+    private protected InfrastructureFixture Infrastructure => infrastructure;
     private WebApplicationFactory<Program> _api = null!;
     private HttpClient _client = null!;
     protected Guid Organisation { get; private set; }
@@ -72,6 +75,13 @@ public abstract class InventaireApiTests(InfrastructureFixture infrastructure) :
 
         return await _client.SendAsync(demande);
     }
+
+    /// <summary>Services de l'API de test (ouverture d'une autre organisation).</summary>
+    private protected IServiceProvider ApiServices => _api.Services;
+
+    /// <summary>Envoi JSON sans jeton (dépôt public, activation).</summary>
+    protected Task<HttpResponseMessage> EnvoyerSansJetonAsync(string chemin, object corps) =>
+        _client.PostAsJsonAsync(new Uri(chemin, UriKind.Relative), corps);
 
     protected async Task<string> JetonAsync(string email)
     {

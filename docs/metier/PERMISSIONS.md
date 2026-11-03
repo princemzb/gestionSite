@@ -12,6 +12,10 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Clôturer intervention affectée | Non | Oui | Oui | Non | Non |
 | Rouvrir / arbitrer conflit | Non | Non | Oui | Non | Non |
 | Relancer | Non | Non | Oui | Oui (P : relance interne seulement) | Non |
+| Noter « prestataire relancé hors application » (US-10, V 02/11) | Non | Non | Oui | C seulement | Non |
+| Recevoir une alerte de danger (US-10, V 02/11) | Non | En charge d'une intervention ouverte du dossier seulement | Oui | Oui (information) | Non |
+| Prendre en compte un danger ; vérifier la mise en sécurité (US-10, V 02/11) ; lever ou écarter un danger (choix de l'agent, révisable) | Non | Non | Oui | Non | Non |
+| Déclarer une mise en sécurité réalisée (US-10, V 02/11) | Non | Oui | Oui | Oui | Non |
 | Lancer IA | Non | Oui | Oui | Non | Non |
 | Valider estimation / engager budget | Non | Non | Oui selon délégation | Non | Non |
 | Enregistrer accord finance | Non | Non | Oui | Non | Non |

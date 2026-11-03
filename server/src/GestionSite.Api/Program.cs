@@ -5,6 +5,7 @@ using GestionSite.Modules.Maintenance;
 using GestionSite.Modules.Patrimoine;
 using GestionSite.Modules.Plateforme;
 using GestionSite.Modules.Stock;
+using GestionSite.SharedKernel.Photos;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +37,9 @@ if (args is ["migrer"])
 {
     return await CommandesExploitation.MigrerAsync(app.Services, Console.Out).ConfigureAwait(false);
 }
+
+// Bornes de décodage des images (photos, fonds de plan) posées avant la première requête.
+LimitesImages.Poser();
 
 app.UseOutputCache();
 app.UseAuthentication();

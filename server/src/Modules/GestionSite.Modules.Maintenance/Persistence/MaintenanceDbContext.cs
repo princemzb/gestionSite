@@ -33,6 +33,8 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
 
     public DbSet<EvenementPlan> JournalPreventif => Set<EvenementPlan>();
 
+    public DbSet<Notification> Notifications => Set<Notification>();
+
     protected override void ConfigurerModele(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -53,6 +55,9 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             signalement.Property(s => s.CommentaireClassement).HasMaxLength(Signalement.CommentaireMax);
             signalement.Property<uint>("xmin").IsRowVersion();
             signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.Statut });
+            // Constats d'inspection (US-12) : dossier ouvert du même critère retrouvé par sa clé.
+            signalement.Property(s => s.CleConstat).HasMaxLength(ConstatControle.CleMax);
+            signalement.HasIndex(s => new { s.OrganisationId, s.SiteId, s.CleConstat }).HasFilter("cle_constat IS NOT NULL");
             signalement.HasOne<Signalement>().WithMany()
                 .HasForeignKey(s => new { s.DoublonDe, s.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
@@ -69,7 +74,10 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
             alerte.ToTable("alertes_danger");
             alerte.HasKey(a => a.Id);
             alerte.Property(a => a.Id).ValueGeneratedNever();
-            alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique();
+            // Une alerte par dossier déclaré avec danger, et une par constat d'inspection dangereux (US-12, T-03.20).
+            alerte.HasIndex(a => new { a.SignalementId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NULL")
+                .HasDatabaseName("ix_alertes_danger_signalement_id_organisation_id");
+            alerte.HasIndex(a => new { a.ConstatId, a.OrganisationId }).IsUnique().HasFilter("constat_id IS NOT NULL");
             alerte.HasOne<Signalement>().WithMany()
                 .HasForeignKey(a => new { a.SignalementId, a.OrganisationId })
                 .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
@@ -125,6 +133,21 @@ internal sealed partial class MaintenanceDbContext(DbContextOptions<MaintenanceD
         });
 
         ConfigurerPreventif(modelBuilder);
+
+        // Centre de notifications (US-10, S10-01) : une ligne par destinataire et par événement, sans texte libre.
+        modelBuilder.Entity<Notification>(notification =>
+        {
+            notification.ToTable("notifications");
+            notification.HasKey(n => n.Id);
+            notification.Property(n => n.Id).ValueGeneratedNever();
+            notification.Property(n => n.Type).HasConversion<string>().HasMaxLength(32);
+            notification.Property(n => n.Objet).HasConversion<string>().HasMaxLength(16);
+            notification.Property(n => n.Cle).HasMaxLength(Notification.CleMax);
+            // Un événement, une notification par destinataire, même si l'émission est rejouée (T-04.11 pour S10-02).
+            notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Cle }).IsUnique();
+            // Centre d'un compte, du plus récent au plus ancien (identifiants ordonnés dans le temps), curseur « avant ».
+            notification.HasIndex(n => new { n.OrganisationId, n.CompteId, n.Id });
+        });
 
         modelBuilder.Entity<PhotoSignalement>(photo =>
         {

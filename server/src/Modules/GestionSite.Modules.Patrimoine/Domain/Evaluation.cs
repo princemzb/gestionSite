@@ -51,7 +51,7 @@ internal sealed record MesureEvaluee(string Libelle, string Unite, decimal? Vale
 /// <summary>Saisie de l'évaluateur, avant contrôle (grille en vigueur et composant connus du service).</summary>
 internal sealed record SaisieEvaluation(
     Guid CommandeId, int? GrilleVersion, IReadOnlyList<bool?>? Constats, IReadOnlyList<decimal?>? Mesures, EtatComposant? Etat,
-    Repartition? Repartition, string? Remarque, int Photos);
+    Repartition? Repartition, string? Remarque, int Photos, DateTimeOffset? ObserveLe = null);
 
 /// <summary>
 /// Évaluation d'un composant (US-11, S11-02) : état choisi par l'évaluateur (individuel) ou répartition par état (lot),

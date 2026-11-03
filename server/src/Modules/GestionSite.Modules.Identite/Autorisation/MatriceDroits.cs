@@ -45,6 +45,14 @@ internal static class MatriceDroits
         [Droit.AutoriserSupport] = [Role.Administrateur],
     };
 
+    /// <summary>
+    /// Liste blanche des droits attribuables nommément par l'administrateur, site par site, à un membre ayant un rôle sur
+    /// le site (US-21, décision du 30/10) : seulement « modifier les plans du bâtiment ».
+    /// </summary>
+    internal static IReadOnlySet<Droit> Nominatifs { get; } = new HashSet<Droit> { Droit.ModifierPlans };
+
+    internal static bool EstNominatif(Droit droit) => Nominatifs.Contains(droit);
+
     /// <summary>Permissions d'administration : toute l'organisation, jamais un site.</summary>
     internal static bool EstOrganisationnelle(Droit droit) => RolesPour(droit).Contains(Role.Administrateur);
 

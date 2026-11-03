@@ -26,17 +26,26 @@ internal sealed record DemandeReleve(string? Libelle, string? Unite, decimal? Va
 internal sealed record DemandeRealisation(
     Guid? CommandeId, DateOnly? Echeance, DateOnly? RealiseLe, string? Resultat, string? CompteRendu, int? GrilleVersion,
     IReadOnlyList<DemandePoint?>? Points, IReadOnlyList<decimal?>? Mesures, IReadOnlyList<DemandeReleve?>? Releves, string? Etat,
-    RepartitionInventaire? Repartition, string? Prestataire, string? NumeroAgrement);
+    RepartitionInventaire? Repartition, string? Prestataire, string? NumeroAgrement, IReadOnlyList<DemandeObservation?>? Observations = null);
+
+internal sealed record DemandeObservation(string? Libelle, Guid? ZoneId, bool Danger);
 
 internal sealed record ControleResume(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, string Resultat, Guid? ComposantId, Guid BatimentId, int Defauts,
-    decimal? Note);
+    decimal? Note, bool Rapport);
 
 internal sealed record ControleLu(
     Guid Id, Guid PlanId, string Plan, string Nature, DateOnly Echeance, DateOnly RealiseLe, DateTimeOffset SaisiLe, Guid AuteurCompteId, string? Auteur,
     Guid? IntervenantCompteId, string? Intervenant, string? Prestataire, string? NumeroAgrement, string Resultat, string? CompteRendu, string? CorpsEtat,
     Guid? ComposantId, Guid ZoneId, Guid BatimentId, int? GrilleVersion, IReadOnlyList<PointControle> Points, IReadOnlyList<MesureControle> Mesures,
-    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos);
+    Guid? EvaluationId, decimal? Note, string? LibelleNote, IReadOnlyList<int> Photos, IReadOnlyList<ObservationControle> Observations, RapportLu? Rapport,
+    IReadOnlyList<ConstatLu>? Constats = null, bool ReservesLevees = false);
+
+/// <summary>Constat du contrôle et le dossier qu'il a ouvert ou auquel il a été rattaché (S12-05).</summary>
+internal sealed record ConstatLu(int Rang, string Libelle, bool Danger, Guid DossierId, bool Rattache, string StatutDossier);
+
+/// <summary>Rapport PDF joint : taille et empreinte SHA-256 (le fichier se télécharge à part).</summary>
+internal sealed record RapportLu(int Taille, string Empreinte);
 
 /// <summary>Échéance qui n'est pas l'échéance courante du plan (422 « echeance »).</summary>
 internal sealed class EcheanceInattendueException() : Exception("Échéance attendue : l'échéance courante du plan.");
@@ -54,6 +63,16 @@ internal sealed class ServiceOccurrences(
     MaintenanceDbContext context, IAutorisations autorisations, IInventaireSite inventaire, IEvaluationsInventaire evaluations, IAnnuaireMembres annuaire,
     IStockageFichiers stockage, CompteCourant compte, TimeProvider horloge)
 {
+    /// <summary>
+    /// Membres du site à qui confier un contrôle ou le suivi d'un prestataire (droit « Exécuter un contrôle »), lus par R/D
+    /// pour affecter ; l'affectation revérifie chaque compte (un intervenant interne est un technicien).
+    /// </summary>
+    internal async Task<IReadOnlyList<IntervenantPossible>> IntervenantsAsync(Guid organisationId, Guid siteId, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.PlanifierPreventif, cancellationToken).ConfigureAwait(false);
+        return await Intervenants.ListerAsync(annuaire, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Affectation de l'échéance courante, à la version lue de l'occurrence (0 tant qu'elle n'existe pas).</summary>
     internal async Task AffecterAsync(Guid organisationId, Guid siteId, Guid planId, DemandeAffectationControle demande, CancellationToken cancellationToken)
     {
@@ -147,8 +166,7 @@ internal sealed class ServiceOccurrences(
     /// d'abord (commande dérivée), puis le contrôle ; un rejeu après un échec partiel retrouve l'évaluation sans la doubler.
     /// </summary>
     internal async Task<ControleEnregistre> RealiserAsync(
-        Guid organisationId, Guid siteId, Guid planId, Func<Task<(DemandeRealisation Demande, IReadOnlyList<PhotoRecue> Photos)>> lire,
-        CancellationToken cancellationToken)
+        Guid organisationId, Guid siteId, Guid planId, Func<Task<FormulaireRecu<DemandeRealisation>>> lire, CancellationToken cancellationToken)
     {
         await autorisations.ExigerAsync(organisationId, siteId, Droit.ExecuterControle, cancellationToken).ConfigureAwait(false);
         if (!await context.Plans.AnyAsync(p => p.Id == planId && p.SiteId == siteId, cancellationToken).ConfigureAwait(false))
@@ -156,18 +174,35 @@ internal sealed class ServiceOccurrences(
             throw new PlanIntrouvableException();
         }
 
-        var (demande, photos) = await lire().ConfigureAwait(false);
+        var recu = await lire().ConfigureAwait(false);
+        var (demande, photos) = (recu.Demande, recu.Photos);
         var commande = demande.CommandeId is { } c && c != Guid.Empty ? c : throw new SaisieInvalideException("commandeId", "Identifiant d'envoi obligatoire.");
         var echeanceDemandee = Echeance(demande.Echeance);
         var auteur = compte.Id ?? throw new InvalidOperationException("Compte courant non défini.");
-        var saisie = SaisieDe(commande, demande);
+        // Empreinte calculée d'emblée : un rejeu doit porter le même rapport (ou aucun) pour être reconnu.
+        var saisie = SaisieDe(commande, demande) with { EmpreinteRapport = recu.Document is { } joint ? RapportControle.Empreinte(joint) : null };
         if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } deja)
         {
             return deja; // rejeu reconnu avant les contrôles
         }
 
         var (plan, occurrences, cible) = await PlanActifAsync(siteId, planId, cancellationToken).ConfigureAwait(false);
-        var echeance = Courante(plan, occurrences, echeanceDemandee);
+        DateOnly echeance;
+        try
+        {
+            echeance = Courante(plan, occurrences, echeanceDemandee);
+        }
+        catch (EcheanceInattendueException)
+        {
+            // Même envoi enregistré entre-temps par une requête concurrente (l'échéance courante a avancé) : même réponse.
+            if (await DejaRealiseAsync(auteur, planId, echeanceDemandee, saisie, cancellationToken).ConfigureAwait(false) is { } concurrente)
+            {
+                return concurrente;
+            }
+
+            throw;
+        }
+
         var occurrence = occurrences.SingleOrDefault(o => o.Echeance == echeance);
         await ExigerEnChargeAsync(organisationId, siteId, occurrence, cancellationToken).ConfigureAwait(false);
 
@@ -184,6 +219,30 @@ internal sealed class ServiceOccurrences(
             Guid.CreateVersion7(maintenant), plan, cible, nouvelle,
             grille is null ? null : new GrilleControle(grille.Version, grille.Criteres, [.. grille.Mesures.Select(m => (m.Libelle, m.Unite))]),
             saisie, auteur, maintenant, affecte);
+        // Seules les zones fournies sont vérifiées (celle du plan, par défaut, est connue).
+        var zonesObservees = (saisie.Observations ?? []).Where(o => o.ZoneId is not null).Select(o => o.ZoneId!.Value).Distinct().ToList();
+        if (zonesObservees.Count > 0 && (await inventaire.ZonesAsync(siteId, zonesObservees, cancellationToken).ConfigureAwait(false)).Count != zonesObservees.Count)
+        {
+            throw new SaisieInvalideException("observations", "Zone d'observation inconnue sur ce site.");
+        }
+
+        // Rapport PDF (décision du 30/10) : celui d'une vérification extérieure seulement, reconnu par sa signature, exigé
+        // pour une vérification réglementaire faite par un intervenant extérieur.
+        if (recu.Document is { } pdf)
+        {
+            if (plan.Nature != NaturePlan.VerificationExterieure)
+            {
+                throw new SaisieInvalideException("rapport", "Un rapport PDF accompagne une vérification extérieure.");
+            }
+
+            RapportControle.Valider(pdf);
+            controle.Joindre(Guid.CreateVersion7(maintenant), pdf.Length, saisie.EmpreinteRapport!);
+        }
+        else if (RapportControle.Exige(plan.Nature, plan.Base, controle.Prestataire))
+        {
+            throw new SaisieInvalideException("rapport", "Rapport PDF obligatoire pour une vérification réglementaire par un intervenant extérieur.");
+        }
+
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
 
         // 2. Photos écrites sous des clés propres au contrôle, retirées si l'enregistrement n'aboutit pas.
@@ -191,6 +250,12 @@ internal sealed class ServiceOccurrences(
             stockage, jpegs, (rang, jpeg) => new PhotoControle(Guid.CreateVersion7(maintenant), controle, rang, jpeg.Length, maintenant), p => p.Cle,
             enregistrees => { var id = enregistrees[0].Id; return context.PhotosControles.AsNoTracking().AnyAsync(p => p.Id == id, CancellationToken.None); },
             cancellationToken).ConfigureAwait(false);
+
+        // Rapport PDF écrit de même, hors verrou, sous une clé propre au contrôle.
+        await using var rapport = await PhotosStockees.EcrireAsync(
+            stockage, recu.Document is { } document ? [document] : [], RapportControle.TypeContenu, (_, _) => controle.RapportCle!, cle => cle, _ => context.Controles.AsNoTracking().AnyAsync(c => c.Id == controle.Id, CancellationToken.None), cancellationToken).ConfigureAwait(false);
+
+        var libelles = await Constats.LibellesAsync(inventaire, annuaire, controle, auteur, cancellationToken).ConfigureAwait(false);
 
         // 3. Échéance verrouillée (affectation, saut et réalisation concurrents attendent) puis revérifiée : une saisie
         //    concurrente l'a résolue ou modifiée → 409, avant d'évaluer, sans laisser d'évaluation orpheline.
@@ -215,7 +280,7 @@ internal sealed class ServiceOccurrences(
         {
             var evaluation = await evaluations.EvaluerAsync(siteId, composantId, new SaisieEvaluationInventaire(
                 Commandes.Derivee(commande, "evaluation"), auteur, controle.GrilleVersion!.Value, [.. controle.PointsLus.Select(p => p.Conforme)],
-                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, jpegs),
+                [.. controle.MesuresLues.Select(m => m.Valeur)], demande.Etat, demande.Repartition, controle.CompteRendu, jpegs, ObservationDu(controle.RealiseLe, maintenant)),
                 cancellationToken).ConfigureAwait(false);
             controle.Evaluer(evaluation.Id, evaluation.Note, evaluation.Libelle);
         }
@@ -228,6 +293,8 @@ internal sealed class ServiceOccurrences(
         nouvelle.Realiser(controle, reserves: controle.Reserves);
         context.Controles.Add(controle);
         context.PhotosControles.AddRange(envoi.Photos);
+        // 5. Non-conformités vers les dossiers (S12-05), dans la même transaction que le contrôle.
+        await Constats.OuvrirAsync(context, plan, controle, libelles, auteur, maintenant, cancellationToken).ConfigureAwait(false);
         Tracer(plan, NatureEvenementPlan.Realisation, maintenant, new
         {
             echeance,
@@ -242,6 +309,7 @@ internal sealed class ServiceOccurrences(
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             envoi.Confirmer();
+            rapport.Confirmer();
         }
         catch (DbUpdateException conflit) when (conflit is DbUpdateConcurrencyException
             || conflit.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
@@ -281,7 +349,7 @@ internal sealed class ServiceOccurrences(
             .Take(500).ToListAsync(cancellationToken).ConfigureAwait(false);
         return [.. lus.Select(l => new ControleResume(
             l.Controle.Id, l.Controle.PlanId, l.Plan, l.Controle.Nature.ToString(), l.Controle.Echeance, l.Controle.RealiseLe, l.Controle.Resultat.ToString(),
-            l.Controle.ComposantId, l.Controle.BatimentId, l.Controle.Defauts, l.Controle.Note))];
+            l.Controle.ComposantId, l.Controle.BatimentId, l.Controle.Defauts, l.Controle.Note, l.Controle.RapportCle != null))];
     }
 
     internal async Task<ControleLu> LireAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)
@@ -297,11 +365,31 @@ internal sealed class ServiceOccurrences(
         var photos = await context.PhotosControles.AsNoTracking().Where(p => p.ControleId == id).OrderBy(p => p.Rang).Select(p => p.Rang)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var noms = await annuaire.NomsAsync([.. new[] { (Guid?)c.AuteurCompteId, c.IntervenantCompteId }.OfType<Guid>().Distinct()], cancellationToken).ConfigureAwait(false);
+        var constats = await (
+                from k in context.Constats.AsNoTracking()
+                join s in context.Signalements.AsNoTracking() on k.DossierId equals s.Id
+                where k.ControleId == id
+                orderby k.Rang
+                select new ConstatLu(k.Rang, k.Libelle, k.Danger, k.DossierId, k.Rattache, s.Statut.ToString()))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new ControleLu(
             c.Id, c.PlanId, lu.Plan, c.Nature.ToString(), c.Echeance, c.RealiseLe, c.SaisiLe, c.AuteurCompteId, noms.GetValueOrDefault(c.AuteurCompteId),
             c.IntervenantCompteId, c.IntervenantCompteId is { } i ? noms.GetValueOrDefault(i) : null, c.Prestataire, c.NumeroAgrement, c.Resultat.ToString(),
             c.CompteRendu, c.CorpsEtat, c.ComposantId, c.ZoneId, c.BatimentId, c.GrilleVersion, c.PointsLus, c.MesuresLues, c.EvaluationId, c.Note, c.LibelleNote,
-            photos);
+            photos, c.ObservationsLues, c.RapportTaille is { } taille ? new RapportLu(taille, c.RapportEmpreinte!) : null,
+            constats, (await Constats.LeveesAsync(context, [c.OccurrenceId], cancellationToken).ConfigureAwait(false)).Contains(c.OccurrenceId));
+    }
+
+    /// <summary>
+    /// Rapport PDF d'un contrôle du site, ou null s'il n'en a pas. Lecture ouverte aux comptes internes du site (T, R/D,
+    /// P/C, décision du 30/10), après le même contrôle d'accès que la fiche.
+    /// </summary>
+    internal async Task<byte[]?> RapportAsync(Guid organisationId, Guid siteId, Guid id, CancellationToken cancellationToken)
+    {
+        await autorisations.ExigerAsync(organisationId, siteId, Droit.ConsulterSite, cancellationToken).ConfigureAwait(false);
+        var cle = await context.Controles.AsNoTracking().Where(c => c.Id == id && c.SiteId == siteId).Select(c => c.RapportCle)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return cle is null ? null : (await stockage.LireAsync(cle, cancellationToken).ConfigureAwait(false))?.Contenu;
     }
 
     /// <summary>Photo d'un contrôle (JPEG), ou null si elle n'existe pas pour ce contrôle du site.</summary>
@@ -320,7 +408,8 @@ internal sealed class ServiceOccurrences(
     private static SaisieControle SaisieDe(Guid commande, DemandeRealisation demande) => new(
         commande, demande.RealiseLe, SaisiePreventif.Facultatif<ResultatControle>(demande.Resultat, "resultat"), demande.CompteRendu, demande.GrilleVersion,
         demande.Points?.Select(p => (p?.Conforme, p?.Danger ?? false)).ToList(), demande.Mesures,
-        demande.Releves?.Select(r => (r?.Libelle, r?.Unite, r?.Valeur)).ToList(), demande.Prestataire, demande.NumeroAgrement);
+        demande.Releves?.Select(r => (r?.Libelle, r?.Unite, r?.Valeur)).ToList(), demande.Prestataire, demande.NumeroAgrement,
+        demande.Observations?.Select(o => (o?.Libelle, o?.ZoneId, o?.Danger ?? false)).ToList());
 
     // Rejeu : même auteur, même plan et échéance, même résultat et date → même contrôle ; sinon la commande est réutilisée (409).
     private async Task<ControleEnregistre?> DejaRealiseAsync(Guid auteur, Guid planId, DateOnly echeance, SaisieControle saisie, CancellationToken cancellationToken)
@@ -366,6 +455,15 @@ internal sealed class ServiceOccurrences(
         }
 
         return (plan, await context.Occurrences.Where(o => o.PlanId == planId).ToListAsync(cancellationToken).ConfigureAwait(false), cible);
+    }
+
+    // Évaluation d'une inspection datée de sa réalisation (choix de l'agent) : début du jour réel (heure de Paris), sans
+    // heure connue ; elle ne masque donc jamais une évaluation enregistrée le même jour, ni après la saisie.
+    private static DateTimeOffset ObservationDu(DateOnly realiseLe, DateTimeOffset maintenant)
+    {
+        var debut = realiseLe.ToDateTime(TimeOnly.MinValue);
+        var instant = new DateTimeOffset(debut, JourCivil.Fuseau.GetUtcOffset(debut)).ToUniversalTime();
+        return instant < maintenant ? instant : maintenant;
     }
 
     private static DateOnly Echeance(DateOnly? demandee) => demandee ?? throw new SaisieInvalideException("echeance", "Échéance obligatoire.");

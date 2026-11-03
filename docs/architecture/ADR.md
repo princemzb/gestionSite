@@ -8,7 +8,7 @@ Statut : ADR-01 à ADR-07 proposées, non adoptées. ADR-08, ADR-09 et ADR-10 ad
 | ADR-03 | Client tablette installé avec stockage local protégé | Web seul : compatibilité localisation à démontrer | Essais Android/iPad |
 | ADR-04 | Commandes idempotentes et conflits explicites | Dernière écriture gagnante : incompatible avec arbitrage choisi | POC synchronisation |
 | ADR-05 | Fournisseurs IA/marchands derrière adaptateurs | Couplage direct : remplacement difficile | Essais et contrat fournisseur |
-| ADR-06 | Emission différée après transaction via journal d’événements à traiter | Appel direct : perte possible entre commit et envoi | Test panne et reprise |
+| ADR-06 | Emission différée après transaction via journal d’événements à traiter. Précisée par S10-01 (03/11, proposée) : les notifications du centre sont écrites dans la transaction de l'événement métier (même contexte du module Maintenance, qui produit tous les événements d'US-10) et servent de journal ; les canaux externes (S10-09) liront ce journal par une file d'envoi (état en file / envoyé / échec, reprise), sans jamais annuler l'action métier | Appel direct : perte possible entre commit et envoi ; boîte d'envoi séparée dès S10-01 : table et relais sans canal à servir ; module Notifications à part : transaction partagée entre deux contextes EF à construire | Test panne et reprise (S10-01 : un seul enregistrement pour l'événement et ses notifications, donc aucune notification sans événement ; reprise des envois : S10-09) |
 | ADR-07 | Position temporaire hors historique métier | Stockage des trajets : contraire au choix utilisateur | Revue sécurité et effacement |
 
 ## Forme obligatoire pour une décision adoptée
@@ -66,6 +66,13 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 
 **Révision.** Si un seuil bloque sans gain de qualité démontré, le modifier par une nouvelle décision motivée, jamais en contournant la porte.
 
+**Révision du 3 novembre 2026 (porteur du projet) : circuit allégé.** Constat : une PR par sous-carte, chacune avec revue de code, revue de sécurité, porte locale complète puis CI, ralentit trop le projet (plusieurs jours sans fin visible), sans gain de qualité démontré par rapport à la CI seule. Décision :
+- **une PR par story** (regroupant ses sous-cartes cohérentes) pour les stories à venir ; les sous-cartes restent suivies une à une dans Trello ; une PR par sous-carte reste possible si la story est trop grosse pour une seule revue ;
+- **plus de porte locale complète** (`server/eng/verify.sh`) en double de la CI : en local, seulement les tests ciblés de ce qui change ; la CI fait foi ;
+- `/code-review` **high** conservé pour toute PR de code (max seulement pour budget et stock, décision du 28/10) ;
+- `/security-review` seulement pour droits et isolation, authentification, fichiers, formulaire public et argent ;
+- **porte Sonar inchangée** (notes A, couverture ≥ 80 % sur le nouveau code, duplication < 3 %, avertissements bloquants, tests d'architecture).
+
 ## ADR-10 — Identité, comptes et isolation des organisations
 **Statut :** adoptée le 28 octobre 2026 par le porteur du projet (tech lead). Cadre US-06.
 
@@ -113,4 +120,4 @@ Langages à maintenir : C# et Dart. En local, Docker simule les services : Postg
 
 **Coût.** Nul en services ; temps de développement chiffré dans les sous-cartes S21-07 à S21-10.
 
-**Preuves attendues et révision.** Fournies par S21-01 : un test JS en échec fait échouer la CI, et la couverture lcov apparaît dans l'analyse Sonar de la PR. À fournir par S21-07 : aucune violation de CSP dans un navigateur réel et fluidité mesurée sur la Tab M11 (fond de 4 096 px, environ 1 000 sommets). Réviser si ces performances sont insuffisantes (repli sur canvas, ou bibliothèque épinglée relue) ou si l'éditeur dépasse nettement l'estimation.
+**Preuves attendues et révision.** Fournies par S21-01 : un test JS en échec fait échouer la CI, et la couverture lcov apparaît dans l'analyse Sonar de la PR. À fournir par S21-07 : aucune violation de CSP dans un navigateur réel et fluidité mesurée sur la Tab M11 (fond de 4 096 px, environ 1 000 sommets). Fournies par S21-07 le 2 novembre 2026 (`deploy/verification/us21.mjs`, Chromium 140 sans interface, Playwright 1.55.0, en local, format 1 280 × 800 tactile) : parcours complet sans aucune violation de CSP ni erreur JavaScript ; fluidité avec un fond PNG de 4 096 × 3 072 px et 1 000 sommets (50 pièces de 20 sommets), pendant un glissement, 20 crans de molette et un pincement à deux doigts (événements tactiles réels) : 167 images, médiane 16,7 ms, 95e centile 16,8 ms, aucune au-delà de 50 ms ; avec le processeur ralenti 4 fois : 327 images, médiane 16,7 ms, 95e centile 16,8 ms, aucune au-delà de 50 ms. La mesure sur la Tab M11 elle-même reste à faire par le porteur (même script en préproduction, ou essai manuel). Réviser si ces performances sont insuffisantes (repli sur canvas, ou bibliothèque épinglée relue) ou si l'éditeur dépasse nettement l'estimation.

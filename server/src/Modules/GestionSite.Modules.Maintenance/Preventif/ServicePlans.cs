@@ -76,6 +76,9 @@ internal sealed class ServicePlans(
             .ConfigureAwait(false);
         var plan = (await LireAsync(siteId, [(lu.Plan, lu.Version)], cancellationToken).ConfigureAwait(false)).Single();
         var occurrences = await OccurrencesAsync([id], cancellationToken).ConfigureAwait(false);
+        var levees = await Constats.LeveesAsync(
+            context, [.. occurrences.Where(o => o.Occurrence.Statut == StatutOccurrence.RealiseeAvecReserves).Select(o => o.Occurrence.Id)], cancellationToken)
+            .ConfigureAwait(false);
         var noms = await NomsAsync(occurrences.Select(o => (o.Occurrence.IntervenantCompteId, o.Occurrence.ReferentCompteId)), cancellationToken).ConfigureAwait(false);
         return new FichePlan(
             plan,
@@ -83,7 +86,8 @@ internal sealed class ServicePlans(
             {
                 var o = l.Occurrence;
                 return new OccurrenceLue(
-                    o.Id, o.Echeance, o.Statut.ToString(), Intervenant(o.IntervenantCompteId, o.Prestataire, o.ReferentCompteId, noms), o.AffecteeLe, o.RealiseeLe,
+                    o.Id, o.Echeance, levees.Contains(o.Id) ? "ReservesLevees" : o.Statut.ToString(),
+                    Intervenant(o.IntervenantCompteId, o.Prestataire, o.ReferentCompteId, noms), o.AffecteeLe, o.RealiseeLe,
                     o.SauteeLe, o.MotifSaut?.ToString(), o.CommentaireSaut, o.ControleId, l.Version);
             })],
             [.. journal.Select(e => new EvenementPlanLu(

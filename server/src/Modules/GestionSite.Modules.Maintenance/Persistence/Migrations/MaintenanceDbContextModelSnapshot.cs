@@ -29,6 +29,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("ConstatId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("constat_id");
+
                     b.Property<DateTimeOffset>("CreeLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");
@@ -48,11 +52,87 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_alertes_danger");
 
+                    b.HasIndex("ConstatId", "OrganisationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_alertes_danger_constat_id_organisation_id")
+                        .HasFilter("constat_id IS NOT NULL");
+
                     b.HasIndex("SignalementId", "OrganisationId")
                         .IsUnique()
-                        .HasDatabaseName("ix_alertes_danger_signalement_id_organisation_id");
+                        .HasDatabaseName("ix_alertes_danger_signalement_id_organisation_id")
+                        .HasFilter("constat_id IS NULL");
 
                     b.ToTable("alertes_danger", "maintenance");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ConstatControle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("cle");
+
+                    b.Property<Guid>("ControleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("controle_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<bool>("Danger")
+                        .HasColumnType("boolean")
+                        .HasColumnName("danger");
+
+                    b.Property<Guid>("DossierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dossier_id");
+
+                    b.Property<string>("Libelle")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("libelle");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("occurrence_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<int>("Rang")
+                        .HasColumnType("integer")
+                        .HasColumnName("rang");
+
+                    b.Property<bool>("Rattache")
+                        .HasColumnType("boolean")
+                        .HasColumnName("rattache");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_constats_controles");
+
+                    b.HasIndex("DossierId", "OrganisationId")
+                        .HasDatabaseName("ix_constats_controles_dossier_id_organisation_id");
+
+                    b.HasIndex("OrganisationId", "OccurrenceId")
+                        .HasDatabaseName("ix_constats_controles_organisation_id_occurrence_id");
+
+                    b.HasIndex("ControleId", "OrganisationId", "Rang")
+                        .IsUnique()
+                        .HasDatabaseName("ix_constats_controles_controle_id_organisation_id_rang");
+
+                    b.ToTable("constats_controles", "maintenance");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ControlePreventif", b =>
@@ -129,6 +209,13 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("character varying(60)")
                         .HasColumnName("numero_agrement");
 
+                    b.Property<string>("Observations")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("observations")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<Guid>("OccurrenceId")
                         .HasColumnType("uuid")
                         .HasColumnName("occurrence_id");
@@ -150,6 +237,20 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("prestataire");
+
+                    b.Property<string>("RapportCle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rapport_cle");
+
+                    b.Property<string>("RapportEmpreinte")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("rapport_empreinte");
+
+                    b.Property<int?>("RapportTaille")
+                        .HasColumnType("integer")
+                        .HasColumnName("rapport_taille");
 
                     b.Property<DateOnly>("RealiseLe")
                         .HasColumnType("date")
@@ -196,6 +297,8 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                     b.ToTable("controles_preventifs", "maintenance", t =>
                         {
                             t.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)");
+
+                            t.HasCheckConstraint("ck_controles_preventifs_rapport", "(rapport_cle IS NULL) = (rapport_taille IS NULL) AND (rapport_cle IS NULL) = (rapport_empreinte IS NULL) AND (rapport_taille IS NULL OR rapport_taille BETWEEN 1 AND 10485760)");
                         });
                 });
 
@@ -402,6 +505,67 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasDatabaseName("ix_interventions_organisation_id_site_id_statut");
 
                     b.ToTable("interventions", "maintenance");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("cle");
+
+                    b.Property<Guid>("CompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compte_id");
+
+                    b.Property<DateTimeOffset>("CreeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cree_le");
+
+                    b.Property<DateTimeOffset?>("LueLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lue_le");
+
+                    b.Property<string>("Objet")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("objet");
+
+                    b.Property<Guid>("ObjetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("objet_id");
+
+                    b.Property<Guid>("OrganisationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organisation_id");
+
+                    b.Property<Guid>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notifications");
+
+                    b.HasIndex("OrganisationId", "CompteId", "Cle")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notifications_organisation_id_compte_id_cle");
+
+                    b.HasIndex("OrganisationId", "CompteId", "Id")
+                        .HasDatabaseName("ix_notifications_organisation_id_compte_id_id");
+
+                    b.ToTable("notifications", "maintenance");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.OccurrencePreventive", b =>
@@ -869,6 +1033,11 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("attente_depuis");
 
+                    b.Property<string>("CleConstat")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("cle_constat");
+
                     b.Property<DateTimeOffset?>("ClotureLe")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cloture_le");
@@ -890,6 +1059,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("contact_declarant");
+
+                    b.Property<Guid?>("ControleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("controle_id");
 
                     b.Property<bool>("Danger")
                         .HasColumnType("boolean")
@@ -935,6 +1108,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nom_declarant");
+
+                    b.Property<Guid?>("OccurrenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("occurrence_id");
 
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
@@ -1004,6 +1181,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_signalements_organisation_id_commande_id");
 
+                    b.HasIndex("OrganisationId", "SiteId", "CleConstat")
+                        .HasDatabaseName("ix_signalements_organisation_id_site_id_cle_constat")
+                        .HasFilter("cle_constat IS NOT NULL");
+
                     b.HasIndex("OrganisationId", "SiteId", "Id")
                         .HasDatabaseName("ix_signalements_organisation_id_site_id_id");
 
@@ -1022,6 +1203,25 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_alertes_danger_signalements_signalement_id_organisation_id");
+                });
+
+            modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ConstatControle", b =>
+                {
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.ControlePreventif", null)
+                        .WithMany()
+                        .HasForeignKey("ControleId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_constats_controles_controles_preventifs_controle_id_organis");
+
+                    b.HasOne("GestionSite.Modules.Maintenance.Domain.Signalement", null)
+                        .WithMany()
+                        .HasForeignKey("DossierId", "OrganisationId")
+                        .HasPrincipalKey("Id", "OrganisationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_constats_controles_signalements_dossier_id_organisation_id");
                 });
 
             modelBuilder.Entity("GestionSite.Modules.Maintenance.Domain.ControlePreventif", b =>

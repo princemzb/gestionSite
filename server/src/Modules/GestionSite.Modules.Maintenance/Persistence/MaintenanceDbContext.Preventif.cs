@@ -12,6 +12,8 @@ internal sealed partial class MaintenanceDbContext
 
     public DbSet<PhotoControle> PhotosControles => Set<PhotoControle>();
 
+    public DbSet<ConstatControle> Constats => Set<ConstatControle>();
+
     private static void ConfigurerPreventif(ModelBuilder modelBuilder)
     {
         ConfigurerExecution(modelBuilder);
@@ -109,7 +111,17 @@ internal sealed partial class MaintenanceDbContext
         modelBuilder.Entity<ControlePreventif>(controle =>
         {
             controle.ToTable("controles_preventifs", table =>
-                table.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)"));
+            {
+                table.HasCheckConstraint("ck_controles_preventifs_intervenant", "(intervenant_compte_id IS NULL) <> (prestataire IS NULL)");
+                // Rapport PDF (S12-04) : complet ou absent, 10 Mo au plus.
+                table.HasCheckConstraint(
+                    "ck_controles_preventifs_rapport",
+                    "(rapport_cle IS NULL) = (rapport_taille IS NULL) AND (rapport_cle IS NULL) = (rapport_empreinte IS NULL) " +
+                    $"AND (rapport_taille IS NULL OR rapport_taille BETWEEN 1 AND {SharedKernel.Photos.FormulaireAvecPhotos.DocumentMax})");
+            });
+            controle.Property(c => c.Observations).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
+            controle.Property(c => c.RapportCle).HasMaxLength(PhotoControle.CleMax);
+            controle.Property(c => c.RapportEmpreinte).HasMaxLength(64);
             controle.HasKey(c => c.Id);
             controle.Property(c => c.Id).ValueGeneratedNever();
             controle.Property(c => c.Nature).HasConversion<string>().HasMaxLength(24);
@@ -129,6 +141,25 @@ internal sealed partial class MaintenanceDbContext
             controle.HasOne<OccurrencePreventive>().WithMany()
                 .HasForeignKey(c => new { c.OccurrenceId, c.OrganisationId })
                 .HasPrincipalKey(o => new { o.Id, o.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ConstatControle>(constat =>
+        {
+            constat.ToTable("constats_controles");
+            constat.HasKey(c => c.Id);
+            constat.Property(c => c.Id).ValueGeneratedNever();
+            constat.Property(c => c.Libelle).HasMaxLength(ConstatControle.LibelleMax);
+            constat.Property(c => c.Cle).HasMaxLength(ConstatControle.CleMax);
+            constat.HasIndex(c => new { c.ControleId, c.OrganisationId, c.Rang }).IsUnique();
+            constat.HasIndex(c => new { c.OrganisationId, c.OccurrenceId });
+            constat.HasOne<ControlePreventif>().WithMany()
+                .HasForeignKey(c => new { c.ControleId, c.OrganisationId })
+                .HasPrincipalKey(c => new { c.Id, c.OrganisationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            constat.HasOne<Signalement>().WithMany()
+                .HasForeignKey(c => new { c.DossierId, c.OrganisationId })
+                .HasPrincipalKey(s => new { s.Id, s.OrganisationId })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

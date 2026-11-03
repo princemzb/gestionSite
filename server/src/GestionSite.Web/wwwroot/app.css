@@ -435,6 +435,59 @@ form.formulaire-inventaire { padding: 0; }
 .courbe-notes { width: 100%; height: 48px; display: block; }
 .courbe-notes polyline { fill: none; stroke: #1E6CFF; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 
+/* Préventif (US-12, maquette B) : calendrier mensuel des échéances, panneau des retards, plans proposés, fiche du plan. */
+.preventif .retour { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+.echeancier { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.echeancier > section { flex: 1 1 520px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.echeancier > aside { flex: 0 1 340px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.echeancier h2 { margin: 8px 0 0; font-size: 17px; }
+.calendrier-entete { display: flex; justify-content: space-between; align-items: center; }
+.calendrier-entete h2 { margin: 0; font-size: 24px; }
+.calendrier-navigation { display: flex; gap: 8px; }
+.calendrier-navigation a { width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--bordure-forte); display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--encre); }
+.calendrier-jours, .calendrier-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.calendrier-jours { font-size: 12px; color: var(--encre-2); }
+.calendrier-grille { margin: 0; padding: 0; list-style: none; }
+.calendrier-grille li { min-height: 72px; border-radius: 10px; border: 1px solid var(--bordure); padding: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.calendrier-grille li.hors-mois { border-color: transparent; background: var(--etape-fond); color: var(--encre-3); }
+.calendrier-grille li.aujourdhui { border: 2px solid var(--alerte); }
+.numero-jour { font-weight: 600; }
+.echeance { display: block; margin-top: 4px; padding: 3px 6px; border-radius: 6px; text-decoration: none; background: var(--etape-fond); color: var(--lien); }
+.echeance.echeance-a-faire { background: var(--alerte-fond); color: var(--alerte); }
+.echeance.echeance-en-retard { background: var(--danger-fond); color: var(--danger); font-weight: 600; }
+.echeance.echeance-prevue { background: transparent; border: 1px dashed var(--bordure-forte); color: var(--encre-2); }
+.legende { display: flex; flex-wrap: wrap; gap: 8px; }
+.legende .echeance { display: inline-block; margin: 0; }
+.liste-echeances { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.panneau-echeances .liste-echeances:first-of-type li { padding: 10px 12px; border-radius: 12px; background: var(--danger-fond); border-left: 4px solid var(--danger); }
+.propositions .proposition { padding: 14px 0; border-top: 1px solid var(--bordure); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.proposition > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 260px; }
+.proposition.ecartee { opacity: 0.7; }
+.proposition details summary { cursor: pointer; font-size: 14px; color: var(--lien); }
+.actions-proposition { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.ecarter summary.bouton-secondaire { display: inline-flex; align-items: center; list-style: none; }
+.ecarter[open] form { margin-top: 12px; }
+.detail-plan { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 14px; }
+.detail-plan dt { color: var(--encre-2); }
+.detail-plan dd { margin: 0; }
+.fiche-plan .echeance, .fiche-controle .echeance { display: inline-block; margin: 0 0 0 6px; font-size: 13px; }
+.actions-controle { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.actions-controle details[open] { flex-basis: 100%; }
+
+/* Contrôle sur téléphone (US-12, S12-07, maquette A : même parcours que l'évaluation), fiche et historique des contrôles. */
+.point-observe.point-controle { grid-template-columns: repeat(2, 1fr); }
+.point-observe.danger, .point-observe:has(input[value="danger"]:checked) { border: 2px solid var(--danger); background: var(--danger-fond); }
+.choix-resultat, .ligne-observation { margin: 0; border: 1px solid var(--bordure-forte); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+.choix-resultat legend, .ligne-observation legend { padding: 0 4px; font-weight: 600; }
+.ligne-releve { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+.texte-libre { white-space: pre-line; overflow-wrap: anywhere; }
+.empreinte { overflow-wrap: anywhere; }
+.fiche-controle h2 { margin: 8px 0 0; font-size: 17px; }
+.liste-controles { padding: 18px; }
+.ligne-controle { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--bordure); }
+.ligne-controle:first-child { border-top: none; padding-top: 0; }
+.observation { display: flex; flex-direction: column; gap: 2px; }
+
 /* Téléphone (US-09 : « Mes interventions » du technicien) : navigation compacte en haut, le contenu reste au premier écran. */
 @media (max-width: 640px) {
   .admin { align-content: flex-start; } /* les lignes ne s'étirent pas sur la hauteur de l'écran */
@@ -445,4 +498,73 @@ form.formulaire-inventaire { padding: 0; }
   .admin-nav form { margin: 0 0 0 auto; }
   .admin-nav button { padding: 8px 10px; font-size: 14px; }
   .admin-contenu { padding: 16px 12px; }
+  .calendrier-grille li { min-height: 48px; padding: 4px; }
+  .calendrier-grille .echeance { font-size: 0; padding: 0; height: 6px; } /* pastille de couleur ; le libellé reste lu par les lecteurs d'écran */
+  .detail-plan { grid-template-columns: 1fr; }
+  .ligne-releve { grid-template-columns: 1fr 1fr; }
+  .ligne-releve label:first-child { grid-column: 1 / -1; }
+}
+
+/* Éditeur de plans de bâtiment (US-21, S21-07) : maquettes A « Atelier » (outils à gauche, plan au centre, propriétés à
+   droite, sélecteur de niveau) et C « parcours guidé ». Couleurs des cotes : celles des maquettes (bleu, violet). */
+.editeur { --plan-cote: #1E6CFF; --plan-controle: #7569FF; display: flex; gap: 12px; min-height: 560px; height: calc(100vh - 230px); }
+.editeur-page [hidden] { display: none !important; } /* éléments HTML et SVG masqués par l'éditeur */
+.editeur-outils { flex: 0 0 64px; padding: 8px; display: flex; flex-direction: column; gap: 6px; border-radius: 20px; }
+.editeur-outils .outil { height: 48px; border: none; border-radius: 12px; background: transparent; color: var(--encre); font: inherit; font-size: 20px; cursor: pointer; }
+.editeur-outils .outil[aria-pressed="true"] { background: #1E6CFF14; color: #1E6CFF; font-weight: 700; }
+.editeur-outils .outil:disabled { color: var(--encre-3); cursor: default; }
+.outils-espace { flex: 1; }
+.editeur-plan { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; border-radius: 20px; }
+.editeur-svg { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; cursor: grab; background: var(--surface); }
+.editeur-svg:focus-visible { outline: 3px solid #1E6CFF; outline-offset: -3px; }
+.editeur-svg.pointage { cursor: crosshair; }
+.grille-trait { fill: none; stroke: var(--bordure-forte); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.pieces polygon { fill: #1E6CFF14; stroke: var(--plan-cote); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.pieces text, .cotes text { fill: var(--encre); font-family: Inter, system-ui, sans-serif; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+.pieces .ouverture { stroke: var(--encre); stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.pieces .escalier { fill: #00074010; stroke: var(--encre-2); stroke-dasharray: 4 3; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.pieces .composant { fill: var(--lien); }
+.calque-inferieur polygon { fill: none; stroke: var(--encre-3); stroke-width: 1.5px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.cotes line { stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.cotes .calibration { stroke: var(--plan-cote); fill: var(--plan-cote); }
+.cotes .controle { stroke: var(--plan-controle); fill: var(--plan-controle); stroke-dasharray: 6 4; }
+.cotes .mesure { stroke: var(--succes); fill: var(--succes); }
+.cotes text { fill: var(--encre); stroke: var(--surface); stroke-width: 4px; stroke-dasharray: none; paint-order: stroke; vector-effect: non-scaling-stroke; }
+.editeur-pastille { position: absolute; left: 16px; top: 16px; right: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+.editeur-pastille > * { pointer-events: auto; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--bordure-forte); font-size: 13px; color: var(--encre); }
+.bouton-pastille { font: inherit; font-size: 13px; cursor: pointer; min-height: 32px; }
+.bouton-pastille[aria-pressed="true"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); }
+.editeur-commandes { position: absolute; right: 16px; bottom: 16px; left: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; pointer-events: none; }
+.bouton-vue { pointer-events: auto; min-width: 48px; height: 48px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--bordure-forte); background: var(--surface); color: var(--encre); font: inherit; font-size: 16px; cursor: pointer; box-shadow: var(--ombre); }
+.bouton-vue:disabled { color: var(--encre-3); cursor: default; }
+.editeur-echelle { position: absolute; left: 16px; bottom: 20px; padding: 2px 8px 0; border-bottom: 2px solid var(--encre); font-size: 12px; color: var(--encre); background: var(--surface); }
+.editeur-panneau { flex: 0 0 320px; padding: 18px; border-radius: 20px; overflow-y: auto; }
+.editeur-panneau > div { display: flex; flex-direction: column; gap: 12px; }
+.editeur-panneau h2 { margin: 0; font-size: 18px; }
+.editeur-proprietes { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; }
+.editeur-proprietes dt { color: var(--encre-2); }
+.editeur-proprietes dd { margin: 0; }
+.editeur-actions-panneau { display: flex; flex-wrap: wrap; gap: 8px; }
+.editeur-actions-panneau .bouton-principal { flex: 2; }
+.editeur-actions-panneau .bouton-secondaire { flex: 1; }
+.editeur-import { display: flex; flex-direction: column; gap: 10px; }
+.editeur-champs-pdf { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.editeur-champs-pdf .champ { font-size: 14px; }
+.editeur-fonds { margin: 0; padding: 0; border: none; display: flex; flex-direction: column; gap: 6px; }
+.editeur-fonds legend { font-weight: 600; margin-bottom: 6px; }
+.editeur-fonds button { width: 100%; text-align: left; min-height: 44px; padding: 8px 12px; margin-bottom: 6px; border-radius: 12px; border: 1px solid var(--bordure-forte); background: transparent; color: var(--encre); font: inherit; font-size: 14px; cursor: pointer; }
+.editeur-cibles { border-radius: 14px; box-shadow: none; border: 1px solid var(--bordure-forte); }
+.editeur-cibles button { flex: 1; min-height: 44px; border: none; border-radius: 10px; background: transparent; color: var(--encre); font: inherit; font-size: 14px; cursor: pointer; }
+.editeur-cibles button[aria-pressed="true"] { background: var(--etape-courante-fond); color: var(--etape-courante-texte); font-weight: 600; }
+.editeur-brouillon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.editeur-brouillon p { margin: 0; }
+.etapes-plan li { flex: 1 1 180px; padding: 12px 14px; border-radius: 14px; }
+
+/* Tablette en portrait et téléphone : plan d'abord, propriétés dessous, outils en ligne. */
+@media (max-width: 1100px) {
+  .editeur { flex-wrap: wrap; height: auto; }
+  .editeur-outils { flex: 1 1 100%; flex-direction: row; }
+  .editeur-outils .outil { flex: 0 0 56px; }
+  .editeur-plan { flex: 1 1 100%; height: 62vh; min-height: 420px; }
+  .editeur-panneau { flex: 1 1 100%; }
 }

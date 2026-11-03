@@ -12,6 +12,11 @@ internal static class Intervenants
 {
     private const string Technicien = "Technicien";
 
+    /// <summary>Membres actifs du site ayant ce droit, à proposer à l'affectation (la validation reste <see cref="ExigerAsync"/>).</summary>
+    internal static async Task<IReadOnlyList<IntervenantPossible>> ListerAsync(IAnnuaireMembres annuaire, Guid siteId, Droit droit, CancellationToken cancellationToken) =>
+        [.. (await annuaire.MembresAyantDroitAsync(siteId, droit, compteIds: null, cancellationToken).ConfigureAwait(false))
+            .Select(m => new IntervenantPossible(m.CompteId, m.Nom, m.Roles))];
+
     internal static async Task ExigerAsync(
         IAnnuaireMembres annuaire, Guid siteId, Droit droit, Guid? intervenantCompteId, Guid? referentCompteId, CancellationToken cancellationToken)
     {

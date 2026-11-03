@@ -45,6 +45,9 @@ internal enum OrigineDossier
 {
     Public = 1,
     Interne = 2,
+
+    /// <summary>Constat d'un contrôle préventif (US-12, RG-09) : ouvert automatiquement, à qualifier.</summary>
+    Inspection = 3,
 }
 
 /// <summary>Dossier principal qui a déjà des doublons rattachés : ni rattachement ailleurs ni classement (409 « doublons_rattaches »).</summary>
@@ -155,6 +158,27 @@ internal sealed class Signalement : IAppartientAOrganisation
         return signalement;
     }
 
+    /// <summary>
+    /// Dossier ouvert par un constat de contrôle (US-12, S12-05, RG-09) : statut « À qualifier », zone et composant fixés
+    /// d'emblée, relié au contrôle, à l'occurrence et au critère (clé de rattachement des constats suivants) ; le déclarant
+    /// est le compte qui a saisi le contrôle.
+    /// </summary>
+    internal static Signalement Constat(
+        Guid id, Guid organisationId, Guid siteId, Guid commandeId, string description, string libelleZone, Guid zoneId, Guid? composantId, bool danger,
+        Guid compteId, string nomCompte, string cle, Guid controleId, Guid occurrenceId, DateTimeOffset recuLe)
+    {
+        var dossier = Interne(
+            id, organisationId, siteId, commandeId, NatureSignalement.Incident,
+            description.Length <= DescriptionMax ? description : string.Concat(description.AsSpan(0, DescriptionMax - 1), "…"),
+            emplacement: null, libelleZone, zoneId, danger, activiteBloquee: false, compteId, nomCompte, recuLe);
+        dossier.Origine = OrigineDossier.Inspection;
+        dossier.ComposantId = composantId;
+        dossier.CleConstat = cle;
+        dossier.ControleId = controleId;
+        dossier.OccurrenceId = occurrenceId;
+        return dossier;
+    }
+
     public Guid Id { get; private set; }
 
     public Guid OrganisationId { get; private set; }
@@ -162,6 +186,14 @@ internal sealed class Signalement : IAppartientAOrganisation
     public Guid SiteId { get; private set; }
 
     public Guid CommandeId { get; private set; }
+
+    /// <summary>Critère d'un dossier ouvert par un constat (corps d'état et point, ou observation, normalisés) ; null sinon.</summary>
+    public string? CleConstat { get; private set; }
+
+    /// <summary>Contrôle et occurrence préventifs qui ont ouvert ce dossier ; null sinon.</summary>
+    public Guid? ControleId { get; private set; }
+
+    public Guid? OccurrenceId { get; private set; }
 
     public NatureSignalement Nature { get; private set; }
 
@@ -261,6 +293,9 @@ internal sealed class Signalement : IAppartientAOrganisation
         QualifieLe ??= maintenant;
         return true;
     }
+
+    /// <summary>Danger relevé par un constat d'inspection rattaché (US-12, T-03.20) : visible sur le dossier ensuite.</summary>
+    internal void SignalerDanger() => Danger = true;
 
     /// <summary>Une intervention est affectée (R/D) : le dossier qualifié passe « Affecté » à la première (DEC-03).</summary>
     internal void Affecter(DateTimeOffset maintenant)
@@ -423,6 +458,17 @@ internal sealed class AlerteDanger : IAppartientAOrganisation
         CreeLe = signalement.RecuLe;
     }
 
+    /// <summary>Danger relevé par un constat d'inspection (T-03.20) : une alerte par constat, même rattaché à un dossier existant.</summary>
+    internal AlerteDanger(Guid id, Signalement dossier, Guid constatId, DateTimeOffset le)
+        : this(id, dossier)
+    {
+        ConstatId = constatId;
+        CreeLe = le;
+    }
+
+    /// <summary>Constat d'inspection à l'origine de l'alerte ; null pour le danger déclaré avec le dossier.</summary>
+    public Guid? ConstatId { get; private set; }
+
     public Guid Id { get; private set; }
 
     public Guid OrganisationId { get; private set; }
@@ -489,6 +535,9 @@ internal enum NatureEvenementDossier
     ClotureIntervention = 9,
     Cloture = 10,
     Reouverture = 11,
+
+    /// <summary>Nouveau constat d'inspection rattaché à ce dossier ouvert (même composant, même critère, US-12).</summary>
+    ConstatInspection = 12,
 }
 
 /// <summary>Journal d'un dossier, en ajout seul : auteur, date, nature et détail (JSON) de chaque décision.</summary>

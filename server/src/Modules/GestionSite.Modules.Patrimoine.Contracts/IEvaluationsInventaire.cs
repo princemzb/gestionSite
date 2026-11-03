@@ -21,9 +21,13 @@ public sealed record RepartitionInventaire(int Bon, int Satisfaisant, int Degrad
 /// <param name="Repartition">Lot : répartition par état.</param>
 /// <param name="Remarque"></param>
 /// <param name="Photos">Photos reçues (JPEG, PNG ou HEIC), réencodées par l'évaluation.</param>
+/// <param name="ObserveLe">
+/// Instant de l'observation (date réelle de l'inspection) ; l'évaluation est datée ainsi, et une évaluation plus récente
+/// du composant n'est jamais masquée. Null : heure du serveur.
+/// </param>
 public sealed record SaisieEvaluationInventaire(
     Guid CommandeId, Guid EvaluateurCompteId, int GrilleVersion, IReadOnlyList<bool?> Constats, IReadOnlyList<decimal?> Mesures, string? Etat,
-    RepartitionInventaire? Repartition, string? Remarque, IReadOnlyList<byte[]> Photos);
+    RepartitionInventaire? Repartition, string? Remarque, IReadOnlyList<byte[]> Photos, DateTimeOffset? ObserveLe = null);
 
 /// <summary>Évaluation enregistrée : note affichée (une décimale) et son libellé.</summary>
 /// <param name="Id"></param>

@@ -1,4 +1,5 @@
 using GestionSite.Web.Dossiers;
+using GestionSite.Web.Session;
 
 namespace GestionSite.Api.Tests;
 
@@ -38,6 +39,7 @@ public sealed class LibellesDossiersTests
     [InlineData("ClotureIntervention", "Intervention clôturée")]
     [InlineData("Cloture", "Dossier clôturé")]
     [InlineData("Reouverture", "Rouvert")]
+    [InlineData("ConstatInspection", "Constat d'inspection rattaché")]
     [InlineData("Nouveau", "Nouveau")]
     public void JournalEventsReadInFrench(string code, string libelle) => Assert.Equal(libelle, LibellesDossiers.Nature(code));
 
@@ -52,7 +54,7 @@ public sealed class LibellesDossiersTests
         Assert.Equal("—", LibellesDossiers.Libelle(LibellesDossiers.MotifsAttente, null));
         Assert.Equal("Livraison de fournitures", LibellesDossiers.Libelle(LibellesDossiers.MotifsAttente, "Livraison"));
         Assert.Equal("Inconnu", LibellesDossiers.Libelle(LibellesDossiers.EtatsFinaux, "Inconnu"));
-        Assert.Equal("05/11/2026", LibellesDossiers.Date(new DateOnly(2026, 11, 5)));
+        Assert.Equal("05/11/2026", Perimetre.Date(new DateOnly(2026, 11, 5)));
     }
 
     [Theory]

@@ -16,7 +16,12 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <!-- Géométrie des plans de bâtiment (US-21) : BSD-3-Clause. -->
+    <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <!-- Rendu d'une page de PDF de plan (US-21, S21-05), dans un processus enfant : liaison Apache-2.0, binaires natifs
+         bblanchon.PDFium (même version, compilés sans V8 ni XFA). -->
+    <PackageVersion Include="PDFiumCore" Version="157.0.8100" />
     <PackageVersion Include="QRCoder" Version="1.8.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />

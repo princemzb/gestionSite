@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- PDF synthétiques du rendu de plan (S21-05), communs aux tests de modules. -->
+    <Compile Include="../GestionSite.Modules.Tests/PdfSynthetique.cs" Link="PdfSynthetique.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/GestionSite.Web/GestionSite.Web.csproj" />
     <ProjectReference Include="..\..\src\GestionSite.Api\GestionSite.Api.csproj" />
   </ItemGroup>

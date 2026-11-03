@@ -24,7 +24,9 @@ internal enum IssueConnexion
 internal sealed class SessionExpireeException() : Exception("Session expirée.");
 
 /// <summary>Échec métier renvoyé par l'API (code stable des ProblemDetails).</summary>
-internal sealed class RefusApiException(HttpStatusCode statut, string? code, string? message, string? champ = null) : Exception(message ?? code)
+internal sealed class RefusApiException(
+    HttpStatusCode statut, string? code, string? message, string? champ = null, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? details = null)
+    : Exception(message ?? code)
 {
     internal HttpStatusCode Statut { get; } = statut;
 
@@ -32,14 +34,18 @@ internal sealed class RefusApiException(HttpStatusCode statut, string? code, str
 
     /// <summary>Champ refusé d'une saisie invalide (422 « donnee_invalide »).</summary>
     internal string? Champ { get; } = champ;
+
+    /// <summary>Autres membres du refus (conflit de version : version gagnante, auteur, date).</summary>
+    internal IReadOnlyDictionary<string, System.Text.Json.JsonElement> Details { get; } = details ?? new Dictionary<string, System.Text.Json.JsonElement>();
 }
 
 /// <summary>
 /// Appels à l'API pour l'utilisateur connecté. Jetons rangés dans les propriétés chiffrées du cookie ;
-/// le jeton d'accès (15 min) est renouvelé à l'approche de son expiration ou sur refus 401.
+/// le jeton d'accès (15 min) est renouvelé à l'approche de son expiration ou sur refus 401. Une page peut lancer
+/// plusieurs lectures en parallèle : le renouvellement et l'écriture du cookie restent un à la fois.
 /// </summary>
 internal sealed class SessionApi(
-    IHttpClientFactory clients, IHttpContextAccessor accesseur, TimeProvider horloge, RenouvellementsPartages renouvellements)
+    IHttpClientFactory clients, IHttpContextAccessor accesseur, TimeProvider horloge, RenouvellementsPartages renouvellements) : IDisposable
 {
     private const string Acces = "acces";
     private const string Renouvellement = "renouvellement";
@@ -48,6 +54,12 @@ internal sealed class SessionApi(
     // Jetons de la requête en cours : après un renouvellement, les appels suivants de la même page doivent
     // utiliser les nouveaux, pas ceux du cookie reçu (déjà remplacés, donc pris pour un vol par l'API).
     private JetonsApi? _jetonsCourants;
+
+    // Lectures parallèles d'une même page : le contexte HTTP (cookie de session) n'est jamais modifié en même temps.
+    private readonly SemaphoreSlim _verrouJetons = new(1, 1);
+
+    // Renouvellement refusé pendant cette requête : session fermée, les lectures en attente ne le retentent pas.
+    private bool _sessionFermee;
 
     private HttpContext Contexte => accesseur.HttpContext ?? throw new InvalidOperationException("Hors requête HTTP.");
 
@@ -119,12 +131,16 @@ internal sealed class SessionApi(
     internal Task<T> EcrireAsync<T>(string chemin, object corps, CancellationToken annulation) => EnvoyerEtLireAsync<T>(HttpMethod.Post, chemin, corps, annulation);
 
     /// <summary>Contenu binaire (photo) d'une ressource de l'API, ou null si elle n'existe pas.</summary>
-    internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation)
+    internal async Task<byte[]?> LireOctetsAsync(string chemin, CancellationToken annulation) =>
+        (await LireFichierAsync(chemin, annulation).ConfigureAwait(false))?.Contenu;
+
+    /// <summary>Contenu binaire et type annoncé par l'API (fond de plan : PNG ou JPEG), ou null si la ressource n'existe pas.</summary>
+    internal async Task<(byte[] Contenu, string? TypeContenu)?> LireFichierAsync(string chemin, CancellationToken annulation)
     {
         try
         {
             using var reponse = await EnvoyerAsync(HttpMethod.Get, chemin, corps: null, annulation).ConfigureAwait(false);
-            return await reponse.Content.ReadAsByteArrayAsync(annulation).ConfigureAwait(false);
+            return (await reponse.Content.ReadAsByteArrayAsync(annulation).ConfigureAwait(false), reponse.Content.Headers.ContentType?.MediaType);
         }
         catch (RefusApiException refus) when (refus.Statut is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
         {
@@ -151,9 +167,20 @@ internal sealed class SessionApi(
     /// Formulaire multipart (partie « demande » en JSON et photos), réponse lue en <typeparamref name="T"/> ou ignorée (204).
     /// Le contenu est reconstruit à chaque essai : un renouvellement de jeton renvoie un corps complet.
     /// </summary>
-    internal async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation)
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos), annulation);
+
+    /// <summary>Même formulaire, fichiers envoyés dans la partie <paramref name="partie"/> (fond de plan : « fichier »).</summary>
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> fichiers, string partie, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, fichiers, partie), annulation);
+
+    /// <summary>Formulaire multipart avec, en plus des photos, un rapport PDF (partie « rapport ») vérifié par l'API.</summary>
+    internal Task<T?> EnvoyerFormulaireAsync<T>(string chemin, object demande, IReadOnlyList<IFormFile> photos, IFormFile? rapport, CancellationToken annulation) =>
+        EnvoyerFormulaireAsync<T>(chemin, new ContenuFormulaire(demande, photos, rapport: rapport), annulation);
+
+    private async Task<T?> EnvoyerFormulaireAsync<T>(string chemin, ContenuFormulaire formulaire, CancellationToken annulation)
     {
-        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, new ContenuFormulaire(demande, photos), annulation).ConfigureAwait(false);
+        using var reponse = await EnvoyerAsync(HttpMethod.Post, chemin, formulaire, annulation).ConfigureAwait(false);
         return reponse.StatusCode == HttpStatusCode.NoContent
             ? default
             : await reponse.Content.ReadFromJsonAsync<T>(annulation).ConfigureAwait(false);
@@ -189,6 +216,8 @@ internal sealed class SessionApi(
         }
 
         await contexte.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
+        // Brouillons locaux de l'éditeur de plans (tablette partagée, RP-21.8) : stockage du site effacé par le navigateur.
+        contexte.Response.Headers["Clear-Site-Data"] = "\"storage\"";
         return Results.LocalRedirect("/connexion");
     }
 
@@ -207,12 +236,12 @@ internal sealed class SessionApi(
 
     private async Task<HttpResponseMessage> EnvoyerOuEchouerAsync(HttpMethod methode, string chemin, object? corps, CancellationToken annulation)
     {
-        var acces = await JetonValideAsync(forcer: false, annulation).ConfigureAwait(false);
+        var acces = await JetonValideAsync(refuse: null, annulation).ConfigureAwait(false);
         var reponse = await EnvoyerAvecAsync(methode, chemin, corps, acces, annulation).ConfigureAwait(false);
         if (reponse.StatusCode == HttpStatusCode.Unauthorized)
         {
             reponse.Dispose();
-            acces = await JetonValideAsync(forcer: true, annulation).ConfigureAwait(false);
+            acces = await JetonValideAsync(refuse: acces, annulation).ConfigureAwait(false);
             reponse = await EnvoyerAvecAsync(methode, chemin, corps, acces, annulation).ConfigureAwait(false);
         }
 
@@ -226,7 +255,7 @@ internal sealed class SessionApi(
             var probleme = await LireProblemeAsync(reponse, annulation).ConfigureAwait(false);
             throw reponse.StatusCode == HttpStatusCode.Unauthorized
                 ? new SessionExpireeException()
-                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title, probleme?.Champ);
+                : new RefusApiException(reponse.StatusCode, probleme?.Code, probleme?.Title, probleme?.Champ, probleme?.Autres);
         }
     }
 
@@ -256,12 +285,40 @@ internal sealed class SessionApi(
                 _ => JsonContent.Create(corps),
             };
 
-            return await Client.SendAsync(demande, annulation).ConfigureAwait(false);
+            // Import d'un fond de plan (rendu PDF compris) : client au délai long.
+            var client = corps is ContenuFormulaire { Partie: "fichier" } ? clients.CreateClient(Programme.ClientApiLong) : Client;
+            return await client.SendAsync(demande, annulation).ConfigureAwait(false);
         }).ConfigureAwait(false);
     }
 
-    private async Task<string> JetonValideAsync(bool forcer, CancellationToken annulation)
+    /// <summary>Jeton d'accès valide ; <paramref name="refuse"/> : jeton refusé (401) par l'API, à remplacer.</summary>
+    private async Task<string> JetonValideAsync(string? refuse, CancellationToken annulation)
     {
+        await _verrouJetons.WaitAsync(annulation).ConfigureAwait(false);
+        try
+        {
+            return await JetonValideSousVerrouAsync(refuse, annulation).ConfigureAwait(false);
+        }
+        finally
+        {
+            _verrouJetons.Release();
+        }
+    }
+
+    private async Task<string> JetonValideSousVerrouAsync(string? refuse, CancellationToken annulation)
+    {
+        if (_sessionFermee)
+        {
+            throw new SessionExpireeException();
+        }
+
+        // Jeton refusé déjà remplacé par une lecture parallèle : pas de second renouvellement.
+        if (refuse is not null && _jetonsCourants is { } courants && courants.JetonAcces != refuse)
+        {
+            return courants.JetonAcces;
+        }
+
+        var forcer = refuse is not null;
         var resultat = await Contexte.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
         var proprietes = resultat.Properties ?? throw new SessionExpireeException();
         var acces = _jetonsCourants?.JetonAcces ?? proprietes.GetTokenValue(Acces);
@@ -287,6 +344,7 @@ internal sealed class SessionApi(
         }).ConfigureAwait(false);
         if (jetons is null)
         {
+            _sessionFermee = true;
             await Contexte.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
             throw new SessionExpireeException();
         }
@@ -295,6 +353,9 @@ internal sealed class SessionApi(
         await Contexte.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, resultat.Principal!, Proprietes(jetons)).ConfigureAwait(false);
         return jetons.JetonAcces;
     }
+
+    // Exigé par l'analyse (CA1001) ; toutes les lectures d'une page sont attendues avant la fin de la requête.
+    public void Dispose() => _verrouJetons.Dispose();
 
     private async Task OuvrirSessionAsync(Guid compteId, string email, JetonsApi jetons)
     {
@@ -352,17 +413,31 @@ internal sealed class SessionApi(
     }
 }
 
-/// <summary>Formulaire avec photos, recréé à chaque envoi (un flux déjà lu ne se renvoie pas).</summary>
-internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> photos)
+/// <summary>
+/// Formulaire avec photos (ou un fichier dans la partie <paramref name="partie"/>) et, au besoin, un rapport PDF ; recréé à
+/// chaque envoi (un flux déjà lu ne se renvoie pas).
+/// </summary>
+internal sealed class ContenuFormulaire(object demande, IReadOnlyList<IFormFile> fichiers, string partie = "photos", IFormFile? rapport = null)
 {
+    /// <summary>Partie des fichiers : « photos », ou « fichier » pour un fond de plan.</summary>
+    internal string Partie => partie;
+
     internal MultipartFormDataContent Creer()
     {
         var formulaire = new MultipartFormDataContent { { JsonContent.Create(demande), "demande" } };
-        foreach (var photo in photos)
+        foreach (var fichier in fichiers)
         {
-            var contenu = new StreamContent(photo.OpenReadStream());
-            contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(photo.ContentType, out var type) ? type : null;
-            formulaire.Add(contenu, "photos", "photo");
+            var contenu = new StreamContent(fichier.OpenReadStream());
+            contenu.Headers.ContentType = MediaTypeHeaderValue.TryParse(fichier.ContentType, out var type) ? type : null;
+            formulaire.Add(contenu, partie, partie);
+        }
+
+        // Type réel reconnu par l'API à sa signature, jamais au nom ni au type annoncé.
+        if (rapport is not null)
+        {
+            var contenu = new StreamContent(rapport.OpenReadStream());
+            contenu.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            formulaire.Add(contenu, "rapport", "rapport.pdf");
         }
 
         return formulaire;

@@ -130,6 +130,32 @@ public sealed class AutorisationTests(InfrastructureFixture infrastructure) : IA
     }
 
     [Fact]
+    public async Task ANamedRightCountsOnlyOnASiteWhereTheMemberHasARole()
+    {
+        // Droit nominatif ModifierPlans (US-21) accordé au technicien sur S1 (rôle) et S2 (aucun rôle).
+        foreach (var site in new[] { _s1, _s2 })
+        {
+            Assert.Equal(1, await _database.CountAsync(
+                "WITH d AS (INSERT INTO identite.droits_nominatifs (id, organisation_id, membre_id, site_id, droit, accorde_le) " +
+                "SELECT gen_random_uuid(), organisation_id, id, @site, 'ModifierPlans', now() FROM identite.membres " +
+                "WHERE compte_id = @compte AND organisation_id = @organisation RETURNING 1) SELECT count(*) FROM d",
+                ("site", site), ("compte", _comptes["technicien"]), ("organisation", _orgA)));
+        }
+
+        await using var scope = Scope("technicien");
+        var autorisations = scope.ServiceProvider.GetRequiredService<IAutorisations>();
+        var annuaire = scope.ServiceProvider.GetRequiredService<IAnnuaireMembres>();
+
+        Assert.Equal(DecisionAutorisation.Autorise, await autorisations.VerifierAsync(_orgA, Droit.ModifierPlans, _s1, CancellationToken.None));
+        Assert.Equal(DecisionAutorisation.Introuvable, await autorisations.VerifierAsync(_orgA, Droit.ModifierPlans, _s2, CancellationToken.None));
+        Assert.Equal(DecisionAutorisation.Refuse, await autorisations.VerifierAsync(_orgA, Droit.ModifierGrilles, _s1, CancellationToken.None));
+        Assert.Equal([_s1], await autorisations.SitesAutorisesAsync(_orgA, Droit.ModifierPlans, CancellationToken.None));
+        var ayantDroit = await annuaire.MembresAyantDroitAsync(_s1, Droit.ModifierPlans, null, CancellationToken.None);
+        Assert.Equal(new[] { _comptes["responsable"], _comptes["technicien"] }.Order(), ayantDroit.Select(m => m.CompteId).Order());
+        Assert.Equal([_comptes["cumul"]], (await annuaire.MembresAyantDroitAsync(_s2, Droit.ModifierPlans, null, CancellationToken.None)).Select(m => m.CompteId));
+    }
+
+    [Fact]
     public async Task EveryOrganisationRouteRequiresAuthentication()
     {
         var routes = _api.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()

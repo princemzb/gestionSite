@@ -3,6 +3,7 @@ using Amazon.S3;
 using GestionSite.Web.Components;
 using GestionSite.Web.Dossiers;
 using GestionSite.Web.Inventaire;
+using GestionSite.Web.Preventif;
 using GestionSite.Web.Public;
 using GestionSite.Web.Session;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -21,6 +22,12 @@ internal static class Programme
 {
     internal const string ClientApi = "api";
 
+    /// <summary>
+    /// Client de l'import d'un fond de plan (S21-05) : rendu PDF borné à 20 s par l'API, après l'éventuel rendu en cours,
+    /// puis réencodage et écriture du stockage, au-delà des 30 s du client courant.
+    /// </summary>
+    internal const string ClientApiLong = "api-long";
+
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +41,11 @@ internal static class Programme
         {
             client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient(ClientApiLong, (provider, client) =>
+        {
+            client.BaseAddress = new Uri(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebOptions>>().Value.ApiUrl);
+            client.Timeout = TimeSpan.FromMinutes(3);
         });
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddMemoryCache();
@@ -89,6 +101,21 @@ internal static class Programme
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.SlidingExpiration = false;
             options.ExpireTimeSpan = TimeSpan.FromDays(14); // borne de la session : celle du jeton de renouvellement
+            // Appels de l'éditeur de plans (fetch, réponse JSON : import, lecture, enregistrement) : sans session, 401 plutôt
+            // que la page de connexion.
+            options.Events.OnRedirectToLogin = contexte =>
+            {
+                if (EditeurPlanEndpoints.EstAppelEditeur(contexte.Request))
+                {
+                    contexte.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                }
+                else
+                {
+                    contexte.Response.Redirect(contexte.RedirectUri);
+                }
+
+                return Task.CompletedTask;
+            };
         });
         builder.Services.AddAuthorization();
         // Par défaut, le cookie antiforgery n'est jamais Secure ; « Always » est exclu : l'antiforgery refuse alors
@@ -130,7 +157,7 @@ internal static class Programme
             await suite(contexte).ConfigureAwait(false);
         });
         // Formulaires avec photos (public, déclaration interne, clôture d'intervention, évaluation) : 3 photos de 10 Mo et le reste ;
-        // ailleurs, la limite de Kestrel (30 Mo).
+        // contrôle préventif : attribut de sa page (Controler.razor) ; ailleurs, la limite de Kestrel (30 Mo).
         app.Use(async (contexte, suite) =>
         {
             var chemin = contexte.Request.Path;
@@ -153,6 +180,9 @@ internal static class Programme
         app.MapSitesAdministration();
         app.MapActionsDossier();
         app.MapPhotosEvaluation();
+        app.MapFondsPlan();
+        app.MapEditeurPlan();
+        app.MapActionsPreventif();
         // Disponibilité de l'ensemble (web + API interne) pour la plateforme et la vérification du déploiement.
         app.MapGet("/sante", async (IHttpClientFactory clients) =>
         {
