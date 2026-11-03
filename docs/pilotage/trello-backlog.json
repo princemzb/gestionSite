@@ -3277,6 +3277,47 @@
       "note": "Créée par l'agent dans Trello le 02/11 ; Trello fait foi pour la description. Découpage révisé après les décisions du porteur du 02/11 (cadrage US-10 §3).",
       "trelloId": "6ae9094c9096894e0bfa3316",
       "trelloShortLink": "VBcTPYsJ"
+    },
+    {
+      "id": "DOC-01",
+      "name": "[DOC-01] Manuel d'utilisation de l'existant et livret imprimable",
+      "type": "sous_carte",
+      "list": "En cours",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Manuel en Markdown dans docs/manuel/, une seule source : principes de l'application, rôles et droits, un chapitre par parcours livré (connexion et activation, membres et sites, dépôt public et QR, dossiers, inventaire, évaluations et grilles, préventif, plans de bâtiment), langage simple, sans jargon technique.",
+        "Captures d'écran prises en préproduction sur des organisations fictives (aucune donnée réelle), thème Jour, ordinateur et téléphone ou tablette selon l'usage.",
+        "Livret PDF A4 généré par une commande documentée (lisible sur tablette et imprimable), sommaire et numéros de page ; chaque section a un identifiant stable réutilisable par l'aide intégrée (DOC-02).",
+        "Règle de mise à jour inscrite dans AGENTS.md et TRELLO.md : toute story qui change un comportement visible met à jour son chapitre avant Livré."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Demande du porteur du 03/11.",
+      "trelloId": "6ae978f035bc314dc1b30685",
+      "trelloShortLink": "WqkirAEr"
+    },
+    {
+      "id": "DOC-02",
+      "name": "[DOC-02] Aide intégrée à l'application (bouton « ? » par écran)",
+      "type": "sous_carte",
+      "list": "Sprint sélectionné",
+      "labels": [],
+      "sprint": "SP-006",
+      "owner": "Agent IA (délégation du porteur)",
+      "parentStories": [],
+      "dependencies": [
+        "DOC-01"
+      ],
+      "acceptanceCriteria": [
+        "Maquettes de l'aide intégrée (au moins deux propositions, Jour et Nuit, ordinateur et tablette) validées par le porteur avant tout code d'écran.",
+        "Aide contextuelle sur chaque écran livré, alimentée par les sections du manuel (DOC-01) sans double saisie ; lien vers le livret complet.",
+        "Aucune violation de CSP ; accessible au clavier ; non-régression des parcours usXX.mjs."
+      ],
+      "note": "Créée par l'agent dans Trello (SP-006) ; Trello fait foi pour la description. Demande du porteur du 03/11.",
+      "trelloId": "6ae978f07aeaf961f39afcc5",
+      "trelloShortLink": "ixJurVgL"
     }
   ],
   "boardId": "6ae091a13d74df545ef9c297",
