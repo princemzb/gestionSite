@@ -226,7 +226,7 @@ public sealed partial class AideIntegreeTests
         Assert.Contains($"<img class=\"capture\" src=\"/aide/images/membres.png?v={Manuel.VersionsImages["membres.png"]}\" alt=\"Écran « Membres »\" loading=\"lazy\">",
             System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         Assert.Contains("class=\"capture telephone\"", html, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(System.Net.WebUtility.HtmlDecode(html), "Écran « Membres »</span>")); // légende une seule fois
+        Assert.Equal(2, System.Net.WebUtility.HtmlDecode(html).Split("Écran « Membres »</span>").Length); // légende une seule fois
         Assert.Contains("aide-schema", html, StringComparison.Ordinal);
         Assert.DoesNotContain("flowchart", html, StringComparison.Ordinal);
         Assert.Contains("code &lt;b&gt;", html, StringComparison.Ordinal);

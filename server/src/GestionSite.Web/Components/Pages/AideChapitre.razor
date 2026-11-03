@@ -61,7 +61,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        Courant = Manuel.Chapitre(Chapitre);
+        // Chapitre choisi parmi ceux du manuel : la valeur de la route sert seulement à comparer, jamais à produire le rendu.
+        Courant = Manuel.Chapitres.FirstOrDefault(c => string.Equals(c.Nom, Chapitre, StringComparison.Ordinal));
         if (Courant is not null)
         {
             var rang = Manuel.Chapitres.ToList().IndexOf(Courant);
