@@ -16,6 +16,8 @@ Toute permission est limitée à l’organisation et aux sites autorisés. Les r
 | Recevoir une alerte de danger (US-10, V 02/11) | Non | En charge d'une intervention ouverte du dossier seulement | Oui | Oui (information) | Non |
 | Prendre en compte un danger ; vérifier la mise en sécurité (US-10, V 02/11) ; lever ou écarter un danger (choix de l'agent, révisable) | Non | Non | Oui | Non | Non |
 | Déclarer une mise en sécurité réalisée (US-10, V 02/11) | Non | Oui | Oui | Oui | Non |
+| Consulter les dangers en cours du site et le suivi d'un danger (US-10, S10-04, choix de l'agent) | Non | Oui | Oui | Oui | Non implicite |
+| Modifier la consigne de danger du site (US-10, Q-M6 ; choix de l'agent : comme le numéro d'urgence) ; la lire : comptes internes du site et A | Non | Non | Non | Non | Oui |
 | Lancer IA | Non | Oui | Oui | Non | Non |
 | Valider estimation / engager budget | Non | Non | Oui selon délégation | Non | Non |
 | Enregistrer accord finance | Non | Non | Oui | Non | Non |

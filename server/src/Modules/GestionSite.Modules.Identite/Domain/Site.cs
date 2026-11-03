@@ -1,3 +1,4 @@
+using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Persistence;
 
 namespace GestionSite.Modules.Identite.Domain;
@@ -8,6 +9,13 @@ internal sealed class Site : IAppartientAOrganisation
     internal const int NomMaxLength = NomAffichable.MaxLength;
 
     internal const int NumeroUrgenceMaxLength = 30;
+
+    internal const int ConsigneDangerMaxLength = 500;
+
+    /// <summary>Consigne de danger par défaut (cadrage US-10 §1.1, règle d'écran Q-M6 du 03/11), tant que le site n'en a pas d'autre.</summary>
+    internal const string ConsigneDangerParDefaut =
+        "Éloignez les personnes de la zone, n'intervenez pas vous-même sur l'installation, appelez le 18 ou le 112 en cas de feu, " +
+        "de fumée, d'odeur de gaz ou de blessé.";
 
     private Site()
     {
@@ -52,4 +60,24 @@ internal sealed class Site : IAppartientAOrganisation
 
     /// <summary>Numéro affiché au déclarant public qui signale un danger (décision du 28/10) ; absent : aucune consigne.</summary>
     public string? NumeroUrgence { get; private set; }
+
+    /// <summary>Consigne de danger propre au site (US-10, Q-M6) ; null : consigne par défaut.</summary>
+    public string? ConsigneDanger { get; private set; }
+
+    /// <summary>Consigne affichée à côté du numéro d'urgence : celle du site, sinon celle par défaut.</summary>
+    internal string ConsigneDangerAffichee => ConsigneDanger ?? ConsigneDangerParDefaut;
+
+    /// <summary>Consigne propre au site (500 caractères visibles au plus, plusieurs lignes) ; vide ou égale au défaut : défaut.</summary>
+    internal void DefinirConsigneDanger(string? consigne)
+    {
+        if (string.IsNullOrWhiteSpace(consigne))
+        {
+            ConsigneDanger = null;
+            return;
+        }
+
+        var texte = TexteAffichable.Nettoyer(consigne, ConsigneDangerMaxLength, multiligne: true)
+            ?? throw new ArgumentException($"Consigne : texte visible de {ConsigneDangerMaxLength} caractères au plus.", nameof(consigne));
+        ConsigneDanger = texte == ConsigneDangerParDefaut ? null : texte;
+    }
 }

@@ -30,6 +30,10 @@ internal sealed class DestinatairesSite
     internal IEnumerable<Guid> ResponsablesDelegues() =>
         _membres.Where(m => m.Roles.Any(Encadrement.Contains)).Select(m => m.CompteId);
 
+    /// <summary>Le compte s'il est encore responsable ou délégué du site, sinon les R/D du site (ses remplaçants pour agir).</summary>
+    internal IEnumerable<Guid> OuResponsables(Guid? compte) =>
+        compte is { } c && ResponsablesDelegues().Contains(c) ? [c] : ResponsablesDelegues();
+
     /// <summary>Comptes donnés encore membres actifs du site (rappels : personne en charge révoquée ou sans rôle exclue).</summary>
     internal IEnumerable<Guid> Membres(IEnumerable<Guid> comptes) => comptes.Where(c => _membres.Any(m => m.CompteId == c));
 
@@ -51,14 +55,14 @@ internal static class EmissionNotifications
 {
     internal static void Emettre(
         this MaintenanceDbContext context, TypeNotification type, Signalement dossier, string cle, IEnumerable<Guid> destinataires, Guid? auteur,
-        DateTimeOffset le)
+        DateTimeOffset le, Guid? alerteId = null)
     {
         foreach (var compte in destinataires.Where(c => c != auteur).Distinct())
         {
             // Identifiant pris à l'écriture, juste avant l'enregistrement (et non à l'instant métier, lu en début de requête,
             // avant photos ou verrous) : l'ordre des identifiants suit l'arrivée dans le centre, base des curseurs « avant »
             // et « jusqua ». CreeLe garde l'instant exact de l'événement.
-            context.Notifications.Add(new Notification(Guid.CreateVersion7(), dossier, compte, type, cle, le));
+            context.Notifications.Add(new Notification(Guid.CreateVersion7(), dossier, compte, type, cle, le, alerteId));
         }
     }
 
@@ -76,7 +80,7 @@ internal static class EmissionNotifications
         {
             var alerte = new AlerteDanger(Guid.CreateVersion7(le), dossier);
             context.AlertesDanger.Add(alerte);
-            context.Emettre(TypeNotification.DangerSignale, dossier, CleDanger(alerte), destinataires.AlerteDanger([]), auteur, le);
+            context.Emettre(TypeNotification.DangerSignale, dossier, CleDanger(alerte), destinataires.AlerteDanger([]), auteur, le, alerte.Id);
         }
         else if (dossier.ActiviteBloquee)
         {

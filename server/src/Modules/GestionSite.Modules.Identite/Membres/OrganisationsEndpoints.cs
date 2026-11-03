@@ -29,6 +29,8 @@ internal sealed record DemandeActivation(string Jeton, string MotDePasse);
 
 internal sealed record DemandeNumeroUrgence(string? NumeroUrgence);
 
+internal sealed record DemandeConsigneDanger(string? Consigne);
+
 internal sealed record ReponseActivation(string Email);
 
 /// <summary>Sites, membres et activation (CONTRATS, US-06 S06-04).</summary>
@@ -45,6 +47,16 @@ internal static class OrganisationsEndpoints
             async (Guid orgId, Guid siteId, DemandeNumeroUrgence demande, ServiceLiensPublics service, CancellationToken ct) =>
             {
                 await service.DefinirNumeroUrgenceAsync(orgId, siteId, demande.NumeroUrgence, ct).ConfigureAwait(false);
+                return Results.NoContent();
+            });
+        // Consigne de danger du site (US-10, S10-04, Q-M6) : lue par les comptes du site, modifiée par l'administrateur.
+        organisation.MapGet("/sites/{siteId:guid}/danger-instructions",
+            async (Guid orgId, Guid siteId, ServiceLiensPublics service, CancellationToken ct) =>
+                Results.Ok(await service.LireConsigneDangerAsync(orgId, siteId, ct).ConfigureAwait(false)));
+        organisation.MapPut("/sites/{siteId:guid}/danger-instructions",
+            async (Guid orgId, Guid siteId, DemandeConsigneDanger demande, ServiceLiensPublics service, CancellationToken ct) =>
+            {
+                await service.DefinirConsigneDangerAsync(orgId, siteId, demande.Consigne, ct).ConfigureAwait(false);
                 return Results.NoContent();
             });
         organisation.MapGet("/members", ListerMembresAsync);

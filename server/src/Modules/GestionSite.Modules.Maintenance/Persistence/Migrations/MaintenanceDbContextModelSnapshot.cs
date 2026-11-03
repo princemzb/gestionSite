@@ -37,9 +37,70 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cree_le");
 
+                    b.Property<string>("Fin")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("fin");
+
+                    b.Property<string>("FinCommentaire")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("fin_commentaire");
+
+                    b.Property<DateTimeOffset?>("FinLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fin_le");
+
+                    b.Property<string>("FinMotif")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("fin_motif");
+
+                    b.Property<Guid?>("FinParCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fin_par_compte_id");
+
                     b.Property<Guid>("OrganisationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organisation_id");
+
+                    b.Property<DateTimeOffset?>("PrisEnCompteLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pris_en_compte_le");
+
+                    b.Property<Guid?>("PrisEnCompteParCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pris_en_compte_par_compte_id");
+
+                    b.Property<DateTimeOffset?>("RappelsSecuriteDepuis")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rappels_securite_depuis");
+
+                    b.Property<string>("SecuriteAction")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("securite_action");
+
+                    b.Property<string>("SecuriteCommentaire")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("securite_commentaire");
+
+                    b.Property<DateTimeOffset?>("SecuriteDeclareeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("securite_declaree_le");
+
+                    b.Property<Guid?>("SecuriteDeclareeParCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("securite_declaree_par_compte_id");
+
+                    b.Property<DateTimeOffset?>("SecuriteVerifieeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("securite_verifiee_le");
+
+                    b.Property<Guid?>("SecuriteVerifieeParCompteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("securite_verifiee_par_compte_id");
 
                     b.Property<Guid>("SignalementId")
                         .HasColumnType("uuid")
@@ -49,6 +110,12 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_alertes_danger");
 
@@ -56,6 +123,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_alertes_danger_constat_id_organisation_id")
                         .HasFilter("constat_id IS NOT NULL");
+
+                    b.HasIndex("OrganisationId", "SiteId")
+                        .HasDatabaseName("ix_alertes_danger_en_cours")
+                        .HasFilter("fin IS NULL");
 
                     b.HasIndex("SignalementId", "OrganisationId")
                         .IsUnique()
@@ -430,10 +501,6 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dossier_id");
 
-                    b.Property<DateTimeOffset?>("ReexamenFixeLe")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reexamen_fixe_le");
-
                     b.Property<string>("EtatFinal")
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)")
@@ -464,6 +531,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("prestataire");
+
+                    b.Property<DateTimeOffset?>("ReexamenFixeLe")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reexamen_fixe_le");
 
                     b.Property<DateOnly?>("ReexamenLe")
                         .HasColumnType("date")
@@ -521,6 +592,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AlerteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("alerte_id");
+
                     b.Property<string>("Cle")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -565,6 +640,10 @@ namespace GestionSite.Modules.Maintenance.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_notifications");
+
+                    b.HasIndex("OrganisationId", "CompteId", "AlerteId")
+                        .HasDatabaseName("ix_notifications_organisation_id_compte_id_alerte_id")
+                        .HasFilter("alerte_id IS NOT NULL");
 
                     b.HasIndex("OrganisationId", "CompteId", "Cle")
                         .IsUnique()

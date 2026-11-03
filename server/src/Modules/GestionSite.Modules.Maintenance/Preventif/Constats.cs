@@ -180,7 +180,7 @@ internal static class Constats
             if (notifie.Alerte is { } alerte)
             {
                 context.Emettre(TypeNotification.DangerSignale, notifie.Dossier, EmissionNotifications.CleDanger(alerte),
-                    destinataires.AlerteDanger([.. enCharge[notifie.Dossier.Id]]), auteur, le);
+                    destinataires.AlerteDanger([.. enCharge[notifie.Dossier.Id]]), auteur, le, alerte.Id);
             }
             else if (notifie.Existant)
             {

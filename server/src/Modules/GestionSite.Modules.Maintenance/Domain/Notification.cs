@@ -42,6 +42,20 @@ internal enum TypeNotification
 
     /// <summary>Réexamen sans reprise ni report : escalade aux R/D à J+3, puis rappel hebdomadaire aux R/D et à la personne en charge.</summary>
     ReexamenDepasse = 12,
+
+    // Suivi d'un danger (S10-04, Q4-A, Q-M2, Q-M3) : notifications reliées à l'alerte (AlerteId).
+
+    /// <summary>Danger non pris en compte 15 min après l'alerte, puis toutes les heures, jour et nuit : tous les destinataires de l'alerte.</summary>
+    DangerNonPrisEnCompte = 13,
+
+    /// <summary>Mise en sécurité non déclarée, toutes les heures après la prise en compte : celui qui l'a prise, et les autres R/D au bout de 4 h.</summary>
+    MiseEnSecuriteAFaire = 14,
+
+    /// <summary>Mise en sécurité déclarée : le R/D qui a pris le danger en compte, les R/D du site si personne (Q-M3).</summary>
+    MiseEnSecuriteDeclaree = 15,
+
+    /// <summary>Mise en sécurité jugée insuffisante à la vérification : son déclarant (Q-M2).</summary>
+    MiseEnSecuriteInsuffisante = 16,
 }
 
 /// <summary>Nature de l'objet visé, ouvert après contrôle des droits (« une URL connue n'accorde aucun droit »).</summary>
@@ -63,7 +77,7 @@ internal sealed class Notification : IAppartientAOrganisation
     {
     }
 
-    internal Notification(Guid id, Signalement dossier, Guid compteId, TypeNotification type, string cle, DateTimeOffset le)
+    internal Notification(Guid id, Signalement dossier, Guid compteId, TypeNotification type, string cle, DateTimeOffset le, Guid? alerteId = null)
     {
         Id = id;
         OrganisationId = dossier.OrganisationId;
@@ -74,7 +88,14 @@ internal sealed class Notification : IAppartientAOrganisation
         ObjetId = dossier.Id;
         Cle = cle.Length is > 0 and <= CleMax ? cle : throw new ArgumentException("Clé d'événement de 1 à 200 caractères.", nameof(cle));
         CreeLe = le;
+        AlerteId = alerteId;
     }
+
+    /// <summary>
+    /// Types d'une alerte de danger : marquée lue, elle reste épinglée tant que son danger n'est pas pris en compte (Q-M8) ;
+    /// chaque nouvelle alerte est une nouvelle notification, donc non lue.
+    /// </summary>
+    internal static readonly TypeNotification[] TypesAlerte = [TypeNotification.DangerSignale, TypeNotification.DangerNonPrisEnCompte];
 
     public Guid Id { get; private set; }
 
@@ -98,6 +119,9 @@ internal sealed class Notification : IAppartientAOrganisation
     public DateTimeOffset CreeLe { get; private set; }
 
     public DateTimeOffset? LueLe { get; private set; }
+
+    /// <summary>Alerte de danger concernée (S10-04) ; null pour les autres notifications.</summary>
+    public Guid? AlerteId { get; private set; }
 
     /// <summary>Première lecture conservée : marquer à nouveau ne change rien.</summary>
     internal bool MarquerLue(DateTimeOffset le)

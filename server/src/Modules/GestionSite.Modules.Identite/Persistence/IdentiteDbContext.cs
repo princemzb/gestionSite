@@ -125,6 +125,7 @@ internal sealed class IdentiteDbContext(DbContextOptions<IdentiteDbContext> opti
             site.Property(s => s.Id).ValueGeneratedNever();
             site.Property(s => s.Nom).HasMaxLength(Site.NomMaxLength).IsRequired();
             site.Property(s => s.NumeroUrgence).HasMaxLength(Site.NumeroUrgenceMaxLength);
+            site.Property(s => s.ConsigneDanger).HasMaxLength(Site.ConsigneDangerMaxLength);
             // Clé (id, organisation) : les rôles ne peuvent viser qu'un site de leur propre organisation.
             site.HasAlternateKey(s => new { s.Id, s.OrganisationId });
             site.HasOne<Organisation>().WithMany().HasForeignKey(s => s.OrganisationId).OnDelete(DeleteBehavior.Restrict);

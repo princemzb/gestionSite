@@ -90,6 +90,14 @@ internal sealed class ServiceInterventions(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var (dossier, intervention) = await InterventionEnChargeAsync(organisationId, siteId, dossierId, numero, demande.Version, verrouiller: true, cancellationToken)
             .ConfigureAwait(false);
+        // Q6-A : pas d'attente tant qu'un danger du dossier n'a pas de mise en sécurité déclarée réalisée (dossier verrouillé :
+        // sérialisé avec les étapes du danger).
+        if (await context.AlertesDanger.AnyAsync(a => a.SignalementId == dossierId && a.Fin == null && a.SecuriteDeclareeLe == null, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            throw new DangerIncompatibleException("danger_non_maitrise", "Mettez d'abord en sécurité : un danger de ce dossier n'a pas de mise en sécurité déclarée.");
+        }
+
         var maintenant = horloge.GetUtcNow();
         intervention.MettreEnAttente(motif, demande.Commentaire, demande.ReexamenLe, maintenant);
         await SynchroniserAsync(dossier, maintenant, ajoutee: null, cancellationToken).ConfigureAwait(false);

@@ -5,12 +5,18 @@ namespace GestionSite.Modules.Maintenance.Planificateur;
 
 /// <summary>
 /// Destinataires d'un rappel, résolus au moment de l'envoi parmi les membres actuels du site : R/D du site
-/// (<paramref name="Encadrement"/>) et personnes en charge (intervenant, ou référent d'un prestataire).
+/// (<paramref name="Encadrement"/>), pasteurs et coordinateurs (<paramref name="Information"/> : alerte de danger) et
+/// personnes en charge (intervenant, ou référent d'un prestataire ; pour un danger, celui qui l'a pris en compte).
 /// </summary>
-internal sealed record CibleRappel(bool Encadrement, IReadOnlyCollection<Guid> EnCharge);
+/// <remarks><paramref name="EnChargeResponsable"/> : la personne en charge doit être encore R/D du site (celui qui a pris un danger
+/// en compte), sinon elle est remplacée par les R/D.</remarks>
+internal sealed record CibleRappel(bool Encadrement, IReadOnlyCollection<Guid> EnCharge, bool Information = false, bool EnChargeResponsable = false);
 
-/// <summary>Rappel dû pour un dossier : type, clé de l'événement (une notification par destinataire et par seuil) et cible.</summary>
-internal sealed record RappelDu(Signalement Dossier, TypeNotification Type, string Cle, CibleRappel Cible);
+/// <summary>
+/// Rappel dû pour un dossier : type, clé de l'événement (une notification par destinataire et par seuil), cible, et alerte de
+/// danger concernée le cas échéant.
+/// </summary>
+internal sealed record RappelDu(Signalement Dossier, TypeNotification Type, string Cle, CibleRappel Cible, Guid? AlerteId = null);
 
 /// <summary>Rappels dus maintenant et prochain seuil à venir (réveil du planificateur), null s'il n'y en a aucun.</summary>
 internal sealed record EcheancesDossier(IReadOnlyList<RappelDu> Dus, DateTimeOffset? Prochain);
@@ -33,6 +39,13 @@ internal static class Rappels
 {
     internal static readonly TimeSpan Jour = TimeSpan.FromDays(1);
     internal static readonly TimeOnly HeureReexamen = new(8, 0);
+    internal static readonly TimeSpan Heure = TimeSpan.FromHours(1);
+
+    /// <summary>Nouvelle alerte d'un danger que personne n'a pris en compte (Q4-A).</summary>
+    internal static readonly TimeSpan DelaiPriseEnCompteDanger = TimeSpan.FromMinutes(15);
+
+    /// <summary>Rappels « mise en sécurité à faire » élargis aux autres R/D au bout de 4 h (Q4-A).</summary>
+    internal const int HeuresAvantAutresResponsables = 4;
     internal const int JoursAvantEscaladeReexamen = 3;
     private const int JoursParSemaine = 7;
 
@@ -80,6 +93,59 @@ internal static class Rappels
         }
 
         return new EcheancesDossier(dus, prochain);
+    }
+
+    /// <summary>
+    /// Rappels d'un danger en cours (US-10, S10-04, Q4-A), jour et nuit, que le dossier soit ouvert ou non (la clôture du dossier
+    /// ne lève pas le danger) :
+    /// <list type="bullet">
+    /// <item>personne ne l'a pris en compte : nouvelle alerte 15 min après, puis toutes les heures, à tous les destinataires de
+    /// l'alerte (R/D, P/C, personnes en charge d'une intervention ouverte du dossier), même si une mise en sécurité est déjà
+    /// déclarée (Q-M1) ;</item>
+    /// <item>pris en compte, sans mise en sécurité déclarée : toutes les heures, à celui qui l'a pris en compte (les R/D s'il
+    /// n'est plus responsable ou délégué du site), et aux autres R/D à partir de 4 h ; une mise en sécurité jugée insuffisante relance ce cycle
+    /// (Q-M2).</item>
+    /// </list>
+    /// Une mise en sécurité déclarée, en attente de vérification, n'est pas rappelée.
+    /// </summary>
+    internal static EcheancesDossier Danger(AlerteDanger alerte, Signalement dossier, IReadOnlyCollection<Intervention> actives, DateTimeOffset maintenant)
+    {
+        var dus = new List<RappelDu>();
+        if (!alerte.EnCours)
+        {
+            return new EcheancesDossier(dus, null);
+        }
+
+        if (alerte.PrisEnCompteLe is null)
+        {
+            var premier = alerte.CreeLe + DelaiPriseEnCompteDanger;
+            if (maintenant < premier)
+            {
+                return new EcheancesDossier(dus, premier);
+            }
+
+            var rang = (maintenant - premier).Ticks / Heure.Ticks;
+            var enCharge = actives.Select(i => i.EnCharge).Distinct().ToList();
+            dus.Add(new RappelDu(
+                dossier, TypeNotification.DangerNonPrisEnCompte, $"rappel:danger:{alerte.Id:N}:{rang}",
+                new CibleRappel(Encadrement: true, enCharge, Information: true), alerte.Id));
+            return new EcheancesDossier(dus, premier + (Heure * (rang + 1)));
+        }
+
+        if (alerte.SecuriteDeclareeLe is not null || alerte.RappelsSecuriteDepuis is not { } debut)
+        {
+            return new EcheancesDossier(dus, null);
+        }
+
+        var heures = maintenant < debut ? 0 : (maintenant - debut).Ticks / Heure.Ticks;
+        if (heures > 0)
+        {
+            dus.Add(new RappelDu(
+                dossier, TypeNotification.MiseEnSecuriteAFaire, $"rappel:securite:{alerte.Id:N}:{debut.ToUnixTimeMilliseconds()}:{heures}",
+                new CibleRappel(Encadrement: heures >= HeuresAvantAutresResponsables, [alerte.PrisEnCompteParCompteId!.Value], EnChargeResponsable: true), alerte.Id));
+        }
+
+        return new EcheancesDossier(dus, debut + (Heure * (heures + 1)));
     }
 
     // Délai DEC-05 commencé à « debut » (temps d'attente déjà retiré). Cycle de seuils : l'échéance elle-même ; une
