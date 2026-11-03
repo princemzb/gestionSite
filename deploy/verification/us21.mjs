@@ -125,7 +125,7 @@ const envoyer = async () => cliquer(resp, "form.formulaire-inventaire button[typ
 await resp.goto(`${inventaire}?action=batiment`);
 await resp.fill("input[name='StructureSaisie.Nom']", "Église"); await envoyer();
 const batiment = new URL(await resp.getAttribute("a[href*='action=niveau']", "href"), base).searchParams.get("pour");
-for (const [nom, ordre] of [["Sous-sol", "-1"], ["Rez-de-chaussée", "0"]]) {
+for (const [nom, ordre] of [["Sous-sol", "-1"], ["Rez-de-chaussée", "0"], ["Tribune", "1"]]) {
   await resp.goto(`${inventaire}?action=niveau&pour=${batiment}`);
   await resp.fill("input[name='StructureSaisie.Nom']", nom); await resp.fill("input[name='StructureSaisie.Ordre']", ordre); await envoyer();
 }
@@ -136,7 +136,7 @@ const zone = async (nom, niveau) => {
 };
 for (let i = 1; i <= 50; i++) await zone(`Salle ${i}`, "Rez-de-chaussée");
 await zone("Crypte", "Sous-sol");
-ok("structure créée (2 niveaux, 51 zones)", (await texte(resp)).includes("Salle 50"));
+ok("structure créée (3 niveaux, 51 zones ; la tribune reste sans plan)", (await texte(resp)).includes("Salle 50"));
 
 // 3. Parcours guidé : fond importé, calibration 14,33 m et contrôle 8,90 m, annuler et rétablir
 const plans = `${base}/organisations/${org}/plans`;
@@ -363,6 +363,10 @@ ok("calque du sous-sol affiché sous le rez-de-chaussée", (await resp.getAttrib
 await resp.click("[data-action=zoom-avant]"); await resp.click("[data-action=gauche]"); await resp.click("[data-action=ajuster]");
 ok("alternatives sans glisser : zoom, déplacement, tout afficher", (await resp.getAttribute("[data-role=svg]", "viewBox")) !== null);
 await resp.screenshot({ path: "us21-lecteur-calque.png" });
+await cliquer(resp, "nav[aria-label=Niveau] a:has-text('Tribune')");
+const tribune = await texte(resp, "[data-role=resume]");
+ok("lecteur, niveau sans plan : « Aucun plan », jamais « Chargement du plan… »", (await texte(resp)).includes("Aucun plan de bâtiment pour ce niveau")
+  && tribune === "Aucune version enregistrée", tribune);
 
 ok("aucune violation de la politique de sécurité du contenu ni erreur JavaScript", violations.length === 0, violations.join(" | "));
 await b.close();

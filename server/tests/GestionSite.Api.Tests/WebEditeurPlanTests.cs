@@ -82,6 +82,8 @@ public sealed partial class WebEditeurPlanTests(InfrastructureFixture infrastruc
         Assert.Contains("Masquez d'abord les noms du cartouche", pourResponsable, StringComparison.Ordinal);
         Assert.DoesNotContain("style=", pourResponsable, StringComparison.Ordinal); // politique de sécurité du contenu
         Assert.Contains("Aucun plan de bâtiment pour ce niveau", pourPasteur, StringComparison.Ordinal);
+        Assert.Contains("<p data-role=\"resume\">Aucune version enregistrée</p>", pourPasteur, StringComparison.Ordinal);
+        Assert.DoesNotContain("Chargement du plan", pourPasteur, StringComparison.Ordinal); // éditeur non chargé : rien ne remplacerait ce texte
         Assert.DoesNotContain("editeur.mjs", pourPasteur, StringComparison.Ordinal);
     }
 

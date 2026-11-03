@@ -33,7 +33,13 @@ else
     <div class="entete">
         <div>
             <h1>@(Mode == "guide" ? "Nouveau plan" : "Plan") · @BatimentCourant.Nom · @NomNiveau</h1>
-            <p data-role="resume">@(Mode == "guide" ? "Quatre étapes ; chaque étape s'enregistre comme une version, vous pouvez vous arrêter et reprendre." : "Chargement du plan…")</p>
+            @* Sans plan pour un lecteur (« absent »), l'éditeur n'est pas chargé : le sous-titre est définitif, jamais « Chargement ». *@
+            <p data-role="resume">@(Mode switch
+            {
+                "guide" => "Quatre étapes ; chaque étape s'enregistre comme une version, vous pouvez vous arrêter et reprendre.",
+                "absent" => "Aucune version enregistrée",
+                _ => "Chargement du plan…",
+            })</p>
         </div>
         <div class="actions">
             @if (Sites.Count > 1)
