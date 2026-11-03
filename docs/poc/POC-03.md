@@ -7,7 +7,7 @@ Code jetable : `mobile/lib/poc/tablette/`, greffon natif `mobile/packages/coffre
 Décisions appliquées (REGLES « Tablette et synchronisation — US-13, US-14 », 30/10/2026) : Android seul, Android 11 minimum (`minSdk = 30`), 24 h comptées depuis le dernier contact réussi, PIN à 6 chiffres par profil, révocation selon Q8. Décision du porteur du 03/11/2026 (R13-05 révisée) : grâce de 5 minutes après l'écran éteint ou la sortie de l'application, contrôlée au retour, contenu masqué hors de l'application.
 
 ## Résultat en bref
-**8 scénarios automatiques sur 8 réussis sur la Tab M11** (3/11/2026, Android 15), avec le vrai Keystore, SQLCipher, WorkManager et de vraies coupures réseau (mode avion par adb). La faisabilité d'ADR-03 (client Flutter installé, stockage local protégé, profils séparés) est démontrée sur l'appareil de référence ; restent des essais manuels avec le porteur (fin de document).
+**8 scénarios automatiques sur 8 réussis sur la Tab M11** (3/11/2026, Android 15), avec le vrai Keystore, SQLCipher, WorkManager et de vraies coupures réseau (mode avion par adb). La faisabilité d'ADR-03 (client Flutter installé, stockage local protégé, profils séparés) est démontrée sur l'appareil de référence. Après les corrections de revue, seuls les 5 premiers scénarios ont été rejoués (réussis) : photo, verrouillage et WorkManager **restent à rejouer** sur le code corrigé, puis les essais manuels avec le porteur (fin de document).
 
 - **Clés** : Keystore matériel de niveau **TEE** (pas de StrongBox sur la M11) ; chiffrer + déchiffrer 17 à 37 ms.
 - **Déverrouillage par PIN** (Keystore + Argon2id m = 19 Mio + ouverture SQLCipher) : médiane **736 ms** en mode débogage ; PIN faux détecté en 759 ms. Au-dessus de la cible d'environ 300 ms, sous le seuil de 1 s ; la mesure en version « profile » reste à faire.
@@ -95,6 +95,9 @@ RAPPORT | Écran éteint 30 s : diffusion reçue dans Dart en [18] ms (pause de 
 RAPPORT | WorkManager : commande reçue true (origine arriere-plan), reçue par le Mac 83 s après la programmation, retour au premier plan après 120 s
 ```
 
+### Passage après les corrections de revue (3/11, vers 8 h 40)
+Après les corrections de la revue de code (plus bas, « Revues de la PR »), un nouveau passage complet a confirmé les **5 premiers scénarios** : Keystore TEE (création 168 / 12 ms), Argon2id 712 ms, déverrouillage 725 ms, PIN faux 769 ms, bases illisibles, 5 PIN faux, limite de 24 h, organisation coupée et session révoquée. Le scénario photo a échoué pour une raison **extérieure au code** : après le mode avion, le Wi-Fi de la M11 n'a pas rejoint le réseau (signal −81 à −88 dBm, tablette trop loin de la box), et les scénarios suivants n'ont pas pu tourner. La tablette a ensuite été débranchée pour un autre usage : **photo, verrouillage et WorkManager restent à rejouer sur le code corrigé** (voir « À rejouer »).
+
 ### Ce que les essais sur la tablette ont appris
 - **Premier passage (3/11, 7 h) : 6/8.** (1) Hors de l'application, aucun verrouillage 94 s après la sortie avec une minuterie de 30 s ; la cause n'a pas été isolée (processus gelé par Android/ZUI, ou minuterie non déclenchée). La règle révisée ne dépend plus de la minuterie : contrôle au retour par l'horloge monotone (prouvé par les tests unitaires), minuterie en appoint. Aux passages suivants, la minuterie s'est déclenchée à l'heure (20 et 21 s pour une grâce de 20 s). (2) WorkManager : l'**essai** interrogeait le Mac pendant le mode avion (`Network is unreachable`) ; l'application, elle, avait bien envoyé la commande.
 - **Android 15 coupe le réseau d'une application en arrière-plan** (constaté : aucune connexion possible au Mac tant que l'application n'est pas au premier plan, alors que le Wi-Fi est revenu). La tâche WorkManager, elle, a le réseau. Conséquence pour l'essai : toutes les demandes au Mac (accueil, rallumage, retour) partent avant la sortie et sont différées par le Mac. Conséquence pour US-13/US-14 : **tout envoi hors du premier plan passe par WorkManager**, jamais par une boucle Dart de l'application.
@@ -159,6 +162,14 @@ Absentes de l'API aujourd'hui (simulées par le serveur factice) :
 ## Essais sur la tablette
 ### Faits automatiquement (3/11/2026)
 Étapes 1, 2 et 4 du protocole d'origine : identification (`adb devices`, SDK 35, pas de StrongBox), les 8 scénarios automatiques (`tool/poc03/lancer_essais.sh <numéro> http://<IP-du-Mac>:8765`), fichiers illisibles sans clé (vérifiés par l'essai). Verrouillage (étape 9) : fait automatiquement avec une grâce raccourcie à 20 s.
+
+### À rejouer sur le code corrigé (automatique)
+Les corrections de revue (envoi des photos, reprise, temps hors connexion, compteur de PIN, greffon Kotlin) sont couvertes par les tests unitaires et compilées pour Android, mais n'ont été rejouées sur la tablette que pour les 5 premiers scénarios. Rejouer les 8 scénarios, tablette **près de la box Wi-Fi**, branchée en USB, Mac sur le même réseau, depuis `mobile/` :
+
+```
+tool/poc03/lancer_essais.sh <numéro-adb> http://<IP-du-Mac>:8765
+```
+(numéro : `adb devices` ; IP : `ipconfig getifaddr en0`). Le lanceur attend que la tablette soit déverrouillée ; la personne présente la déverrouille aussi deux fois quand l'écran se rallume (essai de verrouillage, puis essai WorkManager). Attendu : `All tests passed`, 8 scénarios. Pour ne rejouer que les trois scénarios manquants : `flutter test integration_test/poc03_test.dart -d <numéro-adb> --name "photo|verrouillage automatique|WorkManager" --dart-define=POC03_SERVEUR=http://<IP-du-Mac>:8765 --dart-define=POC03_HEURE=false`, avec `dart run tool/poc03/serveur_hote.dart 8765` lancé à part (`ANDROID_SERIAL=<numéro-adb>`).
 
 ### À faire avec le porteur
 Prérequis : tablette avec un verrouillage d'écran, Mac et tablette sur le même Wi-Fi, Flutter 3.47.1, serveur factice `dart run tool/poc03/serveur_hote.dart` lancé à part pour l'écran technique (`flutter run -t lib/poc/tablette/main_poc03.dart -d <numéro>`), comptes de démonstration créés par `curl -X POST http://localhost:8765/controle/compte -d '{"id":"<uuid>","email":"a@demo.invalid","motDePasse":"demo-demo-demo","organisations":["org-x"]}'`. Aucune donnée réelle.
