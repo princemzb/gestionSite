@@ -1,6 +1,7 @@
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.DepotsRecus;
 using GestionSite.Modules.Maintenance.Dossiers;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Maintenance.Preventif;
 using Microsoft.AspNetCore.Routing;
@@ -11,7 +12,7 @@ using Microsoft.Extensions.Options;
 namespace GestionSite.Modules.Maintenance;
 
 /// <summary>
-/// Point d'entrée du module Maintenance : dossiers, interventions, attentes, inspections et occurrences.
+/// Point d'entrée du module Maintenance : dossiers, interventions, attentes, inspections, occurrences et centre de notifications.
 /// Les autres modules n'y accèdent que par ses opérations publiques (ARCHITECTURE.md).
 /// </summary>
 public static class MaintenanceModule
@@ -34,9 +35,10 @@ public static class MaintenanceModule
             .ValidateOnStart();
         return services.AddMaintenancePersistence().AddSingleton<LimiteDepots>().AddScoped<ServiceDepotPublic>()
             .AddScoped<ServiceDepotsRecus>().AddScoped<ServiceDossiers>().AddScoped<ServiceInterventions>()
-            .AddScoped<ServicePropositions>().AddScoped<ServicePlans>().AddScoped<ServiceOccurrences>();
+            .AddScoped<ServicePropositions>().AddScoped<ServicePlans>().AddScoped<ServiceOccurrences>()
+            .AddScoped<ServiceNotifications>();
     }
 
     public static IEndpointRouteBuilder MapMaintenanceEndpoints(this IEndpointRouteBuilder endpoints) =>
-        endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers().MapPreventif();
+        endpoints.MapDepotPublic().MapDepotsRecus().MapDossiers().MapPreventif().MapNotifications();
 }

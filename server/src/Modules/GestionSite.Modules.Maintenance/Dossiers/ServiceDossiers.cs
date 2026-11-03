@@ -2,6 +2,7 @@ using System.Text.Json;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.DepotPublic;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -141,6 +142,10 @@ internal sealed class ServiceDossiers(
             return deja;
         }
 
+        var destinataires = dossier.Danger || dossier.ActiviteBloquee
+            ? await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false)
+            : null;
+
         // Photos (décision du 29/10) : préparées puis écrites avant l'enregistrement, sous des clés propres à ce dossier ;
         // retirées si l'enregistrement n'aboutit pas.
         var jpegs = photos.Select(p => TraitementPhotos.Preparer(p.Contenu)).ToList();
@@ -150,9 +155,15 @@ internal sealed class ServiceDossiers(
             .ConfigureAwait(false);
         context.Photos.AddRange(envoi.Photos);
         context.Signalements.Add(dossier);
-        if (dossier.Danger)
+        var alerte = dossier.Danger ? new AlerteDanger(Guid.CreateVersion7(maintenant), dossier) : null;
+        if (alerte is not null)
         {
-            context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), dossier));
+            context.AlertesDanger.Add(alerte);
+        }
+
+        if (destinataires is not null)
+        {
+            context.EmettreDeclaration(dossier, alerte, destinataires, compteId, maintenant); // le déclarant n'est pas notifié
         }
 
         Tracer(dossier, NatureEvenementDossier.Declaration, maintenant, detail: null);

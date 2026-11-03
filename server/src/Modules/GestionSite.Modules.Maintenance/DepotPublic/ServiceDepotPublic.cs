@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.SharedKernel;
 using GestionSite.SharedKernel.Photos;
@@ -25,8 +26,8 @@ internal sealed class CommandeReutiliseeException() : Exception("Cet identifiant
 
 /// <summary>Dépôt public sans compte (US-08, RG-02) : site atteint par son code, signalement créé une seule fois.</summary>
 internal sealed class ServiceDepotPublic(
-    MaintenanceDbContext context, ISitesPublics sites, IStockageFichiers stockage, IVerificationHumaine verification, LimiteDepots limites,
-    TimeProvider horloge)
+    MaintenanceDbContext context, ISitesPublics sites, IAnnuaireMembres annuaire, IStockageFichiers stockage, IVerificationHumaine verification,
+    LimiteDepots limites, TimeProvider horloge)
 {
     internal Task<SitePublic?> SiteAsync(string code, CancellationToken cancellationToken) => sites.OuvrirAsync(code, cancellationToken);
 
@@ -65,6 +66,11 @@ internal sealed class ServiceDepotPublic(
 
         limites.Exiger(site.SiteId);
 
+        // Destinataires lus au moment de l'émission, seulement s'il y a quelque chose à notifier (US-10, S10-01).
+        var destinataires = signalement.Danger || signalement.ActiviteBloquee
+            ? await DestinatairesSite.LireAsync(annuaire, site.SiteId, cancellationToken).ConfigureAwait(false)
+            : null;
+
         // Toutes traitées d'abord : une photo refusée ne laisse aucun fichier écrit. Écrites ensuite avant
         // l'enregistrement, sous des clés propres à ce signalement ; retirées si l'enregistrement n'aboutit pas (échec de
         // la base, envoi concurrent perdant), jamais les photos d'un autre signalement remplacées.
@@ -77,9 +83,16 @@ internal sealed class ServiceDepotPublic(
 
         context.Signalements.Add(signalement);
         context.Journal.Add(new EvenementDossier(Guid.CreateVersion7(maintenant), signalement, NatureEvenementDossier.Declaration, auteurCompteId: null, maintenant, detail: null));
-        if (signalement.Danger)
+        var alerte = signalement.Danger ? new AlerteDanger(Guid.CreateVersion7(maintenant), signalement) : null;
+        if (alerte is not null)
         {
-            context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(maintenant), signalement));
+            context.AlertesDanger.Add(alerte);
+        }
+
+        if (destinataires is not null)
+        {
+            // Même transaction que le dépôt : aucun auteur (déclarant public sans compte).
+            context.EmettreDeclaration(signalement, alerte, destinataires, auteur: null, maintenant);
         }
 
         try

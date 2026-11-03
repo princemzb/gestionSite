@@ -1,5 +1,6 @@
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -55,6 +56,8 @@ internal sealed class ServiceInterventions(
             prestataire = intervention.Prestataire,
             referentCompteId = intervention.ReferentCompteId,
         });
+        // Personne en charge (intervenant, ou référent du prestataire), déjà vérifiée membre du site ; pas R/D qui s'affecte.
+        context.Emettre(TypeNotification.Affectation, dossier, $"affectation:{intervention.Id:N}", [intervention.EnCharge], compte.Id, maintenant);
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return numero;
@@ -139,6 +142,8 @@ internal sealed class ServiceInterventions(
             : null;
         var photoExigee = PhotoExigee.Pour(lu, lieu);
         interventionLue.VerifierCloture(photos.Count, photoExigee);
+        // R/D du site lus avant la transaction, pour le cas où cette clôture clôt le dossier (T-03.11).
+        var destinataires = await DestinatairesSite.LireAsync(annuaire, siteId, cancellationToken).ConfigureAwait(false);
 
         // 2. Photos préparées puis écrites hors transaction, sous des clés propres à cet envoi : le verrou du dossier n'est pas
         //    tenu pendant le téléversement ; retirées si la clôture n'aboutit pas, jamais celles d'un autre envoi.
@@ -162,6 +167,8 @@ internal sealed class ServiceInterventions(
         if (dossier.Statut == StatutDossier.Cloture)
         {
             context.Tracer(dossier, NatureEvenementDossier.Cloture, compte.Id, maintenant, detail: null);
+            context.Emettre(
+                TypeNotification.ClotureAutomatique, dossier, $"cloture:{intervention.Id:N}", destinataires.ResponsablesDelegues(), compte.Id, maintenant);
         }
 
         await context.EnregistrerAsync(cancellationToken).ConfigureAwait(false);

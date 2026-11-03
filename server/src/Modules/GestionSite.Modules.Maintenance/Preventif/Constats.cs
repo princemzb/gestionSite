@@ -2,6 +2,7 @@ using System.Globalization;
 using GestionSite.Modules.Identite.Contracts;
 using GestionSite.Modules.Maintenance.Domain;
 using GestionSite.Modules.Maintenance.Dossiers;
+using GestionSite.Modules.Maintenance.Notifications;
 using GestionSite.Modules.Maintenance.Persistence;
 using GestionSite.Modules.Patrimoine.Contracts;
 using GestionSite.SharedKernel;
@@ -9,8 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GestionSite.Modules.Maintenance.Preventif;
 
-/// <summary>Libellés utiles à l'ouverture des dossiers, lus avant le verrou de l'échéance (zones, nom du déclarant).</summary>
-internal sealed record LibellesConstats(IReadOnlyDictionary<Guid, string> Zones, string Declarant);
+/// <summary>
+/// Lectures d'autres modules utiles à l'ouverture des dossiers, faites avant le verrou de l'échéance : zones, nom du
+/// déclarant, membres du site à notifier (US-10, S10-01).
+/// </summary>
+internal sealed record LibellesConstats(IReadOnlyDictionary<Guid, string> Zones, string Declarant, DestinatairesSite Destinataires);
 
 /// <summary>
 /// Non-conformités d'un contrôle vers les dossiers (US-12, S12-05, RG-09, PROCESSUS « Inspection ») : chaque point de
@@ -31,7 +35,7 @@ internal static class Constats
         var zones = await inventaire.ZonesAsync(
             controle.SiteId, [.. controle.ObservationsLues.Select(o => o.ZoneId).Append(controle.ZoneId).Distinct()], cancellationToken).ConfigureAwait(false);
         var nom = (await annuaire.NomsAsync([auteur], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(auteur) is { Length: > 0 } n ? n : "Compte interne";
-        return new LibellesConstats(zones, nom);
+        return new LibellesConstats(zones, nom, await DestinatairesSite.LireAsync(annuaire, controle.SiteId, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -99,6 +103,7 @@ internal static class Constats
             parCritere.TryAdd(Critere(dossier.CleConstat!, dossier.ComposantId, dossier.ZoneId ?? Guid.Empty), dossier);
         }
 
+        var notifies = new Dictionary<Guid, Notifie>();
         foreach (var releve in releves)
         {
             var critere = Critere(releve.Cle, releve.ComposantId, releve.ZoneId);
@@ -135,12 +140,54 @@ internal static class Constats
                 });
             }
 
-            if (releve.Danger)
+            var alerte = releve.Danger ? new AlerteDanger(Guid.CreateVersion7(le), dossier!, constat.Id, le) : null;
+            if (alerte is not null)
             {
-                context.AlertesDanger.Add(new AlerteDanger(Guid.CreateVersion7(le), dossier!, constat.Id, le));
+                context.AlertesDanger.Add(alerte);
+            }
+
+            var notifie = notifies.GetValueOrDefault(dossier!.Id) ?? new Notifie(dossier, Existant: dossier.ControleId != controle.Id, Alerte: null);
+            notifies[dossier.Id] = notifie with { Alerte = notifie.Alerte ?? alerte };
+        }
+
+        await NotifierAsync(context, controle, notifies.Values, libelles.Destinataires, auteur, le, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Une notification par dossier touché et par destinataire pour ce contrôle (US-10, S10-01) : alerte de danger s'il en
+    /// relève un (Q3-A, personnes en charge d'une intervention ouverte comprises, T-03.20), sinon « constat rattaché » aux
+    /// R/D pour un dossier qui existait déjà (T-03.19). Un dossier ouvert par ce contrôle sans danger reste à qualifier, sans
+    /// notification immédiate. L'auteur du contrôle n'est pas notifié.
+    /// </summary>
+    private static async Task NotifierAsync(
+        MaintenanceDbContext context, ControlePreventif controle, IReadOnlyCollection<Notifie> notifies, DestinatairesSite destinataires, Guid auteur,
+        DateTimeOffset le, CancellationToken cancellationToken)
+    {
+        var existants = notifies.Where(n => n.Existant && n.Alerte is not null).Select(n => n.Dossier.Id).ToList();
+        // Personnes en charge d'une intervention ouverte des dossiers déjà existants (un nouveau dossier n'en a aucune).
+        var ouvertes = existants.Count == 0
+            ? []
+            : await context.Interventions.AsNoTracking()
+                .Where(i => existants.Contains(i.DossierId) && i.Statut != StatutIntervention.Cloturee)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var enCharge = ouvertes.ToLookup(i => i.DossierId, i => i.EnCharge);
+        foreach (var notifie in notifies)
+        {
+            if (notifie.Alerte is { } alerte)
+            {
+                context.Emettre(TypeNotification.DangerSignale, notifie.Dossier, EmissionNotifications.CleDanger(alerte),
+                    destinataires.AlerteDanger([.. enCharge[notifie.Dossier.Id]]), auteur, le);
+            }
+            else if (notifie.Existant)
+            {
+                context.Emettre(TypeNotification.ConstatRattache, notifie.Dossier, $"constat:{controle.Id:N}:{notifie.Dossier.Id:N}",
+                    destinataires.ResponsablesDelegues(), auteur, le);
             }
         }
     }
+
+    /// <summary>Dossier touché par le contrôle : déjà ouvert avant lui ou non, et sa première alerte de danger relevée.</summary>
+    private sealed record Notifie(Signalement Dossier, bool Existant, AlerteDanger? Alerte);
 
     private static (string, Guid?, Guid) Critere(string cle, Guid? composant, Guid zone) => (cle, composant, composant is null ? zone : Guid.Empty);
 }
