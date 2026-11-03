@@ -221,6 +221,13 @@ Cadrage : docs/pilotage/cadrage/US-13-US-14.md. Décisions du 30/10 (QCM) :
 - Tablette perdue : le titulaire révoque sa session sur l'appareil (toutes organisations) ; l'administrateur coupe l'accès de son organisation sur l'appareil (synchronisation refusée, données effacées au prochain contact), jamais la session du compte.
 Règle de l'agent (révisable, conséquence de RG-23) : déverrouillage par PIN à 6 chiffres propre à chaque profil, biométrie exclue sur une tablette partagée.
 
+Décision du porteur du 03/11/2026 (essais du POC S04-01 sur la Tab M11), qui révise R13-05 (verrouillage du profil ouvert) :
+- Grâce de **5 minutes** après l'extinction de l'écran **et** après avoir quitté l'application (au lieu d'un verrouillage immédiat et de 30 secondes). La grâce court depuis la première sortie (écran éteint ou application quittée) ; elle est contrôlée au retour par l'horloge monotone de la tablette, fiable même si Android gèle l'application en arrière-plan ou si l'heure est changée.
+- **Contenu masqué** dès qu'on quitte l'application : aperçu vide dans les applications récentes, captures et enregistrements d'écran refusés (`FLAG_SECURE`).
+- 5 minutes sans activité dans l'application : verrouillage (inchangé). Revenir avant la fin de la grâce compte comme une activité.
+- Bouton « Verrouiller / changer d'utilisateur » toujours visible quand un profil est ouvert.
+- **Photos prises dans l'application** (appareil photo intégré), sans passer par l'application photo du système : exigence d'US-13, hors du périmètre du POC (qui génère une photo d'essai).
+
 ## Scoring — DEC-01, V, 27 octobre 2026 (porteur du projet)
 - Notation d’un composant : l’évaluateur choisit un état sur une échelle commune — Bon = 9, Satisfaisant = 7, Dégradé = 5, Mauvais = 3, Critique = 1. Les critères de la grille guident ce choix sans calcul automatique.
 - Libellés d’un score moyen : [0;2[ Critique, [2;4[ Mauvais, [4;6[ Dégradé, [6;8[ Satisfaisant, [8;10] Bon.

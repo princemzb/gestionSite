@@ -128,10 +128,10 @@ jobs:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION || 'princemzb' }}
             -Dsonar.projectKey=${{ vars.SONAR_MOBILE_PROJECT_KEY || 'princemzb_gestionSite_mobile' }}
-            -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner
-            -Dsonar.tests=test
+            -Dsonar.sources=lib,android/app/src/main,android/app/build.gradle.kts,ios/Runner,packages/coffre_appareil/android/src/main
+            -Dsonar.tests=test,integration_test,tool
             -Dsonar.dart.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.coverage.exclusions=android/**,ios/**
+            -Dsonar.coverage.exclusions=android/**,ios/**,packages/*/android/**
             -Dsonar.qualitygate.wait=true
 
   mobile-dependencies:

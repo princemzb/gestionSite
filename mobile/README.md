@@ -1,12 +1,21 @@
 # Application terrain gestionSite
 
-Application Flutter pour tablettes Android et iPad (ADR-08). Elle n'affiche pour l'instant qu'un **écran technique provisoire** : aucun écran designé avant la validation des maquettes par le porteur du projet.
+Application Flutter pour tablettes Android (ADR-08 ; iPad reporté, décision du 30/10/2026). Elle n'affiche pour l'instant qu'un **écran technique provisoire** : aucun écran designé avant la validation des maquettes par le porteur du projet.
 
 ## Porte qualité
 `mobile/eng/verify.sh` : format, analyse stricte, tests, couverture ≥ 80 % de **tout** `lib/` (un fichier sans test compte à 0 %). Identique à la CI, qui ajoute l'audit OSV de `pubspec.lock` et l'analyse Sonar (`princemzb_gestionSite_mobile`, code Dart et natif).
 
 ## Version finale Android
 Signature par `android/key.properties` (jamais versionné) ; sans ce fichier, `flutter build apk --release` échoue volontairement.
+
+## POC-03 (expérimental, S04-01)
+Code jetable sous `lib/poc/tablette/` et greffon natif `packages/coffre_appareil/` (Keystore, horloge monotone, écran, photos) : base SQLCipher par profil, PIN + Keystore, limite de 24 h, révocations, photos reprises, WorkManager. Rapport et protocole sur tablette : `docs/poc/POC-03.md`.
+
+- Écran technique sans design : `flutter run -t lib/poc/tablette/main_poc03.dart`.
+- Essais Android réels : `tool/poc03/lancer_essais.sh emulator-5554`, ou sur la tablette `tool/poc03/lancer_essais.sh <numéro-adb> http://<IP-du-Mac>:8765` (serveur factice sur le Mac, `integration_test/poc03_test.dart` ; déverrouiller la tablette quand l'écran se rallume). 8/8 sur la Tab M11 le 3/11/2026.
+- Activité protégée par `FLAG_SECURE` (`MainActivity`, R13-05 révisée) : captures d'écran refusées, aperçu vide dans les applications récentes.
+- Version minimale : Android 11 (`minSdk = 30`, décision du porteur du 30/10/2026).
+- macOS sans licence Xcode acceptée : préfixer `flutter test` par `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (bibliothèque SQLCipher native des tests).
 
 ## Points ouverts
 - iPhone encore ciblé et iOS 15 minimum (valeurs du gabarit) : à trancher avec DEC-11 (usage téléphone) et DEC-06 (versions minimales).
