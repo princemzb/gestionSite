@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Vérification ou recette visible d'une US en préproduction, sur une organisation fictive ouverte pour l'occasion (OUT-02).
 # Usage, depuis le poste du porteur (Trousseau gestionsite-preprod-*, .NET, Node) :
-#   deploy/verification/lancer.sh us08             vérification rapide, Chromium sans interface
+#   deploy/verification/lancer.sh us08             vérification rapide, Chromium sans interface (captures dans
+#                                                  deploy/verification/recettes/verification-us08-<date>, ignoré par git)
 #   RECETTE=1 deploy/verification/lancer.sh us08   recette visible : écran, vitesse humaine, vidéos, rapport HTML
 # Variables facultatives : SITE (nom du site créé, « Site centre » par défaut), SANS_COMPILATION=1 (API déjà compilée),
 # RECETTE_DOSSIER, RECETTE_LENTEUR, RECETTE_PAUSE (voir recette.mjs).
@@ -23,4 +24,6 @@ org=$(print -r -- "$sortie" | sed -n 's/^Organisation ouverte : //p')
 jeton=$(print -r -- "$sortie" | sed -n 's/^Jeton d.activation.*) : //p')
 [[ -z $org || -z $jeton ]] && { echo "ouverture impossible"; print -r -- "$sortie" | grep -v -i jeton | tail -5; exit 1; }
 echo "organisation fictive : $org"
-cd $V && VERIF_URL=$url VERIF_ORG=$org VERIF_JETON=$jeton VERIF_BASE=$app node $n.mjs
+# Captures de la vérification rapide dans un dossier ignoré par git (en recette, recette.mjs range tout dans le rapport).
+captures=$V/recettes/verification-$n-$t; mkdir -p $captures
+cd $captures && VERIF_URL=$url VERIF_ORG=$org VERIF_JETON=$jeton VERIF_BASE=$app node $V/$n.mjs
