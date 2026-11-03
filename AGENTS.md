@@ -15,7 +15,7 @@ Ce dépôt contient le cadrage (docs/) et le socle applicatif en construction (s
 3. Avant code applicatif, confirmer stack, contrats et critères d’acceptation. Les POC restent explicitement expérimentaux.
 4. Préserver isolation des organisations/sites, auteurs des opérations offline, transactions budgétaires et absence de trajet enregistré.
 5. Tester le comportement, mettre à jour les documents liés et fournir une preuve réelle. Ne pas marquer Livré après simple génération de code ou fusion : il faut un déploiement réel vérifié. Par délégation du porteur, l’agent déplace les cartes Trello, Livré compris, preuves à l’appui (docs/pilotage/TRELLO.md).
-6. Qualité (ADR-09) : branche + PR, porte Sonar stricte, revue `/code-review` graduée et `/security-review` selon le module, corrections jusqu’à zéro constat confirmé avant fusion.
+6. Qualité (ADR-09, révisée le 3/11) : branche + PR, une PR par story, porte Sonar stricte, `/code-review` high et `/security-review` pour droits, auth, fichiers, formulaire public et argent ; en local, tests ciblés seulement (la CI fait foi) ; défauts avérés corrigés avant fusion.
 7. Demander une décision ciblée si une ambiguïté change les droits, l’argent, les données personnelles ou le comportement métier. Continuer les travaux indépendants autorisés.
 8. Aucun secret ni donnée personnelle réelle dans le dépôt ou Trello. Ne pas acheter, publier ou modifier un service externe sans autorisation applicable.
 
