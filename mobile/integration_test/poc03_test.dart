@@ -555,7 +555,9 @@ void main() {
     final etats = <String>[];
     final ecran = plateforme.ecranEteint.asBroadcastStream();
     final delais = <int>[];
+    final diffusions = <int>[];
     final mesure = ecran.listen((instant) async {
+      diffusions.add(instant);
       delais.add((await plateforme.lire()).monotoneMs - instant);
     });
     final verrou = VerrouAutomatique(
@@ -569,7 +571,8 @@ void main() {
         );
       },
     );
-    final observateur = _Observateur(verrou, etats);
+    final sorties = <int>[];
+    final observateur = _Observateur(verrou, etats, sorties);
     WidgetsBinding.instance.addObserver(observateur);
 
     final masque = await plateforme.contenuMasque();
@@ -591,13 +594,16 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
 
+    // Application en arrière-plan : Android 15 lui coupe le réseau (constaté
+    // sur la M11 le 03/11). Chaque demande au Mac part donc AVANT la sortie,
+    // le Mac la différant (`delaiMs`).
     await tester.runAsync(() async {
       // 1. Sortie brève : pas de verrouillage.
       await verrou.demarrer();
       etats.clear();
-      await adb('accueil');
-      await Future<void>.delayed(const Duration(seconds: 4));
-      await adb('ramener');
+      await adb('ramener', {'delaiMs': 5000});
+      await adb('accueil', {'delaiMs': 500});
+      await Future<void>.delayed(const Duration(seconds: 2));
       await attendreRetour(const Duration(seconds: 30));
       rapport(
         'Sortie de 4 s (grâce ${grace.inSeconds} s) : verrouillage '
@@ -607,20 +613,20 @@ void main() {
 
       // 2. Sortie plus longue que la grâce : verrouillé au plus tard au retour.
       etats.clear();
-      await adb('accueil');
+      final dehors = grace + const Duration(seconds: 10);
+      await adb('ramener', {'delaiMs': dehors.inMilliseconds + 500});
+      await adb('accueil', {'delaiMs': 500});
       final sortie = await maintenant();
-      await Future<void>.delayed(grace + const Duration(seconds: 10));
-      final retour = await maintenant();
-      await adb('ramener');
-      await attendreRetour(const Duration(seconds: 30));
+      await Future<void>.delayed(const Duration(seconds: 2));
+      await attendreRetour(const Duration(minutes: 1));
       final par = verrouillages.isEmpty
           ? 'aucun'
-          : verrouillages.first < retour
+          : verrouillages.first - sortie < dehors.inMilliseconds
           ? 'minuterie, ${verrouillages.first - sortie} ms après la sortie'
           : 'contrôle au retour, ${verrouillages.first - sortie} ms après la '
                 'sortie';
       rapport(
-        'Hors de l\'application ${grace.inSeconds + 10} s : verrouillage '
+        'Hors de l\'application ${dehors.inSeconds} s : verrouillage '
         '« ${motifs.join()} » ($par), états $etats',
       );
       expect(motifs, ['hors_application']);
@@ -629,35 +635,47 @@ void main() {
       motifs.clear();
       verrouillages.clear();
       etats.clear();
+      sorties.clear();
       await verrou.demarrer();
+      await adb('reveiller', {'delaiMs': dehors.inMilliseconds + 500});
+      await adb('ramener', {'delaiMs': dehors.inMilliseconds + 2500});
+      await adb('ecran_eteint', {'delaiMs': 500});
       final chrono = Stopwatch()..start();
-      await adb('ecran_eteint');
-      while (delais.isEmpty && chrono.elapsed < const Duration(seconds: 90)) {
+      while (delais.isEmpty && chrono.elapsed < const Duration(seconds: 30)) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
-      final eteint = await maintenant();
-      final avantGrace = List.of(motifs);
-      await Future<void>.delayed(grace + const Duration(seconds: 10));
-      final rallume = await maintenant();
+      // La grâce part de la première sortie : Android peut mettre
+      // l'application en pause un peu AVANT de diffuser l'extinction.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final eteint = [
+        ...diffusions,
+        ...sorties,
+      ].reduce((a, b) => a < b ? a : b);
+      final ecart = diffusions.isEmpty || sorties.isEmpty
+          ? null
+          : diffusions.first - sorties.first;
       debugPrint(
-        'POC-03 : DÉVERROUILLEZ LA TABLETTE (écran rallumé, essai en attente)',
+        'POC-03 : DÉVERROUILLEZ LA TABLETTE quand l\'écran se rallume '
+        '(dans ${dehors.inSeconds} s)',
       );
-      await adb('reveiller');
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await adb('ramener');
       await attendreRetour(const Duration(minutes: 3));
       final parEcran = verrouillages.isEmpty
           ? 'aucun'
-          : verrouillages.first < rallume
-          ? 'minuterie, ${verrouillages.first - eteint} ms après l\'extinction'
+          : verrouillages.first - eteint < dehors.inMilliseconds
+          ? 'minuterie, ${verrouillages.first - eteint} ms après la sortie'
           : 'contrôle au retour, ${verrouillages.first - eteint} ms après '
-                'l\'extinction';
+                'la sortie';
+      // Tolérance de 300 ms : lectures asynchrones de l'horloge.
+      final avantGrace =
+          verrouillages.isEmpty ||
+          verrouillages.first - eteint >= grace.inMilliseconds - 300;
       rapport(
-        'Écran éteint ${grace.inSeconds + 10} s : diffusion reçue dans Dart en '
-        '$delais ms, aucun verrouillage pendant la grâce ${avantGrace.isEmpty}, '
+        'Écran éteint ${dehors.inSeconds} s : diffusion reçue dans Dart en '
+        '$delais ms (pause de l\'application $ecart ms avant la diffusion), '
+        'aucun verrouillage pendant la grâce $avantGrace, '
         'verrouillage « ${motifs.join()} » ($parEcran), états $etats',
       );
-      expect(avantGrace, isEmpty);
+      expect(avantGrace, isTrue);
       expect(motifs, ['ecran_eteint']);
     });
     WidgetsBinding.instance.removeObserver(observateur);
@@ -687,9 +705,19 @@ void main() {
           .firstOrNull;
     }
 
+    final etats = <String>[];
+    final observateur = _Etats(etats);
+    WidgetsBinding.instance.addObserver(observateur);
+
     await tester.runAsync(() async {
-      // Toutes les demandes au Mac partent AVANT la coupure : pendant le mode
-      // avion, la tablette ne peut plus le joindre (échec du 03/11).
+      // Toutes les demandes au Mac partent AVANT la coupure et la sortie :
+      // en mode avion, et application en arrière-plan sous Android 15, la
+      // tablette ne peut plus le joindre (échecs du 03/11). Retour à
+      // l'application au bout de 120 s : coupure de 20 s, retour du Wi-Fi
+      // (8 à 29 s mesurées sur la M11), puis le temps d'un ou deux réessais.
+      const retour = Duration(seconds: 120);
+      await adb('reveiller', {'delaiMs': retour.inMilliseconds});
+      await adb('ramener', {'delaiMs': retour.inMilliseconds + 2000});
       await adb('accueil', {'delaiMs': 6000});
       await adb('ecran_eteint', {'delaiMs': 8000});
       await adb('couper_reseau', {'delaiMs': 0, 'dureeMs': 20000});
@@ -698,19 +726,29 @@ void main() {
       final debut = DateTime.now();
       final chrono = Stopwatch()..start();
 
-      // Réseau rétabli : 20 s de coupure, puis jusqu'à 60 s pour le retour du
-      // Wi-Fi (~29 s mesurées sur la M11 dans l'essai photo).
-      final joignable = await attendreReseau(max: const Duration(seconds: 80));
-      rapport(
-        'WorkManager : serveur de nouveau joignable '
-        '${chrono.elapsed.inSeconds} s après la programmation '
-        '(attente ${joignable.inSeconds} s)',
+      // Après « accueil » : retour au premier plan (la personne présente
+      // déverrouille la tablette).
+      await Future<void>.delayed(const Duration(seconds: 10));
+      etats.clear();
+      debugPrint(
+        'POC-03 : DÉVERROUILLEZ LA TABLETTE quand l\'écran se rallume '
+        '(dans ${(retour - chrono.elapsed).inSeconds} s)',
       );
+      await Future<void>.delayed(retour - chrono.elapsed);
+      debugPrint('POC-03 : DÉVERROUILLEZ LA TABLETTE MAINTENANT');
+      while (etats.lastOrNull != 'resumed' &&
+          chrono.elapsed < retour + const Duration(minutes: 3)) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      final auRetour = DateTime.now();
 
-      // Puis le temps d'un ou deux réessais (délai exponentiel de 30 s).
+      // Serveur joignable (jusqu'à 60 s, comme l'essai photo), puis le temps
+      // d'un ou deux réessais (délai exponentiel de 30 s).
+      final joignable = await attendreReseau(max: const Duration(seconds: 60));
       Map<String, Object?>? commandeRecue;
+      final attente = Stopwatch()..start();
       while (commandeRecue == null &&
-          chrono.elapsed < const Duration(minutes: 5)) {
+          attente.elapsed < const Duration(seconds: 90)) {
         try {
           commandeRecue = await recue();
         } on Object {
@@ -720,29 +758,49 @@ void main() {
           await Future<void>.delayed(const Duration(seconds: 2));
         }
       }
+      final recuLe = DateTime.tryParse('${commandeRecue?['recuLe']}');
       rapport(
         'WorkManager : commande reçue ${commandeRecue != null} (origine '
-        '${commandeRecue?['origine']}) ${chrono.elapsed.inSeconds} s après la '
-        'programmation (coupure de 20 s comprise ; début $debut)',
+        '${commandeRecue?['origine']}), reçue par le Mac '
+        '${recuLe == null ? '?' : recuLe.difference(debut).inSeconds} s après '
+        'la programmation, retour au premier plan après '
+        '${auRetour.difference(debut).inSeconds} s (serveur joignable '
+        '${joignable.inSeconds} s plus tard) ; coupure de 20 s comprise, '
+        'début $debut',
       );
       expect(commandeRecue?['origine'], 'arriere-plan');
-      await adb('reveiller');
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await adb('ramener');
-      await Future<void>.delayed(const Duration(seconds: 2));
     });
+    WidgetsBinding.instance.removeObserver(observateur);
   });
 }
 
-class _Observateur with WidgetsBindingObserver {
-  _Observateur(this.verrou, this.etats);
+class _Etats with WidgetsBindingObserver {
+  _Etats(this.etats);
 
-  final VerrouAutomatique verrou;
   final List<String> etats;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     etats.add(state.name);
+  }
+}
+
+class _Observateur with WidgetsBindingObserver {
+  _Observateur(this.verrou, this.etats, this.sorties);
+
+  final VerrouAutomatique verrou;
+  final List<String> etats;
+
+  /// Instants monotones des passages en arrière-plan (`hidden`, `paused`).
+  final List<int> sorties;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    etats.add(state.name);
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      unawaited(plateforme.lire().then((i) => sorties.add(i.monotoneMs)));
+    }
     unawaited(verrou.cycleDeVie(state));
   }
 }
