@@ -76,11 +76,14 @@ public sealed class PlansBatimentCalibrationTests(InfrastructureFixture infrastr
         using var tropGrand = await EnregistrerAsync(plan, responsable, 0, Fond(fond, Cote((100, 100), (1300, 100), 5000), null));
         using var sansFondId = await EnregistrerAsync(plan, responsable, 0, new { calibration });
         using var decalageIncomplet = await EnregistrerAsync(plan, responsable, 0, new { fondId = fond, calibration, decalage = new { x = 1 } });
+        // Fond de 16 m (1 cm par pixel) décalé de 4 990 m : son bord droit à 5 006 m, hors du repère.
+        using var imageHorsRepere = await EnregistrerAsync(plan, responsable, 0, Fond(fond, calibration, null, (4990, 0)));
 
         Assert.All(refus.Keys, champ => Assert.Equal(champ, reponses[champ]));
         Assert.Equal("contenu.fond.calibration.distance", await ChampAsync(tropGrand));
         Assert.Equal("contenu.fond.fondId", await ChampAsync(sansFondId));
         Assert.Equal("contenu.fond.decalage", await ChampAsync(decalageIncomplet));
+        Assert.Equal("contenu.fond.decalage", await ChampAsync(imageHorsRepere));
         Assert.Equal(0, await Database.CountAsync("SELECT count(*) FROM patrimoine.versions_plan_batiment"));
     }
 

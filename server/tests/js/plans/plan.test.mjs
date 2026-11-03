@@ -262,6 +262,12 @@ describe("recalage du fond (S21-08)", () => {
     assert.deepEqual(d.contenu.composants[0].position, { x: 4.5, y: 0.5 });
   });
 
+  it("laisse la géométrie en place sur demande (tracée sur un autre fond)", () => {
+    const d = appliquerDecalage({ contenu, saisie: null, trace: null }, { x: 3.5, y: -0.5 }, false);
+    assert.deepEqual(d.contenu.fond.decalage, { x: 3.5, y: -0.5 });
+    assert.deepEqual(d.contenu.pieces[0].contour, carre);
+  });
+
   it("ne change rien sans fond", () => {
     const d = { contenu: { ...contenu, fond: null }, saisie: null, trace: null };
     assert.equal(appliquerDecalage(d, { x: 1, y: 1 }), d);

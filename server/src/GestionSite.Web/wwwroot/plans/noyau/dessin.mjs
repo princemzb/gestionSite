@@ -4,7 +4,7 @@
 // Cadre = { niveauId (null : plan masse), zones: [{ id, nom, niveauId, partiesCommunes }], niveaux: [{ id, nom, ordre }] }.
 
 import {
-  aire, areteProche, aretes, arrondirPoint, chevauchent, defautContour, distanceBord, contient, longueur, memePoint, projeter,
+  aire, areteProche, aretes, arrondirPoint, BORNE, chevauchent, defautContour, distanceBord, contient, longueur, memePoint, projeter,
   surUneArete, translater,
 } from "./geometrie.mjs";
 import { arrondirAuCentimetre } from "./mesures.mjs";
@@ -424,7 +424,7 @@ export function deplacerElement(document, cible, dx, dy) {
 
   const element = contenu[liste(cible.genre)][cible.index];
   const contour = translater(element.contour, dx, dy);
-  if (contour.some(p => Math.abs(p.x) > 5_000 || Math.abs(p.y) > 5_000)) {
+  if (contour.some(p => Math.abs(p.x) > BORNE || Math.abs(p.y) > BORNE)) {
     return document;
   }
 
@@ -454,8 +454,8 @@ export function glisserOuverture(document, index, distance) {
 }
 
 /**
- * Supprime un élément. Supprimer une pièce supprime les ouvertures posées sur elle seule, et retire sa zone de celles
- * qui la reliaient à une autre pièce.
+ * Supprime un élément. Supprimer une pièce retire sa zone des ouvertures, et supprime celles qui ne sont plus posées sur
+ * une arête d'une pièce restante (une porte posée sur son mur, même reliée à la pièce d'en face).
  */
 export function supprimerElement(document, cible) {
   const contenu = document.contenu;
@@ -466,9 +466,16 @@ export function supprimerElement(document, cible) {
   }
 
   const zoneId = contenu.pieces[cible.index].zoneId;
-  const ouvertures = contenu.ouvertures
-    .map(o => ({ ...o, zones: (o.zones ?? []).filter(z => z !== zoneId) }))
-    .filter(o => o.zones.length > 0);
+  const portee = o => o.zones.some(z => restants.some(p => p.zoneId === z && surUneArete(p.contour, o.de, o.a)));
+  // Seules les ouvertures qui reliaient la pièce supprimée changent ; les autres restent telles quelles.
+  const ouvertures = contenu.ouvertures.flatMap(o => {
+    if (!o.zones?.includes(zoneId)) {
+      return [o];
+    }
+
+    const reste = { ...o, zones: o.zones.filter(z => z !== zoneId) };
+    return reste.zones.length > 0 && portee(reste) ? [reste] : [];
+  });
   return { ...document, contenu: { ...contenu, pieces: restants, ouvertures } };
 }
 
@@ -650,6 +657,11 @@ export function accrocher(point, contours, tolerance) {
   }
 
   return { point: arrondirPoint(point) ?? point, accroche: null };
+}
+
+/** Segments du tracé en cours (ligne ouverte) : on n'accroche jamais à l'arête de fermeture, pas encore tracée. */
+export function segmentsDuTrace(points) {
+  return points.length < 2 ? [points] : points.slice(1).map((p, i) => [points[i], p]);
 }
 
 /** Contours d'accrochage d'un contenu (pièces et escaliers), sauf l'élément désigné. */

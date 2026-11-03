@@ -298,7 +298,13 @@ internal static class ValidationPlan
         }
 
         // Recalage entre niveaux (S21-08, décision du porteur du 02/11) : translation du fond dans le repère, en mètres.
+        // L'image décalée reste, comme sans décalage, dans les bornes du repère.
         var decalage = saisie.Decalage is null ? null : Point(saisie.Decalage, "contenu.fond.decalage");
+        if (decalage is not null && (decalage.X + (image.Largeur * metresParPixel) > Borne || decalage.Y + (image.Hauteur * metresParPixel) > Borne))
+        {
+            throw Refus("contenu.fond.decalage");
+        }
+
         return new FondPlan(fondId, calibration, controle, decalage);
     }
 

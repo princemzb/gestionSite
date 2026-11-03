@@ -5,7 +5,7 @@
 
 import { defautFond, ecartControle, formaterEcart, metresParPixel, normaliserCote } from "./calibration.mjs";
 import { arrondirAuCentimetre } from "./mesures.mjs";
-import { aire } from "./geometrie.mjs";
+import { aire, translater } from "./geometrie.mjs";
 import { bornesPoints, unirBornes } from "./vue.mjs";
 
 export { aire };
@@ -165,14 +165,13 @@ export function decalageFond(contenu) {
   return contenu.fond?.decalage ?? { x: 0, y: 0 };
 }
 
-const deplacerPoint = (p, dx, dy) => ({ x: arrondirAuCentimetre(p.x + dx), y: arrondirAuCentimetre(p.y + dy) });
-
 /**
  * Recalage du fond entre niveaux (S21-08, décision du porteur du 02/11) : le fond calibré est posé au décalage donné
- * (mètres, au centimètre). Pièces, ouvertures, escaliers et marqueurs déjà tracés sur ce fond le suivent de la même
- * translation, pour rester sur leurs murs. Sans fond calibré, rien ne change.
+ * (mètres, au centimètre). Avec `avecTrace`, les pièces, ouvertures, escaliers et marqueurs déjà tracés sur ce fond le
+ * suivent de la même translation, pour rester sur leurs murs ; sans, ils restent en place (tracés sur un autre fond).
+ * Sans fond calibré, rien ne change.
  */
-export function appliquerDecalage(document, decalage) {
+export function appliquerDecalage(document, decalage, avecTrace = true) {
   const contenu = document.contenu;
   if (!contenu.fond) {
     return document;
@@ -180,17 +179,17 @@ export function appliquerDecalage(document, decalage) {
 
   const nouveau = { x: arrondirAuCentimetre(decalage.x), y: arrondirAuCentimetre(decalage.y) };
   const ancien = decalageFond(contenu);
-  const dx = nouveau.x - ancien.x;
-  const dy = nouveau.y - ancien.y;
-  const contour = c => c.map(p => deplacerPoint(p, dx, dy));
+  const dx = avecTrace ? nouveau.x - ancien.x : 0;
+  const dy = avecTrace ? nouveau.y - ancien.y : 0;
+  const un = p => translater([p], dx, dy)[0];
   return {
     ...document,
     contenu: {
       ...contenu,
-      pieces: contenu.pieces.map(p => ({ ...p, contour: contour(p.contour) })),
-      ouvertures: contenu.ouvertures.map(o => ({ ...o, de: deplacerPoint(o.de, dx, dy), a: deplacerPoint(o.a, dx, dy) })),
-      escaliers: contenu.escaliers.map(e => ({ ...e, contour: contour(e.contour) })),
-      composants: contenu.composants.map(m => ({ ...m, position: deplacerPoint(m.position, dx, dy) })),
+      pieces: contenu.pieces.map(p => ({ ...p, contour: translater(p.contour, dx, dy) })),
+      ouvertures: contenu.ouvertures.map(o => ({ ...o, de: un(o.de), a: un(o.a) })),
+      escaliers: contenu.escaliers.map(e => ({ ...e, contour: translater(e.contour, dx, dy) })),
+      composants: contenu.composants.map(m => ({ ...m, position: un(m.position) })),
       fond: { ...contenu.fond, decalage: nouveau },
     },
   };

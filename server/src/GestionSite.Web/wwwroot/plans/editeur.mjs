@@ -5,13 +5,13 @@
 import { ecrireBrouillon, effacerBrouillon, cleBrouillon, lireBrouillon, purgerAutresComptes } from "./noyau/brouillon.mjs";
 import {
   bornesFond, defautCote, distanceProposee, ecartControle, formaterEcart, formaterMetres, lireDistance, longueurPixels, messageDefaut,
-  metresParPixel, metresParPixelDeclares, pointImage,
+  metresParPixel, metresParPixelDeclares, pixelVersRepere, pointImage, repereVersPixel,
 } from "./noyau/calibration.mjs";
 import {
   accrocher, ajouterSommet, autresNiveaux, avancement, changerZone, commencerTrace, contoursAccrochage, defautEscalier, defautOuverture,
   defautPiece, deplacerElement, deplacerSommet, elementSous, fermeLeTrace, fermerTrace, formaterSurface, glisserOuverture, insererSommet,
   largeurOuverture, libelleType, messageDessin, modifierEscalier, modifierOuverture, nomNiveau, nomZone, poserOuverture, premierDefaut,
-  regler, supprimerElement, supprimerSommet, TYPES_OUVERTURE, zonesALaMarge, zonesDessinables, zonesRestantes,
+  regler, segmentsDuTrace, supprimerElement, supprimerSommet, TYPES_OUVERTURE, zonesALaMarge, zonesDessinables, zonesRestantes,
 } from "./noyau/dessin.mjs";
 import { perimetre } from "./noyau/geometrie.mjs";
 import { annuler, appliquer, creerHistorique, peutAnnuler, peutRetablir, retablir } from "./noyau/historique.mjs";
@@ -239,7 +239,7 @@ function demarrer(racine) {
   function rendreGeometrie(groupe, contenu, avecNoms) {
     groupe.replaceChildren();
     contenu.pieces.forEach((piece, index) => {
-      const classes = ["piece", memeSelection("piece", index) ? "selectionnee" : ""].filter(Boolean).join(" ");
+      const classes = avecNoms && memeSelection("piece", index) ? "piece selectionnee" : "piece";
       creer("polygon", { points: pointsSvg(piece.contour), class: classes }, groupe);
       if (avecNoms) {
         texteSvg(groupe, centre(piece.contour), zones[piece.zoneId] ?? nomZone(cadre, piece.zoneId));
@@ -247,7 +247,7 @@ function demarrer(racine) {
     });
 
     contenu.escaliers.forEach((escalier, index) => {
-      creer("polygon", { points: pointsSvg(escalier.contour), class: `escalier${memeSelection("escalier", index) ? " selectionnee" : ""}` }, groupe);
+      creer("polygon", { points: pointsSvg(escalier.contour), class: avecNoms && memeSelection("escalier", index) ? "escalier selectionnee" : "escalier" }, groupe);
       if (avecNoms) {
         texteSvg(groupe, centre(escalier.contour), `${libelleType(escalier.type)} → ${nomNiveau(cadre, escalier.versNiveauId)}`, "etiquette-liaison");
       }
@@ -326,8 +326,16 @@ function demarrer(racine) {
   }
 
   // Point de l'image (pixels) dans le repère, et inversement, à l'échelle de travail et à l'origine du fond.
-  const pixelVersPlan = (point, metres) => ({ x: point.x * metres + origineFond().x, y: point.y * metres + origineFond().y });
-  const planVersPixel = (point, metres) => ({ x: (point.x - origineFond().x) / metres, y: (point.y - origineFond().y) / metres });
+  function pixelVersPlan(point, metres) {
+    const p = pixelVersRepere(point, metres);
+    const o = origineFond();
+    return { x: p.x + o.x, y: p.y + o.y };
+  }
+
+  function planVersPixel(point, metres) {
+    const o = origineFond();
+    return repereVersPixel({ x: point.x - o.x, y: point.y - o.y }, metres);
+  }
 
   function rendreCotes() {
     couches.cotes.replaceChildren();
@@ -425,8 +433,7 @@ function demarrer(racine) {
       recalibrer.hidden = !contenu.fond;
     }
 
-    const recaler = el("[data-action=recaler]");
-    if (recaler) {
+    for (const recaler of tous("[data-action=recaler]")) {
       recaler.hidden = !contenu.fond;
     }
 
@@ -496,7 +503,7 @@ function demarrer(racine) {
     el("[data-role=piece-surface]").textContent = formaterSurface(piece.contour);
     el("[data-role=piece-perimetre]").textContent = formaterMetres(perimetre(piece.contour));
     el("[data-role=piece-sommets]").textContent = String(piece.contour.length);
-    defautAffiche(el("[data-role=piece-defaut]"), defautPiece(contenu, cadre, s.index));
+    defautAffiche(el("[data-role=piece-defaut]"), etat.apercu ? null : defautPiece(contenu, cadre, s.index));
     rendreSommet("piece", piece.contour, s);
   }
 
@@ -531,7 +538,7 @@ function demarrer(racine) {
 
     const autres = contenu.pieces.filter(p => p.zoneId !== o.zones[0]).map(p => [p.zoneId, nomZone(cadre, p.zoneId)]);
     remplirListe(el("[data-champ=ouverture-face]"), [["", "Extérieur"], ...autres], o.zones[1] ?? "");
-    defautAffiche(el("[data-role=ouverture-defaut]"), defautOuverture(contenu, s.index));
+    defautAffiche(el("[data-role=ouverture-defaut]"), etat.apercu ? null : defautOuverture(contenu, s.index));
   }
 
   function rendrePanneauEscalier(s) {
@@ -541,7 +548,7 @@ function demarrer(racine) {
     remplirListe(el("[data-champ=escalier-type]"), optionsLiaison(), e.type);
     remplirListe(el("[data-champ=escalier-niveau]"), optionsNiveaux(), e.versNiveauId);
     el("[data-role=escalier-surface]").textContent = formaterSurface(e.contour);
-    defautAffiche(el("[data-role=escalier-defaut]"), defautEscalier(contenu, cadre, s.index));
+    defautAffiche(el("[data-role=escalier-defaut]"), etat.apercu ? null : defautEscalier(contenu, cadre, s.index));
     rendreSommet("escalier", e.contour, s);
   }
 
@@ -672,6 +679,18 @@ function demarrer(racine) {
     planifierVue();
   }
 
+  // Pendant un glissement : au plus un rendu par image (requestAnimationFrame).
+  let renduPlanifie = false;
+  function planifierRendu() {
+    if (!renduPlanifie) {
+      renduPlanifie = true;
+      requestAnimationFrame(() => {
+        renduPlanifie = false;
+        rendre();
+      });
+    }
+  }
+
   // ——— Historique et brouillon ———
   let ecriturePlanifiee = null;
   function ecrireBrouillonMaintenant() {
@@ -727,17 +746,23 @@ function demarrer(racine) {
 
     etat.historique = retour ? retablir(etat.historique) : annuler(etat.historique);
     const saisie = present().saisie;
+    let recadrer = false;
     if (saisie && etat.panneau !== "calibration") {
       etat.echelleSaisie = echelleInitiale(saisie.fondId, present());
       etat.panneau = "calibration";
+      recadrer = true;
     } else if (!saisie && etat.panneau === "calibration") {
       etat.echelleSaisie = null;
       etat.panneau = etat.mode === "guide" ? "fond" : "proprietes";
+      recadrer = true;
     }
 
     verifierSelection();
     memoriserBrouillon();
     rendre();
+    if (recadrer) {
+      ajusterVue();
+    }
   }
 
   function charger(lue) {
@@ -947,7 +972,10 @@ function demarrer(racine) {
       document = commencerTrace(document, genre, options);
     }
 
-    const contours = [...contoursAccrochage(document.contenu), document.trace.points, ...(etat.calque.affiche ? contoursAccrochage(etat.calque.contenu) : [])];
+    const contours = [
+      ...contoursAccrochage(document.contenu), ...segmentsDuTrace(document.trace.points),
+      ...(etat.calque.affiche ? contoursAccrochage(etat.calque.contenu) : []),
+    ];
     const { point: accroche } = accrocher(point, contours, tolerance());
     if (fermeLeTrace(document.trace, accroche, tolerance())) {
       changer(document);
@@ -1219,6 +1247,11 @@ function demarrer(racine) {
   }
 
   async function commencerRecalage() {
+    if (!present().contenu.fond) {
+      message("Calibrez d'abord un fond : le recalage déplace le fond de ce niveau.", "avertissement");
+      return;
+    }
+
     if (!d.planInferieur || !(await chargerCalque())) {
       message(`Recalage impossible : le niveau inférieur n'a pas encore de plan enregistré.`, "avertissement");
       return;
@@ -1230,6 +1263,11 @@ function demarrer(racine) {
     }
 
     afficherCalque(true);
+    const contenu = present().contenu;
+    const trace = contenu.pieces.length + contenu.ouvertures.length + contenu.escaliers.length + contenu.composants.length > 0;
+    const deplacerTrace = el("[data-champ=recalage-trace]");
+    deplacerTrace.checked = trace && etat.reference.contenu.fond?.fondId === contenu.fond.fondId;
+    deplacerTrace.closest("label").hidden = !trace;
     etat.recalage = recalage.creerRecalage();
     etat.retourRecalage = etat.panneau;
     etat.panneau = "recalage";
@@ -1251,7 +1289,7 @@ function demarrer(racine) {
     }
 
     finirRecalage();
-    changer(appliquerDecalage(present(), calcul.decalage));
+    changer(appliquerDecalage(present(), calcul.decalage, el("[data-champ=recalage-trace]").checked));
     ajusterVue();
     message(etat.mode === "guide"
       ? "Fond recalé sur le niveau inférieur : il sera enregistré avec les pièces."
@@ -1443,7 +1481,7 @@ function demarrer(racine) {
 
       if (geste.deplace && geste.element) {
         etat.apercu = apercuGlisser(geste.element, p);
-        rendre();
+        planifierRendu();
       } else if (geste.deplace) {
         etat.vue = deplacer(etat.vue, etat.affichage, p.x - geste.dernier.x, p.y - geste.dernier.y);
         planifierVue();
@@ -1523,7 +1561,14 @@ function demarrer(racine) {
     // Suppr l'efface, Échap le désélectionne ou abandonne le tracé.
     if (modifiable && etat.selection && fleches[evenement.key]) {
       const pas = (etat.selection.sommet != null ? 0.01 : PAS_CLAVIER) * (evenement.shiftKey ? 10 : 1);
-      deplacerSelection(fleches[evenement.key][0] * pas, fleches[evenement.key][1] * pas);
+      const [fx, fy] = fleches[evenement.key];
+      const s = etat.selection;
+      if (s.genre === "ouverture") {
+        modifierSelection(doc => glisserOuverture(doc, s.index, (fx + fy) * pas)); // ← ↑ : vers « de », → ↓ : vers « a »
+      } else {
+        deplacerSelection(fx * pas, fy * pas);
+      }
+
       evenement.preventDefault();
       return;
     }

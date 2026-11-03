@@ -342,6 +342,7 @@ else
                         <h2>Recaler le fond sur @(NiveauInferieur?.Nom ?? "le niveau inférieur")</h2>
                         <p class="note">Touchez deux fois le même point du bâtiment (angle de mur, cage d'escalier), d'abord sur le calque en pointillés du niveau inférieur, puis sur le fond de ce niveau. Le fond est seulement déplacé : l'échelle reste celle de la calibration.</p>
                         <p class="note" data-role="recalage-consigne"></p>
+                        <label class="case-ligne"><input type="checkbox" data-champ="recalage-trace" /> Déplacer aussi ce qui est déjà tracé sur ce fond</label>
                         <p class="alerte" data-role="recalage-resultat" hidden></p>
                         <div class="editeur-actions-panneau">
                             <button type="button" class="bouton-secondaire" data-action="recalage-annuler">Annuler</button>

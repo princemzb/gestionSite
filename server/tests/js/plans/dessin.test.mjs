@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  abandonnerTrace, accrocher, ajouterSommet, autresNiveaux, avancement, changerZone, commencerTrace, contoursAccrochage, defautEscalier,
+  abandonnerTrace, accrocher, ajouterSommet, autresNiveaux, avancement, changerZone, commencerTrace, contoursAccrochage, defautEscalier, segmentsDuTrace,
   defautOuverture, defautPiece, deplacerElement, formaterSurface, deplacerSommet, elementSous, fermeLeTrace, fermerTrace, glisserOuverture, insererSommet,
   largeurOuverture, libelleType, messageDessin, modifierEscalier, modifierOuverture, nomNiveau, nomZone, pieceEnFace, poserOuverture,
   premierDefaut, regler, supprimerElement, supprimerSommet, zonesALaMarge, zonesDessinables, zonesRestantes,
@@ -253,6 +253,17 @@ describe("édition des éléments posés", () => {
     assert.equal(supprimerElement(d, { genre: "ouverture", index: 1 }).contenu.ouvertures.length, 1);
   });
 
+  it("supprime avec la pièce une porte posée sur son mur, même reliée à la pièce d'en face", () => {
+    // Nef et chapelle séparées par un mur de 20 cm : la porte posée sur le mur de la nef relie les deux.
+    let d = fermerTrace(tracer(vide, rectangle(0, 0, 10, 8)), cadre).document;
+    d = fermerTrace(tracer(d, rectangle(10.2, 0, 4, 4), "piece", { zoneId: "chapelle" }), cadre).document;
+    d = poserOuverture(d, "Porte", { x: 10, y: 2 }, 0.1).document;
+    d = poserOuverture(d, "Fenetre", { x: 12, y: 0 }, 0.1).document;
+    assert.deepEqual(d.contenu.ouvertures[0].zones, ["nef", "chapelle"]);
+    const sans = supprimerElement(d, nef);
+    assert.deepEqual(sans.contenu.ouvertures.map(o => o.type), ["Fenetre"]);
+  });
+
   it("change la zone d'une pièce, reprise par ses ouvertures, et règle un escalier", () => {
     let d = poserOuverture(deuxPieces(), "Porte", { x: 10, y: 2 }, 0.3).document;
     assert.equal(changerZone(d, 1, "sacristie"), d);
@@ -302,6 +313,15 @@ describe("désignation et accrochage", () => {
     assert.deepEqual(elementSous(c, { x: 12, y: 1 }, 0.1), { genre: "piece", index: 1 });
     assert.deepEqual(elementSous(c, { x: 5, y: 5 }, 0.1, { genre: "piece", index: 7 }), { genre: "piece", index: 0 });
     assert.equal(elementSous(c, { x: 50, y: 50 }, 0.1), null);
+  });
+
+  it("n'accroche pas le tracé en cours à son arête de fermeture", () => {
+    assert.deepEqual(segmentsDuTrace([]), [[]]);
+    assert.deepEqual(segmentsDuTrace([{ x: 0, y: 0 }]), [[{ x: 0, y: 0 }]]);
+    const enCours = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }];
+    assert.equal(segmentsDuTrace(enCours).length, 2);
+    // Le point (2 ; 2,05) est près de la diagonale de fermeture (4 ; 4)-(0 ; 0) : il n'y est pas accroché.
+    assert.deepEqual(accrocher({ x: 2, y: 2.05 }, segmentsDuTrace(enCours), 0.1), { point: { x: 2, y: 2.05 }, accroche: null });
   });
 
   it("accroche au sommet, sinon à l'arête, sinon au point touché", () => {
